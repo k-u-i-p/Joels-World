@@ -74,8 +74,11 @@ function getRandomColor() {
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   console.log('Client connected');
+
+  const urlParams = new URLSearchParams(req.url.split('?')[1] || "");
+  ws.isAdmin = urlParams.get('admin') === 'true';
 
   const newPlayerId = 'player_' + Math.random().toString(36).substring(2, 9);
   ws.clientId = newPlayerId;
@@ -147,6 +150,7 @@ wss.on('connection', (ws) => {
           }
         }
       } else if (data.type === 'move_building') {
+        if (!ws.isAdmin) return console.log('Unauthorized move_building attempt');
         const building = buildings.find(b => b.id === data.id);
         if (building) {
           building.x = data.x;
@@ -159,6 +163,7 @@ wss.on('connection', (ws) => {
           }
         }
       } else if (data.type === 'rotate_building') {
+        if (!ws.isAdmin) return console.log('Unauthorized rotate_building attempt');
         const building = buildings.find(b => b.id === data.id);
         if (building) {
           building.rotation = data.rotation;
