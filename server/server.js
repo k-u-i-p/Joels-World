@@ -54,18 +54,43 @@ try {
           console.log('Buildings file updated, broadcasting to clients...');
           const broadcastMsg = JSON.stringify({ type: 'buildings_update', buildings });
           for (const client of wss.clients) {
-            if (client.readyState === 1) { // OPEN
+            if (client.readyState === 1 && !client.isAdmin) { // OPEN
               client.send(broadcastMsg);
             }
           }
         }
       } catch (e) {
-        console.error("Error reloading buildings on watch:", e);
+        console.error('Error reloading buildings on watch event:', e);
       }
     }, 100);
   });
 } catch (e) {
-  console.error("Failed to watch buildings file:", e);
+  console.error('Failed to setup watch on buildings file:', e);
+}
+
+let plantsTimer;
+try {
+  fs.watch(plantsFile, (eventType, filename) => {
+    if (plantsTimer) clearTimeout(plantsTimer);
+    plantsTimer = setTimeout(() => {
+      try {
+        if (fs.existsSync(plantsFile)) {
+          plants = JSON.parse(fs.readFileSync(plantsFile, 'utf-8'));
+          console.log('Plants file updated, broadcasting to clients...');
+          const broadcastMsg = JSON.stringify({ type: 'plants_update', plants });
+          for (const client of wss.clients) {
+            if (client.readyState === 1 && !client.isAdmin) { // OPEN
+              client.send(broadcastMsg);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error reloading plants on watch event:', e);
+      }
+    }, 100);
+  });
+} catch (e) {
+  console.error('Failed to setup watch on plants file:', e);
 }
 
 
@@ -150,7 +175,7 @@ wss.on('connection', (ws, req) => {
             client.send(broadcastMsg);
           }
         }
-      } else if (ws.isAdmin && handleAdminMessage(ws, data, buildings, buildingsFile, __dirname)) {
+      } else if (ws.isAdmin && handleAdminMessage(ws, data, { buildings, buildingsFile, plants, plantsFile, __dirname })) {
         // Handled securely by the admin controller
       }
     } catch (err) {

@@ -1,5 +1,5 @@
 export function setupAdmin(deps) {
-  const { canvas, player, getBuildings, ws } = deps;
+  const { canvas, player, getBuildings, getPlants, ws } = deps;
 
   // Create UI overlay
   const adminPanel = document.createElement('div');
@@ -78,6 +78,7 @@ export function setupAdmin(deps) {
 
   let draggedBuilding = null;
   let selectedBuilding = null;
+  let draggedPlant = null;
   let dragOffsetX = 0;
   let dragOffsetY = 0;
 
@@ -106,9 +107,22 @@ export function setupAdmin(deps) {
     selectedBuilding = null;
 
     const buildings = getBuildings();
+    const plants = getPlants();
 
-    // Search backwards so that buildings drawn last (on top) are picked first
-    for (let i = buildings.length - 1; i >= 0; i--) {
+    // Check plants and buildings backwards so that top items are selected first
+    for (let i = plants.length - 1; i >= 0; i--) {
+      const plant = plants[i];
+      if (Math.hypot(worldX - plant.x, worldY - plant.y) <= plant.size) {
+        console.log(`Dragging plant: ${plant.id}`);
+        draggedPlant = plant;
+        dragOffsetX = plant.x - worldX;
+        dragOffsetY = plant.y - worldY;
+        break;
+      }
+    }
+
+    if (!draggedPlant) {
+      for (let i = buildings.length - 1; i >= 0; i--) {
       const building = buildings[i];
       if (isPointInBuilding(worldX, worldY, building)) {
         console.log(`Dragging building: ${building.id}`);
@@ -119,8 +133,9 @@ export function setupAdmin(deps) {
         break;
       }
     }
+    }
 
-    if (!draggedBuilding && !e.target.closest('#admin-panel')) {
+    if (!draggedPlant && !draggedBuilding && !e.target.closest('#admin-panel')) {
       if (e.shiftKey && window.adminBackgroundImage) {
         isDraggingAdminImage = true;
         bgDragOffsetX = (window.adminBackgroundImage._x || 0) - worldX;
@@ -147,6 +162,16 @@ export function setupAdmin(deps) {
 
       draggedBuilding.x = Math.round(worldX + dragOffsetX);
       draggedBuilding.y = Math.round(worldY + dragOffsetY);
+    } else if (draggedPlant) {
+      const canvasRect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - canvasRect.left;
+      const mouseY = e.clientY - canvasRect.top;
+
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
+
+      draggedPlant.x = Math.round(worldX + dragOffsetX);
+      draggedPlant.y = Math.round(worldY + dragOffsetY);
     } else if (isDraggingAdminImage && window.adminBackgroundImage) {
       const canvasRect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - canvasRect.left;
@@ -178,6 +203,17 @@ export function setupAdmin(deps) {
         }));
       }
       draggedBuilding = null;
+    }
+    if (draggedPlant) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ 
+          type: 'move_plant', 
+          id: draggedPlant.id, 
+          x: draggedPlant.x, 
+          y: draggedPlant.y 
+        }));
+      }
+      draggedPlant = null;
     }
     isDraggingBackground = false;
     isDraggingAdminImage = false;

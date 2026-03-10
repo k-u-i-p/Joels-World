@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 
-export function handleAdminMessage(ws, data, buildings, buildingsFile, __dirname) {
+export function handleAdminMessage(ws, data, context) {
+  const { buildings, buildingsFile, plants, plantsFile, __dirname } = context;
+
   if (data.type === 'move_building') {
     const building = buildings.find(b => b.id === data.id);
     if (building) {
@@ -11,6 +13,18 @@ export function handleAdminMessage(ws, data, buildings, buildingsFile, __dirname
         fs.writeFileSync(buildingsFile, JSON.stringify(buildings, null, 2), 'utf-8');
       } catch (e) {
         console.error('Failed saving buildings file:', e);
+      }
+    }
+    return true;
+  } else if (data.type === 'move_plant') {
+    const plant = plants.find(p => p.id === data.id);
+    if (plant) {
+      plant.x = data.x;
+      plant.y = data.y;
+      try {
+        fs.writeFileSync(plantsFile, JSON.stringify(plants, null, 2), 'utf-8');
+      } catch (e) {
+        console.error('Failed saving plants file:', e);
       }
     }
     return true;

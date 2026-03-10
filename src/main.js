@@ -41,6 +41,8 @@ ws.onmessage = (event) => {
         player.chatMessage = data.message;
         player.chatTime = Date.now();
       }
+    } else if (data.type === 'plants_update') {
+      plants = data.plants || [];
     } else if (data.type === 'buildings_update') {
       buildings = data.buildings || [];
       // Preload any new SVGs
@@ -595,6 +597,7 @@ if (isAdmin) {
       canvas, 
       player, 
       getBuildings: () => buildings, 
+      getPlants: () => plants,
       ws 
     });
   }).catch(err => console.error('Failed to load admin module:', err));
