@@ -44,16 +44,16 @@ export function setupAdmin(deps) {
     };
 
     document.getElementById('btn-size-dec').onclick = () => {
-      selectedBuilding.width = Math.max(10, selectedBuilding.width - 20);
-      selectedBuilding.height = Math.max(10, selectedBuilding.height - 20);
+      selectedBuilding.width = Math.max(10, Math.round((selectedBuilding.width / 100) * 90));
+      selectedBuilding.height = Math.max(10, Math.round((selectedBuilding.height / 100) * 90));
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
       }
     };
 
     document.getElementById('btn-size-inc').onclick = () => {
-      selectedBuilding.width += 20;
-      selectedBuilding.height += 20;
+      selectedBuilding.width = Math.round((selectedBuilding.width / 100) * 110);
+      selectedBuilding.height = Math.round((selectedBuilding.height / 100) * 110);
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
       }
