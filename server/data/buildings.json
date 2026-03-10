@@ -2,8 +2,8 @@
   {
     "id": "tennis_court",
     "svg": "tennis_court.svg",
-    "x": -336,
-    "y": 738,
+    "x": -365,
+    "y": 763,
     "rotation": 50,
     "width": 219,
     "height": 292,
@@ -173,8 +173,8 @@
   {
     "id": "astro_turf",
     "svg": "astro_turf.svg",
-    "x": -54,
-    "y": 1057,
+    "x": -49,
+    "y": 1064,
     "rotation": -40,
     "width": 400,
     "height": 620,
@@ -183,8 +183,8 @@
   {
     "id": "track_field",
     "svg": "track_field.svg",
-    "x": -573,
-    "y": 208,
+    "x": -631,
+    "y": 251,
     "rotation": 50,
     "width": 857,
     "height": 536,
