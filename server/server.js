@@ -158,6 +158,16 @@ wss.on('connection', (ws) => {
             console.error('Failed saving buildings file:', e);
           }
         }
+      } else if (data.type === 'rotate_building') {
+        const building = buildings.find(b => b.id === data.id);
+        if (building) {
+          building.rotation = data.rotation;
+          try {
+            fs.writeFileSync(buildingsFile, JSON.stringify(buildings, null, 2), 'utf-8');
+          } catch (e) {
+            console.error('Failed saving buildings file:', e);
+          }
+        }
       }
     } catch (err) {
       console.error('Error processing message:', err);

@@ -103,6 +103,17 @@ window.addEventListener('keydown', (e) => {
 
   if (isChatFocused) return;
 
+  if ((e.key === 'r' || e.key === 'R') && selectedBuilding) {
+    selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 10) % 360;
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ 
+        type: 'rotate_building', 
+        id: selectedBuilding.id, 
+        rotation: selectedBuilding.rotation 
+      }));
+    }
+  }
+
   if (keys.hasOwnProperty(e.code)) {
     keys[e.code] = true;
   }
@@ -131,6 +142,7 @@ function isPointInBuilding(worldX, worldY, building) {
 }
 
 let draggedBuilding = null;
+let selectedBuilding = null;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
 
@@ -143,12 +155,15 @@ window.addEventListener('mousedown', (e) => {
   const worldX = mouseX - canvas.width / 2 + player.x;
   const worldY = mouseY - canvas.height / 2 + player.y;
 
+  selectedBuilding = null;
+
   // Search backwards so that buildings drawn last (on top) are picked first
   for (let i = buildings.length - 1; i >= 0; i--) {
     const building = buildings[i];
     if (isPointInBuilding(worldX, worldY, building)) {
       console.log(`Dragging building: ${building.id}`);
       draggedBuilding = building;
+      selectedBuilding = building;
       dragOffsetX = building.x - worldX;
       dragOffsetY = building.y - worldY;
       break;
