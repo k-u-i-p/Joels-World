@@ -18,7 +18,7 @@
   {
     "id": "academic_north",
     "svg": "academic_north.svg",
-    "x": 430,
+    "x": 429,
     "y": 411,
     "rotation": 33,
     "width": 260,
@@ -173,9 +173,9 @@
   {
     "id": "astro_turf_1773181719545",
     "svg": "astro_turf.svg",
-    "x": 1101,
-    "y": 788,
-    "rotation": 0,
+    "x": -1720,
+    "y": 396,
+    "rotation": 10,
     "width": 1800,
     "height": 3600,
     "walls": []

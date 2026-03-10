@@ -108,3 +108,50 @@ html, body {
 #chat-input::placeholder {
   color: #576574;
 }
+
+/* Admin Panel */
+#admin-panel {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background-color: #2c3e50;
+  padding: 15px;
+  border-radius: 8px;
+  color: white;
+  z-index: 50;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  font-family: sans-serif;
+}
+
+#admin-panel h3 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  text-align: center;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.control-row span {
+  margin-right: 10px;
+  font-size: 14px;
+}
+
+.control-row button {
+  background-color: #34495e;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  margin-left: 5px;
+  font-weight: bold;
+}
+
+.control-row button:hover {
+  background-color: #3498db;
+}

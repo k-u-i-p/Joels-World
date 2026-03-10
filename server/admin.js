@@ -25,6 +25,18 @@ export function handleAdminMessage(ws, data, buildings, buildingsFile, __dirname
       }
     }
     return true;
+  } else if (data.type === 'resize_building') {
+    const building = buildings.find(b => b.id === data.id);
+    if (building) {
+      building.width = data.width;
+      building.height = data.height;
+      try {
+        fs.writeFileSync(buildingsFile, JSON.stringify(buildings, null, 2), 'utf-8');
+      } catch (e) {
+        console.error('Failed saving buildings file:', e);
+      }
+    }
+    return true;
   } else if (data.type === 'create_building') {
     const filename = path.basename(data.filename).replace(/\s+/g, '_');
     const publicPath = path.resolve(__dirname, '../public', filename);

@@ -1,19 +1,78 @@
 export function setupAdmin(deps) {
   const { canvas, player, getBuildings, ws } = deps;
 
+  // Create UI overlay
+  const adminPanel = document.createElement('div');
+  adminPanel.id = 'admin-panel';
+  adminPanel.style.display = 'none';
+  document.body.appendChild(adminPanel);
+
+  function updateAdminPanel() {
+    if (!selectedBuilding) {
+      adminPanel.style.display = 'none';
+      return;
+    }
+
+    adminPanel.style.display = 'block';
+    adminPanel.innerHTML = `
+      <h3>Edit Building</h3>
+      <div class="control-row">
+        <span>Rotate:</span>
+        <button id="btn-rot-left">↺</button>
+        <button id="btn-rot-right">↻</button>
+      </div>
+      <div class="control-row">
+        <span>Size:</span>
+        <button id="btn-size-dec">-</button>
+        <button id="btn-size-inc">+</button>
+      </div>
+    `;
+
+    document.getElementById('btn-rot-left').onclick = () => {
+      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) - 10) % 360;
+      console.log('rotate');
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
+      }
+    };
+
+    document.getElementById('btn-rot-right').onclick = () => {
+      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 10) % 360;
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
+      }
+    };
+
+    document.getElementById('btn-size-dec').onclick = () => {
+      selectedBuilding.width = Math.max(10, selectedBuilding.width - 20);
+      selectedBuilding.height = Math.max(10, selectedBuilding.height - 20);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+      }
+    };
+
+    document.getElementById('btn-size-inc').onclick = () => {
+      selectedBuilding.width += 20;
+      selectedBuilding.height += 20;
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+      }
+    };
+  }
+
   function isPointInBuilding(worldX, worldY, building) {
     const bdx = worldX - building.x;
     const bdy = worldY - building.y;
     const angle = -(building.rotation || 0) * Math.PI / 180;
-    
+
     // Inverse rotation to get local coordinates relative to center
     const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
     const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
-    
+
     // Offset so (0,0) is top-left
     const tlX = localX + building.width / 2;
     const tlY = localY + building.height / 2;
-    
+
     return tlX >= 0 && tlX <= building.width && tlY >= 0 && tlY <= building.height;
   }
 
@@ -21,21 +80,23 @@ export function setupAdmin(deps) {
   let selectedBuilding = null;
   let dragOffsetX = 0;
   let dragOffsetY = 0;
-  
+
   let isDraggingBackground = false;
   let lastMouseX = 0;
   let lastMouseY = 0;
 
   window.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return; // Only left click
+    if (e.target.closest('#admin-panel')) return; // Ignore clicks on the admin panel itself
+
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
-    
+
     // Use canvas coordinates for simple delta tracking
     lastMouseX = e.clientX;
     lastMouseY = e.clientY;
-    
+
     const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
     const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
 
@@ -55,9 +116,14 @@ export function setupAdmin(deps) {
         break;
       }
     }
-    
-    if (!draggedBuilding) {
+
+    if (!draggedBuilding && !e.target.closest('#admin-panel')) {
       isDraggingBackground = true;
+    }
+
+    // Only update panel if we didn't click on the panel itself
+    if (!e.target.closest('#admin-panel')) {
+      updateAdminPanel();
     }
   });
 
@@ -66,7 +132,7 @@ export function setupAdmin(deps) {
       const canvasRect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
-      
+
       const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
       const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
 
@@ -85,32 +151,16 @@ export function setupAdmin(deps) {
   window.addEventListener('mouseup', () => {
     if (draggedBuilding) {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ 
-          type: 'move_building', 
-          id: draggedBuilding.id, 
-          x: draggedBuilding.x, 
-          y: draggedBuilding.y 
+        ws.send(JSON.stringify({
+          type: 'move_building',
+          id: draggedBuilding.id,
+          x: draggedBuilding.x,
+          y: draggedBuilding.y
         }));
       }
       draggedBuilding = null;
     }
     isDraggingBackground = false;
-  });
-
-  window.addEventListener('keydown', (e) => {
-    const chatInput = document.getElementById('chat-input');
-    if (document.activeElement === chatInput) return; // Let chat handle keys
-
-    if ((e.key === 'r' || e.key === 'R') && selectedBuilding) {
-      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 10) % 360;
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ 
-          type: 'rotate_building', 
-          id: selectedBuilding.id, 
-          rotation: selectedBuilding.rotation 
-        }));
-      }
-    }
   });
 
   window.addEventListener('wheel', (e) => {
@@ -130,7 +180,7 @@ export function setupAdmin(deps) {
     e.preventDefault();
     if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
     const file = e.dataTransfer.files[0];
-    
+
     // Check if it is an SVG file
     if (file.type !== 'image/svg+xml' && !file.name.toLowerCase().endsWith('.svg')) {
       console.warn("Dropped file is not an SVG:", file.name);
@@ -140,17 +190,17 @@ export function setupAdmin(deps) {
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target.result;
-      
+
       const canvasRect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
-      
+
       const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
       const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
 
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ 
-          type: 'create_building', 
+        ws.send(JSON.stringify({
+          type: 'create_building',
           filename: file.name,
           content: content,
           x: Math.round(worldX),
