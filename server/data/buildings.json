@@ -2,8 +2,8 @@
   {
     "id": "tennis_court",
     "svg": "tennis_court.svg",
-    "x": -315,
-    "y": 716,
+    "x": -457,
+    "y": 704,
     "rotation": 40,
     "width": 300,
     "height": 400,
@@ -111,8 +111,8 @@
   {
     "id": "pool_block",
     "svg": "pool_block.svg",
-    "x": 350,
-    "y": 650,
+    "x": 198,
+    "y": 688,
     "rotation": 33,
     "width": 150,
     "height": 90,
@@ -142,8 +142,8 @@
   {
     "id": "sports_hall",
     "svg": "sports_hall.svg",
-    "x": 430,
-    "y": 720,
+    "x": 349,
+    "y": 813,
     "rotation": 33,
     "width": 200,
     "height": 140,
@@ -169,5 +169,15 @@
         "height": 140
       }
     ]
+  },
+  {
+    "id": "astro_turf_1773181719545",
+    "svg": "astro_turf.svg",
+    "x": 1101,
+    "y": 788,
+    "rotation": 0,
+    "width": 1800,
+    "height": 3600,
+    "walls": []
   }
 ]

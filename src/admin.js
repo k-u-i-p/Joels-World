@@ -121,4 +121,43 @@ export function setupAdmin(deps) {
       window.cameraZoom = Math.max(0.1, Math.min(window.cameraZoom, 5));
     }
   }, { passive: false });
+
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
+    const file = e.dataTransfer.files[0];
+    
+    // Check if it is an SVG file
+    if (file.type !== 'image/svg+xml' && !file.name.toLowerCase().endsWith('.svg')) {
+      console.warn("Dropped file is not an SVG:", file.name);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      
+      const canvasRect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - canvasRect.left;
+      const mouseY = e.clientY - canvasRect.top;
+      
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
+
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ 
+          type: 'create_building', 
+          filename: file.name,
+          content: content,
+          x: Math.round(worldX),
+          y: Math.round(worldY)
+        }));
+      }
+    };
+    reader.readAsText(file);
+  });
 }
