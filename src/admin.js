@@ -36,8 +36,8 @@ export function setupAdmin(deps) {
     lastMouseX = e.clientX;
     lastMouseY = e.clientY;
     
-    const worldX = mouseX - canvas.width / 2 + player.x;
-    const worldY = mouseY - canvas.height / 2 + player.y;
+    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
+    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
 
     selectedBuilding = null;
 
@@ -67,14 +67,14 @@ export function setupAdmin(deps) {
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
       
-      const worldX = mouseX - canvas.width / 2 + player.x;
-      const worldY = mouseY - canvas.height / 2 + player.y;
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
 
       draggedBuilding.x = Math.round(worldX + dragOffsetX);
       draggedBuilding.y = Math.round(worldY + dragOffsetY);
     } else if (isDraggingBackground) {
-      const dx = lastMouseX - e.clientX;
-      const dy = lastMouseY - e.clientY;
+      const dx = (lastMouseX - e.clientX) / window.cameraZoom;
+      const dy = (lastMouseY - e.clientY) / window.cameraZoom;
       player.x += dx;
       player.y += dy;
       lastMouseX = e.clientX;
@@ -112,4 +112,13 @@ export function setupAdmin(deps) {
       }
     }
   });
+
+  window.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) {
+      e.preventDefault();
+      const zoomSensitivity = 0.01;
+      window.cameraZoom -= e.deltaY * zoomSensitivity;
+      window.cameraZoom = Math.max(0.1, Math.min(window.cameraZoom, 5));
+    }
+  }, { passive: false });
 }

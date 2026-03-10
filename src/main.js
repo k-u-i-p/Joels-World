@@ -2,6 +2,7 @@ import './style.css'
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+window.cameraZoom = 1;
 
 // --- WEBSOCKET CLIENT ---
 const urlParams = new URLSearchParams(window.location.search);
@@ -295,7 +296,9 @@ function draw() {
 
   // Camera translation (Centers the world on the player)
   ctx.save();
-  ctx.translate(canvas.width / 2 - player.x, canvas.height / 2 - player.y);
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.scale(window.cameraZoom, window.cameraZoom);
+  ctx.translate(-player.x, -player.y);
 
   // --- BUILDINGS ---
   // Drawn first so they appear on the ground beneath the player and plants
