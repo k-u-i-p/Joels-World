@@ -1,0 +1,11 @@
+[
+  {
+    "id": "tennis_court",
+    "svg": "tennis_court.svg",
+    "x": 400,
+    "y": 300,
+    "rotation": 10,
+    "width": 300,
+    "height": 400
+  }
+]

@@ -1,0 +1,12 @@
+[
+  { "type": "oak", "x": 100, "y": 150, "size": 40, "color": "#2ecc71" },
+  { "type": "pine", "x": 300, "y": 200, "size": 35, "color": "#1e8449" },
+  { "type": "shrub", "x": 500, "y": 100, "size": 15, "color": "#7dcea0" },
+  { "type": "flower", "x": 600, "y": 300, "size": 5, "color": "#e74c3c" },
+  { "type": "oak", "x": 800, "y": 400, "size": 50, "color": "#27ae60" },
+  { "type": "pine", "x": 200, "y": 500, "size": 30, "color": "#117a65" },
+  { "type": "shrub", "x": 400, "y": 600, "size": 20, "color": "#52be80" },
+  { "type": "flower", "x": 700, "y": 500, "size": 6, "color": "#f1c40f" },
+  { "type": "flower", "x": 720, "y": 520, "size": 4, "color": "#3498db" },
+  { "type": "flower", "x": 680, "y": 480, "size": 5, "color": "#9b59b6" }
+]

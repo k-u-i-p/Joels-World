@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Joels World</title>
+  </head>
+  <body>
+    <!-- Naming Dialog Overlay -->
+    <div id="name-dialog" class="overlay">
+      <div class="dialog-content">
+        <h2>Welcome to Joel's World</h2>
+        <input type="text" id="player-name-input" placeholder="Enter your name..." maxlength="15" autocomplete="off" />
+        <br>
+        <button id="start-game-btn" disabled>Loading...</button>
+      </div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+[
+  {
+    "id": 1,
+    "name": "Mr Hardy",
+    "x": 600,
+    "y": 427,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "gender": "male",
+    "shirtColor": "#3498db",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db"
+  }
+]
