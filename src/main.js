@@ -300,6 +300,10 @@ function draw() {
   ctx.scale(window.cameraZoom, window.cameraZoom);
   ctx.translate(-player.x, -player.y);
 
+  if (window.adminBackgroundImage && window.adminBackgroundImage.complete) {
+    ctx.drawImage(window.adminBackgroundImage, window.adminBackgroundImage._x || 0, window.adminBackgroundImage._y || 0);
+  }
+
   // --- BUILDINGS ---
   // Drawn first so they appear on the ground beneath the player and plants
   buildings.forEach(building => {

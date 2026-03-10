@@ -29,7 +29,7 @@ export function setupAdmin(deps) {
     `;
 
     document.getElementById('btn-rot-left').onclick = () => {
-      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) - 10) % 360;
+      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) - 2) % 360;
       console.log('rotate');
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
@@ -37,7 +37,7 @@ export function setupAdmin(deps) {
     };
 
     document.getElementById('btn-rot-right').onclick = () => {
-      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 10) % 360;
+      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 2) % 360;
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
       }
@@ -82,6 +82,9 @@ export function setupAdmin(deps) {
   let dragOffsetY = 0;
 
   let isDraggingBackground = false;
+  let isDraggingAdminImage = false;
+  let bgDragOffsetX = 0;
+  let bgDragOffsetY = 0;
   let lastMouseX = 0;
   let lastMouseY = 0;
 
@@ -118,7 +121,13 @@ export function setupAdmin(deps) {
     }
 
     if (!draggedBuilding && !e.target.closest('#admin-panel')) {
-      isDraggingBackground = true;
+      if (e.shiftKey && window.adminBackgroundImage) {
+        isDraggingAdminImage = true;
+        bgDragOffsetX = (window.adminBackgroundImage._x || 0) - worldX;
+        bgDragOffsetY = (window.adminBackgroundImage._y || 0) - worldY;
+      } else {
+        isDraggingBackground = true;
+      }
     }
 
     // Only update panel if we didn't click on the panel itself
@@ -138,6 +147,16 @@ export function setupAdmin(deps) {
 
       draggedBuilding.x = Math.round(worldX + dragOffsetX);
       draggedBuilding.y = Math.round(worldY + dragOffsetY);
+    } else if (isDraggingAdminImage && window.adminBackgroundImage) {
+      const canvasRect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - canvasRect.left;
+      const mouseY = e.clientY - canvasRect.top;
+
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
+
+      window.adminBackgroundImage._x = Math.round(worldX + bgDragOffsetX);
+      window.adminBackgroundImage._y = Math.round(worldY + bgDragOffsetY);
     } else if (isDraggingBackground) {
       const dx = (lastMouseX - e.clientX) / window.cameraZoom;
       const dy = (lastMouseY - e.clientY) / window.cameraZoom;
@@ -161,6 +180,7 @@ export function setupAdmin(deps) {
       draggedBuilding = null;
     }
     isDraggingBackground = false;
+    isDraggingAdminImage = false;
   });
 
   window.addEventListener('wheel', (e) => {
@@ -181,9 +201,24 @@ export function setupAdmin(deps) {
     if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
     const file = e.dataTransfer.files[0];
 
+    // Check for PNG or JPG file to set as a background
+    const lowerName = file.name.toLowerCase();
+    if (file.type.startsWith('image/') && (lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg'))) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          window.adminBackgroundImage = img;
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
     // Check if it is an SVG file
-    if (file.type !== 'image/svg+xml' && !file.name.toLowerCase().endsWith('.svg')) {
-      console.warn("Dropped file is not an SVG:", file.name);
+    if (file.type !== 'image/svg+xml' && !lowerName.endsWith('.svg')) {
+      console.warn("Dropped file is not an SVG, PNG, or JPG:", file.name);
       return;
     }
 
