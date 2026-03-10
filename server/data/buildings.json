@@ -3,15 +3,170 @@
     "id": "tennis_court",
     "svg": "tennis_court.svg",
     "x": 400,
-    "y": 300,
+    "y": 900,
     "rotation": 10,
     "width": 300,
     "height": 400,
     "walls": [
       {
         "x": 0,
+        "y": 200,
+        "length": 300
+      }
+    ]
+  },
+  {
+    "id": "academic_north",
+    "svg": "academic_north.svg",
+    "x": 300,
+    "y": 110,
+    "rotation": 33,
+    "width": 260,
+    "height": 80,
+    "walls": [
+      {
+        "x": 0,
         "y": 0,
-        "height": 300
+        "length": 260
+      },
+      {
+        "x": 0,
+        "y": 0,
+        "height": 80
+      },
+      {
+        "x": 0,
+        "y": 80,
+        "length": 260
+      },
+      {
+        "x": 260,
+        "y": 0,
+        "height": 80
+      }
+    ]
+  },
+  {
+    "id": "academic_south",
+    "svg": "academic_south.svg",
+    "x": 420,
+    "y": 190,
+    "rotation": 33,
+    "width": 120,
+    "height": 220,
+    "walls": [
+      {
+        "x": 0,
+        "y": 0,
+        "length": 120
+      },
+      {
+        "x": 0,
+        "y": 0,
+        "height": 220
+      },
+      {
+        "x": 0,
+        "y": 220,
+        "length": 120
+      },
+      {
+        "x": 120,
+        "y": 0,
+        "height": 220
+      }
+    ]
+  },
+  {
+    "id": "dining_hall",
+    "svg": "dining_hall.svg",
+    "x": 540,
+    "y": 250,
+    "rotation": 33,
+    "width": 140,
+    "height": 100,
+    "walls": [
+      {
+        "x": 0,
+        "y": 0,
+        "length": 140
+      },
+      {
+        "x": 0,
+        "y": 0,
+        "height": 100
+      },
+      {
+        "x": 0,
+        "y": 100,
+        "length": 140
+      },
+      {
+        "x": 140,
+        "y": 0,
+        "height": 100
+      }
+    ]
+  },
+  {
+    "id": "pool_block",
+    "svg": "pool_block.svg",
+    "x": 350,
+    "y": 650,
+    "rotation": 33,
+    "width": 150,
+    "height": 90,
+    "walls": [
+      {
+        "x": 0,
+        "y": 0,
+        "length": 150
+      },
+      {
+        "x": 0,
+        "y": 0,
+        "height": 90
+      },
+      {
+        "x": 0,
+        "y": 90,
+        "length": 150
+      },
+      {
+        "x": 150,
+        "y": 0,
+        "height": 90
+      }
+    ]
+  },
+  {
+    "id": "sports_hall",
+    "svg": "sports_hall.svg",
+    "x": 430,
+    "y": 720,
+    "rotation": 33,
+    "width": 200,
+    "height": 140,
+    "walls": [
+      {
+        "x": 0,
+        "y": 0,
+        "length": 200
+      },
+      {
+        "x": 0,
+        "y": 0,
+        "height": 140
+      },
+      {
+        "x": 0,
+        "y": 140,
+        "length": 200
+      },
+      {
+        "x": 200,
+        "y": 0,
+        "height": 140
       }
     ]
   }

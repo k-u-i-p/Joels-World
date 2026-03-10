@@ -42,6 +42,31 @@ try {
   console.error("Error loading buildings:", e);
 }
 
+let buildingsTimer;
+try {
+  fs.watch(buildingsFile, (eventType, filename) => {
+    if (buildingsTimer) clearTimeout(buildingsTimer);
+    buildingsTimer = setTimeout(() => {
+      try {
+        if (fs.existsSync(buildingsFile)) {
+          buildings = JSON.parse(fs.readFileSync(buildingsFile, 'utf-8'));
+          console.log('Buildings file updated, broadcasting to clients...');
+          const broadcastMsg = JSON.stringify({ type: 'buildings_update', buildings });
+          for (const client of wss.clients) {
+            if (client.readyState === 1) { // OPEN
+              client.send(broadcastMsg);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error reloading buildings on watch:", e);
+      }
+    }, 100);
+  });
+} catch (e) {
+  console.error("Failed to watch buildings file:", e);
+}
+
 
 
 const colors = ['#e74c3c', '#8e44ad', '#3498db', '#1abc9c', '#2ecc71', '#f1c40f', '#e67e22', '#34495e'];

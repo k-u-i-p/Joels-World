@@ -37,6 +37,17 @@ ws.onmessage = (event) => {
         player.chatMessage = data.message;
         player.chatTime = Date.now();
       }
+    } else if (data.type === 'buildings_update') {
+      buildings = data.buildings || [];
+      // Preload any new SVGs
+      buildings.forEach(building => {
+        if (!preloadedImages[building.svg]) {
+          const img = new Image();
+          img.onerror = () => console.error(`Failed to load SVG: ${building.svg}`);
+          img.src = `/${building.svg}`;
+          preloadedImages[building.svg] = img;
+        }
+      });
     }
   } catch (e) {
     console.error(e);
