@@ -1,25 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 1000" width="100%" height="100%">
-  <rect x="120" y="110" width="360" height="780" fill="#3B74A3" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 980" width="100%" height="100%">
+  <rect x="10" y="0" width="400" height="980" fill="#3D73A2"/>
 
-  <g stroke="#FFFFFF" stroke-width="6" fill="none">
-    <rect x="120" y="110" width="360" height="780" />
+  <rect x="30" y="100" width="360" height="780" fill="none" stroke="#FFFFFF" stroke-width="4"/>
 
-    <line x1="165" y1="110" x2="165" y2="890" />
-    <line x1="435" y1="110" x2="435" y2="890" />
+  <line x1="75" y1="100" x2="75" y2="880" stroke="#FFFFFF" stroke-width="4"/>
+  <line x1="345" y1="100" x2="345" y2="880" stroke="#FFFFFF" stroke-width="4"/>
 
-    <line x1="165" y1="290" x2="435" y2="290" />
-    <line x1="165" y1="710" x2="435" y2="710" />
+  <line x1="75" y1="280" x2="345" y2="280" stroke="#FFFFFF" stroke-width="4"/>
+  <line x1="75" y1="700" x2="345" y2="700" stroke="#FFFFFF" stroke-width="4"/>
 
-    <line x1="300" y1="290" x2="300" y2="710" />
+  <line x1="210" y1="280" x2="210" y2="700" stroke="#FFFFFF" stroke-width="4"/>
 
-    <line x1="300" y1="110" x2="300" y2="125" />
-    <line x1="300" y1="890" x2="300" y2="875" />
-  </g>
+  <line x1="210" y1="100" x2="210" y2="115" stroke="#FFFFFF" stroke-width="4"/>
+  <line x1="210" y1="865" x2="210" y2="880" stroke="#FFFFFF" stroke-width="4"/>
 
-  <line x1="100" y1="500" x2="500" y2="500" stroke="#111111" stroke-width="6" />
-  
-  <line x1="100" y1="500" x2="500" y2="500" stroke="#FFFFFF" stroke-width="2" stroke-dasharray="5,5" />
-
-  <circle cx="100" cy="500" r="6" fill="#111111" />
-  <circle cx="500" cy="500" r="6" fill="#111111" />
+  <line x1="5" y1="490" x2="415" y2="490" stroke="#181818" stroke-width="4"/>
+  <line x1="5" y1="490" x2="415" y2="490" stroke="#FFFFFF" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="5" cy="490" r="5" fill="#181818"/>
+  <circle cx="415" cy="490" r="5" fill="#181818"/>
 </svg>

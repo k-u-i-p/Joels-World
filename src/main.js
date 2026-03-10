@@ -176,6 +176,7 @@ function update() {
     const playerRadius = 15; // slightly smaller than half width for smooth collisions
 
     const canMoveTo = (newX, newY) => {
+      // Check plants
       for (const plant of plants) {
         const distSq = (newX - plant.x) ** 2 + (newY - plant.y) ** 2;
         const minD = (plant.size || 20) + playerRadius;
@@ -183,6 +184,46 @@ function update() {
           return false;
         }
       }
+      
+      // Check building walls
+      for (const building of buildings) {
+        if (!building.walls) continue;
+
+        const bdx = newX - building.x;
+        const bdy = newY - building.y;
+        const angle = -(building.rotation || 0) * Math.PI / 180;
+        
+        // Inverse rotation to get local coordinates relative to center
+        const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
+        const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
+        
+        // Offset so (0,0) is top-left
+        const tlX = localX + building.width / 2;
+        const tlY = localY + building.height / 2;
+
+        for (const wall of building.walls) {
+          const wStartX = wall.x;
+          const wStartY = wall.y;
+          const wEndX = wall.endX !== undefined ? wall.endX : wStartX + (wall.length || wall.width || 0);
+          const wEndY = wall.endY !== undefined ? wall.endY : wStartY + (wall.height || 0);
+
+          let checkDistSq;
+          const l2 = (wEndX - wStartX) ** 2 + (wEndY - wStartY) ** 2;
+          
+          if (l2 === 0) {
+            checkDistSq = (tlX - wStartX) ** 2 + (tlY - wStartY) ** 2;
+          } else {
+            let t = ((tlX - wStartX) * (wEndX - wStartX) + (tlY - wStartY) * (wEndY - wStartY)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            checkDistSq = (tlX - (wStartX + t * (wEndX - wStartX))) ** 2 + (tlY - (wStartY + t * (wEndY - wStartY))) ** 2;
+          }
+
+          if (checkDistSq < playerRadius * playerRadius) {
+            return false;
+          }
+        }
+      }
+
       return true;
     };
 
