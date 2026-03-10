@@ -119,8 +119,6 @@ wss.on('connection', (ws) => {
       const data = JSON.parse(message);
 
       if (data.type === 'update') {
-        console.log('Got update');
-
         const char = data.character;
         ws.clientId = char.id;
         characters[char.id] = char;
@@ -146,6 +144,18 @@ wss.on('connection', (ws) => {
         for (const client of wss.clients) {
           if (client !== ws && client.readyState === 1) {
             client.send(broadcastMsg);
+          }
+        }
+      } else if (data.type === 'move_building') {
+        const building = buildings.find(b => b.id === data.id);
+        if (building) {
+          building.x = data.x;
+          building.y = data.y;
+          try {
+            // Write to file, which will also trigger the fs.watch to broadcast the update
+            fs.writeFileSync(buildingsFile, JSON.stringify(buildings, null, 2), 'utf-8');
+          } catch (e) {
+            console.error('Failed saving buildings file:', e);
           }
         }
       }

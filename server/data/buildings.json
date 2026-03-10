@@ -2,8 +2,8 @@
   {
     "id": "tennis_court",
     "svg": "tennis_court.svg",
-    "x": 400,
-    "y": 900,
+    "x": -123,
+    "y": 638,
     "rotation": 10,
     "width": 300,
     "height": 400,
@@ -18,8 +18,8 @@
   {
     "id": "academic_north",
     "svg": "academic_north.svg",
-    "x": 300,
-    "y": 110,
+    "x": 430,
+    "y": 411,
     "rotation": 33,
     "width": 260,
     "height": 80,
@@ -49,8 +49,8 @@
   {
     "id": "academic_south",
     "svg": "academic_south.svg",
-    "x": 420,
-    "y": 190,
+    "x": 568,
+    "y": 579,
     "rotation": 33,
     "width": 120,
     "height": 220,
@@ -80,8 +80,8 @@
   {
     "id": "dining_hall",
     "svg": "dining_hall.svg",
-    "x": 540,
-    "y": 250,
+    "x": 683,
+    "y": 199,
     "rotation": 33,
     "width": 140,
     "height": 100,
