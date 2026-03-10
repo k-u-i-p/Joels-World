@@ -204,8 +204,19 @@ function update() {
         for (const wall of building.walls) {
           const wStartX = wall.x;
           const wStartY = wall.y;
-          const wEndX = wall.endX !== undefined ? wall.endX : wStartX + (wall.length || wall.width || 0);
-          const wEndY = wall.endY !== undefined ? wall.endY : wStartY + (wall.height || 0);
+          let wEndX = wStartX;
+          let wEndY = wStartY;
+
+          if (wall.endX !== undefined && wall.endY !== undefined) {
+            wEndX = wall.endX;
+            wEndY = wall.endY;
+          } else if (wall.height !== undefined) {
+            // Vertical wall
+            wEndY = wStartY + wall.height;
+          } else {
+            // Horizontal wall
+            wEndX = wStartX + (wall.length || wall.width || 0);
+          }
 
           let checkDistSq;
           const l2 = (wEndX - wStartX) ** 2 + (wEndY - wStartY) ** 2;
