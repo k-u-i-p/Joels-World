@@ -74,3 +74,37 @@ html, body {
   background-color: #95a5a6;
   cursor: not-allowed;
 }
+
+/* Chat System */
+#chat-container {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  z-index: 10;
+  width: 300px;
+}
+
+#chat-input {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-color: rgba(255, 255, 255, 0.5);
+  color: #2c3e50;
+  outline: none;
+  transition: all 0.2s;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  font-family: inherit;
+  pointer-events: auto;
+}
+
+#chat-input:focus {
+  background-color: rgba(255, 255, 255, 0.95);
+  border-color: #3498db;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+#chat-input::placeholder {
+  color: #576574;
+}

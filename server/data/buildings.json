@@ -6,6 +6,13 @@
     "y": 300,
     "rotation": 10,
     "width": 300,
-    "height": 400
+    "height": 400,
+    "walls": [
+      {
+        "x": 0,
+        "y": 150,
+        "length": 300
+      }
+    ]
   }
 ]

@@ -107,6 +107,13 @@ wss.on('connection', (ws) => {
             client.send(broadcastMsg);
           }
         }
+      } else if (data.type === 'chat') {
+        const broadcastMsg = JSON.stringify({ type: 'chat', id: ws.clientId, message: data.message });
+        for (const client of wss.clients) {
+          if (client.readyState === 1) {
+            client.send(broadcastMsg);
+          }
+        }
       } else if (data.type === 'disconnect') {
         const id = data.id;
         delete characters[id];

@@ -28,6 +28,15 @@ ws.onmessage = (event) => {
       }
     } else if (data.type === 'disconnect') {
       characters = characters.filter(c => c.id !== data.id);
+    } else if (data.type === 'chat') {
+      const charIndex = characters.findIndex(c => c.id === data.id);
+      if (charIndex > -1) {
+        characters[charIndex].chatMessage = data.message;
+        characters[charIndex].chatTime = Date.now();
+      } else if (player.id === data.id) {
+        player.chatMessage = data.message;
+        player.chatTime = Date.now();
+      }
     }
   } catch (e) {
     console.error(e);
@@ -50,7 +59,39 @@ const keys = {
   ArrowRight: false
 };
 
+const chatInput = document.getElementById('chat-input');
+let isChatFocused = false;
+
+chatInput.addEventListener('focus', () => { isChatFocused = true; });
+chatInput.addEventListener('blur', () => { isChatFocused = false; });
+
 window.addEventListener('keydown', (e) => {
+  const nameDialog = document.getElementById('name-dialog');
+  if (nameDialog && nameDialog.style.display !== 'none') return;
+
+  if (e.code === 'Enter') {
+    if (isChatFocused) {
+      if (chatInput.value.trim() !== '') {
+        const msg = chatInput.value.trim();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'chat', message: msg }));
+        }
+        chatInput.value = '';
+        
+        // Optimistic local update
+        player.chatMessage = msg;
+        player.chatTime = Date.now();
+      }
+      chatInput.blur();
+    } else {
+      chatInput.focus();
+      e.preventDefault();
+    }
+    return;
+  }
+
+  if (isChatFocused) return;
+
   if (keys.hasOwnProperty(e.code)) {
     keys[e.code] = true;
   }
@@ -305,6 +346,48 @@ function draw() {
       ctx.shadowOffsetY = 1;
 
       ctx.fillText(c.name, 0, 30);
+      ctx.restore();
+    }
+
+    // --- SPEECH BUBBLE ---
+    if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      
+      ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+      const textWidth = ctx.measureText(c.chatMessage).width;
+      const bubbleWidth = textWidth + 24;
+      const bubbleHeight = 32;
+      const bubbleY = -35; 
+      
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetY = 3;
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight, 8);
+      } else {
+        ctx.rect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight);
+      }
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.moveTo(-6, bubbleY);
+      ctx.lineTo(6, bubbleY);
+      ctx.lineTo(0, bubbleY + 8);
+      ctx.fill();
+      
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      
+      ctx.fillStyle = '#2c3e50';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(c.chatMessage, 0, bubbleY - bubbleHeight / 2);
+      
       ctx.restore();
     }
   });
