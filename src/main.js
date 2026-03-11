@@ -325,20 +325,25 @@ function update() {
         c.y += (cdy / dist) * step;
         c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
 
-        // Interpolate rotation efficiently via shortest angle
-        if (c.targetRotation !== undefined) {
-          let rotDiff = c.targetRotation - (c.rotation || 0);
-          while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-          while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-          c.rotation = (c.rotation || 0) + rotDiff * 0.3;
-        }
       } else {
         c.x = c.targetX;
         c.y = c.targetY;
-        if (c.targetRotation !== undefined) {
+        c.legAnimationTime = 0; // stop moving legs
+      }
+      
+      // Interpolate rotation efficiently via shortest angle (even if not moving XY)
+      if (c.targetRotation !== undefined) {
+        let rotDiff = c.targetRotation - (c.rotation || 0);
+        while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+        while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+
+        if (Math.abs(rotDiff) > 0.01) {
+          const rotSpeed = c.rotationSpeed || 0.15;
+          const rotStep = Math.min(Math.abs(rotDiff), rotSpeed);
+          c.rotation = (c.rotation || 0) + Math.sign(rotDiff) * rotStep;
+        } else {
           c.rotation = c.targetRotation;
         }
-        c.legAnimationTime = 0; // stop moving legs
       }
     }
   }
