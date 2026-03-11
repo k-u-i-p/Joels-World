@@ -94,7 +94,7 @@ window.addEventListener('keydown', (e) => {
           ws.send(JSON.stringify({ type: 'chat', message: msg }));
         }
         chatInput.value = '';
-        
+
         // Optimistic local update
         player.chatMessage = msg;
         player.chatTime = Date.now();
@@ -125,7 +125,7 @@ window.addEventListener('keyup', (e) => {
 // Player Entity
 let player = {
   id: 'player1',
-  moveSpeed: 5,
+  moveSpeed: 3,
   rotationSpeed: 0.05,
   legAnimationTime: 0,
   _lastSentX: null,
@@ -194,7 +194,7 @@ function update() {
   let isMoving = false;
   if (dx !== 0 || dy !== 0) {
     isMoving = true;
-    
+
     const playerRadius = 15; // slightly smaller than half width for smooth collisions
 
     const canMoveTo = (newX, newY) => {
@@ -203,7 +203,7 @@ function update() {
         const halfMapW = window.mapImage.width / 2;
         const halfMapH = window.mapImage.height / 2;
         if (newX - playerRadius < -halfMapW || newX + playerRadius > halfMapW ||
-            newY - playerRadius < -halfMapH || newY + playerRadius > halfMapH) {
+          newY - playerRadius < -halfMapH || newY + playerRadius > halfMapH) {
           return false;
         }
       }
@@ -216,7 +216,7 @@ function update() {
           return false;
         }
       }
-      
+
       // Check building walls
       for (const building of buildings) {
         if (!building.walls) continue;
@@ -224,11 +224,11 @@ function update() {
         const bdx = newX - building.x;
         const bdy = newY - building.y;
         const angle = -(building.rotation || 0) * Math.PI / 180;
-        
+
         // Inverse rotation to get local coordinates relative to center
         const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
         const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
-        
+
         // Offset so (0,0) is top-left
         const tlX = localX + building.width / 2;
         const tlY = localY + building.height / 2;
@@ -252,7 +252,7 @@ function update() {
 
           let checkDistSq;
           const l2 = (wEndX - wStartX) ** 2 + (wEndY - wStartY) ** 2;
-          
+
           if (l2 === 0) {
             checkDistSq = (tlX - wStartX) ** 2 + (tlY - wStartY) ** 2;
           } else {
@@ -474,17 +474,17 @@ function draw() {
     if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
       ctx.save();
       ctx.translate(c.x, c.y);
-      
+
       ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
       const textWidth = ctx.measureText(c.chatMessage).width;
       const bubbleWidth = textWidth + 24;
       const bubbleHeight = 32;
-      const bubbleY = -35; 
-      
+      const bubbleY = -35;
+
       ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
       ctx.shadowBlur = 6;
       ctx.shadowOffsetY = 3;
-      
+
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       if (ctx.roundRect) {
@@ -493,22 +493,22 @@ function draw() {
         ctx.rect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight);
       }
       ctx.fill();
-      
+
       ctx.beginPath();
       ctx.moveTo(-6, bubbleY);
       ctx.lineTo(6, bubbleY);
       ctx.lineTo(0, bubbleY + 8);
       ctx.fill();
-      
+
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
-      
+
       ctx.fillStyle = '#2c3e50';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(c.chatMessage, 0, bubbleY - bubbleHeight / 2);
-      
+
       ctx.restore();
     }
   });
@@ -637,12 +637,12 @@ function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
 
 if (isAdmin) {
   import('./admin.js').then((module) => {
-    module.setupAdmin({ 
-      canvas, 
-      player, 
-      getBuildings: () => buildings, 
+    module.setupAdmin({
+      canvas,
+      player,
+      getBuildings: () => buildings,
       getPlants: () => plants,
-      ws 
+      ws
     });
   }).catch(err => console.error('Failed to load admin module:', err));
 }
