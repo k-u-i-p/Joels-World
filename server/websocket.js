@@ -47,23 +47,21 @@ export function setupWebSocket(server) {
       } catch (e) { console.error(`Error loading collision objects for map ${mapDef.id}:`, e); }
 
       let coTimer;
-      try {
-        fs.watch(mapObj.collisionObjectsFile, (eventType, filename) => {
-          if (coTimer) clearTimeout(coTimer);
-          coTimer = setTimeout(() => {
-            try {
-              if (fs.existsSync(mapObj.collisionObjectsFile)) {
-                mapObj.collisionObjects = JSON.parse(fs.readFileSync(mapObj.collisionObjectsFile, 'utf-8'));
-                console.log(`Collision objects updated for map ${mapDef.id}, broadcasting...`);
-                const broadcastMsg = JSON.stringify({ type: 'collision_objects_update', collisionObjects: mapObj.collisionObjects });
-                mapObj.clients.forEach(client => {
-                  if (client.readyState === 1) client.send(broadcastMsg);
-                });
-              }
-            } catch(e) { console.error('Error on co watch:', e); }
-          }, 50);
-        });
-      } catch(e) {}
+      fs.watch(mapObj.collisionObjectsFile, (eventType, filename) => {
+        if (coTimer) clearTimeout(coTimer);
+        coTimer = setTimeout(() => {
+          try {
+            if (fs.existsSync(mapObj.collisionObjectsFile)) {
+              mapObj.collisionObjects = JSON.parse(fs.readFileSync(mapObj.collisionObjectsFile, 'utf-8'));
+              console.log(`Collision objects updated for map ${mapDef.id}, broadcasting...`);
+              const broadcastMsg = JSON.stringify({ type: 'collision_objects_update', collisionObjects: mapObj.collisionObjects });
+              mapObj.clients.forEach(client => {
+                if (client.readyState === 1) client.send(broadcastMsg);
+              });
+            }
+          } catch (e) { console.error('Error on co watch:', e); }
+        }, 50);
+      });
     }
 
     if (mapObj.buildingsFile) {
@@ -72,23 +70,21 @@ export function setupWebSocket(server) {
       } catch (e) { console.error(`Error loading buildings for map ${mapDef.id}:`, e); }
 
       let bTimer;
-      try {
-        fs.watch(mapObj.buildingsFile, (eventType, filename) => {
-          if (bTimer) clearTimeout(bTimer);
-          bTimer = setTimeout(() => {
-            try {
-              if (fs.existsSync(mapObj.buildingsFile)) {
-                mapObj.buildings = JSON.parse(fs.readFileSync(mapObj.buildingsFile, 'utf-8'));
-                console.log(`Buildings updated for map ${mapDef.id}, broadcasting...`);
-                const broadcastMsg = JSON.stringify({ type: 'buildings_update', buildings: mapObj.buildings });
-                mapObj.clients.forEach(client => {
-                  if (client.readyState === 1) client.send(broadcastMsg);
-                });
-              }
-            } catch(e) { console.error('Error on b watch:', e); }
-          }, 50);
-        });
-      } catch(e) {}
+      fs.watch(mapObj.buildingsFile, (eventType, filename) => {
+        if (bTimer) clearTimeout(bTimer);
+        bTimer = setTimeout(() => {
+          try {
+            if (fs.existsSync(mapObj.buildingsFile)) {
+              mapObj.buildings = JSON.parse(fs.readFileSync(mapObj.buildingsFile, 'utf-8'));
+              console.log(`Buildings updated for map ${mapDef.id}, broadcasting...`);
+              const broadcastMsg = JSON.stringify({ type: 'buildings_update', buildings: mapObj.buildings });
+              mapObj.clients.forEach(client => {
+                if (client.readyState === 1) client.send(broadcastMsg);
+              });
+            }
+          } catch (e) { console.error('Error on b watch:', e); }
+        }, 50);
+      });
     }
 
     mapState[mapDef.id] = mapObj;

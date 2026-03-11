@@ -5,6 +5,16 @@
     "x": -1035,
     "y": -2,
     "width": 500,
-    "length": 2152
+    "length": 2152,
+    "rotation": 0
+  },
+  {
+    "id": "col_1773273136081",
+    "shape": "rect",
+    "x": -114,
+    "y": -1101,
+    "width": 2196,
+    "length": 500,
+    "rotation": 0
   }
 ]

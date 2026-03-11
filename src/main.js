@@ -275,6 +275,17 @@ function update() {
             return false;
           }
         } else if (obj.shape === 'rect') {
+          let testX = newX;
+          let testY = newY;
+          
+          if (obj.rotation) {
+            const angle = -obj.rotation * Math.PI / 180;
+            const bdx = newX - obj.x;
+            const bdy = newY - obj.y;
+            testX = obj.x + bdx * Math.cos(angle) - bdy * Math.sin(angle);
+            testY = obj.y + bdx * Math.sin(angle) + bdy * Math.cos(angle);
+          }
+
           const halfW = obj.width / 2;
           const halfL = obj.length / 2;
           const rectLeft = obj.x - halfW;
@@ -283,10 +294,10 @@ function update() {
           const rectBottom = obj.y + halfL;
 
           // closest point on rect to player
-          const closestX = Math.max(rectLeft, Math.min(newX, rectRight));
-          const closestY = Math.max(rectTop, Math.min(newY, rectBottom));
+          const closestX = Math.max(rectLeft, Math.min(testX, rectRight));
+          const closestY = Math.max(rectTop, Math.min(testY, rectBottom));
 
-          const distSq = (newX - closestX) ** 2 + (newY - closestY) ** 2;
+          const distSq = (testX - closestX) ** 2 + (testY - closestY) ** 2;
           if (distSq < playerRadius * playerRadius) {
             return false;
           }

@@ -189,6 +189,24 @@ bindHoldAction('btn-height-inc', () => {
   }
 });
 
+bindHoldAction('btn-col-rot-left', () => {
+  if (!selectedCollisionObject) return;
+  selectedCollisionObject.rotation = Math.max(0, (selectedCollisionObject.rotation || 0) - 1);
+}, () => {
+  if (selectedCollisionObject && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'rotate_collision_object', id: selectedCollisionObject.id, rotation: selectedCollisionObject.rotation }));
+  }
+});
+
+bindHoldAction('btn-col-rot-right', () => {
+  if (!selectedCollisionObject) return;
+  selectedCollisionObject.rotation = ((selectedCollisionObject.rotation || 0) + 1) % 360;
+}, () => {
+  if (selectedCollisionObject && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'rotate_collision_object', id: selectedCollisionObject.id, rotation: selectedCollisionObject.rotation }));
+  }
+});
+
 bindHoldAction('btn-col-width-dec', () => {
   if (!selectedCollisionObject) return;
   let change = Math.max(1, Math.round(selectedCollisionObject.width * 0.02));
@@ -295,14 +313,19 @@ window.addEventListener('mousedown', (e) => {
   for (let i = collisionObjects.length - 1; i >= 0; i--) {
     const obj = collisionObjects[i];
     let hit = false;
-    if (obj.shape === 'circle') {
+      if (obj.shape === 'circle') {
       const radius = Math.max(obj.width, obj.length) / 2;
       if (Math.hypot(worldX - obj.x, worldY - obj.y) <= radius) hit = true;
     } else {
+      const bdx = worldX - obj.x;
+      const bdy = worldY - obj.y;
+      const angle = -(obj.rotation || 0) * Math.PI / 180;
+      const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
+      const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
       const hW = obj.width / 2;
       const hL = obj.length / 2;
-      if (worldX >= obj.x - hW && worldX <= obj.x + hW &&
-        worldY >= obj.y - hL && worldY <= obj.y + hL) {
+      if (localX >= -hW && localX <= hW &&
+        localY >= -hL && localY <= hL) {
         hit = true;
       }
     }
@@ -480,19 +503,27 @@ window.adminDraw = function () {
 
   const collisionObjects = getCollisionObjects() || [];
   collisionObjects.forEach(obj => {
+    ctx.save();
+    ctx.translate(obj.x, obj.y);
+    if (obj.rotation) {
+      ctx.rotate(obj.rotation * Math.PI / 180);
+    }
+    
     if (window.adminSelectedCollisionObject && window.adminSelectedCollisionObject.id === obj.id) {
       ctx.fillStyle = 'purple';
     } else {
       ctx.fillStyle = 'rgba(155, 89, 182, 0.5)';
     }
+    
     ctx.beginPath();
     if (obj.shape === 'circle') {
       const radius = Math.max(obj.width, obj.length) / 2;
-      ctx.arc(obj.x, obj.y, radius, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
     } else {
-      ctx.rect(obj.x - obj.width / 2, obj.y - obj.length / 2, obj.width, obj.length);
+      ctx.rect(-obj.width / 2, -obj.length / 2, obj.width, obj.length);
     }
     ctx.fill();
+    ctx.restore();
   });
 
   ctx.restore();

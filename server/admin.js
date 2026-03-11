@@ -57,6 +57,17 @@ export function handleAdminMessage(ws, data, mapData) {
       }
     }
     return true;
+  } else if (data.type === 'rotate_collision_object') {
+    const obj = collisionObjects.find(p => p.id === data.id);
+    if (obj) {
+      if (data.rotation !== undefined) obj.rotation = data.rotation;
+      try {
+        fs.writeFileSync(collisionObjectsFile, JSON.stringify(collisionObjects, null, 2), 'utf-8');
+      } catch (e) {
+        console.error('Failed saving collision objects file:', e);
+      }
+    }
+    return true;
   } else if (data.type === 'delete_building') {
     const idx = buildings.findIndex(b => b.id === data.id);
     if (idx !== -1) {
