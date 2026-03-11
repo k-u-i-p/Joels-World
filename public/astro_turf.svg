@@ -1,8 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 3600" width="100%" height="100%">
   <defs>
-    <pattern id="chainlink" width="20" height="20" patternUnits="userSpaceOnUse">
-      <path d="M 0 10 L 10 0 L 20 10 L 10 20 Z" stroke="#A9A9A9" stroke-width="1.5" fill="none" />
-    </pattern>
 
     <g id="tennis-court">
       <rect x="120" y="210" width="360" height="780" fill="#20662D" />
@@ -38,7 +35,7 @@
   <use href="#tennis-court" x="600" y="2400" />
   <use href="#tennis-court" x="1200" y="2400" />
 
-  <rect x="10" y="10" width="1780" height="3580" fill="none" stroke="url(#chainlink)" stroke-width="20" />
+  <rect x="10" y="10" width="1780" height="3580" fill="none" stroke="#A9A9A9" stroke-dasharray="10, 10" stroke-width="20" />
   <rect x="1" y="1" width="1798" height="3598" fill="none" stroke="#666666" stroke-width="2" />
   <rect x="20" y="20" width="1760" height="3560" fill="none" stroke="#666666" stroke-width="2" />
 </svg>
