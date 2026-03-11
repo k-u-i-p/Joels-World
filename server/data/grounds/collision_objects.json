@@ -1,13 +1,5 @@
 [
   {
-    "id": "oak_1",
-    "shape": "circle",
-    "x": 243,
-    "y": 128,
-    "width": 80,
-    "length": 135
-  },
-  {
     "id": "pine_1",
     "shape": "circle",
     "x": 673,

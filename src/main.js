@@ -20,7 +20,7 @@ ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'init') {
       if (typeof handleInitData === 'function') {
-        handleInitData(data.collisionObjects || [], data.buildings || [], data.characters || [], data.npcs || [], data.myCharacter, data.mapData);
+        handleInitData(data);
       }
     } else if (data.type === 'update') {
       const serverChar = data.character;
@@ -722,12 +722,17 @@ if (nameInput) {
   });
 }
 
-function handleInitData(colObjsData, buildingsData, charactersData, npcsData, myCharacter, mapMetadata) {
-  collisionObjects = colObjsData;
-  buildings = buildingsData;
+function handleInitData(data) {
+  isDataLoaded = false;
+  collisionObjects = data.collisionObjects || [];
+  buildings = data.buildings || [];
   window.collisionObjects = collisionObjects;
   window.buildings = buildings;
-  characters = [...npcsData, ...charactersData];
+  characters = [...(data.npcs || []), ...(data.characters || [])];
+
+  const myCharacter = data.myCharacter;
+  const mapMetadata = data.mapData;
+  const mapsList = data.mapsList;
 
   if (myCharacter) {
     Object.assign(player, myCharacter);
@@ -749,6 +754,14 @@ function handleInitData(colObjsData, buildingsData, charactersData, npcsData, my
     }
     window.mapWidth = mapMetadata.width;
     window.mapHeight = mapMetadata.height;
+    window.currentMapId = mapMetadata.id;
+  }
+
+  console.log(mapsList)
+  console.log(window.mapsList)
+  if (mapsList) {
+    window.mapsList = mapsList;
+    if (window.populateAdminMaps) window.populateAdminMaps();
   }
 
   const mapPromise = new Promise((resolve) => {

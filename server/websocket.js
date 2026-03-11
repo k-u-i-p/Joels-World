@@ -116,7 +116,7 @@ export function setupWebSocket(server) {
     const mapId = mapState[requestedMapId] ? requestedMapId : (mapState[0] ? 0 : (mapKeys.length > 0 ? mapKeys[0] : null));
     ws.mapId = mapId;
 
-    const mapData = mapState[mapId];
+    let mapData = mapState[mapId];
 
     if (!mapData) {
       console.error(`No map found to attach client to (requested: ${requestedMapId})`);
@@ -157,8 +157,10 @@ export function setupWebSocket(server) {
         name: mapData.name,
         width: mapData.width,
         height: mapData.height,
-        background: mapData.background
-      }
+        background: mapData.background,
+        character_scale: mapData.character_scale || 1
+      },
+      mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
     }));
 
     const broadcastMsg = JSON.stringify({ type: 'update', character: newChar });
@@ -200,7 +202,59 @@ export function setupWebSocket(server) {
             }
           });
         } else if (ws.isAdmin) {
-          handleAdminMessage(ws, data, mapData);
+          if (data.type === 'change_map') {
+            const requestedMapId = Number(data.mapId);
+            const newMapData = mapState[requestedMapId];
+            if (newMapData && ws.mapId !== requestedMapId) {
+              const oldChar = mapData.characters[ws.clientId] || newChar;
+              delete mapData.characters[ws.clientId];
+              const disconnectMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
+              mapData.clients.forEach(client => {
+                if (client !== ws && client.readyState === 1) {
+                  client.send(disconnectMsg);
+                }
+              });
+              mapData.clients.delete(ws);
+
+              // Update client reference
+              ws.mapId = requestedMapId;
+              mapData = newMapData;
+
+              // Reset position safely to not be OOB of new map bounds
+              oldChar.x = Math.round(Math.random() * 800 + 100);
+              oldChar.y = Math.round(Math.random() * 600 + 100);
+
+              mapData.characters[ws.clientId] = oldChar;
+              mapData.clients.add(ws);
+
+              // Send init to immediately reset the client seamlessly
+              ws.send(JSON.stringify({
+                type: 'init',
+                characters: Object.values(mapData.characters),
+                npcs: mapData.npcs,
+                collisionObjects: mapData.collisionObjects,
+                buildings: mapData.buildings,
+                myCharacter: oldChar,
+                mapData: {
+                  id: mapData.id,
+                  name: mapData.name,
+                  width: mapData.width,
+                  height: mapData.height,
+                  background: mapData.background,
+                  character_scale: mapData.character_scale || 1
+                },
+                mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
+              }));
+
+              // Broadcast presence to new map clients
+              const broadcastMsg2 = JSON.stringify({ type: 'update', character: oldChar });
+              mapData.clients.forEach(client => {
+                if (client !== ws && client.readyState === 1) client.send(broadcastMsg2);
+              });
+            }
+          } else {
+            handleAdminMessage(ws, data, mapData);
+          }
         }
       } catch (err) {
         console.error('Error processing message:', err);
