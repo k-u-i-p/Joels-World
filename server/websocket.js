@@ -7,91 +7,92 @@ import { getSession } from './session.js';
 import cookieParser from 'cookie-parser';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const npcFile = path.resolve(__dirname, 'data/npc.json');
-const collisionObjectsFile = path.resolve(__dirname, 'data/collision_objects.json');
-const buildingsFile = path.resolve(__dirname, 'data/buildings.json');
 
 export function setupWebSocket(server) {
   const wss = new WebSocketServer({ server });
 
-  let characters = {};
-
-  let npcs = [];
+  const mapState = {};
+  const mapsFile = path.resolve(__dirname, 'data/maps.json');
+  let mapsData = [];
   try {
-    if (fs.existsSync(npcFile)) {
-      npcs = JSON.parse(fs.readFileSync(npcFile, 'utf-8'));
+    if (fs.existsSync(mapsFile)) {
+      mapsData = JSON.parse(fs.readFileSync(mapsFile, 'utf-8'));
     }
   } catch (e) {
-    console.error("Error loading initial npcs:", e);
+    console.error("Error loading maps.json:", e);
   }
 
-  let collisionObjects = [];
-  try {
-    if (fs.existsSync(collisionObjectsFile)) {
-      collisionObjects = JSON.parse(fs.readFileSync(collisionObjectsFile, 'utf-8'));
+  mapsData.forEach(mapDef => {
+    const mapObj = {
+      ...mapDef,
+      clients: new Set(),
+      characters: {},
+      npcs: [],
+      collisionObjects: [],
+      buildings: [],
+      collisionObjectsFile: mapDef.collision_objects ? path.resolve(__dirname, 'data', mapDef.collision_objects) : null,
+      buildingsFile: mapDef.buildings ? path.resolve(__dirname, 'data', mapDef.buildings) : null
+    };
+
+    if (mapDef.npcs) {
+      const npcPath = path.resolve(__dirname, 'data', mapDef.npcs);
+      try {
+        if (fs.existsSync(npcPath)) mapObj.npcs = JSON.parse(fs.readFileSync(npcPath, 'utf-8'));
+      } catch (e) { console.error(`Error loading npcs for map ${mapDef.id}:`, e); }
     }
-  } catch (e) {
-    console.error("Error loading collision objects:", e);
-  }
 
-  let buildings = [];
-  try {
-    if (fs.existsSync(buildingsFile)) {
-      buildings = JSON.parse(fs.readFileSync(buildingsFile, 'utf-8'));
-    }
-  } catch (e) {
-    console.error("Error loading buildings:", e);
-  }
+    if (mapObj.collisionObjectsFile) {
+      try {
+        if (fs.existsSync(mapObj.collisionObjectsFile)) mapObj.collisionObjects = JSON.parse(fs.readFileSync(mapObj.collisionObjectsFile, 'utf-8'));
+      } catch (e) { console.error(`Error loading collision objects for map ${mapDef.id}:`, e); }
 
-  let buildingsTimer;
-  try {
-    fs.watch(buildingsFile, (eventType, filename) => {
-      if (buildingsTimer) clearTimeout(buildingsTimer);
-      buildingsTimer = setTimeout(() => {
-        try {
-          if (fs.existsSync(buildingsFile)) {
-            buildings = JSON.parse(fs.readFileSync(buildingsFile, 'utf-8'));
-            console.log('Buildings file updated, broadcasting to clients...');
-            const broadcastMsg = JSON.stringify({ type: 'buildings_update', buildings });
-            for (const client of wss.clients) {
-              if (client.readyState === 1) {
-                client.send(broadcastMsg);
+      let coTimer;
+      try {
+        fs.watch(mapObj.collisionObjectsFile, (eventType, filename) => {
+          if (coTimer) clearTimeout(coTimer);
+          coTimer = setTimeout(() => {
+            try {
+              if (fs.existsSync(mapObj.collisionObjectsFile)) {
+                mapObj.collisionObjects = JSON.parse(fs.readFileSync(mapObj.collisionObjectsFile, 'utf-8'));
+                console.log(`Collision objects updated for map ${mapDef.id}, broadcasting...`);
+                const broadcastMsg = JSON.stringify({ type: 'collision_objects_update', collisionObjects: mapObj.collisionObjects });
+                mapObj.clients.forEach(client => {
+                  if (client.readyState === 1) client.send(broadcastMsg);
+                });
               }
-            }
-          }
-        } catch (e) {
-          console.error('Error reloading buildings on watch event:', e);
-        }
-      }, 50);
-    });
-  } catch (e) {
-    console.error('Failed to setup watch on buildings file:', e);
-  }
+            } catch(e) { console.error('Error on co watch:', e); }
+          }, 50);
+        });
+      } catch(e) {}
+    }
 
-  let collisionObjectsTimer;
-  try {
-    fs.watch(collisionObjectsFile, (eventType, filename) => {
-      if (collisionObjectsTimer) clearTimeout(collisionObjectsTimer);
-      collisionObjectsTimer = setTimeout(() => {
-        try {
-          if (fs.existsSync(collisionObjectsFile)) {
-            collisionObjects = JSON.parse(fs.readFileSync(collisionObjectsFile, 'utf-8'));
-            console.log('Collision objects updated, broadcasting to clients...');
-            const broadcastMsg = JSON.stringify({ type: 'collision_objects_update', collisionObjects });
-            for (const client of wss.clients) {
-              if (client.readyState === 1) {
-                client.send(broadcastMsg);
+    if (mapObj.buildingsFile) {
+      try {
+        if (fs.existsSync(mapObj.buildingsFile)) mapObj.buildings = JSON.parse(fs.readFileSync(mapObj.buildingsFile, 'utf-8'));
+      } catch (e) { console.error(`Error loading buildings for map ${mapDef.id}:`, e); }
+
+      let bTimer;
+      try {
+        fs.watch(mapObj.buildingsFile, (eventType, filename) => {
+          if (bTimer) clearTimeout(bTimer);
+          bTimer = setTimeout(() => {
+            try {
+              if (fs.existsSync(mapObj.buildingsFile)) {
+                mapObj.buildings = JSON.parse(fs.readFileSync(mapObj.buildingsFile, 'utf-8'));
+                console.log(`Buildings updated for map ${mapDef.id}, broadcasting...`);
+                const broadcastMsg = JSON.stringify({ type: 'buildings_update', buildings: mapObj.buildings });
+                mapObj.clients.forEach(client => {
+                  if (client.readyState === 1) client.send(broadcastMsg);
+                });
               }
-            }
-          }
-        } catch (e) {
-          console.error('Error reloading collision objects on watch event:', e);
-        }
-      }, 50);
-    });
-  } catch (e) {
-    console.error('Failed to setup watch on collision objects file:', e);
-  }
+            } catch(e) { console.error('Error on b watch:', e); }
+          }, 50);
+        });
+      } catch(e) {}
+    }
+
+    mapState[mapDef.id] = mapObj;
+  });
 
   const colors = ['#e74c3c', '#8e44ad', '#3498db', '#1abc9c', '#2ecc71', '#f1c40f', '#e67e22', '#34495e'];
   function getRandomColor() {
@@ -108,6 +109,22 @@ export function setupWebSocket(server) {
     const session = getSession(parsedCookies.SSID);
 
     ws.isAdmin = session ? session.isAdmin : false;
+
+    const mapIdParam = urlParams.get('mapId');
+    const requestedMapId = mapIdParam !== null ? parseInt(mapIdParam, 10) : 0;
+    const mapKeys = Object.keys(mapState);
+    const mapId = mapState[requestedMapId] ? requestedMapId : (mapState[0] ? 0 : (mapKeys.length > 0 ? mapKeys[0] : null));
+    ws.mapId = mapId;
+
+    const mapData = mapState[mapId];
+
+    if (!mapData) {
+      console.error(`No map found to attach client to (requested: ${requestedMapId})`);
+      ws.close();
+      return;
+    }
+
+    mapData.clients.add(ws);
 
     const newPlayerId = 'player_' + Math.random().toString(36).substring(2, 9);
     ws.clientId = newPlayerId;
@@ -126,25 +143,30 @@ export function setupWebSocket(server) {
       armColor: getRandomColor()
     };
 
-    characters[newPlayerId] = newChar;
+    mapData.characters[newPlayerId] = newChar;
 
-    // Send the current characters, npcs, collisionObjects, and buildings to the new client
     ws.send(JSON.stringify({
       type: 'init',
-      characters: Object.values(characters),
-      npcs: npcs,
-      collisionObjects: collisionObjects,
-      buildings: buildings,
-      myCharacter: newChar
+      characters: Object.values(mapData.characters),
+      npcs: mapData.npcs,
+      collisionObjects: mapData.collisionObjects,
+      buildings: mapData.buildings,
+      myCharacter: newChar,
+      mapData: {
+        id: mapData.id,
+        name: mapData.name,
+        width: mapData.width,
+        height: mapData.height,
+        background: mapData.background
+      }
     }));
 
-    // Broadcast new character to others
     const broadcastMsg = JSON.stringify({ type: 'update', character: newChar });
-    for (const client of wss.clients) {
+    mapData.clients.forEach(client => {
       if (client !== ws && client.readyState === 1) { // OPEN
         client.send(broadcastMsg);
       }
-    }
+    });
 
     ws.on('message', (message) => {
       try {
@@ -153,33 +175,39 @@ export function setupWebSocket(server) {
         if (data.type === 'update') {
           const char = data.character;
           ws.clientId = char.id;
-          characters[char.id] = char;
+          mapData.characters[char.id] = char;
 
-          // Broadcast to other clients
           const broadcastMsg = JSON.stringify({ type: 'update', character: char });
-          for (const client of wss.clients) {
+          mapData.clients.forEach(client => {
             if (client !== ws && client.readyState === 1) { // OPEN
               client.send(broadcastMsg);
             }
-          }
+          });
         } else if (data.type === 'chat') {
           const broadcastMsg = JSON.stringify({ type: 'chat', id: ws.clientId, message: data.message });
-          for (const client of wss.clients) {
+          mapData.clients.forEach(client => {
             if (client.readyState === 1) {
               client.send(broadcastMsg);
             }
-          }
+          });
         } else if (data.type === 'disconnect') {
           const id = data.id;
-          delete characters[id];
+          delete mapData.characters[id];
           const broadcastMsg = JSON.stringify({ type: 'disconnect', id });
-          for (const client of wss.clients) {
+          mapData.clients.forEach(client => {
             if (client !== ws && client.readyState === 1) {
               client.send(broadcastMsg);
             }
-          }
-        } else if (ws.isAdmin && handleAdminMessage(ws, data, { buildings, buildingsFile, collisionObjects, collisionObjectsFile, __dirname })) {
-          // Handled securely by the admin controller
+          });
+        } else if (ws.isAdmin) {
+          const context = {
+            buildings: mapData.buildings,
+            buildingsFile: mapData.buildingsFile,
+            collisionObjects: mapData.collisionObjects,
+            collisionObjectsFile: mapData.collisionObjectsFile,
+            __dirname
+          };
+          handleAdminMessage(ws, data, context);
         }
       } catch (err) {
         console.error('Error processing message:', err);
@@ -189,16 +217,18 @@ export function setupWebSocket(server) {
     ws.on('close', () => {
       console.log('Client disconnected');
       if (ws.clientId) {
-        delete characters[ws.clientId];
+        delete mapData.characters[ws.clientId];
         const broadcastMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
-        for (const client of wss.clients) {
+        mapData.clients.forEach(client => {
           if (client.readyState === 1) {
             client.send(broadcastMsg);
           }
-        }
+        });
       }
+      mapData.clients.delete(ws);
     });
   });
 
   return wss;
 }
+

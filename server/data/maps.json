@@ -1,0 +1,12 @@
+[
+  {
+    "id": 0,
+    "name": "School Grounds",
+    "width": 3904,
+    "height": 4292,
+    "background": "/grounds/background.png",
+    "collision_objects": "grounds/collision_objects.json",
+    "buildings": "grounds/buildings.json",
+    "npcs": "grounds/npc.json"
+  }
+]

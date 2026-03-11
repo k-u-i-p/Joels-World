@@ -20,7 +20,7 @@ ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'init') {
       if (typeof handleInitData === 'function') {
-        handleInitData(data.collisionObjects || [], data.buildings || [], data.characters || [], data.npcs || [], data.myCharacter);
+        handleInitData(data.collisionObjects || [], data.buildings || [], data.characters || [], data.npcs || [], data.myCharacter, data.mapData);
       }
     } else if (data.type === 'update') {
       const serverChar = data.character;
@@ -195,7 +195,7 @@ let characters = [];
 let lastSyncTime = 0;
 
 window.mapImage = new Image();
-window.mapImage.src = '/map.png';
+window.mapImage.src = '/grounds/background.png'; // default fallback
 
 function syncPlayerToJSON() {
   const charIndex = characters.findIndex(c => c.id === player.id);
@@ -253,9 +253,11 @@ function update() {
 
     const canMoveTo = (newX, newY) => {
       // Check map boundaries
-      if (window.mapImage && window.mapImage.complete) {
-        const halfMapW = window.mapImage.width / 2;
-        const halfMapH = window.mapImage.height / 2;
+      const mapW = window.mapWidth || (window.mapImage && window.mapImage.complete ? window.mapImage.width : 0);
+      const mapH = window.mapHeight || (window.mapImage && window.mapImage.complete ? window.mapImage.height : 0);
+      if (mapW && mapH) {
+        const halfMapW = mapW / 2;
+        const halfMapH = mapH / 2;
         if (newX - playerRadius < -halfMapW || newX + playerRadius > halfMapW ||
           newY - playerRadius < -halfMapH || newY + playerRadius > halfMapH) {
           return false;
@@ -434,9 +436,9 @@ function draw() {
   window.cameraX = player.x;
   window.cameraY = player.y;
 
-  if (window.mapImage && window.mapImage.complete) {
-    const halfMapW = window.mapImage.width / 2;
-    const halfMapH = window.mapImage.height / 2;
+  if (window.mapWidth && window.mapHeight) {
+    const halfMapW = window.mapWidth / 2;
+    const halfMapH = window.mapHeight / 2;
     const viewHalfW = (canvas.width / window.cameraZoom) / 2;
     const viewHalfH = (canvas.height / window.cameraZoom) / 2;
 
@@ -469,7 +471,9 @@ function draw() {
   ctx.translate(-window.cameraX, -window.cameraY);
 
   if (window.mapImage && window.mapImage.complete) {
-    ctx.drawImage(window.mapImage, -window.mapImage.width / 2, -window.mapImage.height / 2);
+    const drawW = window.mapWidth || window.mapImage.width;
+    const drawH = window.mapHeight || window.mapImage.height;
+    ctx.drawImage(window.mapImage, -drawW / 2, -drawH / 2, drawW, drawH);
   }
 
 
@@ -718,7 +722,7 @@ if (nameInput) {
   });
 }
 
-function handleInitData(colObjsData, buildingsData, charactersData, npcsData, myCharacter) {
+function handleInitData(colObjsData, buildingsData, charactersData, npcsData, myCharacter, mapMetadata) {
   collisionObjects = colObjsData;
   buildings = buildingsData;
   window.collisionObjects = collisionObjects;
@@ -739,13 +743,21 @@ function handleInitData(colObjsData, buildingsData, charactersData, npcsData, my
     nameInput.value = player.name;
   }
 
+  if (mapMetadata) {
+    if (mapMetadata.background) {
+      window.mapImage.src = mapMetadata.background;
+    }
+    window.mapWidth = mapMetadata.width;
+    window.mapHeight = mapMetadata.height;
+  }
+
   const mapPromise = new Promise((resolve) => {
     if (window.mapImage && window.mapImage.complete) {
       resolve();
     } else if (window.mapImage) {
       window.mapImage.onload = () => resolve();
       window.mapImage.onerror = () => {
-        console.warn('Failed to load map.png');
+        console.warn('Failed to load map background image');
         resolve();
       };
     } else {
