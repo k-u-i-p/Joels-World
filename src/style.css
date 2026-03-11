@@ -75,6 +75,31 @@ html, body {
   cursor: not-allowed;
 }
 
+#help-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  background-color: #34495e;
+  color: white;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+#help-button:hover {
+  background-color: #3498db;
+  transform: scale(1.1);
+}
+
 /* Chat System */
 #chat-container {
   position: absolute;

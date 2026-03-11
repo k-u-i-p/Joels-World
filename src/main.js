@@ -999,3 +999,25 @@ if (actionButton) {
   actionButton.addEventListener('mousedown', triggerAction);
   actionButton.addEventListener('touchstart', triggerAction, { passive: false });
 }
+
+// Help Dialog Logic
+const helpButton = document.getElementById('help-button');
+const helpDialog = document.getElementById('help-dialog');
+const closeHelpBtn = document.getElementById('close-help-btn');
+
+if (helpButton && helpDialog && closeHelpBtn) {
+  helpButton.addEventListener('click', () => {
+    helpDialog.style.display = 'flex';
+  });
+
+  closeHelpBtn.addEventListener('click', () => {
+    helpDialog.style.display = 'none';
+  });
+
+  // Close when clicking outside of the dialog box
+  helpDialog.addEventListener('click', (e) => {
+    if (e.target === helpDialog) {
+      helpDialog.style.display = 'none';
+    }
+  });
+}

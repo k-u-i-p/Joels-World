@@ -15,6 +15,26 @@
         <button id="start-game-btn" disabled>Loading...</button>
       </div>
     </div>
+    
+    <!-- Help Button -->
+    <button id="help-button">?</button>
+    
+    <!-- Help Dialog Overlay -->
+    <div id="help-dialog" class="overlay" style="display: none;">
+      <div class="dialog-content" style="text-align: left; max-width: 400px;">
+        <h2 style="text-align: center;">Controls & Info</h2>
+        <ul>
+          <li><strong>Keyboard:</strong> Arrow keys to move and turn.</li>
+          <li><strong>Mobile:</strong> Use the left virtual joystick to move and the right virtual joystick to turn.</li>
+          <li><strong>Interact:</strong> Walk up to Hector or Talking Poop and press Spacebar (or the Talk button on mobile) to talk to them.</li>
+          <li><strong>Chat:</strong> Press Enter to type a message to other players.</li>
+          <li><strong>Fun Commands:</strong> Type <code>/dance</code>, <code>/fart</code>, <code>/dead</code>, or <code>/cry</code> in the chat box!</li>
+        </ul>
+        <div style="text-align: center; margin-top: 20px;">
+          <button id="close-help-btn" style="padding: 8px 16px; border-radius: 6px; border: none; background: #3498db; color: white; cursor: pointer; font-weight: bold;">Got it!</button>
+        </div>
+      </div>
+    </div>
     <div id="chat-container">
       <input type="text" id="chat-input" placeholder="Press Enter to chat..." autocomplete="off" maxlength="80" />
     </div>
