@@ -43,6 +43,17 @@ export function handleAdminMessage(ws, data, context) {
       }
     }
     return true;
+  } else if (data.type === 'resize_plant') {
+    const plant = plants.find(p => p.id === data.id);
+    if (plant) {
+      plant.size = data.size;
+      try {
+        fs.writeFileSync(plantsFile, JSON.stringify(plants, null, 2), 'utf-8');
+      } catch (e) {
+        console.error('Failed saving plants file:', e);
+      }
+    }
+    return true;
   } else if (data.type === 'rotate_building') {
     const building = buildings.find(b => b.id === data.id);
     if (building) {

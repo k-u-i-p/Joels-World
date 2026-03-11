@@ -10,8 +10,8 @@
   {
     "id": "pine_1",
     "type": "pine",
-    "x": 890,
-    "y": 119,
+    "x": 673,
+    "y": 213,
     "size": 35,
     "color": "#1e8449"
   },
@@ -26,8 +26,8 @@
   {
     "id": "flower_1",
     "type": "flower",
-    "x": 1437,
-    "y": 98,
+    "x": 1203,
+    "y": 115,
     "size": 5,
     "color": "#e74c3c"
   },
@@ -42,40 +42,40 @@
   {
     "id": "pine_2",
     "type": "pine",
-    "x": 1198,
-    "y": 135,
+    "x": 710,
+    "y": 118,
     "size": 30,
     "color": "#117a65"
   },
   {
     "id": "shrub_2",
     "type": "shrub",
-    "x": 1387,
-    "y": 35,
+    "x": -951,
+    "y": 9,
     "size": 20,
     "color": "#52be80"
   },
   {
     "id": "flower_2",
     "type": "flower",
-    "x": 1499,
-    "y": 135,
+    "x": 1035,
+    "y": 108,
     "size": 6,
     "color": "#f1c40f"
   },
   {
     "id": "flower_3",
     "type": "flower",
-    "x": 1478,
-    "y": 123,
+    "x": 894,
+    "y": 116,
     "size": 4,
     "color": "#3498db"
   },
   {
     "id": "flower_4",
     "type": "flower",
-    "x": 1459,
-    "y": 112,
+    "x": 797,
+    "y": 121,
     "size": 5,
     "color": "#9b59b6"
   }

@@ -51,67 +51,89 @@ export function setupAdmin(deps) {
     };
 
     const editSection = document.getElementById('edit-building-section');
-    if (!selectedBuilding) {
+    const editPlantSection = document.getElementById('edit-plant-section');
+
+    if (selectedBuilding) {
+      editSection.style.display = 'block';
+      editPlantSection.style.display = 'none';
+
+      const nameInput = document.getElementById('building-name-input');
+      nameInput.value = selectedBuilding.name || selectedBuilding.id;
+      nameInput.onchange = (e) => {
+        selectedBuilding.name = e.target.value.trim();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'rename_building', id: selectedBuilding.id, name: selectedBuilding.name }));
+        }
+      };
+
+      bindHoldAction('btn-rot-left', () => {
+        selectedBuilding.rotation = Math.max(0, (selectedBuilding.rotation || 0) - 1);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
+        }
+      });
+
+      bindHoldAction('btn-rot-right', () => {
+        selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 1) % 360;
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
+        }
+      });
+
+      bindHoldAction('btn-width-dec', () => {
+        let change = Math.max(1, Math.round(selectedBuilding.width * 0.02));
+        selectedBuilding.width = Math.max(10, selectedBuilding.width - change);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+        }
+      });
+
+      bindHoldAction('btn-width-inc', () => {
+        let change = Math.max(1, Math.round(selectedBuilding.width * 0.02));
+        selectedBuilding.width += change;
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+        }
+      });
+
+      bindHoldAction('btn-height-dec', () => {
+        let change = Math.max(1, Math.round(selectedBuilding.height * 0.02));
+        selectedBuilding.height = Math.max(10, selectedBuilding.height - change);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+        }
+      });
+
+      bindHoldAction('btn-height-inc', () => {
+        let change = Math.max(1, Math.round(selectedBuilding.height * 0.02));
+        selectedBuilding.height += change;
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+        }
+      });
+    } else if (selectedPlant) {
       editSection.style.display = 'none';
-      return;
+      editPlantSection.style.display = 'block';
+
+      bindHoldAction('btn-plant-size-dec', () => {
+        let change = Math.max(1, Math.round(selectedPlant.size * 0.02));
+        selectedPlant.size = Math.max(5, selectedPlant.size - change);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize_plant', id: selectedPlant.id, size: selectedPlant.size }));
+        }
+      });
+
+      bindHoldAction('btn-plant-size-inc', () => {
+        let change = Math.max(1, Math.round(selectedPlant.size * 0.02));
+        selectedPlant.size += change;
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize_plant', id: selectedPlant.id, size: selectedPlant.size }));
+        }
+      });
+    } else {
+      editSection.style.display = 'none';
+      editPlantSection.style.display = 'none';
     }
-
-    editSection.style.display = 'block';
-
-    const nameInput = document.getElementById('building-name-input');
-    nameInput.value = selectedBuilding.name || selectedBuilding.id;
-    nameInput.onchange = (e) => {
-      selectedBuilding.name = e.target.value.trim();
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'rename_building', id: selectedBuilding.id, name: selectedBuilding.name }));
-      }
-    };
-
-    bindHoldAction('btn-rot-left', () => {
-      selectedBuilding.rotation = Math.max(0, (selectedBuilding.rotation || 0) - 1);
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
-      }
-    });
-
-    bindHoldAction('btn-rot-right', () => {
-      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 1) % 360;
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
-      }
-    });
-
-    bindHoldAction('btn-width-dec', () => {
-      let change = Math.max(1, Math.round(selectedBuilding.width * 0.02));
-      selectedBuilding.width = Math.max(10, selectedBuilding.width - change);
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
-      }
-    });
-
-    bindHoldAction('btn-width-inc', () => {
-      let change = Math.max(1, Math.round(selectedBuilding.width * 0.02));
-      selectedBuilding.width += change;
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
-      }
-    });
-
-    bindHoldAction('btn-height-dec', () => {
-      let change = Math.max(1, Math.round(selectedBuilding.height * 0.02));
-      selectedBuilding.height = Math.max(10, selectedBuilding.height - change);
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
-      }
-    });
-
-    bindHoldAction('btn-height-inc', () => {
-      let change = Math.max(1, Math.round(selectedBuilding.height * 0.02));
-      selectedBuilding.height += change;
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
-      }
-    });
   }
 
   function isPointInBuilding(worldX, worldY, building) {
@@ -133,6 +155,7 @@ export function setupAdmin(deps) {
   let draggedBuilding = null;
   let selectedBuilding = null;
   let draggedPlant = null;
+  let selectedPlant = null;
   let dragOffsetX = 0;
   let dragOffsetY = 0;
 
@@ -160,6 +183,8 @@ export function setupAdmin(deps) {
 
     selectedBuilding = null;
     window.adminSelectedBuilding = null;
+    selectedPlant = null;
+    window.adminSelectedPlant = null;
 
     const buildings = getBuildings();
     const plants = getPlants();
@@ -170,6 +195,8 @@ export function setupAdmin(deps) {
       if (Math.hypot(worldX - plant.x, worldY - plant.y) <= plant.size) {
         console.log(`Dragging plant: ${plant.id}`);
         draggedPlant = plant;
+        selectedPlant = plant;
+        window.adminSelectedPlant = plant;
         dragOffsetX = plant.x - worldX;
         dragOffsetY = plant.y - worldY;
         break;

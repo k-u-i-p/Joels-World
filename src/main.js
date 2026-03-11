@@ -571,7 +571,11 @@ function draw() {
   // Drawn after the player to act as an overhead canopy. The player walks "under" the leaves.
   if (isAdmin) {
     plants.forEach(plant => {
-      ctx.fillStyle = 'rgba(155, 89, 182, 0.5)';
+      if (window.adminSelectedPlant && window.adminSelectedPlant.id === plant.id) {
+        ctx.fillStyle = 'purple';
+      } else {
+        ctx.fillStyle = 'rgba(155, 89, 182, 0.5)';
+      }
       ctx.beginPath();
       ctx.arc(plant.x, plant.y, plant.size, 0, Math.PI * 2);
       ctx.fill();
