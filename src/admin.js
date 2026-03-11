@@ -41,13 +41,22 @@ export function setupAdmin(deps) {
       activeHoldInterval = null;
     }
 
+    adminPanel.style.display = 'block';
+    adminPanel.innerHTML = adminPanelHtml;
+
+    document.getElementById('btn-create-building').onclick = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'create_building_generic', x: Math.round(player.x), y: Math.round(player.y) }));
+      }
+    };
+
+    const editSection = document.getElementById('edit-building-section');
     if (!selectedBuilding) {
-      adminPanel.style.display = 'none';
+      editSection.style.display = 'none';
       return;
     }
 
-    adminPanel.style.display = 'block';
-    adminPanel.innerHTML = adminPanelHtml;
+    editSection.style.display = 'block';
 
     const nameInput = document.getElementById('building-name-input');
     nameInput.value = selectedBuilding.name || selectedBuilding.id;
@@ -326,4 +335,6 @@ export function setupAdmin(deps) {
     };
     reader.readAsText(file);
   });
+
+  updateAdminPanel();
 }

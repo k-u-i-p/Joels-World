@@ -66,35 +66,49 @@ export function handleAdminMessage(ws, data, context) {
       }
     }
     return true;
+  } else if (data.type === 'create_building_generic') {
+    const newBuilding = {
+      id: `building_${Date.now()}`,
+      name: "New Building",
+      x: data.x,
+      y: data.y,
+      rotation: 0,
+      width: 500,
+      height: 500,
+      walls: []
+    };
+    buildings.push(newBuilding);
+    fs.writeFileSync(buildingsFile, JSON.stringify(buildings, null, 2), 'utf-8');
+    return true;
   } else if (data.type === 'create_building') {
     const filename = path.basename(data.filename).replace(/\s+/g, '_');
     const publicPath = path.resolve(__dirname, '../public', filename);
-    
+
     try {
       // Write SVG to public directory
       fs.writeFileSync(publicPath, data.content, 'utf-8');
-      
+
       let width = 100;
       let height = 100;
-      
+
       // Simple string match to find width/height in svg tag
       const svgTagMatch = data.content.match(/<svg[^>]*>/i);
       if (svgTagMatch) {
         const svgTag = svgTagMatch[0];
         const wMatch = svgTag.match(/width=["']([^"']+)["']/i);
         const hMatch = svgTag.match(/height=["']([^"']+)["']/i);
-        
+
         if (wMatch) width = parseInt(wMatch[1]) || 100;
         if (hMatch) height = parseInt(hMatch[1]) || 100;
-        
+
         // Try viewbox if still 100
         if (width === 100 || height === 100) {
           const vbMatch = svgTag.match(/viewBox=["']([^"']+)["']/i);
           if (vbMatch) {
             const parts = vbMatch[1].split(/[ ,]+/);
             if (parts.length >= 4) {
-               width = parseInt(parts[2]) || width;
-               height = parseInt(parts[3]) || height;
+              width = parseInt(parts[2]) || width;
+              height = parseInt(parts[3]) || height;
             }
           }
         }
@@ -111,7 +125,7 @@ export function handleAdminMessage(ws, data, context) {
         height: height,
         walls: []
       };
-      
+
       buildings.push(newBuilding);
       fs.writeFileSync(buildingsFile, JSON.stringify(buildings, null, 2), 'utf-8');
     } catch (e) {
@@ -119,6 +133,6 @@ export function handleAdminMessage(ws, data, context) {
     }
     return true;
   }
-  
+
   return false;
 }

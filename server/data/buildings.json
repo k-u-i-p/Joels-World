@@ -111,11 +111,11 @@
   {
     "id": "2_to_8_playground",
     "name": "2-8 Playground",
-    "x": -869,
-    "y": -1128,
-    "rotation": 8,
-    "width": 642,
-    "height": 195,
+    "x": -673,
+    "y": -1123,
+    "rotation": 1,
+    "width": 1052,
+    "height": 247,
     "walls": [
       {
         "x": 0,
@@ -157,6 +157,46 @@
     "rotation": 17,
     "width": 1654,
     "height": 1165,
+    "walls": []
+  },
+  {
+    "id": "building_1773231977714",
+    "name": "Mr Hardy's Office",
+    "x": 1065,
+    "y": -1761,
+    "rotation": 0,
+    "width": 140,
+    "height": 114,
+    "walls": []
+  },
+  {
+    "id": "building_1773231980812",
+    "name": "Nursery",
+    "x": -793,
+    "y": -1483,
+    "rotation": 38,
+    "width": 319,
+    "height": 256,
+    "walls": []
+  },
+  {
+    "id": "building_1773231981197",
+    "name": "2 To 8 Main Building",
+    "x": -1187,
+    "y": -1476,
+    "rotation": 41,
+    "width": 256,
+    "height": 415,
+    "walls": []
+  },
+  {
+    "id": "building_1773231981381",
+    "name": "13 to 18 Main Building",
+    "x": 775,
+    "y": -1500,
+    "rotation": 0,
+    "width": 940,
+    "height": 392,
     "walls": []
   }
 ]
