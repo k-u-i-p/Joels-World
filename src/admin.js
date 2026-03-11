@@ -29,7 +29,7 @@ export function setupAdmin(deps) {
     `;
 
     document.getElementById('btn-rot-left').onclick = () => {
-      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) - 2) % 360;
+      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) - 1) % 360;
       console.log('rotate');
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
@@ -37,7 +37,7 @@ export function setupAdmin(deps) {
     };
 
     document.getElementById('btn-rot-right').onclick = () => {
-      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 2) % 360;
+      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 1) % 360;
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
       }
@@ -101,8 +101,8 @@ export function setupAdmin(deps) {
     lastMouseX = e.clientX;
     lastMouseY = e.clientY;
 
-    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
-    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
+    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + window.cameraX;
+    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + window.cameraY;
 
     selectedBuilding = null;
 
@@ -123,16 +123,16 @@ export function setupAdmin(deps) {
 
     if (!draggedPlant) {
       for (let i = buildings.length - 1; i >= 0; i--) {
-      const building = buildings[i];
-      if (isPointInBuilding(worldX, worldY, building)) {
-        console.log(`Dragging building: ${building.id}`);
-        draggedBuilding = building;
-        selectedBuilding = building;
-        dragOffsetX = building.x - worldX;
-        dragOffsetY = building.y - worldY;
-        break;
+        const building = buildings[i];
+        if (isPointInBuilding(worldX, worldY, building)) {
+          console.log(`Dragging building: ${building.id}`);
+          draggedBuilding = building;
+          selectedBuilding = building;
+          dragOffsetX = building.x - worldX;
+          dragOffsetY = building.y - worldY;
+          break;
+        }
       }
-    }
     }
 
     if (!draggedPlant && !draggedBuilding && !e.target.closest('#admin-panel')) {
@@ -157,8 +157,8 @@ export function setupAdmin(deps) {
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
 
-      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
-      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX || player.x);
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY || player.y);
 
       draggedBuilding.x = Math.round(worldX + dragOffsetX);
       draggedBuilding.y = Math.round(worldY + dragOffsetY);
@@ -167,8 +167,8 @@ export function setupAdmin(deps) {
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
 
-      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
-      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX || player.x);
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY || player.y);
 
       draggedPlant.x = Math.round(worldX + dragOffsetX);
       draggedPlant.y = Math.round(worldY + dragOffsetY);
@@ -177,8 +177,8 @@ export function setupAdmin(deps) {
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
 
-      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
-      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX || player.x);
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY || player.y);
 
       window.adminBackgroundImage._x = Math.round(worldX + bgDragOffsetX);
       window.adminBackgroundImage._y = Math.round(worldY + bgDragOffsetY);
@@ -206,11 +206,11 @@ export function setupAdmin(deps) {
     }
     if (draggedPlant) {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ 
-          type: 'move_plant', 
-          id: draggedPlant.id, 
-          x: draggedPlant.x, 
-          y: draggedPlant.y 
+        ws.send(JSON.stringify({
+          type: 'move_plant',
+          id: draggedPlant.id,
+          x: draggedPlant.x,
+          y: draggedPlant.y
         }));
       }
       draggedPlant = null;
@@ -266,8 +266,8 @@ export function setupAdmin(deps) {
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
 
-      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + player.x;
-      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + player.y;
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX || player.x);
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY || player.y);
 
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({

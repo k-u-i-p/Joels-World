@@ -145,6 +145,9 @@ let characters = [];
 let preloadedImages = {};
 let lastSyncTime = 0;
 
+window.mapImage = new Image();
+window.mapImage.src = '/map.png';
+
 function syncPlayerToJSON() {
   const charIndex = characters.findIndex(c => c.id === player.id);
   if (charIndex > -1) {
@@ -195,6 +198,16 @@ function update() {
     const playerRadius = 15; // slightly smaller than half width for smooth collisions
 
     const canMoveTo = (newX, newY) => {
+      // Check map boundaries
+      if (window.mapImage && window.mapImage.complete) {
+        const halfMapW = window.mapImage.width / 2;
+        const halfMapH = window.mapImage.height / 2;
+        if (newX - playerRadius < -halfMapW || newX + playerRadius > halfMapW ||
+            newY - playerRadius < -halfMapH || newY + playerRadius > halfMapH) {
+          return false;
+        }
+      }
+
       // Check plants
       for (const plant of plants) {
         const distSq = (newX - plant.x) ** 2 + (newY - plant.y) ** 2;
@@ -292,6 +305,33 @@ function update() {
 }
 
 function draw() {
+  window.cameraX = player.x;
+  window.cameraY = player.y;
+
+  if (window.mapImage && window.mapImage.complete) {
+    const halfMapW = window.mapImage.width / 2;
+    const halfMapH = window.mapImage.height / 2;
+    const viewHalfW = (canvas.width / window.cameraZoom) / 2;
+    const viewHalfH = (canvas.height / window.cameraZoom) / 2;
+
+    const minX = -halfMapW + viewHalfW;
+    const maxX = halfMapW - viewHalfW;
+    const minY = -halfMapH + viewHalfH;
+    const maxY = halfMapH - viewHalfH;
+
+    if (minX <= maxX) {
+      window.cameraX = Math.max(minX, Math.min(maxX, window.cameraX));
+    } else {
+      window.cameraX = 0;
+    }
+
+    if (minY <= maxY) {
+      window.cameraY = Math.max(minY, Math.min(maxY, window.cameraY));
+    } else {
+      window.cameraY = 0;
+    }
+  }
+
   // Clear screen (fixed to screen coordinates)
   ctx.fillStyle = '#7bed9f'; // Grass green color
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -300,7 +340,11 @@ function draw() {
   ctx.save();
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.scale(window.cameraZoom, window.cameraZoom);
-  ctx.translate(-player.x, -player.y);
+  ctx.translate(-window.cameraX, -window.cameraY);
+
+  if (window.mapImage && window.mapImage.complete) {
+    ctx.drawImage(window.mapImage, -window.mapImage.width / 2, -window.mapImage.height / 2);
+  }
 
   if (window.adminBackgroundImage && window.adminBackgroundImage.complete) {
     ctx.drawImage(window.adminBackgroundImage, window.adminBackgroundImage._x || 0, window.adminBackgroundImage._y || 0);
@@ -661,7 +705,21 @@ function handleInitData(plantsData, buildingsData, charactersData, npcsData, myC
     });
   });
 
-  Promise.all(imagePromises).then(() => {
+  const mapPromise = new Promise((resolve) => {
+    if (window.mapImage && window.mapImage.complete) {
+      resolve();
+    } else if (window.mapImage) {
+      window.mapImage.onload = () => resolve();
+      window.mapImage.onerror = () => {
+        console.warn('Failed to load map.png');
+        resolve();
+      };
+    } else {
+      resolve();
+    }
+  });
+
+  Promise.all([...imagePromises, mapPromise]).then(() => {
     isDataLoaded = true;
     startBtn.textContent = 'Start Game';
     startBtn.disabled = false;
