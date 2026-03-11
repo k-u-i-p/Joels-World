@@ -83,18 +83,24 @@ export const emotes = {
       ctx.beginPath(); ctx.arc(5, 1, 1, 0, Math.PI * 2); ctx.fill();
 
       // Animated tears
-      const tearProgress1 = (Date.now() % 1000) / 1000;
-      const tearProgress2 = ((Date.now() + 500) % 1000) / 1000;
-
       ctx.fillStyle = '#3498db'; // blue tear
 
-      // Left cheek tears
-      ctx.beginPath(); ctx.arc(4 - tearProgress1 * 6, -2 - tearProgress1 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(4 - tearProgress2 * 6, -2 - tearProgress2 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 6; i++) {
+        const offset = i * (1000 / 6);
+        const progress = ((Date.now() + offset) % 1000) / 1000;
+        
+        // Fade out as they move
+        ctx.globalAlpha = 1 - Math.pow(progress, 2);
+        const tearSize = 4 * (1 - progress * 0.5);
+        
+        // Spread much further back and outward
+        const curX = 4 - progress * 25;
+        const leftY = -2 - progress * 15;
+        const rightY = 2 + progress * 15;
 
-      // Right cheek tears
-      ctx.beginPath(); ctx.arc(4 - tearProgress1 * 6, 2 + tearProgress1 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(4 - tearProgress2 * 6, 2 + tearProgress2 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(curX, leftY, tearSize, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(curX, rightY, tearSize, 0, Math.PI * 2); ctx.fill();
+      }
       ctx.restore();
     }
   },
