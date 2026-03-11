@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Joels World</title>
+</head>
+
+<body>
+
+  <!-- Help Button -->
+  <button id="help-button">?</button>
+
+  <!-- Help Dialog Overlay -->
+  <div id="help-dialog" class="overlay" style="display: none;">
+    <div class="dialog-content" style="text-align: left; max-width: 400px;">
+      <h2 style="text-align: center;">Controls & Info</h2>
+      <ul>
+        <li><strong>Keyboard:</strong> Arrow keys to move and turn.</li>
+        <li><strong>Mobile:</strong> Use the left virtual joystick to move and the right virtual joystick to turn.</li>
+        <li><strong>Interact:</strong> Press Spacebar (or the Talk button on mobile) to talk to friends like hector
+          .</li>
+        <li><strong>Chat:</strong> Press Enter to type a message to other players.</li>
+        <li><strong>Fun Commands:</strong> Type <code>/dance</code>, <code>/fart</code>, <code>/dead</code>, or
+          <code>/cry</code> in the chat box!
+        </li>
+      </ul>
+      <div style="text-align: center; margin-top: 20px;">
+        <button id="close-help-btn"
+          style="padding: 8px 16px; border-radius: 6px; border: none; background: #3498db; color: white; cursor: pointer; font-weight: bold;">Got
+          it!</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="admin-panel" style="display: none;">
+    <div style="margin-bottom: 15px; text-align: center;">
+      <button id="btn-create-building" style="width: 100%; padding: 8px; background-color: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">+ Create Building</button>
+    </div>
+    <div id="edit-building-section" style="display: none;">
+      <h3>Edit Building</h3>
+      <div style="text-align:center; margin-bottom:10px;">
+        <input type="text" id="building-name-input" style="width:100%; box-sizing:border-box; padding:5px; text-align:center; background:rgba(255,255,255,0.1); border:1px solid #7f8c8d; color:white; border-radius:4px;" placeholder="Building Name" />
+      </div>
+      <div class="control-row">
+        <span>Rotate:</span>
+        <button id="btn-rot-left">↺</button>
+        <button id="btn-rot-right">↻</button>
+      </div>
+      <div class="control-row">
+        <span>Width:</span>
+        <button id="btn-width-dec">-</button>
+        <button id="btn-width-inc">+</button>
+      </div>
+      <div class="control-row">
+        <span>Height:</span>
+        <button id="btn-height-dec">-</button>
+        <button id="btn-height-inc">+</button>
+      </div>
+    </div>
+    <div id="edit-plant-section" style="display: none;">
+      <h3>Edit Tree</h3>
+      <div class="control-row">
+        <span>Size:</span>
+        <button id="btn-plant-size-dec">-</button>
+        <button id="btn-plant-size-inc">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chat-container">
+    <input type="text" id="chat-input" placeholder="Press Enter to chat..." autocomplete="off" maxlength="80" />
+  </div>
+  <div id="joystick-move-container">
+    <div id="joystick-move-knob"></div>
+  </div>
+  <div id="joystick-turn-container">
+    <div id="joystick-turn-knob"></div>
+  </div>
+  <div id="action-button">Talk</div>
+  <canvas id="gameCanvas"></canvas>
+  <script type="module" src="/src/admin.js"></script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

@@ -413,6 +413,13 @@ export function setupAdmin() {
 
     ctx.restore();
   };
+
+  if (window.gameLoop) {
+    requestAnimationFrame(window.gameLoop);
+  }
+  
+  const nameDialog = document.getElementById('name-dialog');
+  if (nameDialog) nameDialog.style.display = 'none';
 }
 
 window.addEventListener('load', setupAdmin);

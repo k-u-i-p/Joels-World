@@ -1,4 +1,5 @@
 import './style.css'
+import { emotes } from './emotes.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -36,11 +37,7 @@ ws.onmessage = (event) => {
         localChar.name = serverChar.name;
         localChar.pantsColor = serverChar.pantsColor;
         localChar.armColor = serverChar.armColor;
-        localChar.isDancing = serverChar.isDancing;
-        localChar.fartTime = serverChar.fartTime;
-        localChar.isDead = serverChar.isDead;
-        localChar.isCrying = serverChar.isCrying;
-        localChar.isGritty = serverChar.isGritty;
+        localChar.emote = serverChar.emote;
       } else {
         serverChar.targetX = serverChar.x;
         serverChar.targetY = serverChar.y;
@@ -102,33 +99,23 @@ window.addEventListener('keydown', (e) => {
         const msg = chatInput.value.trim();
         chatInput.value = '';
 
-        if (msg.toLowerCase() === '/dance') {
-          player.isDancing = true;
-          player.isDead = false;
-          player.isCrying = false;
-          player.isGritty = false;
-          syncPlayerToJSON();
-        } else if (msg.toLowerCase() === '/fart') {
-          player.fartTime = Date.now();
-          syncPlayerToJSON();
-        } else if (msg.toLowerCase() === '/dead') {
-          player.isDead = true;
-          player.isDancing = false;
-          player.isCrying = false;
-          player.isGritty = false;
-          syncPlayerToJSON();
-        } else if (msg.toLowerCase() === '/cry') {
-          player.isCrying = true;
-          player.isDancing = false;
-          player.isDead = false;
-          player.isGritty = false;
-          syncPlayerToJSON();
-        } else if (msg.toLowerCase() === '/gritty' || msg.toLowerCase() === 'daning gritty' || msg.toLowerCase() === 'dancing gritty') {
-          player.isGritty = true;
-          player.isCrying = false;
-          player.isDancing = false;
-          player.isDead = false;
-          syncPlayerToJSON();
+        if (msg[0] === '/') {
+          if (msg.toLowerCase() === '/dance') {
+            player.emote = { name: 'dance', startTime: Date.now() };
+            syncPlayerToJSON();
+          } else if (msg.toLowerCase() === '/fart') {
+            player.emote = { name: 'fart', startTime: Date.now() };
+            syncPlayerToJSON();
+          } else if (msg.toLowerCase() === '/dead') {
+            player.emote = { name: 'dead', startTime: Date.now() };
+            syncPlayerToJSON();
+          } else if (msg.toLowerCase() === '/cry') {
+            player.emote = { name: 'cry', startTime: Date.now() };
+            syncPlayerToJSON();
+          } else if (msg.toLowerCase() === '/gritty') {
+            player.emote = { name: 'gritty', startTime: Date.now() };
+            syncPlayerToJSON();
+          }
         } else {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'chat', message: msg }));
@@ -189,19 +176,11 @@ let player = {
   moveSpeed: 3,
   rotationSpeed: 0.05,
   legAnimationTime: 0,
-  isDancing: false,
-  isDead: false,
-  isCrying: false,
-  isGritty: false,
-  fartTime: 0,
+  emote: null,
   _lastSentX: null,
   _lastSentY: null,
   _lastSentRotation: null,
-  _lastSentDancing: false,
-  _lastSentDead: false,
-  _lastSentCrying: false,
-  _lastSentGritty: false,
-  _lastSentFartTime: 0,
+  _lastSentEmoteString: null,
   x: window.innerWidth / 2,
   y: window.innerHeight / 2,
   width: 40,
@@ -228,11 +207,7 @@ function syncPlayerToJSON() {
     characters[charIndex].y = player.y;
     characters[charIndex].rotation = player.rotation;
     characters[charIndex].name = player.name; // Keep name synced
-    characters[charIndex].isDancing = player.isDancing;
-    characters[charIndex].isDead = player.isDead;
-    characters[charIndex].isCrying = player.isCrying;
-    characters[charIndex].isGritty = player.isGritty;
-    characters[charIndex].fartTime = player.fartTime;
+    characters[charIndex].emote = player.emote;
 
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'update', character: characters[charIndex] }));
@@ -249,6 +224,7 @@ function gameLoop() {
   }
   requestAnimationFrame(gameLoop);
 }
+window.gameLoop = gameLoop;
 
 function update() {
   // Rotation (tank controls)
@@ -365,11 +341,8 @@ function update() {
   // Animation
   if (isMoving) {
     player.legAnimationTime += 0.2;
-    if (player.isDancing || player.isDead || player.isCrying || player.isGritty) {
-      player.isDancing = false;
-      player.isDead = false;
-      player.isCrying = false;
-      player.isGritty = false;
+    if (player.emote) {
+      player.emote = null;
       syncPlayerToJSON();
     }
   } else {
@@ -429,12 +402,9 @@ function update() {
   // Sync back via websocket 20 times a second if moved
   const now = Date.now();
   if (now - lastSyncTime > 50) {
-    if (player.x !== player._lastSentX || player.y !== player._lastSentY || player.rotation !== player._lastSentRotation || player.isDancing !== player._lastSentDancing || player.fartTime !== player._lastSentFartTime || player.isDead !== player._lastSentDead || player.isCrying !== player._lastSentCrying || player.isGritty !== player._lastSentGritty) {
-      player._lastSentDancing = player.isDancing;
-      player._lastSentDead = player.isDead;
-      player._lastSentCrying = player.isCrying;
-      player._lastSentGritty = player.isGritty;
-      player._lastSentFartTime = player.fartTime;
+    const currentEmoteStr = player.emote ? JSON.stringify(player.emote) : null;
+    if (player.x !== player._lastSentX || player.y !== player._lastSentY || player.rotation !== player._lastSentRotation || currentEmoteStr !== player._lastSentEmoteString) {
+      player._lastSentEmoteString = currentEmoteStr;
       player._lastSentX = player.x;
       player._lastSentY = player.y;
       player._lastSentRotation = player.rotation;
@@ -520,74 +490,41 @@ function draw() {
 
       ctx.fillText('🚽', 0, 0);
     } else {
-      if (c.isDead) {
-        ctx.globalAlpha = 0.5;
+      let currentEmote = c.emote;
+      let emoteDef = null;
+      if (currentEmote && emotes[currentEmote.name]) {
+        emoteDef = emotes[currentEmote.name];
+        if (Date.now() - currentEmote.startTime > emoteDef.duration) {
+          c.emote = null;
+          currentEmote = null;
+          if (c === player) syncPlayerToJSON();
+          emoteDef = null;
+        } else if (emoteDef.setup) {
+          emoteDef.setup(ctx, currentEmote, c);
+        }
       }
 
       const legSwing = Math.sin(c.legAnimationTime || 0);
       const legStride = 15;
       const armStride = 8;
 
-      let leftArmX = 4 - legSwing * armStride;
-      let leftArmY = -14;
-      let rightArmX = 4 + legSwing * armStride;
-      let rightArmY = 14;
+      let limbs = {
+        leftArmX: 4 - legSwing * armStride,
+        leftArmY: -14,
+        rightArmX: 4 + legSwing * armStride,
+        rightArmY: 14,
+        leftLegStartX: -2,
+        leftLegStartY: -6,
+        leftLegEndX: -2 + 10 + legSwing * legStride,
+        leftLegEndY: -6,
+        rightLegStartX: -2,
+        rightLegStartY: 6,
+        rightLegEndX: -2 + 10 - legSwing * legStride,
+        rightLegEndY: 6
+      };
 
-      let leftLegStartX = -2;
-      let leftLegStartY = -6;
-      let leftLegEndX = -2 + 10 + legSwing * legStride;
-      let leftLegEndY = -6;
-
-      let rightLegStartX = -2;
-      let rightLegStartY = 6;
-      let rightLegEndX = -2 + 10 - legSwing * legStride;
-      let rightLegEndY = 6;
-
-      if (c.isDead) {
-        // Starfish/Lying down pose
-        // Arms splayed out
-        leftArmX = -4; leftArmY = -22;
-        rightArmX = -4; rightArmY = 22;
-        // Legs stretched backwards
-        leftLegStartX = -8; leftLegStartY = -4;
-        leftLegEndX = -22; leftLegEndY = -10;
-        rightLegStartX = -8; rightLegStartY = 4;
-        rightLegEndX = -22; rightLegEndY = 10;
-      } else if (c.isDancing) {
-        // Floss dance animation
-        const danceTime = Date.now() / 100;
-        const swing = Math.sin(danceTime) * 12;
-        const hipSwing = -swing * 0.4;
-
-        leftLegStartY = -6 + hipSwing;
-        leftLegEndY = -6 + hipSwing + 10;
-        leftLegEndX = -2;
-        rightLegStartY = 6 + hipSwing;
-        rightLegEndY = 6 + hipSwing + 10;
-        rightLegEndX = -2;
-
-        leftArmX = 0; leftArmY = -14 + swing;
-        rightArmX = 0; rightArmY = 14 + swing;
-      } else if (c.isGritty) {
-        // The Gritty dance
-        const danceTime = Date.now() / 150;
-        const swing = Math.sin(danceTime);
-        const fastSwing = Math.sin(danceTime * 2);
-
-        ctx.translate(fastSwing * 2, -Math.abs(fastSwing * 4)); // bobbing
-
-        // Alternating heel taps
-        if (swing > 0) {
-          leftLegStartY = -6; leftLegEndY = -2; leftLegEndX = -4; // Tap forward
-          rightLegStartY = 6; rightLegEndY = 6 + 10; rightLegEndX = -2; // Stand straight
-        } else {
-          leftLegStartY = -6; leftLegEndY = -6 + 10; leftLegEndX = -2; // Stand straight
-          rightLegStartY = 6; rightLegEndY = 2; rightLegEndX = -4; // Tap forward
-        }
-
-        // Arms swinging back and forth in front
-        leftArmX = 10 + swing * 8; leftArmY = -6;
-        rightArmX = 10 - swing * 8; rightArmY = 6;
+      if (emoteDef && emoteDef.updateLimbs) {
+        emoteDef.updateLimbs(limbs, currentEmote);
       }
 
       // --- LEGS ---
@@ -597,14 +534,14 @@ function draw() {
 
       // Left Leg
       ctx.beginPath();
-      ctx.moveTo(leftLegStartX, leftLegStartY);
-      ctx.lineTo(leftLegEndX, leftLegEndY);
+      ctx.moveTo(limbs.leftLegStartX, limbs.leftLegStartY);
+      ctx.lineTo(limbs.leftLegEndX, limbs.leftLegEndY);
       ctx.stroke();
 
       // Right Leg
       ctx.beginPath();
-      ctx.moveTo(rightLegStartX, rightLegStartY);
-      ctx.lineTo(rightLegEndX, rightLegEndY);
+      ctx.moveTo(limbs.rightLegStartX, limbs.rightLegStartY);
+      ctx.lineTo(limbs.rightLegEndX, limbs.rightLegEndY);
       ctx.stroke();
 
       // --- ARMS ---
@@ -614,23 +551,23 @@ function draw() {
       // Left Arm
       ctx.beginPath();
       ctx.moveTo(0, -11);
-      ctx.lineTo(leftArmX, leftArmY);
+      ctx.lineTo(limbs.leftArmX, limbs.leftArmY);
       ctx.stroke();
 
       // Right Arm
       ctx.beginPath();
       ctx.moveTo(0, 11);
-      ctx.lineTo(rightArmX, rightArmY);
+      ctx.lineTo(limbs.rightArmX, limbs.rightArmY);
       ctx.stroke();
 
       // Hands
       ctx.fillStyle = '#f1c27d'; // Skin tone
       ctx.beginPath();
-      ctx.arc(leftArmX, leftArmY, 3, 0, Math.PI * 2);
+      ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.beginPath();
-      ctx.arc(rightArmX, rightArmY, 3, 0, Math.PI * 2);
+      ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, Math.PI * 2);
       ctx.fill();
 
       // --- TORSO ---
@@ -662,64 +599,13 @@ function draw() {
       ctx.strokeStyle = 'rgba(0,0,0,0.4)';
       ctx.stroke();
 
-      // Draw X eyes if dead
-      if (c.isDead) {
-        ctx.beginPath();
-        // Left eye X
-        ctx.moveTo(3, -3); ctx.lineTo(7, 1);
-        ctx.moveTo(7, -3); ctx.lineTo(3, 1);
-        // Right eye X
-        ctx.moveTo(3, -1); ctx.lineTo(7, 3);
-        ctx.moveTo(7, -1); ctx.lineTo(3, 3);
-        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      } else if (c.isCrying) {
-        // Draw eyes
-        ctx.fillStyle = '#111';
-        ctx.beginPath(); ctx.arc(5, -1, 1, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(5, 1, 1, 0, Math.PI * 2); ctx.fill();
-
-        // Animated tears
-        const tearProgress1 = (Date.now() % 1000) / 1000;
-        const tearProgress2 = ((Date.now() + 500) % 1000) / 1000;
-
-        ctx.fillStyle = '#3498db'; // blue tear
-
-        // Left cheek tears
-        ctx.beginPath(); ctx.arc(4 - tearProgress1 * 6, -2 - tearProgress1 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(4 - tearProgress2 * 6, -2 - tearProgress2 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
-
-        // Right cheek tears
-        ctx.beginPath(); ctx.arc(4 - tearProgress1 * 6, 2 + tearProgress1 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(4 - tearProgress2 * 6, 2 + tearProgress2 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
+      // Draw X eyes if dead or tears or apply other custom drawing
+      if (emoteDef && emoteDef.draw) {
+        emoteDef.draw(ctx, currentEmote);
       }
     }
 
     ctx.restore();
-
-    // --- FART CLOUD ---
-    if (c.fartTime && Date.now() - c.fartTime < 1000) {
-      const fartAge = Date.now() - c.fartTime;
-      ctx.save();
-      ctx.translate(c.x, c.y);
-      ctx.rotate(c.rotation);
-      ctx.globalAlpha = Math.max(0, 1 - (fartAge / 1000));
-      ctx.fillStyle = '#2ecc71'; // Greenish cloud
-      ctx.beginPath();
-      ctx.arc(-20 - (fartAge / 50), 0, 10 + (fartAge / 30), 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(-15 - (fartAge / 40), 10, 6 + (fartAge / 40), 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(-15 - (fartAge / 40), -10, 6 + (fartAge / 40), 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
-    }
 
     // --- NAME TAG ---
     // Drawn after restore so it does not rotate with the character
@@ -799,18 +685,24 @@ const nameInput = document.getElementById('player-name-input');
 const startBtn = document.getElementById('start-game-btn');
 
 function attemptStartGame() {
-  if (isDataLoaded && nameInput.value.trim() !== '') {
-    player.name = nameInput.value.trim();
-    syncPlayerToJSON(); // Save the new name right away
-    nameDialog.style.display = 'none';
+  if (isDataLoaded) {
+    if (nameInput && nameInput.value.trim() !== '') {
+      player.name = nameInput.value.trim();
+      syncPlayerToJSON(); // Save the new name right away
+    }
+    if (nameDialog) nameDialog.style.display = 'none';
     requestAnimationFrame(gameLoop); // Kick off the game loop
   }
 }
 
-startBtn.addEventListener('click', attemptStartGame);
-nameInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') attemptStartGame();
-});
+if (startBtn) {
+  startBtn.addEventListener('click', attemptStartGame);
+}
+if (nameInput) {
+  nameInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') attemptStartGame();
+  });
+}
 
 function handleInitData(plantsData, buildingsData, charactersData, npcsData, myCharacter) {
   plants = plantsData;
@@ -829,7 +721,7 @@ function handleInitData(plantsData, buildingsData, charactersData, npcsData, myC
   }
 
   // Auto-fill if name exists
-  if (player.name) {
+  if (player.name && nameInput) {
     nameInput.value = player.name;
   }
 
@@ -849,20 +741,19 @@ function handleInitData(plantsData, buildingsData, charactersData, npcsData, myC
 
   Promise.all([mapPromise]).then(() => {
     isDataLoaded = true;
-    startBtn.textContent = 'Start Game';
-    startBtn.disabled = false;
-    if (isAdmin) {
-      attemptStartGame();
-    } else if (nameInput.value.trim() !== '') {
+    if (startBtn) {
+      startBtn.textContent = 'Start Game';
+      startBtn.disabled = false;
+    }
+    if (nameInput && nameInput.value.trim() !== '') {
       nameInput.focus();
     }
   }).catch(err => {
     // Allow trying to start despite errors
     isDataLoaded = true;
-    startBtn.textContent = 'Start Game';
-    startBtn.disabled = false;
-    if (isAdmin) {
-      attemptStartGame();
+    if (startBtn) {
+      startBtn.textContent = 'Start Game';
+      startBtn.disabled = false;
     }
   });
 }
