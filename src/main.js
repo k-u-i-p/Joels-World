@@ -237,19 +237,22 @@ function update() {
   let dy = 0;
 
   if (keys.ArrowUp) {
-    dx += Math.round(Math.cos(player.rotation) * player.moveSpeed);
-    dy += Math.round(Math.sin(player.rotation) * player.moveSpeed);
+    const scale = window.characterScale || 1;
+    dx += Math.round(Math.cos(player.rotation) * (player.moveSpeed || 3) * scale);
+    dy += Math.round(Math.sin(player.rotation) * (player.moveSpeed || 3) * scale);
   }
   if (keys.ArrowDown) {
-    dx -= Math.round(Math.cos(player.rotation) * player.moveSpeed);
-    dy -= Math.round(Math.sin(player.rotation) * player.moveSpeed);
+    const scale = window.characterScale || 1;
+    dx -= Math.round(Math.cos(player.rotation) * (player.moveSpeed || 3) * scale);
+    dy -= Math.round(Math.sin(player.rotation) * (player.moveSpeed || 3) * scale);
   }
 
   let isMoving = false;
   if (dx !== 0 || dy !== 0) {
     isMoving = true;
 
-    const playerRadius = 15; // slightly smaller than half width for smooth collisions
+    const scale = window.characterScale || 1;
+    const playerRadius = 15 * scale; // slightly smaller than half width for smooth collisions
 
     const canMoveTo = (newX, newY) => {
       // Check map boundaries
@@ -384,7 +387,8 @@ function update() {
         c.rotation = c.targetRotation;
       } else if (dist > 0.5) {
         // Walk towards the target position at character's walking speed, or slightly faster if lagging far behind
-        const speed = c.moveSpeed || 3;
+        const scale = window.characterScale || 1;
+        const speed = (c.moveSpeed || 3) * scale;
         const moveStep = Math.max(speed, dist * 0.1);
         const step = Math.min(dist, moveStep);
 
@@ -485,6 +489,9 @@ function draw() {
     ctx.save();
     ctx.translate(c.x, c.y);
     ctx.rotate(c.rotation);
+
+    const scale = window.characterScale || 1;
+    ctx.scale(scale, scale);
 
     if (c.name === 'Talking Poop') {
       ctx.font = '60px sans-serif';
@@ -640,7 +647,8 @@ function draw() {
       ctx.shadowOffsetX = 1;
       ctx.shadowOffsetY = 1;
 
-      ctx.fillText(c.name, 0, 30);
+      const scale = window.characterScale || 1;
+      ctx.fillText(c.name, 0, 15 + 15 * scale);
       ctx.restore();
     }
 
@@ -653,7 +661,8 @@ function draw() {
       const textWidth = ctx.measureText(c.chatMessage).width;
       const bubbleWidth = textWidth + 24;
       const bubbleHeight = 32;
-      const bubbleY = -35;
+      const scale = window.characterScale || 1;
+      const bubbleY = -(20 + 15 * scale);
 
       ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
       ctx.shadowBlur = 6;
@@ -755,6 +764,7 @@ function handleInitData(data) {
     window.mapWidth = mapMetadata.width;
     window.mapHeight = mapMetadata.height;
     window.currentMapId = mapMetadata.id;
+    window.characterScale = mapMetadata.character_scale || 1;
   }
 
   console.log(mapsList)
