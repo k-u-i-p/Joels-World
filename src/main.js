@@ -26,8 +26,20 @@ ws.onmessage = (event) => {
       if (serverChar.id === player.id) return; // Prevent echoing our own state
       const localCharIndex = characters.findIndex(c => c.id === serverChar.id);
       if (localCharIndex > -1) {
-        Object.assign(characters[localCharIndex], serverChar);
+        const localChar = characters[localCharIndex];
+        // Set targets for interpolation
+        localChar.targetX = serverChar.x;
+        localChar.targetY = serverChar.y;
+        localChar.targetRotation = serverChar.rotation;
+
+        // Directly sync visual properties
+        localChar.name = serverChar.name;
+        localChar.pantsColor = serverChar.pantsColor;
+        localChar.armColor = serverChar.armColor;
       } else {
+        serverChar.targetX = serverChar.x;
+        serverChar.targetY = serverChar.y;
+        serverChar.targetRotation = serverChar.rotation;
         characters.push(serverChar);
       }
     } else if (data.type === 'disconnect') {
@@ -287,6 +299,44 @@ function update() {
   } else {
     // Smoother stop: reset animation to neutral when stopped
     player.legAnimationTime = 0;
+  }
+
+  // Smoothly interpolate other characters to their server positions
+  for (const c of characters) {
+    if (c.id === player.id) continue;
+
+    if (c.targetX !== undefined && c.targetY !== undefined) {
+      const cdx = c.targetX - c.x;
+      const cdy = c.targetY - c.y;
+      const dist = Math.hypot(cdx, cdy);
+
+      // Snap if teleported really far
+      if (dist > 100) {
+        c.x = c.targetX;
+        c.y = c.targetY;
+        c.rotation = c.targetRotation;
+      } else if (dist > 0.5) {
+        // Interpolate position
+        c.x += cdx * 0.3;
+        c.y += cdy * 0.3;
+        c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
+
+        // Interpolate rotation efficiently via shortest angle
+        if (c.targetRotation !== undefined) {
+          let rotDiff = c.targetRotation - (c.rotation || 0);
+          while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+          while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+          c.rotation = (c.rotation || 0) + rotDiff * 0.3;
+        }
+      } else {
+        c.x = c.targetX;
+        c.y = c.targetY;
+        if (c.targetRotation !== undefined) {
+          c.rotation = c.targetRotation;
+        }
+        c.legAnimationTime = 0; // stop moving legs
+      }
+    }
   }
 
   // (Basic screen boundaries removed to allow world movement)
