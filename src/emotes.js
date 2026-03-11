@@ -189,5 +189,62 @@ export const emotes = {
 
       ctx.restore();
     }
+  },
+  love: {
+    duration: 5000,
+    message: "{name} is in love",
+    setup: (ctx, emote, c) => {
+      const hover = Math.sin((Date.now() - emote.startTime) / 150) * 2;
+      ctx.translate(hover, 0); // slight rhythmic bobbing
+    },
+    updateLimbs: (limbs, emote) => {
+      // Arms clasped forward
+      limbs.leftArmX = 8; limbs.leftArmY = -2;
+      limbs.rightArmX = 8; limbs.rightArmY = 2;
+
+      // Legs together, kicking back adorably
+      const kick = Math.sin((Date.now() - emote.startTime) / 150) * 3;
+      limbs.leftLegStartX = -2; limbs.leftLegStartY = -3;
+      limbs.leftLegEndX = -4 + kick; limbs.leftLegEndY = -3;
+      
+      limbs.rightLegStartX = -2; limbs.rightLegStartY = 3;
+      limbs.rightLegEndX = -4 + kick; limbs.rightLegEndY = 3;
+    },
+    draw: (ctx, emote) => {
+      ctx.save();
+      
+      // Heart eyes
+      ctx.font = '8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('❤️', 5, -3);
+      ctx.fillText('❤️', 5, 3);
+
+      // Smiling mouth
+      ctx.beginPath();
+      ctx.arc(6, 0, 1.5, -Math.PI/2, Math.PI/2);
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Floating hearts effect
+      for (let i = 0; i < 4; i++) {
+        const offset = i * (2000 / 4);
+        const timeActive = Date.now() - emote.startTime + offset;
+        const progress = (timeActive % 2000) / 2000;
+        
+        ctx.globalAlpha = 1 - Math.pow(progress, 2);
+        const heartSize = 14 * (1 - progress * 0.3);
+        
+        // Bubbling outwards and wavy
+        const curX = 8 + progress * 35; 
+        const curY = Math.sin(progress * Math.PI * 6 + i) * 20;
+        
+        ctx.font = `${heartSize}px sans-serif`;
+        ctx.fillText('❤️', curX, curY);
+      }
+      
+      ctx.restore();
+    }
   }
 };
