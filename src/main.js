@@ -316,9 +316,13 @@ function update() {
         c.y = c.targetY;
         c.rotation = c.targetRotation;
       } else if (dist > 0.5) {
-        // Interpolate position
-        c.x += cdx * 0.3;
-        c.y += cdy * 0.3;
+        // Walk towards the target position at character's walking speed, or slightly faster if lagging far behind
+        const speed = c.moveSpeed || 3;
+        const moveStep = Math.max(speed, dist * 0.1);
+        const step = Math.min(dist, moveStep);
+
+        c.x += (cdx / dist) * step;
+        c.y += (cdy / dist) * step;
         c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
 
         // Interpolate rotation efficiently via shortest angle
