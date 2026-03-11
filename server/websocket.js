@@ -8,7 +8,7 @@ import cookieParser from 'cookie-parser';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const npcFile = path.resolve(__dirname, 'data/npc.json');
-const plantsFile = path.resolve(__dirname, 'data/plants.json');
+const collisionObjectsFile = path.resolve(__dirname, 'data/collision_objects.json');
 const buildingsFile = path.resolve(__dirname, 'data/buildings.json');
 
 export function setupWebSocket(server) {
@@ -25,13 +25,13 @@ export function setupWebSocket(server) {
     console.error("Error loading initial npcs:", e);
   }
 
-  let plants = [];
+  let collisionObjects = [];
   try {
-    if (fs.existsSync(plantsFile)) {
-      plants = JSON.parse(fs.readFileSync(plantsFile, 'utf-8'));
+    if (fs.existsSync(collisionObjectsFile)) {
+      collisionObjects = JSON.parse(fs.readFileSync(collisionObjectsFile, 'utf-8'));
     }
   } catch (e) {
-    console.error("Error loading plants:", e);
+    console.error("Error loading collision objects:", e);
   }
 
   let buildings = [];
@@ -62,22 +62,22 @@ export function setupWebSocket(server) {
         } catch (e) {
           console.error('Error reloading buildings on watch event:', e);
         }
-      }, 100);
+      }, 1000);
     });
   } catch (e) {
     console.error('Failed to setup watch on buildings file:', e);
   }
 
-  let plantsTimer;
+  let collisionObjectsTimer;
   try {
-    fs.watch(plantsFile, (eventType, filename) => {
-      if (plantsTimer) clearTimeout(plantsTimer);
-      plantsTimer = setTimeout(() => {
+    fs.watch(collisionObjectsFile, (eventType, filename) => {
+      if (collisionObjectsTimer) clearTimeout(collisionObjectsTimer);
+      collisionObjectsTimer = setTimeout(() => {
         try {
-          if (fs.existsSync(plantsFile)) {
-            plants = JSON.parse(fs.readFileSync(plantsFile, 'utf-8'));
-            console.log('Plants file updated, broadcasting to clients...');
-            const broadcastMsg = JSON.stringify({ type: 'plants_update', plants });
+          if (fs.existsSync(collisionObjectsFile)) {
+            collisionObjects = JSON.parse(fs.readFileSync(collisionObjectsFile, 'utf-8'));
+            console.log('Collision objects updated, broadcasting to clients...');
+            const broadcastMsg = JSON.stringify({ type: 'collision_objects_update', collisionObjects });
             for (const client of wss.clients) {
               if (client.readyState === 1 && !client.isAdmin) {
                 client.send(broadcastMsg);
@@ -85,12 +85,12 @@ export function setupWebSocket(server) {
             }
           }
         } catch (e) {
-          console.error('Error reloading plants on watch event:', e);
+          console.error('Error reloading collision objects on watch event:', e);
         }
-      }, 100);
+      }, 1000);
     });
   } catch (e) {
-    console.error('Failed to setup watch on plants file:', e);
+    console.error('Failed to setup watch on collision objects file:', e);
   }
 
   const colors = ['#e74c3c', '#8e44ad', '#3498db', '#1abc9c', '#2ecc71', '#f1c40f', '#e67e22', '#34495e'];
@@ -128,12 +128,12 @@ export function setupWebSocket(server) {
 
     characters[newPlayerId] = newChar;
 
-    // Send the current characters, npcs, plants, and buildings to the new client
+    // Send the current characters, npcs, collisionObjects, and buildings to the new client
     ws.send(JSON.stringify({
       type: 'init',
       characters: Object.values(characters),
       npcs: npcs,
-      plants: plants,
+      collisionObjects: collisionObjects,
       buildings: buildings,
       myCharacter: newChar
     }));
@@ -178,7 +178,7 @@ export function setupWebSocket(server) {
               client.send(broadcastMsg);
             }
           }
-        } else if (ws.isAdmin && handleAdminMessage(ws, data, { buildings, buildingsFile, plants, plantsFile, __dirname })) {
+        } else if (ws.isAdmin && handleAdminMessage(ws, data, { buildings, buildingsFile, collisionObjects, collisionObjectsFile, __dirname })) {
           // Handled securely by the admin controller
         }
       } catch (err) {

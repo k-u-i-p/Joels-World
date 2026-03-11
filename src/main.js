@@ -20,7 +20,7 @@ ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'init') {
       if (typeof handleInitData === 'function') {
-        handleInitData(data.plants || [], data.buildings || [], data.characters || [], data.npcs || [], data.myCharacter);
+        handleInitData(data.collisionObjects || [], data.buildings || [], data.characters || [], data.npcs || [], data.myCharacter);
       }
     } else if (data.type === 'update') {
       const serverChar = data.character;
@@ -55,9 +55,9 @@ ws.onmessage = (event) => {
         player.chatMessage = data.message;
         player.chatTime = Date.now();
       }
-    } else if (data.type === 'plants_update') {
-      plants = data.plants || [];
-      window.plants = plants;
+    } else if (data.type === 'collision_objects_update') {
+      collisionObjects = data.collisionObjects || [];
+      window.collisionObjects = collisionObjects;
     } else if (data.type === 'buildings_update') {
       buildings = data.buildings || [];
       window.buildings = buildings;
@@ -187,8 +187,8 @@ let player = {
 window.player = player;
 
 // Map Objects
-let plants = [];
-window.plants = plants;
+let collisionObjects = [];
+window.collisionObjects = collisionObjects;
 let buildings = [];
 window.buildings = buildings;
 let characters = [];
@@ -262,12 +262,31 @@ function update() {
         }
       }
 
-      // Check plants
-      for (const plant of plants) {
-        const distSq = (newX - plant.x) ** 2 + (newY - plant.y) ** 2;
-        const minD = (plant.size || 20) + playerRadius;
-        if (distSq < minD * minD) {
-          return false;
+      // Check collision objects
+      for (const obj of collisionObjects) {
+        if (obj.shape === 'circle') {
+          const distSq = (newX - obj.x) ** 2 + (newY - obj.y) ** 2;
+          const r = Math.max(obj.width, obj.length) / 2;
+          const minD = r + playerRadius;
+          if (distSq < minD * minD) {
+            return false;
+          }
+        } else if (obj.shape === 'rect') {
+          const halfW = obj.width / 2;
+          const halfL = obj.length / 2;
+          const rectLeft = obj.x - halfW;
+          const rectRight = obj.x + halfW;
+          const rectTop = obj.y - halfL;
+          const rectBottom = obj.y + halfL;
+
+          // closest point on rect to player
+          const closestX = Math.max(rectLeft, Math.min(newX, rectRight));
+          const closestY = Math.max(rectTop, Math.min(newY, rectBottom));
+
+          const distSq = (newX - closestX) ** 2 + (newY - closestY) ** 2;
+          if (distSq < playerRadius * playerRadius) {
+            return false;
+          }
         }
       }
 
@@ -699,10 +718,10 @@ if (nameInput) {
   });
 }
 
-function handleInitData(plantsData, buildingsData, charactersData, npcsData, myCharacter) {
-  plants = plantsData;
+function handleInitData(colObjsData, buildingsData, charactersData, npcsData, myCharacter) {
+  collisionObjects = colObjsData;
   buildings = buildingsData;
-  window.plants = plants;
+  window.collisionObjects = collisionObjects;
   window.buildings = buildings;
   characters = [...npcsData, ...charactersData];
 

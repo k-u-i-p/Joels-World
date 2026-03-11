@@ -5,7 +5,7 @@ export function setupAdmin() {
   const ctx = canvas.getContext('2d');
   const player = window.player;
   const getBuildings = () => window.buildings;
-  const getPlants = () => window.plants;
+  const getCollisionObjects = () => window.collisionObjects;
   const ws = window.ws;
 
   const adminPanel = document.getElementById('admin-panel');
@@ -38,8 +38,8 @@ export function setupAdmin() {
 
   let draggedBuilding = null;
   let selectedBuilding = null;
-  let draggedPlant = null;
-  let selectedPlant = null;
+  let draggedCollisionObject = null;
+  let selectedCollisionObject = null;
   let dragOffsetX = 0;
   let dragOffsetY = 0;
 
@@ -53,6 +53,18 @@ export function setupAdmin() {
   document.getElementById('btn-create-building').onclick = () => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'create_building_generic', x: Math.round(player.x), y: Math.round(player.y) }));
+    }
+  };
+
+  document.getElementById('btn-create-col-rect').onclick = () => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'create_collision_object', shape: 'rect', x: Math.round(player.x), y: Math.round(player.y) }));
+    }
+  };
+
+  document.getElementById('btn-create-col-circle').onclick = () => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'create_collision_object', shape: 'circle', x: Math.round(player.x), y: Math.round(player.y) }));
     }
   };
 
@@ -117,21 +129,39 @@ export function setupAdmin() {
     }
   });
 
-  bindHoldAction('btn-plant-size-dec', () => {
-    if (!selectedPlant) return;
-    let change = Math.max(1, Math.round(selectedPlant.size * 0.02));
-    selectedPlant.size = Math.max(5, selectedPlant.size - change);
+  bindHoldAction('btn-col-width-dec', () => {
+    if (!selectedCollisionObject) return;
+    let change = Math.max(1, Math.round(selectedCollisionObject.width * 0.02));
+    selectedCollisionObject.width = Math.max(5, selectedCollisionObject.width - change);
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'resize_plant', id: selectedPlant.id, size: selectedPlant.size }));
+      ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
     }
   });
 
-  bindHoldAction('btn-plant-size-inc', () => {
-    if (!selectedPlant) return;
-    let change = Math.max(1, Math.round(selectedPlant.size * 0.02));
-    selectedPlant.size += change;
+  bindHoldAction('btn-col-width-inc', () => {
+    if (!selectedCollisionObject) return;
+    let change = Math.max(1, Math.round(selectedCollisionObject.width * 0.02));
+    selectedCollisionObject.width += change;
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'resize_plant', id: selectedPlant.id, size: selectedPlant.size }));
+      ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
+    }
+  });
+
+  bindHoldAction('btn-col-length-dec', () => {
+    if (!selectedCollisionObject) return;
+    let change = Math.max(1, Math.round(selectedCollisionObject.length * 0.02));
+    selectedCollisionObject.length = Math.max(5, selectedCollisionObject.length - change);
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
+    }
+  });
+
+  bindHoldAction('btn-col-length-inc', () => {
+    if (!selectedCollisionObject) return;
+    let change = Math.max(1, Math.round(selectedCollisionObject.length * 0.02));
+    selectedCollisionObject.length += change;
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
     }
   });
 
@@ -139,20 +169,20 @@ export function setupAdmin() {
     adminPanel.style.display = 'block';
 
     const editSection = document.getElementById('edit-building-section');
-    const editPlantSection = document.getElementById('edit-plant-section');
+    const editColObjSection = document.getElementById('edit-col-obj-section');
 
     if (selectedBuilding) {
       editSection.style.display = 'block';
-      editPlantSection.style.display = 'none';
+      editColObjSection.style.display = 'none';
 
       const nameInput = document.getElementById('building-name-input');
       nameInput.value = selectedBuilding.name || selectedBuilding.id;
-    } else if (selectedPlant) {
+    } else if (selectedCollisionObject) {
       editSection.style.display = 'none';
-      editPlantSection.style.display = 'block';
+      editColObjSection.style.display = 'block';
     } else {
       editSection.style.display = 'none';
-      editPlantSection.style.display = 'none';
+      editColObjSection.style.display = 'none';
     }
   }
 
@@ -191,27 +221,40 @@ export function setupAdmin() {
 
     selectedBuilding = null;
     window.adminSelectedBuilding = null;
-    selectedPlant = null;
-    window.adminSelectedPlant = null;
+    selectedCollisionObject = null;
+    window.adminSelectedCollisionObject = null;
 
     const buildings = getBuildings();
-    const plants = getPlants();
+    const collisionObjects = getCollisionObjects() || [];
 
-    // Check plants and buildings backwards so that top items are selected first
-    for (let i = plants.length - 1; i >= 0; i--) {
-      const plant = plants[i];
-      if (Math.hypot(worldX - plant.x, worldY - plant.y) <= plant.size) {
-        console.log(`Dragging plant: ${plant.id}`);
-        draggedPlant = plant;
-        selectedPlant = plant;
-        window.adminSelectedPlant = plant;
-        dragOffsetX = plant.x - worldX;
-        dragOffsetY = plant.y - worldY;
+    // Check collision objects and buildings backwards so that top items are selected first
+    for (let i = collisionObjects.length - 1; i >= 0; i--) {
+      const obj = collisionObjects[i];
+      let hit = false;
+      if (obj.shape === 'circle') {
+        const radius = Math.max(obj.width, obj.length) / 2;
+        if (Math.hypot(worldX - obj.x, worldY - obj.y) <= radius) hit = true;
+      } else {
+        const hW = obj.width / 2;
+        const hL = obj.length / 2;
+        if (worldX >= obj.x - hW && worldX <= obj.x + hW &&
+            worldY >= obj.y - hL && worldY <= obj.y + hL) {
+          hit = true;
+        }
+      }
+      
+      if (hit) {
+        console.log(`Dragging collision object: ${obj.id}`);
+        draggedCollisionObject = obj;
+        selectedCollisionObject = obj;
+        window.adminSelectedCollisionObject = obj;
+        dragOffsetX = obj.x - worldX;
+        dragOffsetY = obj.y - worldY;
         break;
       }
     }
 
-    if (!draggedPlant) {
+    if (!draggedCollisionObject) {
       for (let i = buildings.length - 1; i >= 0; i--) {
         const building = buildings[i];
         if (isPointInBuilding(worldX, worldY, building)) {
@@ -226,7 +269,7 @@ export function setupAdmin() {
       }
     }
 
-    if (!draggedPlant && !draggedBuilding && !e.target.closest('#admin-panel')) {
+    if (!draggedCollisionObject && !draggedBuilding && !e.target.closest('#admin-panel')) {
       if (e.shiftKey && window.adminBackgroundImage) {
         isDraggingAdminImage = true;
         bgDragOffsetX = (window.adminBackgroundImage._x || 0) - worldX;
@@ -253,7 +296,7 @@ export function setupAdmin() {
 
       draggedBuilding.x = Math.round(worldX + dragOffsetX);
       draggedBuilding.y = Math.round(worldY + dragOffsetY);
-    } else if (draggedPlant) {
+    } else if (draggedCollisionObject) {
       const canvasRect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
@@ -261,8 +304,8 @@ export function setupAdmin() {
       const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? player.x);
       const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? player.y);
 
-      draggedPlant.x = Math.round(worldX + dragOffsetX);
-      draggedPlant.y = Math.round(worldY + dragOffsetY);
+      draggedCollisionObject.x = Math.round(worldX + dragOffsetX);
+      draggedCollisionObject.y = Math.round(worldY + dragOffsetY);
     } else if (isDraggingAdminImage && window.adminBackgroundImage) {
       const canvasRect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - canvasRect.left;
@@ -295,16 +338,16 @@ export function setupAdmin() {
       }
       draggedBuilding = null;
     }
-    if (draggedPlant) {
+    if (draggedCollisionObject) {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
-          type: 'move_plant',
-          id: draggedPlant.id,
-          x: draggedPlant.x,
-          y: draggedPlant.y
+          type: 'move_collision_object',
+          id: draggedCollisionObject.id,
+          x: draggedCollisionObject.x,
+          y: draggedCollisionObject.y
         }));
       }
-      draggedPlant = null;
+      draggedCollisionObject = null;
     }
     isDraggingBackground = false;
     isDraggingAdminImage = false;
@@ -375,7 +418,7 @@ export function setupAdmin() {
 
   updateAdminPanel();
 
-  window.adminDraw = function() {
+  window.adminDraw = function () {
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.scale(window.cameraZoom, window.cameraZoom);
@@ -399,15 +442,20 @@ export function setupAdmin() {
       ctx.restore();
     });
 
-    const plants = getPlants();
-    plants.forEach(plant => {
-      if (window.adminSelectedPlant && window.adminSelectedPlant.id === plant.id) {
+    const collisionObjects = getCollisionObjects() || [];
+    collisionObjects.forEach(obj => {
+      if (window.adminSelectedCollisionObject && window.adminSelectedCollisionObject.id === obj.id) {
         ctx.fillStyle = 'purple';
       } else {
         ctx.fillStyle = 'rgba(155, 89, 182, 0.5)';
       }
       ctx.beginPath();
-      ctx.arc(plant.x, plant.y, plant.size, 0, Math.PI * 2);
+      if (obj.shape === 'circle') {
+        const radius = Math.max(obj.width, obj.length) / 2;
+        ctx.arc(obj.x, obj.y, radius, 0, Math.PI * 2);
+      } else {
+        ctx.rect(obj.x - obj.width/2, obj.y - obj.length/2, obj.width, obj.length);
+      }
       ctx.fill();
     });
 
@@ -417,9 +465,7 @@ export function setupAdmin() {
   if (window.gameLoop) {
     requestAnimationFrame(window.gameLoop);
   }
-  
-  const nameDialog = document.getElementById('name-dialog');
-  if (nameDialog) nameDialog.style.display = 'none';
+
 }
 
 window.addEventListener('load', setupAdmin);

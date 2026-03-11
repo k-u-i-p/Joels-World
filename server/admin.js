@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 export function handleAdminMessage(ws, data, context) {
-  const { buildings, buildingsFile, plants, plantsFile, __dirname } = context;
+  const { buildings, buildingsFile, collisionObjects, collisionObjectsFile, __dirname } = context;
 
   if (data.type === 'move_building') {
     const building = buildings.find(b => b.id === data.id);
@@ -31,26 +31,27 @@ export function handleAdminMessage(ws, data, context) {
       }
     }
     return true;
-  } else if (data.type === 'move_plant') {
-    const plant = plants.find(p => p.id === data.id);
-    if (plant) {
-      plant.x = data.x;
-      plant.y = data.y;
+  } else if (data.type === 'move_collision_object') {
+    const obj = collisionObjects.find(p => p.id === data.id);
+    if (obj) {
+      obj.x = data.x;
+      obj.y = data.y;
       try {
-        fs.writeFileSync(plantsFile, JSON.stringify(plants, null, 2), 'utf-8');
+        fs.writeFileSync(collisionObjectsFile, JSON.stringify(collisionObjects, null, 2), 'utf-8');
       } catch (e) {
-        console.error('Failed saving plants file:', e);
+        console.error('Failed saving collision objects file:', e);
       }
     }
     return true;
-  } else if (data.type === 'resize_plant') {
-    const plant = plants.find(p => p.id === data.id);
-    if (plant) {
-      plant.size = data.size;
+  } else if (data.type === 'resize_collision_object') {
+    const obj = collisionObjects.find(p => p.id === data.id);
+    if (obj) {
+      if (data.width !== undefined) obj.width = data.width;
+      if (data.length !== undefined) obj.length = data.length;
       try {
-        fs.writeFileSync(plantsFile, JSON.stringify(plants, null, 2), 'utf-8');
+        fs.writeFileSync(collisionObjectsFile, JSON.stringify(collisionObjects, null, 2), 'utf-8');
       } catch (e) {
-        console.error('Failed saving plants file:', e);
+        console.error('Failed saving collision objects file:', e);
       }
     }
     return true;
@@ -90,6 +91,22 @@ export function handleAdminMessage(ws, data, context) {
     };
     buildings.push(newBuilding);
     fs.writeFileSync(buildingsFile, JSON.stringify(buildings, null, 2), 'utf-8');
+    return true;
+  } else if (data.type === 'create_collision_object') {
+    const newObj = {
+      id: `col_${Date.now()}`,
+      shape: data.shape || 'rect',
+      x: data.x,
+      y: data.y,
+      width: 500,
+      length: 500
+    };
+    collisionObjects.push(newObj);
+    try {
+      fs.writeFileSync(collisionObjectsFile, JSON.stringify(collisionObjects, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed saving collision objects file:', e);
+    }
     return true;
   } else if (data.type === 'create_building') {
     const filename = path.basename(data.filename).replace(/\s+/g, '_');
