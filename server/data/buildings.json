@@ -1,11 +1,11 @@
 [
   {
     "id": "tennis_court",
-    "svg": "tennis_court.svg",
-    "x": 322,
-    "y": 1459,
+    "name": "Tennis Court",
+    "x": 312,
+    "y": 1455,
     "rotation": 17,
-    "width": 353,
+    "width": 381,
     "height": 470,
     "walls": [
       {
@@ -16,13 +16,13 @@
     ]
   },
   {
-    "id": "academic_north",
-    "svg": "academic_north.svg",
-    "x": 899,
-    "y": 623,
+    "id": "8_13_main_building",
+    "name": "8-13 Main Building",
+    "x": 983,
+    "y": 745,
     "rotation": -1,
-    "width": 508,
-    "height": 157,
+    "width": 1058,
+    "height": 591,
     "walls": [
       {
         "x": 0,
@@ -47,13 +47,13 @@
     ]
   },
   {
-    "id": "academic_south",
-    "svg": "academic_south.svg",
-    "x": -422,
-    "y": 51,
-    "rotation": 96,
-    "width": 119,
-    "height": 218,
+    "id": "pool",
+    "name": "Pool",
+    "x": -385,
+    "y": 65,
+    "rotation": 98,
+    "width": 296,
+    "height": 474,
     "walls": [
       {
         "x": 0,
@@ -78,13 +78,13 @@
     ]
   },
   {
-    "id": "dining_hall",
-    "svg": "dining_hall.svg",
-    "x": 1301,
-    "y": 287,
-    "rotation": 33,
-    "width": 140,
-    "height": 100,
+    "id": "rugby_pitch",
+    "name": "Rugby Pitch",
+    "x": -759,
+    "y": -536,
+    "rotation": 6,
+    "width": 1051,
+    "height": 727,
     "walls": [
       {
         "x": 0,
@@ -109,44 +109,13 @@
     ]
   },
   {
-    "id": "pool_block",
-    "svg": "pool_block.svg",
-    "x": 1049,
-    "y": 351,
-    "rotation": 33,
-    "width": 110,
-    "height": 66,
-    "walls": [
-      {
-        "x": 0,
-        "y": 0,
-        "length": 150
-      },
-      {
-        "x": 0,
-        "y": 0,
-        "height": 90
-      },
-      {
-        "x": 0,
-        "y": 90,
-        "length": 150
-      },
-      {
-        "x": 150,
-        "y": 0,
-        "height": 90
-      }
-    ]
-  },
-  {
-    "id": "sports_hall",
-    "svg": "sports_hall.svg",
-    "x": 1215,
-    "y": 404,
-    "rotation": 31,
-    "width": 196,
-    "height": 136,
+    "id": "2_to_8_playground",
+    "name": "2-8 Playground",
+    "x": -869,
+    "y": -1128,
+    "rotation": 8,
+    "width": 642,
+    "height": 195,
     "walls": [
       {
         "x": 0,
@@ -172,22 +141,22 @@
   },
   {
     "id": "astro_turf",
-    "svg": "astro_turf.svg",
-    "x": 1031,
-    "y": 1584,
-    "rotation": -74,
-    "width": 644,
-    "height": 999,
+    "name": "Astro Turf",
+    "x": 1038,
+    "y": 1580,
+    "rotation": 106,
+    "width": 670,
+    "height": 1039,
     "walls": []
   },
   {
     "id": "track_field",
-    "svg": "track_field.svg",
-    "x": -611,
-    "y": 889,
+    "name": "Track & Field",
+    "x": -606,
+    "y": 869,
     "rotation": 17,
-    "width": 1838,
-    "height": 1150,
+    "width": 1654,
+    "height": 1165,
     "walls": []
   }
 ]

@@ -1,3 +1,5 @@
+import adminPanelHtml from './admin_panel.html?raw';
+
 export function setupAdmin(deps) {
   const { canvas, player, getBuildings, getPlants, ws } = deps;
 
@@ -7,57 +9,100 @@ export function setupAdmin(deps) {
   adminPanel.style.display = 'none';
   document.body.appendChild(adminPanel);
 
+  let activeHoldInterval = null;
+
+  function bindHoldAction(id, action) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+
+    const start = (e) => {
+      if (e && e.button !== 0) return;
+      action();
+      if (activeHoldInterval) clearInterval(activeHoldInterval);
+      activeHoldInterval = setInterval(action, 50);
+    };
+
+    const stop = () => {
+      if (activeHoldInterval) {
+        clearInterval(activeHoldInterval);
+        activeHoldInterval = null;
+      }
+    };
+
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('mouseup', stop);
+    btn.addEventListener('mouseleave', stop);
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+  }
+
   function updateAdminPanel() {
+    if (activeHoldInterval) {
+      clearInterval(activeHoldInterval);
+      activeHoldInterval = null;
+    }
+
     if (!selectedBuilding) {
       adminPanel.style.display = 'none';
       return;
     }
 
     adminPanel.style.display = 'block';
-    adminPanel.innerHTML = `
-      <h3>Edit Building</h3>
-      <div class="control-row">
-        <span>Rotate:</span>
-        <button id="btn-rot-left">↺</button>
-        <button id="btn-rot-right">↻</button>
-      </div>
-      <div class="control-row">
-        <span>Size:</span>
-        <button id="btn-size-dec">-</button>
-        <button id="btn-size-inc">+</button>
-      </div>
-    `;
+    adminPanel.innerHTML = adminPanelHtml;
 
-    document.getElementById('btn-rot-left').onclick = () => {
-      selectedBuilding.rotation = ((selectedBuilding.rotation || 0) - 1) % 360;
-      console.log('rotate');
+    const nameInput = document.getElementById('building-name-input');
+    nameInput.value = selectedBuilding.name || selectedBuilding.id;
+    nameInput.onchange = (e) => {
+      selectedBuilding.name = e.target.value.trim();
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
+        ws.send(JSON.stringify({ type: 'rename_building', id: selectedBuilding.id, name: selectedBuilding.name }));
       }
     };
 
-    document.getElementById('btn-rot-right').onclick = () => {
+    bindHoldAction('btn-rot-left', () => {
+      selectedBuilding.rotation = Math.max(0, (selectedBuilding.rotation || 0) - 1);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
+      }
+    });
+
+    bindHoldAction('btn-rot-right', () => {
       selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 1) % 360;
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
       }
-    };
+    });
 
-    document.getElementById('btn-size-dec').onclick = () => {
-      selectedBuilding.width = Math.max(10, Math.round((selectedBuilding.width / 100) * 90));
-      selectedBuilding.height = Math.max(10, Math.round((selectedBuilding.height / 100) * 90));
+    bindHoldAction('btn-width-dec', () => {
+      let change = Math.max(1, Math.round(selectedBuilding.width * 0.02));
+      selectedBuilding.width = Math.max(10, selectedBuilding.width - change);
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
       }
-    };
+    });
 
-    document.getElementById('btn-size-inc').onclick = () => {
-      selectedBuilding.width = Math.round((selectedBuilding.width / 100) * 110);
-      selectedBuilding.height = Math.round((selectedBuilding.height / 100) * 110);
+    bindHoldAction('btn-width-inc', () => {
+      let change = Math.max(1, Math.round(selectedBuilding.width * 0.02));
+      selectedBuilding.width += change;
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
       }
-    };
+    });
+
+    bindHoldAction('btn-height-dec', () => {
+      let change = Math.max(1, Math.round(selectedBuilding.height * 0.02));
+      selectedBuilding.height = Math.max(10, selectedBuilding.height - change);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+      }
+    });
+
+    bindHoldAction('btn-height-inc', () => {
+      let change = Math.max(1, Math.round(selectedBuilding.height * 0.02));
+      selectedBuilding.height += change;
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+      }
+    });
   }
 
   function isPointInBuilding(worldX, worldY, building) {
@@ -101,8 +146,8 @@ export function setupAdmin(deps) {
     lastMouseX = e.clientX;
     lastMouseY = e.clientY;
 
-    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + window.cameraX;
-    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + window.cameraY;
+    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? player.x);
+    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? player.y);
 
     selectedBuilding = null;
 
@@ -157,8 +202,8 @@ export function setupAdmin(deps) {
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
 
-      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX || player.x);
-      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY || player.y);
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? player.x);
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? player.y);
 
       draggedBuilding.x = Math.round(worldX + dragOffsetX);
       draggedBuilding.y = Math.round(worldY + dragOffsetY);
@@ -167,8 +212,8 @@ export function setupAdmin(deps) {
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
 
-      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX || player.x);
-      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY || player.y);
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? player.x);
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? player.y);
 
       draggedPlant.x = Math.round(worldX + dragOffsetX);
       draggedPlant.y = Math.round(worldY + dragOffsetY);
@@ -177,8 +222,8 @@ export function setupAdmin(deps) {
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
 
-      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX || player.x);
-      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY || player.y);
+      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? player.x);
+      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? player.y);
 
       window.adminBackgroundImage._x = Math.round(worldX + bgDragOffsetX);
       window.adminBackgroundImage._y = Math.round(worldY + bgDragOffsetY);

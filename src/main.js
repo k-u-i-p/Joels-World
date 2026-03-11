@@ -57,15 +57,6 @@ ws.onmessage = (event) => {
       plants = data.plants || [];
     } else if (data.type === 'buildings_update') {
       buildings = data.buildings || [];
-      // Preload any new SVGs
-      buildings.forEach(building => {
-        if (!preloadedImages[building.svg]) {
-          const img = new Image();
-          img.onerror = () => console.error(`Failed to load SVG: ${building.svg}`);
-          img.src = `/${building.svg}`;
-          preloadedImages[building.svg] = img;
-        }
-      });
     }
   } catch (e) {
     console.error(e);
@@ -119,7 +110,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
-  if (isChatFocused) return;
+  if (isChatFocused || e.target.tagName === 'INPUT') return;
 
   if (keys.hasOwnProperty(e.code)) {
     keys[e.code] = true;
@@ -127,6 +118,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keyup', (e) => {
+  if (e.target.tagName === 'INPUT') return;
   if (keys.hasOwnProperty(e.code)) {
     keys[e.code] = false;
   }
@@ -154,7 +146,6 @@ let player = {
 let plants = [];
 let buildings = [];
 let characters = [];
-let preloadedImages = {};
 let lastSyncTime = 0;
 
 window.mapImage = new Image();
@@ -412,13 +403,13 @@ function draw() {
   // --- BUILDINGS ---
   // Drawn first so they appear on the ground beneath the player and plants
   buildings.forEach(building => {
-    const img = preloadedImages[building.svg];
-    if (img && img.complete) {
+    if (isAdmin) {
       ctx.save();
       ctx.translate(building.x, building.y);
       // Canvas rotate requires radians, so convert from defined degrees
-      ctx.rotate(building.rotation * Math.PI / 180);
-      ctx.drawImage(img, -building.width / 2, -building.height / 2, building.width, building.height);
+      ctx.rotate((building.rotation || 0) * Math.PI / 180);
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // semi-transparent red box
+      ctx.fillRect(-building.width / 2, -building.height / 2, building.width, building.height);
       ctx.restore();
     }
   });
@@ -746,24 +737,6 @@ function handleInitData(plantsData, buildingsData, charactersData, npcsData, myC
     nameInput.value = player.name;
   }
 
-  // Preload building SVGs
-  const imagePromises = buildingsData.map(building => {
-    return new Promise((resolve) => {
-      if (preloadedImages[building.svg]) {
-        resolve();
-        return;
-      }
-      const img = new Image();
-      img.onload = () => resolve();
-      img.onerror = () => {
-        console.error(`Failed to load SVG: ${building.svg}`);
-        resolve();
-      };
-      img.src = `/${building.svg}`;
-      preloadedImages[building.svg] = img;
-    });
-  });
-
   const mapPromise = new Promise((resolve) => {
     if (window.mapImage && window.mapImage.complete) {
       resolve();
@@ -778,7 +751,7 @@ function handleInitData(plantsData, buildingsData, charactersData, npcsData, myC
     }
   });
 
-  Promise.all([...imagePromises, mapPromise]).then(() => {
+  Promise.all([mapPromise]).then(() => {
     isDataLoaded = true;
     startBtn.textContent = 'Start Game';
     startBtn.disabled = false;

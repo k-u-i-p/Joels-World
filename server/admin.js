@@ -16,6 +16,21 @@ export function handleAdminMessage(ws, data, context) {
       }
     }
     return true;
+  } else if (data.type === 'rename_building') {
+    const building = buildings.find(b => b.id === data.id);
+    if (building) {
+      if (data.name) {
+        building.name = data.name;
+      } else {
+        delete building.name;
+      }
+      try {
+        fs.writeFileSync(buildingsFile, JSON.stringify(buildings, null, 2), 'utf-8');
+      } catch (e) {
+        console.error('Failed saving buildings file:', e);
+      }
+    }
+    return true;
   } else if (data.type === 'move_plant') {
     const plant = plants.find(p => p.id === data.id);
     if (plant) {
