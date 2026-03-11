@@ -78,6 +78,26 @@ export function setupAdmin() {
     }
   };
 
+  document.getElementById('btn-delete-building').onclick = () => {
+    if (selectedBuilding && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'delete_building', id: selectedBuilding.id }));
+      selectedBuilding = null;
+      draggedBuilding = null;
+      window.adminSelectedBuilding = null;
+      updateAdminPanel();
+    }
+  };
+
+  document.getElementById('btn-delete-col').onclick = () => {
+    if (selectedCollisionObject && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'delete_collision_object', id: selectedCollisionObject.id }));
+      selectedCollisionObject = null;
+      draggedCollisionObject = null;
+      window.adminSelectedCollisionObject = null;
+      updateAdminPanel();
+    }
+  };
+
   const nameInput = document.getElementById('building-name-input');
   nameInput.onchange = (e) => {
     if (!selectedBuilding) return;

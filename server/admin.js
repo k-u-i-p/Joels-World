@@ -57,6 +57,28 @@ export function handleAdminMessage(ws, data, context) {
       }
     }
     return true;
+  } else if (data.type === 'delete_building') {
+    const idx = buildings.findIndex(b => b.id === data.id);
+    if (idx !== -1) {
+      buildings.splice(idx, 1);
+      try {
+        fs.writeFileSync(buildingsFile, JSON.stringify(buildings, null, 2), 'utf-8');
+      } catch (e) {
+        console.error('Failed saving buildings file:', e);
+      }
+    }
+    return true;
+  } else if (data.type === 'delete_collision_object') {
+    const idx = collisionObjects.findIndex(c => c.id === data.id);
+    if (idx !== -1) {
+      collisionObjects.splice(idx, 1);
+      try {
+        fs.writeFileSync(collisionObjectsFile, JSON.stringify(collisionObjects, null, 2), 'utf-8');
+      } catch (e) {
+        console.error('Failed saving collision objects file:', e);
+      }
+    }
+    return true;
   } else if (data.type === 'rotate_building') {
     const building = buildings.find(b => b.id === data.id);
     if (building) {
