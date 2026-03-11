@@ -12,7 +12,7 @@ const npcFile = path.resolve(__dirname, 'data/npc.json');
 const plantsFile = path.resolve(__dirname, 'data/plants.json');
 const buildingsFile = path.resolve(__dirname, 'data/buildings.json');
 
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 80;
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -109,7 +109,8 @@ wss.on('connection', (ws, req) => {
   console.log('Client connected');
 
   const urlParams = new URLSearchParams(req.url.split('?')[1] || "");
-  ws.isAdmin = urlParams.get('admin') === 'true';
+  const cookies = req.headers.cookie || '';
+  ws.isAdmin = urlParams.get('admin') === 'true' || cookies.includes('admin=true');
 
   const newPlayerId = 'player_' + Math.random().toString(36).substring(2, 9);
   ws.clientId = newPlayerId;
@@ -212,13 +213,25 @@ async function setupVite() {
   app.use(vite.middlewares);
 
   app.use(async (req, res, next) => {
+    if (req.path === '/' || req.path === '/index.html') {
+      const hasAdminQuery = req.query.admin === 'true';
+      const cookies = req.headers.cookie || '';
+      const hasAdminCookie = cookies.includes('admin=true');
+
+      if (hasAdminQuery) {
+        res.cookie('admin', 'true', { httpOnly: false });
+      } else if (hasAdminCookie) {
+        return res.redirect('/?admin=true');
+      }
+    }
+
     const url = req.originalUrl;
     try {
       let template = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf-8');
       template = await vite.transformIndexHtml(url, template);
-      
+
       // Dynamic modification could go here
-      
+
       res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
     } catch (e) {
       vite.ssrFixStacktrace(e);
