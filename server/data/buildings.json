@@ -18,8 +18,8 @@
   {
     "id": "8_13_main_building",
     "name": "8-13 Main Building",
-    "x": 983,
-    "y": 745,
+    "x": 986,
+    "y": 760,
     "rotation": -1,
     "width": 1058,
     "height": 591,
@@ -192,8 +192,8 @@
   {
     "id": "building_1773231981381",
     "name": "13 to 18 Main Building",
-    "x": 775,
-    "y": -1500,
+    "x": 787,
+    "y": -1506,
     "rotation": 0,
     "width": 940,
     "height": 392,

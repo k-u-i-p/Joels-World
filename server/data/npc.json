@@ -11,5 +11,70 @@
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
     "armColor": "#3498db"
+  },
+  {
+    "id": 2,
+    "name": "Thomas",
+    "x": 650,
+    "y": 450,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "gender": "male",
+    "shirtColor": "#e74c3c",
+    "pantsColor": "#2c3e50",
+    "armColor": "#e74c3c"
+  },
+  {
+    "id": 3,
+    "name": "Oliver",
+    "x": 700,
+    "y": 450,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "gender": "male",
+    "shirtColor": "#2ecc71",
+    "pantsColor": "#2c3e50",
+    "armColor": "#2ecc71"
+  },
+  {
+    "id": 4,
+    "name": "Ben",
+    "x": 750,
+    "y": 450,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "gender": "male",
+    "shirtColor": "#f1c40f",
+    "pantsColor": "#2c3e50",
+    "armColor": "#f1c40f"
+  },
+  {
+    "id": 5,
+    "name": "Hector",
+    "x": 800,
+    "y": 450,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "gender": "male",
+    "shirtColor": "#9b59b6",
+    "pantsColor": "#2c3e50",
+    "armColor": "#9b59b6"
+  },
+  {
+    "id": 6,
+    "name": "Talking Poop",
+    "x": 0,
+    "y": -1900,
+    "width": 80,
+    "height": 80,
+    "rotation": 0,
+    "gender": "male",
+    "shirtColor": "#5C4033",
+    "pantsColor": "#5C4033",
+    "armColor": "#5C4033"
   }
 ]

@@ -36,6 +36,10 @@ ws.onmessage = (event) => {
         localChar.name = serverChar.name;
         localChar.pantsColor = serverChar.pantsColor;
         localChar.armColor = serverChar.armColor;
+        localChar.isDancing = serverChar.isDancing;
+        localChar.fartTime = serverChar.fartTime;
+        localChar.isDead = serverChar.isDead;
+        localChar.isCrying = serverChar.isCrying;
       } else {
         serverChar.targetX = serverChar.x;
         serverChar.targetY = serverChar.y;
@@ -93,14 +97,34 @@ window.addEventListener('keydown', (e) => {
     if (isChatFocused) {
       if (chatInput.value.trim() !== '') {
         const msg = chatInput.value.trim();
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'chat', message: msg }));
-        }
         chatInput.value = '';
 
-        // Optimistic local update
-        player.chatMessage = msg;
-        player.chatTime = Date.now();
+        if (msg.toLowerCase() === '/dance') {
+          player.isDancing = true;
+          player.isDead = false;
+          player.isCrying = false;
+          syncPlayerToJSON();
+        } else if (msg.toLowerCase() === '/fart') {
+          player.fartTime = Date.now();
+          syncPlayerToJSON();
+        } else if (msg.toLowerCase() === '/dead') {
+          player.isDead = true;
+          player.isDancing = false;
+          player.isCrying = false;
+          syncPlayerToJSON();
+        } else if (msg.toLowerCase() === '/cry') {
+          player.isCrying = true;
+          player.isDancing = false;
+          player.isDead = false;
+          syncPlayerToJSON();
+        } else {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'chat', message: msg }));
+          }
+          // Optimistic local update
+          player.chatMessage = msg;
+          player.chatTime = Date.now();
+        }
       }
       chatInput.blur();
     } else {
@@ -111,6 +135,27 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (isChatFocused || e.target.tagName === 'INPUT') return;
+
+  if (e.code === 'Space') {
+    const hector = characters.find(c => c.name === 'Hector');
+    if (hector) {
+      const dist = Math.hypot(hector.x - player.x, hector.y - player.y);
+      if (dist < 80) { // Interaction distance
+        hector.chatMessage = "today we shall play a good game";
+        hector.chatTime = Date.now();
+      }
+    }
+    
+    const poop = characters.find(c => c.name === 'Talking Poop');
+    if (poop) {
+      const dist = Math.hypot(poop.x - player.x, poop.y - player.y);
+      if (dist < 80) {
+        poop.chatMessage = "god i am poo forever";
+        poop.chatTime = Date.now();
+      }
+    }
+    e.preventDefault();
+  }
 
   if (keys.hasOwnProperty(e.code)) {
     keys[e.code] = true;
@@ -132,9 +177,17 @@ let player = {
   moveSpeed: 3,
   rotationSpeed: 0.05,
   legAnimationTime: 0,
+  isDancing: false,
+  isDead: false,
+  isCrying: false,
+  fartTime: 0,
   _lastSentX: null,
   _lastSentY: null,
   _lastSentRotation: null,
+  _lastSentDancing: false,
+  _lastSentDead: false,
+  _lastSentCrying: false,
+  _lastSentFartTime: 0,
   x: window.innerWidth / 2,
   y: window.innerHeight / 2,
   width: 40,
@@ -158,6 +211,10 @@ function syncPlayerToJSON() {
     characters[charIndex].y = player.y;
     characters[charIndex].rotation = player.rotation;
     characters[charIndex].name = player.name; // Keep name synced
+    characters[charIndex].isDancing = player.isDancing;
+    characters[charIndex].isDead = player.isDead;
+    characters[charIndex].isCrying = player.isCrying;
+    characters[charIndex].fartTime = player.fartTime;
 
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'update', character: characters[charIndex] }));
@@ -287,6 +344,12 @@ function update() {
   // Animation
   if (isMoving) {
     player.legAnimationTime += 0.2;
+    if (player.isDancing || player.isDead || player.isCrying) {
+      player.isDancing = false;
+      player.isDead = false;
+      player.isCrying = false;
+      syncPlayerToJSON();
+    }
   } else {
     // Smoother stop: reset animation to neutral when stopped
     player.legAnimationTime = 0;
@@ -321,7 +384,7 @@ function update() {
         c.y = c.targetY;
         c.legAnimationTime = 0; // stop moving legs
       }
-      
+
       // Interpolate rotation efficiently via shortest angle (even if not moving XY)
       if (c.targetRotation !== undefined) {
         let rotDiff = c.targetRotation - (c.rotation || 0);
@@ -344,7 +407,11 @@ function update() {
   // Sync back via websocket 20 times a second if moved
   const now = Date.now();
   if (now - lastSyncTime > 50) {
-    if (player.x !== player._lastSentX || player.y !== player._lastSentY || player.rotation !== player._lastSentRotation) {
+    if (player.x !== player._lastSentX || player.y !== player._lastSentY || player.rotation !== player._lastSentRotation || player.isDancing !== player._lastSentDancing || player.fartTime !== player._lastSentFartTime || player.isDead !== player._lastSentDead || player.isCrying !== player._lastSentCrying) {
+      player._lastSentDancing = player.isDancing;
+      player._lastSentDead = player.isDead;
+      player._lastSentCrying = player.isCrying;
+      player._lastSentFartTime = player.fartTime;
       player._lastSentX = player.x;
       player._lastSentY = player.y;
       player._lastSentRotation = player.rotation;
@@ -427,83 +494,193 @@ function draw() {
     ctx.translate(c.x, c.y);
     ctx.rotate(c.rotation);
 
-    const legSwing = Math.sin(c.legAnimationTime || 0);
-    const legStride = 15;
-    const armStride = 8;
-
-    // --- LEGS ---
-    ctx.lineWidth = 7;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = c.pantsColor || '#2c3e50';
-
-    // Left Leg
-    ctx.beginPath();
-    ctx.moveTo(-2, -6);
-    ctx.lineTo(-2 + 10 + legSwing * legStride, -6);
-    ctx.stroke();
-
-    // Right Leg
-    ctx.beginPath();
-    ctx.moveTo(-2, 6);
-    ctx.lineTo(-2 + 10 - legSwing * legStride, 6);
-    ctx.stroke();
-
-    // --- ARMS ---
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = c.armColor || '#3498db';
-
-    // Left Arm
-    ctx.beginPath();
-    ctx.moveTo(0, -11);
-    ctx.lineTo(4 - legSwing * armStride, -14);
-    ctx.stroke();
-
-    // Right Arm
-    ctx.beginPath();
-    ctx.moveTo(0, 11);
-    ctx.lineTo(4 + legSwing * armStride, 14);
-    ctx.stroke();
-
-    // Hands
-    ctx.fillStyle = '#f1c27d'; // Skin tone
-    ctx.beginPath();
-    ctx.arc(4 - legSwing * armStride, -14, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(4 + legSwing * armStride, 14, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    // --- TORSO ---
-    ctx.fillStyle = c.shirtColor || '#3498db';
-    if (ctx.roundRect) {
-      ctx.beginPath();
-      ctx.roundRect(-8, -12, 16, 24, 6);
-      ctx.fill();
+    if (c.name === 'Talking Poop') {
+      ctx.font = '60px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.rotate(-c.rotation); // keep it upright
+      ctx.fillText('💩', 0, 0);
     } else {
-      ctx.fillRect(-8, -12, 16, 24);
-    }
+      if (c.isDead) {
+        ctx.globalAlpha = 0.5;
+      }
 
-    // --- HEAD ---
-    ctx.beginPath();
-    ctx.arc(2, 0, 8, 0, Math.PI * 2);
-    ctx.fillStyle = '#f1c27d'; // Skin tone
-    ctx.fill();
+      const legSwing = Math.sin(c.legAnimationTime || 0);
+      const legStride = 15;
+      const armStride = 8;
 
-    // If gender modifies appearance
-    if (c.gender === 'female') {
-      ctx.fillStyle = '#e67e22'; // Default hair color example
+      let leftArmX = 4 - legSwing * armStride;
+      let leftArmY = -14;
+      let rightArmX = 4 + legSwing * armStride;
+      let rightArmY = 14;
+
+      let leftLegStartX = -2;
+      let leftLegStartY = -6;
+      let leftLegEndX = -2 + 10 + legSwing * legStride;
+      let leftLegEndY = -6;
+
+      let rightLegStartX = -2;
+      let rightLegStartY = 6;
+      let rightLegEndX = -2 + 10 - legSwing * legStride;
+      let rightLegEndY = 6;
+
+      if (c.isDead) {
+        // Starfish/Lying down pose
+        // Arms splayed out
+        leftArmX = -4; leftArmY = -22;
+        rightArmX = -4; rightArmY = 22;
+        // Legs stretched backwards
+        leftLegStartX = -8; leftLegStartY = -4;
+        leftLegEndX = -22; leftLegEndY = -10;
+        rightLegStartX = -8; rightLegStartY = 4;
+        rightLegEndX = -22; rightLegEndY = 10;
+      } else if (c.isDancing) {
+        // Floss dance animation
+        const danceTime = Date.now() / 100;
+        const swing = Math.sin(danceTime) * 12;
+        const hipSwing = -swing * 0.4;
+
+        leftLegStartY = -6 + hipSwing;
+        leftLegEndY = -6 + hipSwing + 10;
+        leftLegEndX = -2;
+        rightLegStartY = 6 + hipSwing;
+        rightLegEndY = 6 + hipSwing + 10;
+        rightLegEndX = -2;
+
+        leftArmX = 0; leftArmY = -14 + swing;
+        rightArmX = 0; rightArmY = 14 + swing;
+      }
+
+      // --- LEGS ---
+      ctx.lineWidth = 7;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = c.pantsColor || '#2c3e50';
+
+      // Left Leg
       ctx.beginPath();
-      // Draw simple curved hair
-      ctx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
-      ctx.fill();
-    }
+      ctx.moveTo(leftLegStartX, leftLegStartY);
+      ctx.lineTo(leftLegEndX, leftLegEndY);
+      ctx.stroke();
 
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-    ctx.stroke();
+      // Right Leg
+      ctx.beginPath();
+      ctx.moveTo(rightLegStartX, rightLegStartY);
+      ctx.lineTo(rightLegEndX, rightLegEndY);
+      ctx.stroke();
+
+      // --- ARMS ---
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = c.armColor || '#3498db';
+
+      // Left Arm
+      ctx.beginPath();
+      ctx.moveTo(0, -11);
+      ctx.lineTo(leftArmX, leftArmY);
+      ctx.stroke();
+
+      // Right Arm
+      ctx.beginPath();
+      ctx.moveTo(0, 11);
+      ctx.lineTo(rightArmX, rightArmY);
+      ctx.stroke();
+
+      // Hands
+      ctx.fillStyle = '#f1c27d'; // Skin tone
+      ctx.beginPath();
+      ctx.arc(leftArmX, leftArmY, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(rightArmX, rightArmY, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // --- TORSO ---
+      ctx.fillStyle = c.shirtColor || '#3498db';
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(-8, -12, 16, 24, 6);
+        ctx.fill();
+      } else {
+        ctx.fillRect(-8, -12, 16, 24);
+      }
+
+      // --- HEAD ---
+      ctx.beginPath();
+      ctx.arc(2, 0, 8, 0, Math.PI * 2);
+      ctx.fillStyle = '#f1c27d'; // Skin tone
+      ctx.fill();
+
+      // If gender modifies appearance
+      if (c.gender === 'female') {
+        ctx.fillStyle = '#e67e22'; // Default hair color example
+        ctx.beginPath();
+        // Draw simple curved hair
+        ctx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
+        ctx.fill();
+      }
+
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.stroke();
+
+      // Draw X eyes if dead
+      if (c.isDead) {
+        ctx.beginPath();
+        // Left eye X
+        ctx.moveTo(3, -3); ctx.lineTo(7, 1);
+        ctx.moveTo(7, -3); ctx.lineTo(3, 1);
+        // Right eye X
+        ctx.moveTo(3, -1); ctx.lineTo(7, 3);
+        ctx.moveTo(7, -1); ctx.lineTo(3, 3);
+        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else if (c.isCrying) {
+        // Draw eyes
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(5, -1, 1, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(5, 1, 1, 0, Math.PI * 2); ctx.fill();
+        
+        // Animated tears
+        const tearProgress1 = (Date.now() % 1000) / 1000;
+        const tearProgress2 = ((Date.now() + 500) % 1000) / 1000;
+        
+        ctx.fillStyle = '#3498db'; // blue tear
+        
+        // Left cheek tears
+        ctx.beginPath(); ctx.arc(4 - tearProgress1 * 6, -2 - tearProgress1 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(4 - tearProgress2 * 6, -2 - tearProgress2 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
+        
+        // Right cheek tears
+        ctx.beginPath(); ctx.arc(4 - tearProgress1 * 6, 2 + tearProgress1 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(4 - tearProgress2 * 6, 2 + tearProgress2 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
 
     ctx.restore();
+
+    // --- FART CLOUD ---
+    if (c.fartTime && Date.now() - c.fartTime < 1000) {
+      const fartAge = Date.now() - c.fartTime;
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.rotation);
+      ctx.globalAlpha = Math.max(0, 1 - (fartAge / 1000));
+      ctx.fillStyle = '#2ecc71'; // Greenish cloud
+      ctx.beginPath();
+      ctx.arc(-20 - (fartAge / 50), 0, 10 + (fartAge / 30), 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(-15 - (fartAge / 40), 10, 6 + (fartAge / 40), 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(-15 - (fartAge / 40), -10, 6 + (fartAge / 40), 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
 
     // --- NAME TAG ---
     // Drawn after restore so it does not rotate with the character
@@ -664,7 +841,6 @@ function handleInitData(plantsData, buildingsData, charactersData, npcsData, myC
       nameInput.focus();
     }
   }).catch(err => {
-    console.error("Error initializing game data:", err);
     // Allow trying to start despite errors
     isDataLoaded = true;
     startBtn.textContent = 'Start Game';
@@ -673,4 +849,153 @@ function handleInitData(plantsData, buildingsData, charactersData, npcsData, myC
       attemptStartGame();
     }
   });
+}
+
+// --- VIRTUAL JOYSTICK & MOBILE CONTROLS ---
+const moveContainer = document.getElementById('joystick-move-container');
+const moveKnob = document.getElementById('joystick-move-knob');
+const turnContainer = document.getElementById('joystick-turn-container');
+const turnKnob = document.getElementById('joystick-turn-knob');
+const actionButton = document.getElementById('action-button');
+
+const maxRadius = 40;
+
+const setupJoystick = (container, knob, axis) => {
+  if (!container || !knob) return;
+
+  let activeTouchId = null;
+  let origin = { x: 0, y: 0 };
+
+  const handleStart = (e) => {
+    if (activeTouchId !== null) return; // Already active
+
+    let clientX, clientY;
+    if (e.changedTouches) {
+      const touch = e.changedTouches[0];
+      activeTouchId = touch.identifier;
+      clientX = touch.clientX;
+      clientY = touch.clientY;
+    } else {
+      activeTouchId = 'mouse';
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    const rect = container.getBoundingClientRect();
+    origin = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+    handleMove(e);
+  };
+
+  const handleMove = (e) => {
+    if (activeTouchId === null) return;
+    if (e.cancelable) e.preventDefault();
+
+    let clientX, clientY;
+    if (e.changedTouches) {
+      let found = false;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === activeTouchId) {
+          clientX = e.changedTouches[i].clientX;
+          clientY = e.changedTouches[i].clientY;
+          found = true;
+          break;
+        }
+      }
+      if (!found) return; // This touch isn't ours
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    const dx = clientX - origin.x;
+    const dy = clientY - origin.y;
+    const distance = Math.min(maxRadius, Math.hypot(dx, dy));
+    const angle = Math.atan2(dy, dx);
+
+    const knobX = distance * Math.cos(angle);
+    const knobY = distance * Math.sin(angle);
+    knob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+    if (axis === 'move') {
+      keys.ArrowUp = false;
+      keys.ArrowDown = false;
+      if (distance > 10) {
+        if (knobY < -15) keys.ArrowUp = true;
+        if (knobY > 15) keys.ArrowDown = true;
+      }
+    } else if (axis === 'turn') {
+      keys.ArrowLeft = false;
+      keys.ArrowRight = false;
+      if (distance > 10) {
+        if (knobX < -15) keys.ArrowLeft = true;
+        if (knobX > 15) keys.ArrowRight = true;
+      }
+    }
+  };
+
+  const handleEnd = (e) => {
+    if (activeTouchId === null) return;
+
+    if (e.changedTouches) {
+      let found = false;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === activeTouchId) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) return; // This touch isn't ours
+    }
+
+    activeTouchId = null;
+    knob.style.transform = `translate(0px, 0px)`;
+
+    if (axis === 'move') {
+      keys.ArrowUp = false;
+      keys.ArrowDown = false;
+    } else if (axis === 'turn') {
+      keys.ArrowLeft = false;
+      keys.ArrowRight = false;
+    }
+  };
+
+  container.addEventListener('mousedown', handleStart);
+  window.addEventListener('mousemove', handleMove, { passive: false });
+  window.addEventListener('mouseup', handleEnd);
+
+  container.addEventListener('touchstart', handleStart, { passive: false });
+  window.addEventListener('touchmove', handleMove, { passive: false });
+  window.addEventListener('touchend', handleEnd);
+  window.addEventListener('touchcancel', handleEnd);
+};
+
+setupJoystick(moveContainer, moveKnob, 'move');
+setupJoystick(turnContainer, turnKnob, 'turn');
+
+if (actionButton) {
+  const triggerAction = (e) => {
+    if (e.cancelable) e.preventDefault();
+    // Simulate Spacebar press for Hector to speak
+    const hector = characters.find(c => c.name === 'Hector');
+    if (hector) {
+      const dist = Math.hypot(hector.x - player.x, hector.y - player.y);
+      if (dist < 80) {
+        hector.chatMessage = "today we shall play a good game";
+        hector.chatTime = Date.now();
+      }
+    }
+    const poop = characters.find(c => c.name === 'Talking Poop');
+    if (poop) {
+      const dist = Math.hypot(poop.x - player.x, poop.y - player.y);
+      if (dist < 80) {
+        poop.chatMessage = "god i am poo forever";
+        poop.chatTime = Date.now();
+      }
+    }
+  };
+  actionButton.addEventListener('mousedown', triggerAction);
+  actionButton.addEventListener('touchstart', triggerAction, { passive: false });
 }
