@@ -237,14 +237,12 @@ function update() {
   let dy = 0;
 
   if (keys.ArrowUp) {
-    const scale = window.characterScale || 1;
-    dx += Math.round(Math.cos(player.rotation) * (player.moveSpeed || 3) * scale);
-    dy += Math.round(Math.sin(player.rotation) * (player.moveSpeed || 3) * scale);
+    dx += Math.round(Math.cos(player.rotation) * (player.moveSpeed || 3));
+    dy += Math.round(Math.sin(player.rotation) * (player.moveSpeed || 3));
   }
   if (keys.ArrowDown) {
-    const scale = window.characterScale || 1;
-    dx -= Math.round(Math.cos(player.rotation) * (player.moveSpeed || 3) * scale);
-    dy -= Math.round(Math.sin(player.rotation) * (player.moveSpeed || 3) * scale);
+    dx -= Math.round(Math.cos(player.rotation) * (player.moveSpeed || 3));
+    dy -= Math.round(Math.sin(player.rotation) * (player.moveSpeed || 3));
   }
 
   let isMoving = false;
@@ -387,8 +385,7 @@ function update() {
         c.rotation = c.targetRotation;
       } else if (dist > 0.5) {
         // Walk towards the target position at character's walking speed, or slightly faster if lagging far behind
-        const scale = window.characterScale || 1;
-        const speed = (c.moveSpeed || 3) * scale;
+        const speed = c.moveSpeed || 3;
         const moveStep = Math.max(speed, dist * 0.1);
         const step = Math.min(dist, moveStep);
 
