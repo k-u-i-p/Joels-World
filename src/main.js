@@ -408,7 +408,11 @@ function draw() {
       ctx.translate(building.x, building.y);
       // Canvas rotate requires radians, so convert from defined degrees
       ctx.rotate((building.rotation || 0) * Math.PI / 180);
-      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // semi-transparent red box
+      if (window.adminSelectedBuilding && window.adminSelectedBuilding.id === building.id) {
+        ctx.fillStyle = 'rgba(155, 89, 182, 0.7)'; // semi-transparent purple for selected
+      } else {
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // semi-transparent red box
+      }
       ctx.fillRect(-building.width / 2, -building.height / 2, building.width, building.height);
       ctx.restore();
     }
@@ -565,125 +569,20 @@ function draw() {
 
   // --- PLANTS ---
   // Drawn after the player to act as an overhead canopy. The player walks "under" the leaves.
-  plants.forEach(plant => {
-    switch (plant.type) {
-      case 'oak':
-        // Drop shadow (offset to the bottom right)
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.beginPath();
-        ctx.arc(plant.x + 10, plant.y + 15, plant.size, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Main canopy
-        ctx.fillStyle = plant.color || '#2ecc71'; // Base green
-        ctx.beginPath();
-        ctx.arc(plant.x, plant.y, plant.size, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Secondary darker layer for depth
-        ctx.fillStyle = 'rgba(0,0,0,0.15)';
-        ctx.beginPath();
-        ctx.arc(plant.x - plant.size * 0.1, plant.y - plant.size * 0.1, plant.size * 0.8, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Bright top highlight
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.beginPath();
-        ctx.arc(plant.x - plant.size * 0.35, plant.y - plant.size * 0.35, plant.size * 0.45, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-
-      case 'pine':
-        // Drop shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.beginPath();
-        ctx.arc(plant.x + 8, plant.y + 12, plant.size * 0.8, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = plant.color || '#1e8449';
-        const spikes = 8;
-        const outerRad = plant.size;
-        const innerRad = plant.size * 0.6;
-
-        // Base layer
-        drawStar(ctx, plant.x, plant.y, spikes, outerRad, innerRad);
-        ctx.fill();
-
-        // Top layer (lighter)
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        drawStar(ctx, plant.x, plant.y, spikes, outerRad * 0.7, innerRad * 0.7);
-        ctx.fill();
-        break;
-
-      case 'shrub':
-        // A cluster of 3 circles
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.beginPath();
-        ctx.arc(plant.x + 5, plant.y + 8, plant.size, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = plant.color || '#7dcea0';
-        for (let i = 0; i < 3; i++) {
-          const angle = (Math.PI * 2 / 3) * i;
-          const px = plant.x + Math.cos(angle) * (plant.size * 0.4);
-          const py = plant.y + Math.sin(angle) * (plant.size * 0.4);
-          ctx.beginPath();
-          ctx.arc(px, py, plant.size * 0.7, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        break;
-
-      case 'flower':
-        // Tiny stem
-        ctx.fillStyle = '#27ae60';
-        ctx.fillRect(plant.x - 1, plant.y, 2, plant.size * 1.5);
-
-        // Petals
-        ctx.fillStyle = plant.color || '#e74c3c';
-        for (let i = 0; i < 5; i++) {
-          const angle = (Math.PI * 2 / 5) * i;
-          const px = plant.x + Math.cos(angle) * (plant.size * 0.8);
-          const py = plant.y - plant.size * 0.5 + Math.sin(angle) * (plant.size * 0.8);
-          ctx.beginPath();
-          ctx.arc(px, py, plant.size * 0.6, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        // Center
-        ctx.fillStyle = '#f1c40f'; // yellow center
-        ctx.beginPath();
-        ctx.arc(plant.x, plant.y - plant.size * 0.5, plant.size * 0.5, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-    }
-  });
+  if (isAdmin) {
+    plants.forEach(plant => {
+      ctx.fillStyle = 'rgba(155, 89, 182, 0.5)';
+      ctx.beginPath();
+      ctx.arc(plant.x, plant.y, plant.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
 
   // Restore camera translation
   ctx.restore();
 }
 
-// Helper function for pine stars
-function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
-  let rot = Math.PI / 2 * 3;
-  let x = cx;
-  let y = cy;
-  let step = Math.PI / spikes;
 
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - outerRadius);
-  for (let i = 0; i < spikes; i++) {
-    x = cx + Math.cos(rot) * outerRadius;
-    y = cy + Math.sin(rot) * outerRadius;
-    ctx.lineTo(x, y);
-    rot += step;
-
-    x = cx + Math.cos(rot) * innerRadius;
-    y = cy + Math.sin(rot) * innerRadius;
-    ctx.lineTo(x, y);
-    rot += step;
-  }
-  ctx.lineTo(cx, cy - outerRadius);
-  ctx.closePath();
-}
 
 if (isAdmin) {
   import('./admin.js').then((module) => {

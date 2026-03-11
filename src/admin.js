@@ -159,6 +159,7 @@ export function setupAdmin(deps) {
     const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? player.y);
 
     selectedBuilding = null;
+    window.adminSelectedBuilding = null;
 
     const buildings = getBuildings();
     const plants = getPlants();
@@ -182,6 +183,7 @@ export function setupAdmin(deps) {
           console.log(`Dragging building: ${building.id}`);
           draggedBuilding = building;
           selectedBuilding = building;
+          window.adminSelectedBuilding = building;
           dragOffsetX = building.x - worldX;
           dragOffsetY = building.y - worldY;
           break;
