@@ -200,14 +200,7 @@ export function setupWebSocket(server) {
             }
           });
         } else if (ws.isAdmin) {
-          const context = {
-            buildings: mapData.buildings,
-            buildingsFile: mapData.buildingsFile,
-            collisionObjects: mapData.collisionObjects,
-            collisionObjectsFile: mapData.collisionObjectsFile,
-            __dirname
-          };
-          handleAdminMessage(ws, data, context);
+          handleAdminMessage(ws, data, mapData);
         }
       } catch (err) {
         console.error('Error processing message:', err);

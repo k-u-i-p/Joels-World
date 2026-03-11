@@ -62,7 +62,7 @@ export function setupAdmin() {
 
   document.getElementById('btn-create-building').onclick = () => {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'create_building_generic', x: Math.round(player.x), y: Math.round(player.y) }));
+      ws.send(JSON.stringify({ type: 'create_building', x: Math.round(player.x), y: Math.round(player.y) }));
     }
   };
 
@@ -423,37 +423,9 @@ export function setupAdmin() {
         img.src = event.target.result;
       };
       reader.readAsDataURL(file);
-      return;
+    } else {
+      console.warn("Dropped file is not a supported background image (PNG/JPG):", file.name);
     }
-
-    // Check if it is an SVG file
-    if (file.type !== 'image/svg+xml' && !lowerName.endsWith('.svg')) {
-      console.warn("Dropped file is not an SVG, PNG, or JPG:", file.name);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target.result;
-
-      const canvasRect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - canvasRect.left;
-      const mouseY = e.clientY - canvasRect.top;
-
-      const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX || player.x);
-      const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY || player.y);
-
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'create_building',
-          filename: file.name,
-          content: content,
-          x: Math.round(worldX),
-          y: Math.round(worldY)
-        }));
-      }
-    };
-    reader.readAsText(file);
   });
 
   updateAdminPanel();
