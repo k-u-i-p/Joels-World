@@ -100,20 +100,17 @@ window.addEventListener('keydown', (e) => {
         chatInput.value = '';
 
         if (msg[0] === '/') {
-          if (msg.toLowerCase() === '/dance') {
-            player.emote = { name: 'dance', startTime: Date.now() };
-            syncPlayerToJSON();
-          } else if (msg.toLowerCase() === '/fart') {
-            player.emote = { name: 'fart', startTime: Date.now() };
-            syncPlayerToJSON();
-          } else if (msg.toLowerCase() === '/dead') {
-            player.emote = { name: 'dead', startTime: Date.now() };
-            syncPlayerToJSON();
-          } else if (msg.toLowerCase() === '/cry') {
-            player.emote = { name: 'cry', startTime: Date.now() };
-            syncPlayerToJSON();
-          } else if (msg.toLowerCase() === '/gritty') {
-            player.emote = { name: 'gritty', startTime: Date.now() };
+          const command = msg.toLowerCase().substring(1);
+          if (emotes[command]) {
+            player.emote = { name: command, startTime: Date.now() };
+            if (emotes[command].message) {
+              const msgText = emotes[command].message.replace('{name}', player.name || 'Someone');
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'chat', message: msgText }));
+              }
+              player.chatMessage = msgText;
+              player.chatTime = Date.now();
+            }
             syncPlayerToJSON();
           }
         } else {
@@ -455,8 +452,6 @@ function draw() {
   if (window.mapImage && window.mapImage.complete) {
     ctx.drawImage(window.mapImage, -window.mapImage.width / 2, -window.mapImage.height / 2);
   }
-
-  // --- BUILDINGS --- // (Admin draw moved to adminDraw)
 
 
   // Draw Characters
