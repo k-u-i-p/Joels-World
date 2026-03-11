@@ -111,7 +111,7 @@ wss.on('connection', (ws, req) => {
 
   const newChar = {
     id: newPlayerId,
-    name: '',
+    name: ws.isAdmin ? 'Admin' : '',
     x: Math.round(Math.random() * 800 + 100),
     y: Math.round(Math.random() * 600 + 100),
     width: 40,

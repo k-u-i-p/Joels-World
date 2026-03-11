@@ -755,12 +755,19 @@ function handleInitData(plantsData, buildingsData, charactersData, npcsData, myC
     isDataLoaded = true;
     startBtn.textContent = 'Start Game';
     startBtn.disabled = false;
-    if (nameInput.value.trim() !== '') nameInput.focus();
+    if (isAdmin) {
+      attemptStartGame();
+    } else if (nameInput.value.trim() !== '') {
+      nameInput.focus();
+    }
   }).catch(err => {
     console.error("Error initializing game data:", err);
     // Allow trying to start despite errors
     isDataLoaded = true;
     startBtn.textContent = 'Start Game';
     startBtn.disabled = false;
+    if (isAdmin) {
+      attemptStartGame();
+    }
   });
 }
