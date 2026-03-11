@@ -12,15 +12,21 @@ export function setupAdmin() {
 
   let activeHoldInterval = null;
 
-  function bindHoldAction(id, action) {
+  function bindHoldAction(id, action, syncAction) {
     const btn = document.getElementById(id);
     if (!btn) return;
 
+    let hasChanged = false;
+
     const start = (e) => {
       if (e && e.button !== 0) return;
+      hasChanged = true;
       action();
       if (activeHoldInterval) clearInterval(activeHoldInterval);
-      activeHoldInterval = setInterval(action, 50);
+      activeHoldInterval = setInterval(() => {
+        hasChanged = true;
+        action();
+      }, 50);
     };
 
     const stop = () => {
@@ -28,6 +34,10 @@ export function setupAdmin() {
         clearInterval(activeHoldInterval);
         activeHoldInterval = null;
       }
+      if (hasChanged && syncAction) {
+        syncAction();
+      }
+      hasChanged = false;
     };
 
     btn.addEventListener('mousedown', start);
@@ -80,7 +90,8 @@ export function setupAdmin() {
   bindHoldAction('btn-rot-left', () => {
     if (!selectedBuilding) return;
     selectedBuilding.rotation = Math.max(0, (selectedBuilding.rotation || 0) - 1);
-    if (ws.readyState === WebSocket.OPEN) {
+  }, () => {
+    if (selectedBuilding && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
     }
   });
@@ -88,7 +99,8 @@ export function setupAdmin() {
   bindHoldAction('btn-rot-right', () => {
     if (!selectedBuilding) return;
     selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 1) % 360;
-    if (ws.readyState === WebSocket.OPEN) {
+  }, () => {
+    if (selectedBuilding && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
     }
   });
@@ -97,7 +109,8 @@ export function setupAdmin() {
     if (!selectedBuilding) return;
     let change = Math.max(1, Math.round(selectedBuilding.width * 0.02));
     selectedBuilding.width = Math.max(10, selectedBuilding.width - change);
-    if (ws.readyState === WebSocket.OPEN) {
+  }, () => {
+    if (selectedBuilding && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
     }
   });
@@ -106,7 +119,8 @@ export function setupAdmin() {
     if (!selectedBuilding) return;
     let change = Math.max(1, Math.round(selectedBuilding.width * 0.02));
     selectedBuilding.width += change;
-    if (ws.readyState === WebSocket.OPEN) {
+  }, () => {
+    if (selectedBuilding && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
     }
   });
@@ -115,7 +129,8 @@ export function setupAdmin() {
     if (!selectedBuilding) return;
     let change = Math.max(1, Math.round(selectedBuilding.height * 0.02));
     selectedBuilding.height = Math.max(10, selectedBuilding.height - change);
-    if (ws.readyState === WebSocket.OPEN) {
+  }, () => {
+    if (selectedBuilding && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
     }
   });
@@ -124,7 +139,8 @@ export function setupAdmin() {
     if (!selectedBuilding) return;
     let change = Math.max(1, Math.round(selectedBuilding.height * 0.02));
     selectedBuilding.height += change;
-    if (ws.readyState === WebSocket.OPEN) {
+  }, () => {
+    if (selectedBuilding && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
     }
   });
@@ -133,7 +149,8 @@ export function setupAdmin() {
     if (!selectedCollisionObject) return;
     let change = Math.max(1, Math.round(selectedCollisionObject.width * 0.02));
     selectedCollisionObject.width = Math.max(5, selectedCollisionObject.width - change);
-    if (ws.readyState === WebSocket.OPEN) {
+  }, () => {
+    if (selectedCollisionObject && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
     }
   });
@@ -142,7 +159,8 @@ export function setupAdmin() {
     if (!selectedCollisionObject) return;
     let change = Math.max(1, Math.round(selectedCollisionObject.width * 0.02));
     selectedCollisionObject.width += change;
-    if (ws.readyState === WebSocket.OPEN) {
+  }, () => {
+    if (selectedCollisionObject && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
     }
   });
@@ -151,7 +169,8 @@ export function setupAdmin() {
     if (!selectedCollisionObject) return;
     let change = Math.max(1, Math.round(selectedCollisionObject.length * 0.02));
     selectedCollisionObject.length = Math.max(5, selectedCollisionObject.length - change);
-    if (ws.readyState === WebSocket.OPEN) {
+  }, () => {
+    if (selectedCollisionObject && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
     }
   });
@@ -160,7 +179,8 @@ export function setupAdmin() {
     if (!selectedCollisionObject) return;
     let change = Math.max(1, Math.round(selectedCollisionObject.length * 0.02));
     selectedCollisionObject.length += change;
-    if (ws.readyState === WebSocket.OPEN) {
+  }, () => {
+    if (selectedCollisionObject && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
     }
   });
@@ -238,11 +258,11 @@ export function setupAdmin() {
         const hW = obj.width / 2;
         const hL = obj.length / 2;
         if (worldX >= obj.x - hW && worldX <= obj.x + hW &&
-            worldY >= obj.y - hL && worldY <= obj.y + hL) {
+          worldY >= obj.y - hL && worldY <= obj.y + hL) {
           hit = true;
         }
       }
-      
+
       if (hit) {
         console.log(`Dragging collision object: ${obj.id}`);
         draggedCollisionObject = obj;
@@ -454,7 +474,7 @@ export function setupAdmin() {
         const radius = Math.max(obj.width, obj.length) / 2;
         ctx.arc(obj.x, obj.y, radius, 0, Math.PI * 2);
       } else {
-        ctx.rect(obj.x - obj.width/2, obj.y - obj.length/2, obj.width, obj.length);
+        ctx.rect(obj.x - obj.width / 2, obj.y - obj.length / 2, obj.width, obj.length);
       }
       ctx.fill();
     });

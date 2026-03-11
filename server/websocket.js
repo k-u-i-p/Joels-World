@@ -54,7 +54,7 @@ export function setupWebSocket(server) {
             console.log('Buildings file updated, broadcasting to clients...');
             const broadcastMsg = JSON.stringify({ type: 'buildings_update', buildings });
             for (const client of wss.clients) {
-              if (client.readyState === 1 && !client.isAdmin) {
+              if (client.readyState === 1) {
                 client.send(broadcastMsg);
               }
             }
@@ -62,7 +62,7 @@ export function setupWebSocket(server) {
         } catch (e) {
           console.error('Error reloading buildings on watch event:', e);
         }
-      }, 1000);
+      }, 50);
     });
   } catch (e) {
     console.error('Failed to setup watch on buildings file:', e);
@@ -79,7 +79,7 @@ export function setupWebSocket(server) {
             console.log('Collision objects updated, broadcasting to clients...');
             const broadcastMsg = JSON.stringify({ type: 'collision_objects_update', collisionObjects });
             for (const client of wss.clients) {
-              if (client.readyState === 1 && !client.isAdmin) {
+              if (client.readyState === 1) {
                 client.send(broadcastMsg);
               }
             }
@@ -87,7 +87,7 @@ export function setupWebSocket(server) {
         } catch (e) {
           console.error('Error reloading collision objects on watch event:', e);
         }
-      }, 1000);
+      }, 50);
     });
   } catch (e) {
     console.error('Failed to setup watch on collision objects file:', e);

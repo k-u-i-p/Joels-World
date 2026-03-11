@@ -4,6 +4,8 @@ import path from 'path';
 export function handleAdminMessage(ws, data, context) {
   const { buildings, buildingsFile, collisionObjects, collisionObjectsFile, __dirname } = context;
 
+  console.log('Admin message:', data);
+
   if (data.type === 'move_building') {
     const building = buildings.find(b => b.id === data.id);
     if (building) {
