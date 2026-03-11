@@ -1,19 +1,22 @@
 [
   {
+    "id": "oak_1",
     "type": "oak",
-    "x": 145,
-    "y": 312,
+    "x": -206,
+    "y": 24,
     "size": 40,
     "color": "#2ecc71"
   },
   {
+    "id": "pine_1",
     "type": "pine",
-    "x": 300,
-    "y": 200,
+    "x": 319,
+    "y": 210,
     "size": 35,
     "color": "#1e8449"
   },
   {
+    "id": "shrub_1",
     "type": "shrub",
     "x": 500,
     "y": 100,
@@ -21,51 +24,58 @@
     "color": "#7dcea0"
   },
   {
+    "id": "flower_1",
     "type": "flower",
-    "x": 600,
-    "y": 300,
+    "x": 1437,
+    "y": 98,
     "size": 5,
     "color": "#e74c3c"
   },
   {
+    "id": "oak_2",
     "type": "oak",
-    "x": 800,
-    "y": 400,
+    "x": 330,
+    "y": 685,
     "size": 50,
     "color": "#27ae60"
   },
   {
+    "id": "pine_2",
     "type": "pine",
-    "x": 200,
-    "y": 500,
+    "x": 2671,
+    "y": 4,
     "size": 30,
     "color": "#117a65"
   },
   {
+    "id": "shrub_2",
     "type": "shrub",
-    "x": 400,
-    "y": 600,
+    "x": 1387,
+    "y": 35,
     "size": 20,
     "color": "#52be80"
   },
   {
+    "id": "flower_2",
     "type": "flower",
-    "x": 700,
-    "y": 500,
+    "x": 1499,
+    "y": 135,
     "size": 6,
     "color": "#f1c40f"
   },
   {
+    "id": "flower_3",
     "type": "flower",
-    "x": 720,
-    "y": 520,
+    "x": 1478,
+    "y": 123,
     "size": 4,
     "color": "#3498db"
   },
   {
+    "id": "flower_4",
     "type": "flower",
-    "x": 680,
-    "y": 480,
+    "x": 1459,
+    "y": 112,
     "size": 5,
     "color": "#9b59b6"
   }
