@@ -40,6 +40,7 @@ ws.onmessage = (event) => {
         localChar.fartTime = serverChar.fartTime;
         localChar.isDead = serverChar.isDead;
         localChar.isCrying = serverChar.isCrying;
+        localChar.isGritty = serverChar.isGritty;
       } else {
         serverChar.targetX = serverChar.x;
         serverChar.targetY = serverChar.y;
@@ -103,6 +104,7 @@ window.addEventListener('keydown', (e) => {
           player.isDancing = true;
           player.isDead = false;
           player.isCrying = false;
+          player.isGritty = false;
           syncPlayerToJSON();
         } else if (msg.toLowerCase() === '/fart') {
           player.fartTime = Date.now();
@@ -111,9 +113,17 @@ window.addEventListener('keydown', (e) => {
           player.isDead = true;
           player.isDancing = false;
           player.isCrying = false;
+          player.isGritty = false;
           syncPlayerToJSON();
         } else if (msg.toLowerCase() === '/cry') {
           player.isCrying = true;
+          player.isDancing = false;
+          player.isDead = false;
+          player.isGritty = false;
+          syncPlayerToJSON();
+        } else if (msg.toLowerCase() === '/gritty' || msg.toLowerCase() === 'daning gritty' || msg.toLowerCase() === 'dancing gritty') {
+          player.isGritty = true;
+          player.isCrying = false;
           player.isDancing = false;
           player.isDead = false;
           syncPlayerToJSON();
@@ -180,6 +190,7 @@ let player = {
   isDancing: false,
   isDead: false,
   isCrying: false,
+  isGritty: false,
   fartTime: 0,
   _lastSentX: null,
   _lastSentY: null,
@@ -187,6 +198,7 @@ let player = {
   _lastSentDancing: false,
   _lastSentDead: false,
   _lastSentCrying: false,
+  _lastSentGritty: false,
   _lastSentFartTime: 0,
   x: window.innerWidth / 2,
   y: window.innerHeight / 2,
@@ -214,6 +226,7 @@ function syncPlayerToJSON() {
     characters[charIndex].isDancing = player.isDancing;
     characters[charIndex].isDead = player.isDead;
     characters[charIndex].isCrying = player.isCrying;
+    characters[charIndex].isGritty = player.isGritty;
     characters[charIndex].fartTime = player.fartTime;
 
     if (ws.readyState === WebSocket.OPEN) {
@@ -344,10 +357,11 @@ function update() {
   // Animation
   if (isMoving) {
     player.legAnimationTime += 0.2;
-    if (player.isDancing || player.isDead || player.isCrying) {
+    if (player.isDancing || player.isDead || player.isCrying || player.isGritty) {
       player.isDancing = false;
       player.isDead = false;
       player.isCrying = false;
+      player.isGritty = false;
       syncPlayerToJSON();
     }
   } else {
@@ -407,10 +421,11 @@ function update() {
   // Sync back via websocket 20 times a second if moved
   const now = Date.now();
   if (now - lastSyncTime > 50) {
-    if (player.x !== player._lastSentX || player.y !== player._lastSentY || player.rotation !== player._lastSentRotation || player.isDancing !== player._lastSentDancing || player.fartTime !== player._lastSentFartTime || player.isDead !== player._lastSentDead || player.isCrying !== player._lastSentCrying) {
+    if (player.x !== player._lastSentX || player.y !== player._lastSentY || player.rotation !== player._lastSentRotation || player.isDancing !== player._lastSentDancing || player.fartTime !== player._lastSentFartTime || player.isDead !== player._lastSentDead || player.isCrying !== player._lastSentCrying || player.isGritty !== player._lastSentGritty) {
       player._lastSentDancing = player.isDancing;
       player._lastSentDead = player.isDead;
       player._lastSentCrying = player.isCrying;
+      player._lastSentGritty = player.isGritty;
       player._lastSentFartTime = player.fartTime;
       player._lastSentX = player.x;
       player._lastSentY = player.y;
@@ -500,6 +515,21 @@ function draw() {
       ctx.textBaseline = 'middle';
       ctx.rotate(-c.rotation); // keep it upright
       ctx.fillText('💩', 0, 0);
+    } else if (c.name === 'Dancing Toilet') {
+      ctx.font = '60px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.rotate(-c.rotation); // keep it upright
+      
+      // Make the toilet dance (bounce and tilt)
+      const danceTime = Date.now() / 150;
+      const bounce = Math.abs(Math.sin(danceTime)) * -15;
+      const tilt = Math.sin(danceTime * 0.8) * 0.3;
+      
+      ctx.translate(0, bounce);
+      ctx.rotate(tilt);
+      
+      ctx.fillText('🚽', 0, 0);
     } else {
       if (c.isDead) {
         ctx.globalAlpha = 0.5;
@@ -549,6 +579,26 @@ function draw() {
 
         leftArmX = 0; leftArmY = -14 + swing;
         rightArmX = 0; rightArmY = 14 + swing;
+      } else if (c.isGritty) {
+        // The Gritty dance
+        const danceTime = Date.now() / 150;
+        const swing = Math.sin(danceTime);
+        const fastSwing = Math.sin(danceTime * 2);
+        
+        ctx.translate(fastSwing * 2, -Math.abs(fastSwing * 4)); // bobbing
+        
+        // Alternating heel taps
+        if (swing > 0) {
+          leftLegStartY = -6; leftLegEndY = -2; leftLegEndX = -4; // Tap forward
+          rightLegStartY = 6; rightLegEndY = 6 + 10; rightLegEndX = -2; // Stand straight
+        } else {
+          leftLegStartY = -6; leftLegEndY = -6 + 10; leftLegEndX = -2; // Stand straight
+          rightLegStartY = 6; rightLegEndY = 2; rightLegEndX = -4; // Tap forward
+        }
+        
+        // Arms swinging back and forth in front
+        leftArmX = 10 + swing * 8; leftArmY = -6;
+        rightArmX = 10 - swing * 8; rightArmY = 6;
       }
 
       // --- LEGS ---
