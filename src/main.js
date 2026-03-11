@@ -5,10 +5,10 @@ const ctx = canvas.getContext('2d');
 window.cameraZoom = 1;
 
 // --- WEBSOCKET CLIENT ---
-const urlParams = new URLSearchParams(window.location.search);
-const isAdmin = urlParams.get('admin') === 'true';
-const wsUrl = `ws://${window.location.host}${isAdmin ? '?admin=true' : ''}`;
+const isAdmin = window.isAdmin === true;
+const wsUrl = `ws://${window.location.host}`;
 const ws = new WebSocket(wsUrl);
+window.ws = ws;
 
 ws.onopen = () => {
   console.log('Connected to WebSocket server');
@@ -60,8 +60,10 @@ ws.onmessage = (event) => {
       }
     } else if (data.type === 'plants_update') {
       plants = data.plants || [];
+      window.plants = plants;
     } else if (data.type === 'buildings_update') {
       buildings = data.buildings || [];
+      window.buildings = buildings;
     }
   } catch (e) {
     console.error(e);
@@ -155,7 +157,7 @@ window.addEventListener('keydown', (e) => {
         hector.chatTime = Date.now();
       }
     }
-    
+
     const poop = characters.find(c => c.name === 'Talking Poop');
     if (poop) {
       const dist = Math.hypot(poop.x - player.x, poop.y - player.y);
@@ -206,10 +208,13 @@ let player = {
   height: 40,
   rotation: 0
 };
+window.player = player;
 
 // Map Objects
 let plants = [];
+window.plants = plants;
 let buildings = [];
+window.buildings = buildings;
 let characters = [];
 let lastSyncTime = 0;
 
@@ -239,6 +244,9 @@ function syncPlayerToJSON() {
 function gameLoop() {
   update();
   draw();
+  if (isAdmin && window.adminDraw) {
+    window.adminDraw();
+  }
   requestAnimationFrame(gameLoop);
 }
 
@@ -478,27 +486,8 @@ function draw() {
     ctx.drawImage(window.mapImage, -window.mapImage.width / 2, -window.mapImage.height / 2);
   }
 
-  if (window.adminBackgroundImage && window.adminBackgroundImage.complete) {
-    ctx.drawImage(window.adminBackgroundImage, window.adminBackgroundImage._x || 0, window.adminBackgroundImage._y || 0);
-  }
+  // --- BUILDINGS --- // (Admin draw moved to adminDraw)
 
-  // --- BUILDINGS ---
-  // Drawn first so they appear on the ground beneath the player and plants
-  buildings.forEach(building => {
-    if (isAdmin) {
-      ctx.save();
-      ctx.translate(building.x, building.y);
-      // Canvas rotate requires radians, so convert from defined degrees
-      ctx.rotate((building.rotation || 0) * Math.PI / 180);
-      if (window.adminSelectedBuilding && window.adminSelectedBuilding.id === building.id) {
-        ctx.fillStyle = 'rgba(155, 89, 182, 0.7)'; // semi-transparent purple for selected
-      } else {
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // semi-transparent red box
-      }
-      ctx.fillRect(-building.width / 2, -building.height / 2, building.width, building.height);
-      ctx.restore();
-    }
-  });
 
   // Draw Characters
   characters.forEach(char => {
@@ -520,15 +509,15 @@ function draw() {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.rotate(-c.rotation); // keep it upright
-      
+
       // Make the toilet dance (bounce and tilt)
       const danceTime = Date.now() / 150;
       const bounce = Math.abs(Math.sin(danceTime)) * -15;
       const tilt = Math.sin(danceTime * 0.8) * 0.3;
-      
+
       ctx.translate(0, bounce);
       ctx.rotate(tilt);
-      
+
       ctx.fillText('🚽', 0, 0);
     } else {
       if (c.isDead) {
@@ -584,9 +573,9 @@ function draw() {
         const danceTime = Date.now() / 150;
         const swing = Math.sin(danceTime);
         const fastSwing = Math.sin(danceTime * 2);
-        
+
         ctx.translate(fastSwing * 2, -Math.abs(fastSwing * 4)); // bobbing
-        
+
         // Alternating heel taps
         if (swing > 0) {
           leftLegStartY = -6; leftLegEndY = -2; leftLegEndX = -4; // Tap forward
@@ -595,7 +584,7 @@ function draw() {
           leftLegStartY = -6; leftLegEndY = -6 + 10; leftLegEndX = -2; // Stand straight
           rightLegStartY = 6; rightLegEndY = 2; rightLegEndX = -4; // Tap forward
         }
-        
+
         // Arms swinging back and forth in front
         leftArmX = 10 + swing * 8; leftArmY = -6;
         rightArmX = 10 - swing * 8; rightArmY = 6;
@@ -690,17 +679,17 @@ function draw() {
         ctx.fillStyle = '#111';
         ctx.beginPath(); ctx.arc(5, -1, 1, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.arc(5, 1, 1, 0, Math.PI * 2); ctx.fill();
-        
+
         // Animated tears
         const tearProgress1 = (Date.now() % 1000) / 1000;
         const tearProgress2 = ((Date.now() + 500) % 1000) / 1000;
-        
+
         ctx.fillStyle = '#3498db'; // blue tear
-        
+
         // Left cheek tears
         ctx.beginPath(); ctx.arc(4 - tearProgress1 * 6, -2 - tearProgress1 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.arc(4 - tearProgress2 * 6, -2 - tearProgress2 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
-        
+
         // Right cheek tears
         ctx.beginPath(); ctx.arc(4 - tearProgress1 * 6, 2 + tearProgress1 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.arc(4 - tearProgress2 * 6, 2 + tearProgress2 * 2, 1.5, 0, Math.PI * 2); ctx.fill();
@@ -794,38 +783,13 @@ function draw() {
     }
   });
 
-  // --- PLANTS ---
-  // Drawn after the player to act as an overhead canopy. The player walks "under" the leaves.
-  if (isAdmin) {
-    plants.forEach(plant => {
-      if (window.adminSelectedPlant && window.adminSelectedPlant.id === plant.id) {
-        ctx.fillStyle = 'purple';
-      } else {
-        ctx.fillStyle = 'rgba(155, 89, 182, 0.5)';
-      }
-      ctx.beginPath();
-      ctx.arc(plant.x, plant.y, plant.size, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  }
-
   // Restore camera translation
   ctx.restore();
 }
 
 
 
-if (isAdmin) {
-  import('./admin.js').then((module) => {
-    module.setupAdmin({
-      canvas,
-      player,
-      getBuildings: () => buildings,
-      getPlants: () => plants,
-      ws
-    });
-  }).catch(err => console.error('Failed to load admin module:', err));
-}
+
 
 // Start By Fetching Data
 
@@ -851,6 +815,8 @@ nameInput.addEventListener('keypress', (e) => {
 function handleInitData(plantsData, buildingsData, charactersData, npcsData, myCharacter) {
   plants = plantsData;
   buildings = buildingsData;
+  window.plants = plants;
+  window.buildings = buildings;
   characters = [...npcsData, ...charactersData];
 
   if (myCharacter) {

@@ -30,17 +30,20 @@ export async function setupVite(app, server, port) {
 
       if (hasAdminQuery) {
         session.isAdmin = true;
-      } else if (session.isAdmin) {
-        return res.redirect('/?admin=true');
       }
     }
 
     const url = req.originalUrl;
     try {
-      let template = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf-8');
-      template = await vite.transformIndexHtml(url, template);
+      let index;
 
-      res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      if (session && session.isAdmin) {
+        index = fs.readFileSync(path.resolve(__dirname, '../admin.html'), 'utf-8');
+      } else {
+        index = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf-8');
+      }
+
+      res.status(200).set({ 'Content-Type': 'text/html' }).end(index);
     } catch (e) {
       vite.ssrFixStacktrace(e);
       next(e);
