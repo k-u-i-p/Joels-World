@@ -7,7 +7,7 @@ window.cameraZoom = 1;
 // --- WEBSOCKET CLIENT ---
 const urlParams = new URLSearchParams(window.location.search);
 const isAdmin = urlParams.get('admin') === 'true';
-const wsUrl = `ws://${window.location.hostname}:8080${isAdmin ? '?admin=true' : ''}`;
+const wsUrl = `ws://${window.location.host}${isAdmin ? '?admin=true' : ''}`;
 const ws = new WebSocket(wsUrl);
 
 ws.onopen = () => {

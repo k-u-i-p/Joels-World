@@ -3,14 +3,19 @@ import fs from 'fs';
 import path from 'path';
 import { WebSocketServer } from 'ws';
 import { handleAdminMessage } from './admin.js';
+import express from 'express';
+import http from 'http';
+import { createServer as createViteServer } from 'vite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const npcFile = path.resolve(__dirname, 'data/npc.json');
 const plantsFile = path.resolve(__dirname, 'data/plants.json');
 const buildingsFile = path.resolve(__dirname, 'data/buildings.json');
 
-const port = 8080;
-const wss = new WebSocketServer({ port });
+const port = process.env.PORT || 8080;
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
 
 let characters = {};
 
@@ -197,4 +202,33 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-console.log(`WebSocket server running on ws://localhost:${port}`);
+// Setting up Vite Middleware to dynamically serve index.html
+async function setupVite() {
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: 'custom'
+  });
+
+  app.use(vite.middlewares);
+
+  app.use(async (req, res, next) => {
+    const url = req.originalUrl;
+    try {
+      let template = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf-8');
+      template = await vite.transformIndexHtml(url, template);
+      
+      // Dynamic modification could go here
+      
+      res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+    } catch (e) {
+      vite.ssrFixStacktrace(e);
+      next(e);
+    }
+  });
+
+  server.listen(port, () => {
+    console.log(`Server & WebSocket running on http://localhost:${port}`);
+  });
+}
+
+setupVite();
