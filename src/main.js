@@ -361,6 +361,14 @@ function update() {
       const newBuilding = actuallyInObject.length > 0 ? actuallyInObject[0].id : null;
 
       if (player.activeBuilding !== newBuilding) {
+        if (player.activeBuilding) {
+          const oldObj = window.init?.objects?.find(o => o.id === player.activeBuilding);
+          if (oldObj && oldObj.activeAudio) {
+            oldObj.activeAudio.pause();
+            oldObj.activeAudio.currentTime = 0;
+            oldObj.activeAudio = null;
+          }
+        }
         player.activeBuilding = newBuilding;
         if (newBuilding) {
           const matchedObj = actuallyInObject[0];
@@ -375,6 +383,12 @@ function update() {
       }
     } else {
       if (player.activeBuilding) {
+        const oldObj = window.init?.objects?.find(o => o.id === player.activeBuilding);
+        if (oldObj && oldObj.activeAudio) {
+          oldObj.activeAudio.pause();
+          oldObj.activeAudio.currentTime = 0;
+          oldObj.activeAudio = null;
+        }
         player.activeBuilding = null;
         const dialogOverlay = document.getElementById('action-dialog-content');
         if (dialogOverlay) dialogOverlay.style.display = 'none';
@@ -460,6 +474,11 @@ function update() {
   if (activeNpc && (!closestNpc || activeNpc !== closestNpc.id)) {
     const prevNpc = [...(window.init?.characters || []), ...(window.init?.npcs || [])].find(c => c.id === activeNpc);
     if (prevNpc) {
+      if (prevNpc.activeAudio) {
+        prevNpc.activeAudio.pause();
+        prevNpc.activeAudio.currentTime = 0;
+        prevNpc.activeAudio = null;
+      }
       if (prevNpc.on_exit && prevNpc.on_exit.length > 0) {
         executeNpcActions(prevNpc, prevNpc.on_exit);
       }
@@ -558,6 +577,16 @@ function executeNpcActions(npc, actions) {
           }
         };
       }
+    }
+
+    if (action.play_sound && action.play_sound.sound) {
+      if (npc.activeAudio) {
+        npc.activeAudio.pause();
+        npc.activeAudio.currentTime = 0;
+      }
+      const soundSrc = action.play_sound.sound.startsWith('/') ? action.play_sound.sound : '/' + action.play_sound.sound;
+      npc.activeAudio = new Audio(soundSrc);
+      npc.activeAudio.play().catch(e => console.warn("Failed to play sound:", e));
     }
   }
 }

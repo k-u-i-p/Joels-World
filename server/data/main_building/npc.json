@@ -1,1 +1,26 @@
-[]
+[
+    {
+        "id": 1,
+        "name": "Ms Crosbie",
+        "x": -690,
+        "y": 619,
+        "width": 40,
+        "height": 40,
+        "rotation": 0,
+        "gender": "female",
+        "shirtColor": "#e74c3c",
+        "pantsColor": "#2c3e50",
+        "armColor": "#e74c3c",
+        "on_enter": [
+            {
+                "avatar": "avatars/ms_crosbie.png",
+                "say": [
+                    "Welcome to the main building, {name}!",
+                    "I don't think much of the new classrooms!",
+                    "Have you ever been trials riding?"
+                ]
+            }
+        ],
+        "on_exit": []
+    }
+]
