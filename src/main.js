@@ -673,6 +673,95 @@ function drawCharacters() {
   });
 }
 
+function getPrerenderedNpc(c) {
+  if (c.prerenderedCanvas) {
+    return c.prerenderedCanvas;
+  }
+
+  const size = 100;
+  const canvas = window.OffscreenCanvas ? new OffscreenCanvas(size, size) : document.createElement('canvas');
+  if (!window.OffscreenCanvas) {
+    canvas.width = size;
+    canvas.height = size;
+  }
+  const octx = canvas.getContext('2d');
+
+  octx.translate(size / 2, size / 2);
+
+  const limbs = {
+    leftArmX: 4, leftArmY: -14,
+    rightArmX: 4, rightArmY: 14,
+    leftLegStartX: -2, leftLegStartY: -6,
+    leftLegEndX: 8, leftLegEndY: -6,
+    rightLegStartX: -2, rightLegStartY: 6,
+    rightLegEndX: 8, rightLegEndY: 6
+  };
+
+  octx.lineWidth = 7;
+  octx.lineCap = 'round';
+  octx.strokeStyle = c.pantsColor || '#2c3e50';
+
+  octx.beginPath();
+  octx.moveTo(limbs.leftLegStartX, limbs.leftLegStartY);
+  octx.lineTo(limbs.leftLegEndX, limbs.leftLegEndY);
+  octx.stroke();
+
+  octx.beginPath();
+  octx.moveTo(limbs.rightLegStartX, limbs.rightLegStartY);
+  octx.lineTo(limbs.rightLegEndX, limbs.rightLegEndY);
+  octx.stroke();
+
+  octx.lineWidth = 5;
+  octx.strokeStyle = c.armColor || '#3498db';
+
+  octx.beginPath();
+  octx.moveTo(0, -11);
+  octx.lineTo(limbs.leftArmX, limbs.leftArmY);
+  octx.stroke();
+
+  octx.beginPath();
+  octx.moveTo(0, 11);
+  octx.lineTo(limbs.rightArmX, limbs.rightArmY);
+  octx.stroke();
+
+  octx.fillStyle = '#f1c27d';
+  octx.beginPath();
+  octx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, Math.PI * 2);
+  octx.fill();
+
+  octx.beginPath();
+  octx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, Math.PI * 2);
+  octx.fill();
+
+  octx.fillStyle = c.shirtColor || '#3498db';
+  if (octx.roundRect) {
+    octx.beginPath();
+    octx.roundRect(-8, -12, 16, 24, 6);
+    octx.fill();
+  } else {
+    octx.fillRect(-8, -12, 16, 24);
+  }
+
+  octx.beginPath();
+  octx.arc(2, 0, 8, 0, Math.PI * 2);
+  octx.fillStyle = '#f1c27d';
+  octx.fill();
+
+  if (c.gender === 'female') {
+    octx.fillStyle = '#e67e22';
+    octx.beginPath();
+    octx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
+    octx.fill();
+  }
+
+  octx.lineWidth = 2;
+  octx.strokeStyle = 'rgba(0,0,0,0.4)';
+  octx.stroke();
+
+  c.prerenderedCanvas = canvas;
+  return canvas;
+}
+
 function drawCharacter(c) {
   ctx.save();
   ctx.translate(c.x, c.y);
@@ -703,7 +792,14 @@ function drawCharacter(c) {
 
     ctx.fillText('🚽', 0, 0);
   } else {
-    let currentEmote = c.emote;
+    const isActualNpc = window.init?.npcs && window.init.npcs.some(n => n.id === c.id);
+    const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;
+
+    if (isActualNpc && !hasMovement && !c.emote) {
+      const prCnv = getPrerenderedNpc(c);
+      ctx.drawImage(prCnv, -prCnv.width / 2, -prCnv.height / 2);
+    } else {
+      let currentEmote = c.emote;
     let emoteDef = null;
     if (currentEmote && emotes[currentEmote.name]) {
       emoteDef = emotes[currentEmote.name];
@@ -816,6 +912,7 @@ function drawCharacter(c) {
     if (emoteDef && emoteDef.draw) {
       emoteDef.draw(ctx, currentEmote);
     }
+    } // End of prerender else branch
   }
 
   ctx.restore();
