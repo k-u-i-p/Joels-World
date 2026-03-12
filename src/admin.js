@@ -314,21 +314,29 @@ bindHoldAction('btn-npc-height-inc', () => {
 });
 
 const btnSaveNpcDialog = document.getElementById('btn-save-npc-dialog');
-const npcDialogInput = document.getElementById('npc-dialog-input');
-if (btnSaveNpcDialog && npcDialogInput) {
+const npcOnEnterInput = document.getElementById('npc-on-enter-input');
+const npcOnExitInput = document.getElementById('npc-on-exit-input');
+if (btnSaveNpcDialog && npcOnEnterInput && npcOnExitInput) {
   btnSaveNpcDialog.onclick = () => {
     if (!window.selectedNpc.get()) return;
-    try {
-      const parsed = JSON.parse(npcDialogInput.value);
-      window.selectedNpc.get().on_enter = parsed.on_enter;
-      window.selectedNpc.get().on_exit = parsed.on_exit;
-      if (window.ws.readyState === WebSocket.OPEN) {
-        window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { on_enter: parsed.on_enter, on_exit: parsed.on_exit } }));
-      }
-      alert('NPC dialog saved!');
-    } catch (e) {
-      alert('Invalid JSON in dialog input.');
+    
+    const onEnterLines = npcOnEnterInput.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const onExitLines = npcOnExitInput.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    const on_enter = onEnterLines.length > 0 ? [{ say: onEnterLines }] : [];
+    const on_exit = onExitLines.length > 0 ? [{ say: onExitLines }] : [];
+
+    window.selectedNpc.get().on_enter = on_enter;
+    window.selectedNpc.get().on_exit = on_exit;
+
+    if (window.ws.readyState === WebSocket.OPEN) {
+      window.ws.send(JSON.stringify({ 
+        type: 'update_npc', 
+        id: window.selectedNpc.get().id, 
+        updates: { on_enter, on_exit } 
+      }));
     }
+    alert('NPC dialog saved!');
   };
 }
 
@@ -362,11 +370,23 @@ function updateAdminPanel() {
     if (document.getElementById('npc-pants-col')) document.getElementById('npc-pants-col').value = npc.pantsColor || '#2c3e50';
     if (document.getElementById('npc-arm-col')) document.getElementById('npc-arm-col').value = npc.armColor || '#3498db';
     
-    if (document.getElementById('npc-dialog-input')) {
-      document.getElementById('npc-dialog-input').value = JSON.stringify({
-        on_enter: npc.on_enter || [],
-        on_exit: npc.on_exit || []
-      }, null, 2);
+    const npcOnEnterInput = document.getElementById('npc-on-enter-input');
+    const npcOnExitInput = document.getElementById('npc-on-exit-input');
+    
+    if (npcOnEnterInput) {
+      if (npc.on_enter && npc.on_enter[0] && npc.on_enter[0].say) {
+        npcOnEnterInput.value = npc.on_enter[0].say.join('\n');
+      } else {
+        npcOnEnterInput.value = '';
+      }
+    }
+    
+    if (npcOnExitInput) {
+      if (npc.on_exit && npc.on_exit[0] && npc.on_exit[0].say) {
+        npcOnExitInput.value = npc.on_exit[0].say.join('\n');
+      } else {
+        npcOnExitInput.value = '';
+      }
     }
   } else {
     if (editNpcSection) editNpcSection.style.display = 'none';

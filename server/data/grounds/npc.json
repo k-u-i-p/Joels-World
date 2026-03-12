@@ -51,7 +51,15 @@
     "gender": "male",
     "shirtColor": "#2ecc71",
     "pantsColor": "#2c3e50",
-    "armColor": "#2ecc71"
+    "armColor": "#2ecc71",
+    "on_enter": [
+      {
+        "say": [
+          "Hi {name}, I'm Oliver."
+        ]
+      }
+    ],
+    "on_exit": []
   },
   {
     "id": 4,

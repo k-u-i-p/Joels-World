@@ -100,10 +100,14 @@
         <span>Arms: </span><input type="color" id="npc-arm-col" style="background:transparent; border:none;" />
       </div>
       <div style="margin-bottom: 5px;">
-        <div style="font-size: 12px; margin-bottom: 2px;">Logic JSON (on_enter/on_exit):</div>
-        <textarea id="npc-dialog-input" style="width:100%; height:100px; box-sizing:border-box; padding:5px; background:rgba(255,255,255,0.1); border:1px solid #7f8c8d; color:white; border-radius:4px; font-family:monospace; font-size:11px;"></textarea>
+        <div style="font-size: 12px; margin-bottom: 2px;">On Enter Dialog (1 message per line):</div>
+        <textarea id="npc-on-enter-input" style="width:100%; height:60px; box-sizing:border-box; padding:5px; background:rgba(255,255,255,0.1); border:1px solid #7f8c8d; color:white; border-radius:4px; font-family:monospace; font-size:11px;"></textarea>
       </div>
-      <button id="btn-save-npc-dialog" style="width:100%; padding:5px; background-color:#3498db; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Save JSON</button>
+      <div style="margin-bottom: 5px;">
+        <div style="font-size: 12px; margin-bottom: 2px;">On Exit Dialog (1 message per line):</div>
+        <textarea id="npc-on-exit-input" style="width:100%; height:60px; box-sizing:border-box; padding:5px; background:rgba(255,255,255,0.1); border:1px solid #7f8c8d; color:white; border-radius:4px; font-family:monospace; font-size:11px;"></textarea>
+      </div>
+      <button id="btn-save-npc-dialog" style="width:100%; padding:5px; background-color:#3498db; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Save Dialog</button>
     </div>
   </div>
 
