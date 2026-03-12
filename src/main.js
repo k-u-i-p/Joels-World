@@ -76,6 +76,9 @@ ws.onmessage = (event) => {
 };
 
 // Resize canvas to fill window
+/**
+ * Resizes the canvas dimensions to match the current window inner width and height.
+ */
 function resize() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -96,6 +99,17 @@ let isChatFocused = false;
 
 chatInput.addEventListener('focus', () => { isChatFocused = true; });
 chatInput.addEventListener('blur', () => { isChatFocused = false; });
+
+const UI = {
+  get avatarsContainer() { return this._ac || (this._ac = document.getElementById('avatars-container')); },
+  get dialogOverlay() { return this._do || (this._do = document.getElementById('action-dialog-content')); },
+  get dialogText() { return this._dt || (this._dt = document.getElementById('action-dialog-text')); },
+  get btnYes() { return this._by || (this._by = document.getElementById('action-dialog-yes')); },
+  get btnNo() { return this._bn || (this._bn = document.getElementById('action-dialog-no')); }
+};
+
+const movementCoords = [{x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}];
+const exactCoords = [{x: 0, y: 0}];
 
 window.addEventListener('keydown', (e) => {
   const nameDialog = document.getElementById('name-dialog');
@@ -181,7 +195,39 @@ let activeNpc = null;
 window.mapImage = new Image();
 window.mapImage.src = '/grounds/background.png'; // default fallback
 
+let syncTimeout = null;
+let lastSyncCallTime = 0;
+const SYNC_THROTTLE_MS = 50;
+
+/**
+ * Throttles the synchronization of the player's state (position, rotation, etc.)
+ * to the server via WebSocket. Ensures a maximum of one payload sent every SYNC_THROTTLE_MS.
+ */
 function syncPlayerToJSON() {
+  const now = Date.now();
+  if (now - lastSyncCallTime >= SYNC_THROTTLE_MS) {
+    lastSyncCallTime = now;
+    if (syncTimeout) {
+      clearTimeout(syncTimeout);
+      syncTimeout = null;
+    }
+    doSyncPlayerToJSON();
+  } else {
+    if (!syncTimeout) {
+      syncTimeout = setTimeout(() => {
+        lastSyncCallTime = Date.now();
+        syncTimeout = null;
+        doSyncPlayerToJSON();
+      }, SYNC_THROTTLE_MS - (now - lastSyncCallTime));
+    }
+  }
+}
+
+/**
+ * Executes the actual payload construction and WebSocket transmission for the player's 
+ * synchronized state towards the server.
+ */
+function doSyncPlayerToJSON() {
   const charIndex = (window.init?.characters || []).findIndex(c => c.id === player.id);
   if (charIndex > -1) {
     window.init.characters[charIndex].x = player.x;
@@ -197,6 +243,10 @@ function syncPlayerToJSON() {
 }
 
 // Game Loop
+/**
+ * The main render and update loop handling user movement inputs, drawing operations,
+ * and next frame scheduling.
+ */
 function gameLoop() {
   update();
   draw();
@@ -208,51 +258,87 @@ function gameLoop() {
 }
 window.gameLoop = gameLoop;
 
+/**
+ * Helper function to detect if a specific coordinate and radius overlaps with a collision object.
+ * Applies rotated rectangle math and bounding circle math.
+ * @param {Object} obj - The map object to test against.
+ * @param {number} x - The target X coordinate.
+ * @param {number} y - The target Y coordinate.
+ * @param {number} radius - The collision radius around the coords.
+ * @param {number} [clipOverlapAllowed=0] - How much overlap is allowed (for clipping calculations).
+ * @returns {boolean} True if the entity point overlaps the object bounds.
+ */
+function checkObjectOverlap(obj, x, y, radius, clipOverlapAllowed = 0) {
+  // Broad-phase AABB rejection
+  const maxDim = Math.max(obj.width || 0, obj.length || 0) / 2;
+  // Account for diagonal/rotation loosely in broad phase by multiplying by sqrt(2) approx 1.5
+  const broadRadius = maxDim * 1.5 + radius;
+  if (Math.abs(obj.x - x) > broadRadius || Math.abs(obj.y - y) > broadRadius) {
+    return false;
+  }
+
+  if (obj.shape === 'circle') {
+    const distSq = (x - obj.x) ** 2 + (y - obj.y) ** 2;
+    const r = Math.max(obj.width, obj.length) / 2;
+    const effectiveR = Math.max(0, r - clipOverlapAllowed);
+    return distSq <= (effectiveR + radius) ** 2;
+  } else if (obj.shape === 'rect') {
+    let testX = x;
+    let testY = y;
+
+    if (obj.rotation) {
+      const angle = -obj.rotation * Math.PI / 180;
+      const bdx = x - obj.x;
+      const bdy = y - obj.y;
+      testX = obj.x + bdx * Math.cos(angle) - bdy * Math.sin(angle);
+      testY = obj.y + bdx * Math.sin(angle) + bdy * Math.cos(angle);
+    }
+
+    const halfW = Math.max(0, (obj.width / 2) - clipOverlapAllowed);
+    const halfL = Math.max(0, (obj.length / 2) - clipOverlapAllowed);
+    const rectLeft = obj.x - halfW;
+    const rectRight = obj.x + halfW;
+    const rectTop = obj.y - halfL;
+    const rectBottom = obj.y + halfL;
+
+    const closestX = Math.max(rectLeft, Math.min(testX, rectRight));
+    const closestY = Math.max(rectTop, Math.min(testY, rectBottom));
+
+    const distSq = (testX - closestX) ** 2 + (testY - closestY) ** 2;
+    return distSq <= radius * radius;
+  }
+  return false;
+}
+
+/**
+ * Detects which collision objects in the given list overlap with the specified coordinates and radius.
+ * @param {Array} objectsList - List of collision/interactive objects to check against.
+ * @param {Array} coordsArray - Array of {x, y} coordinate objects to test for overlaps.
+ * @param {number} [radius=0] - The collision radius around the coords to expand testing bounds.
+ * @returns {Array} List of objects that intersect with the given coordinates.
+ */
 function findObjectsAt(objectsList, coordsArray, radius = 0) {
   const foundObjects = [];
   for (const obj of (objectsList || [])) {
     for (const { x, y } of coordsArray) {
-      if (obj.shape === 'circle') {
-        const distSq = (x - obj.x) ** 2 + (y - obj.y) ** 2;
-        const r = Math.max(obj.width, obj.length) / 2;
-        if (distSq <= (r + radius) ** 2) {
-          foundObjects.push(obj);
-          break; // Avoid pushing same object multiple times if large radius intersects multiple coords
-        }
-      } else if (obj.shape === 'rect') {
-        let testX = x;
-        let testY = y;
-
-        if (obj.rotation) {
-          const angle = -obj.rotation * Math.PI / 180;
-          const bdx = x - obj.x;
-          const bdy = y - obj.y;
-          testX = obj.x + bdx * Math.cos(angle) - bdy * Math.sin(angle);
-          testY = obj.y + bdx * Math.sin(angle) + bdy * Math.cos(angle);
-        }
-
-        const halfW = obj.width / 2;
-        const halfL = obj.length / 2;
-        const rectLeft = obj.x - halfW;
-        const rectRight = obj.x + halfW;
-        const rectTop = obj.y - halfL;
-        const rectBottom = obj.y + halfL;
-
-        // closest point on rect to player
-        const closestX = Math.max(rectLeft, Math.min(testX, rectRight));
-        const closestY = Math.max(rectTop, Math.min(testY, rectBottom));
-
-        const distSq = (testX - closestX) ** 2 + (testY - closestY) ** 2;
-        if (distSq <= radius * radius) {
-          foundObjects.push(obj);
-          break; // Avoid duplicate obj pushes
-        }
+      if (checkObjectOverlap(obj, x, y, radius, 0)) {
+        foundObjects.push(obj);
+        break; // Avoid pushing same object multiple times if large radius intersects multiple coords
       }
     }
   }
   return foundObjects;
 }
 
+/**
+ * Evaluates whether a certain movement displacement is valid, factoring in map boundaries
+ * and the `clip` permissions of all collision shapes in the world.
+ * @param {Array} objectsList - List of map objects to test clipping against.
+ * @param {number} newX - The target X coordinate.
+ * @param {number} newY - The target Y coordinate.
+ * @param {number} playerRadius - The collision radius of the moving entity.
+ * @returns {boolean} True if the entity can move to the new coordinates, otherwise false.
+ */
 function canMoveTo(objectsList, newX, newY, playerRadius) {
   // Check map boundaries
   const mapW = window.init?.mapData?.width || (window.mapImage && window.mapImage.complete ? window.mapImage.width : 0);
@@ -273,46 +359,20 @@ function canMoveTo(objectsList, newX, newY, playerRadius) {
 
     if (clipOverlapAllowed === -1) continue; // Completely noclip
 
-    if (obj.shape === 'circle') {
-      const distSq = (newX - obj.x) ** 2 + (newY - obj.y) ** 2;
-      const r = Math.max(obj.width, obj.length) / 2;
-      const effectiveR = Math.max(0, r - clipOverlapAllowed);
-      const minD = effectiveR + playerRadius;
-      if (distSq < minD * minD) {
-        return false;
-      }
-    } else if (obj.shape === 'rect') {
-      let testX = newX;
-      let testY = newY;
-
-      if (obj.rotation) {
-        const angle = -obj.rotation * Math.PI / 180;
-        const bdx = newX - obj.x;
-        const bdy = newY - obj.y;
-        testX = obj.x + bdx * Math.cos(angle) - bdy * Math.sin(angle);
-        testY = obj.y + bdx * Math.sin(angle) + bdy * Math.cos(angle);
-      }
-
-      const halfW = Math.max(0, obj.width / 2 - clipOverlapAllowed);
-      const halfL = Math.max(0, obj.length / 2 - clipOverlapAllowed);
-      const rectLeft = obj.x - halfW;
-      const rectRight = obj.x + halfW;
-      const rectTop = obj.y - halfL;
-      const rectBottom = obj.y + halfL;
-
-      const closestX = Math.max(rectLeft, Math.min(testX, rectRight));
-      const closestY = Math.max(rectTop, Math.min(testY, rectBottom));
-
-      const distSq = (testX - closestX) ** 2 + (testY - closestY) ** 2;
-      if (distSq < playerRadius * playerRadius) {
-        return false;
-      }
+    // Because checkObjectOverlap uses strictly <= for radius evaluation, and canMoveTo was using < for radius * radius,
+    // we do not need to alter our radius here.
+    if (checkObjectOverlap(obj, newX, newY, playerRadius - 0.0001, clipOverlapAllowed)) {
+      return false; // Point inside collision object
     }
   }
 
   return true;
 }
 
+/**
+ * Processes all user inputs, updates the player coordinates, evaluates collisions,
+ * triggers object entry/exit logics, and interpolates remote entity positions.
+ */
 function update() {
   // Rotation (tank controls)
   if (keys.ArrowLeft) {
@@ -342,7 +402,14 @@ function update() {
     const scale = window.init?.mapData?.character_scale || 1;
     const playerRadius = 15 * scale; // slightly smaller than half width for smooth collisions
 
-    const possibleOverlaps = findObjectsAt(window.init?.objects, [{ x: player.x + dx, y: player.y + dy }, { x: player.x + dx, y: player.y }, { x: player.x, y: player.y + dy }], playerRadius);
+    movementCoords[0].x = player.x + dx;
+    movementCoords[0].y = player.y + dy;
+    movementCoords[1].x = player.x + dx;
+    movementCoords[1].y = player.y;
+    movementCoords[2].x = player.x;
+    movementCoords[2].y = player.y + dy;
+
+    const possibleOverlaps = findObjectsAt(window.init?.objects, movementCoords, playerRadius);
 
     // Try moving in both axes, then X only, then Y only (sliding against walls)
     if (canMoveTo(possibleOverlaps, player.x + dx, player.y + dy, playerRadius)) {
@@ -355,7 +422,9 @@ function update() {
     }
 
     if (possibleOverlaps.length > 0) {
-      const actuallyInObject = findObjectsAt(possibleOverlaps, [{ x: player.x, y: player.y }], 0);
+      exactCoords[0].x = player.x;
+      exactCoords[0].y = player.y;
+      const actuallyInObject = findObjectsAt(possibleOverlaps, exactCoords, 0);
       const newBuilding = actuallyInObject.length > 0 ? actuallyInObject[0].id : null;
 
       if (player.activeBuilding !== newBuilding) {
@@ -375,7 +444,7 @@ function update() {
           }
         } else {
           // Exited building
-          const dialogOverlay = document.getElementById('action-dialog-content');
+          const dialogOverlay = UI.dialogOverlay;
           if (dialogOverlay) dialogOverlay.style.display = 'none';
         }
       }
@@ -388,7 +457,7 @@ function update() {
           oldObj.activeAudio = null;
         }
         player.activeBuilding = null;
-        const dialogOverlay = document.getElementById('action-dialog-content');
+        const dialogOverlay = UI.dialogOverlay;
         if (dialogOverlay) dialogOverlay.style.display = 'none';
       }
     }
@@ -407,20 +476,21 @@ function update() {
   }
 
   // Smoothly interpolate other characters to their server positions
-  for (const c of [...(window.init?.characters || []), ...(window.init?.npcs || [])]) {
-    if (c.id === player.id) continue;
+  const processInterp = (c) => {
+    if (c.id === player.id) return;
 
     if (c.targetX !== undefined && c.targetY !== undefined) {
       const cdx = c.targetX - c.x;
       const cdy = c.targetY - c.y;
-      const dist = Math.hypot(cdx, cdy);
+      const distSq = cdx * cdx + cdy * cdy;
 
-      // Snap if teleported really far
-      if (dist > 100) {
+      // Snap if teleported really far (100^2 = 10000)
+      if (distSq > 10000) {
         c.x = c.targetX;
         c.y = c.targetY;
         c.rotation = c.targetRotation;
-      } else if (dist > 0.5) {
+      } else if (distSq > 0.25) { // 0.5^2 = 0.25
+        const dist = Math.sqrt(distSq); // Only do square root if we actually need to walk
         // Walk towards the target position at character's walking speed, or slightly faster if lagging far behind
         const speed = c.moveSpeed || 3;
         const moveStep = Math.max(speed, dist * 0.1);
@@ -451,22 +521,40 @@ function update() {
         }
       }
     }
+  };
+
+  if (window.init?.characters) {
+    for (let i = 0; i < window.init.characters.length; i++) processInterp(window.init.characters[i]);
+  }
+  if (window.init?.npcs) {
+    for (let i = 0; i < window.init.npcs.length; i++) processInterp(window.init.npcs[i]);
   }
 
   // Check NPC radius interactions
   const interactionRadius = 80 * (window.init?.mapData?.character_scale || 1);
+  const interactionRadiusSq = interactionRadius * interactionRadius;
   let closestNpc = null;
-  let minNpcDist = interactionRadius + 1;
+  let minNpcDistSq = interactionRadiusSq + 1;
 
-  for (const c of [...(window.init?.characters || []), ...(window.init?.npcs || [])]) {
-    if (c.id === player.id) continue;
-    if (!c.isNpc && (c.on_enter === undefined && c.on_exit === undefined)) continue;
+  const processProximity = (c) => {
+    if (c.id === player.id) return;
+    if (!c.isNpc && (c.on_enter === undefined && c.on_exit === undefined)) return;
 
-    const dist = Math.hypot(player.x - c.x, player.y - c.y);
-    if (dist <= interactionRadius && dist < minNpcDist) {
-      minNpcDist = dist;
+    const dx = player.x - c.x;
+    const dy = player.y - c.y;
+    const distSq = dx * dx + dy * dy;
+    
+    if (distSq <= interactionRadiusSq && distSq < minNpcDistSq) {
+      minNpcDistSq = distSq;
       closestNpc = c;
     }
+  };
+
+  if (window.init?.characters) {
+    for (let i = 0; i < window.init.characters.length; i++) processProximity(window.init.characters[i]);
+  }
+  if (window.init?.npcs) {
+    for (let i = 0; i < window.init.npcs.length; i++) processProximity(window.init.npcs[i]);
   }
 
   if (activeNpc && (!closestNpc || activeNpc !== closestNpc.id)) {
@@ -481,7 +569,7 @@ function update() {
         executeNpcActions(prevNpc, prevNpc.on_exit);
       }
       // Auto-clear avatar when walking away from an NPC
-      const container = document.getElementById('avatars-container');
+      const container = UI.avatarsContainer;
       if (container) {
         const el = container.querySelector(`[data-npc-id="${prevNpc.id}"]`);
         if (el) el.remove();
@@ -512,6 +600,12 @@ function update() {
   }
 }
 
+/**
+ * Executes a sequence of NPC or interactive object actions, including dialogs,
+ * sounds, avatars, map transitions, or chat messages.
+ * @param {Object} npc - The NPC character or building object executing the actions.
+ * @param {Array|number} rawActions - The actions array, or an integer pointing to another object's actions list.
+ */
 function executeNpcActions(npc, rawActions) {
   let actions = rawActions;
   if (typeof rawActions === 'number') {
@@ -522,7 +616,7 @@ function executeNpcActions(npc, rawActions) {
 
   for (const action of actions) {
     if (action.avatar) {
-      const container = document.getElementById('avatars-container');
+      const container = UI.avatarsContainer;
       if (container) {
         let el = container.querySelector(`[data-npc-id="${npc.id}"]`);
         const avatarSrc = action.avatar.startsWith('/') ? action.avatar : '/' + action.avatar;
@@ -555,10 +649,10 @@ function executeNpcActions(npc, rawActions) {
     }
 
     if (action.show_dialog) {
-      const dialogOverlay = document.getElementById('action-dialog-content');
-      const dialogText = document.getElementById('action-dialog-text');
-      const btnYes = document.getElementById('action-dialog-yes');
-      const btnNo = document.getElementById('action-dialog-no');
+      const dialogOverlay = UI.dialogOverlay;
+      const dialogText = UI.dialogText;
+      const btnYes = UI.btnYes;
+      const btnNo = UI.btnNo;
 
       if (dialogOverlay && dialogText && btnYes && btnNo) {
         dialogText.textContent = action.show_dialog.description || 'Proceed?';
@@ -599,6 +693,10 @@ function executeNpcActions(npc, rawActions) {
   }
 }
 
+/**
+ * Master rendering function. Clears the canvas, applies camera transformations, 
+ * draws the map, all visible characters, and user interface elements.
+ */
 function draw() {
   window.cameraX = player.x;
   window.cameraY = player.y;
@@ -644,6 +742,9 @@ function draw() {
   ctx.restore();
 }
 
+/**
+ * Renders the static background image of the map onto the canvas given current scaling.
+ */
 function drawMap() {
   if (window.mapImage && window.mapImage.complete) {
     const drawW = window.init?.mapData?.width || window.mapImage.width;
@@ -652,6 +753,10 @@ function drawMap() {
   }
 }
 
+/**
+ * Iterates through all players and NPCs and renders the ones currently visible
+ * within the camera bounds.
+ */
 function drawCharacters() {
   const viewHalfW = (canvas.width / window.cameraZoom) / 2;
   const viewHalfH = (canvas.height / window.cameraZoom) / 2;
@@ -663,16 +768,29 @@ function drawCharacters() {
   const minY = window.cameraY - viewHalfH - margin;
   const maxY = window.cameraY + viewHalfH + margin;
 
-  [...(window.init?.characters || []), ...(window.init?.npcs || [])].forEach(char => {
+  const processDraw = (char) => {
     // Current player might have updated legAnimationTime / x / y locally
     const c = (char.id === player.id) ? player : char;
 
     if (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY) {
       drawCharacter(c);
     }
-  });
+  };
+
+  if (window.init?.characters) {
+    for (let i = 0; i < window.init.characters.length; i++) processDraw(window.init.characters[i]);
+  }
+  if (window.init?.npcs) {
+    for (let i = 0; i < window.init.npcs.length; i++) processDraw(window.init.npcs[i]);
+  }
 }
 
+/**
+ * Optimizes static NPC rendering by painting them onto an OffscreenCanvas once, 
+ * then returning that canvas to be cheaply drawn each frame.
+ * @param {Object} c - The character object data.
+ * @returns {HTMLCanvasElement|OffscreenCanvas} Prerendered graphics context instance.
+ */
 function getPrerenderedNpc(c) {
   if (c.prerenderedCanvas) {
     return c.prerenderedCanvas;
@@ -697,32 +815,25 @@ function getPrerenderedNpc(c) {
     rightLegEndX: 8, rightLegEndY: 6
   };
 
+  const drawLine = (ctxObj, sx, sy, ex, ey) => {
+    ctxObj.beginPath();
+    ctxObj.moveTo(sx, sy);
+    ctxObj.lineTo(ex, ey);
+    ctxObj.stroke();
+  };
+
   octx.lineWidth = 7;
   octx.lineCap = 'round';
   octx.strokeStyle = c.pantsColor || '#2c3e50';
 
-  octx.beginPath();
-  octx.moveTo(limbs.leftLegStartX, limbs.leftLegStartY);
-  octx.lineTo(limbs.leftLegEndX, limbs.leftLegEndY);
-  octx.stroke();
-
-  octx.beginPath();
-  octx.moveTo(limbs.rightLegStartX, limbs.rightLegStartY);
-  octx.lineTo(limbs.rightLegEndX, limbs.rightLegEndY);
-  octx.stroke();
+  drawLine(octx, limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY);
+  drawLine(octx, limbs.rightLegStartX, limbs.rightLegStartY, limbs.rightLegEndX, limbs.rightLegEndY);
 
   octx.lineWidth = 5;
   octx.strokeStyle = c.armColor || '#3498db';
 
-  octx.beginPath();
-  octx.moveTo(0, -11);
-  octx.lineTo(limbs.leftArmX, limbs.leftArmY);
-  octx.stroke();
-
-  octx.beginPath();
-  octx.moveTo(0, 11);
-  octx.lineTo(limbs.rightArmX, limbs.rightArmY);
-  octx.stroke();
+  drawLine(octx, 0, -11, limbs.leftArmX, limbs.leftArmY);
+  drawLine(octx, 0, 11, limbs.rightArmX, limbs.rightArmY);
 
   octx.fillStyle = '#f1c27d';
   octx.beginPath();
@@ -762,6 +873,12 @@ function getPrerenderedNpc(c) {
   return canvas;
 }
 
+/**
+ * Master rendering component for an individual character. Translates the canvas 
+ * matrices, evaluates what type of drawing logic applies (emoji, skeleton drawing,
+ * or prerendered canvas), and then draws the limbs, torsos, and nameplates.
+ * @param {Object} c - The character data including positions, colors, and roles.
+ */
 function drawCharacter(c) {
   ctx.save();
   ctx.translate(c.x, c.y);
@@ -800,118 +917,107 @@ function drawCharacter(c) {
       ctx.drawImage(prCnv, -prCnv.width / 2, -prCnv.height / 2);
     } else {
       let currentEmote = c.emote;
-    let emoteDef = null;
-    if (currentEmote && emotes[currentEmote.name]) {
-      emoteDef = emotes[currentEmote.name];
-      if (Date.now() - currentEmote.startTime > emoteDef.duration) {
-        c.emote = null;
-        currentEmote = null;
-        if (c === player) syncPlayerToJSON();
-        emoteDef = null;
-      } else if (emoteDef.setup) {
-        emoteDef.setup(ctx, currentEmote, c);
+      let emoteDef = null;
+      if (currentEmote && emotes[currentEmote.name]) {
+        emoteDef = emotes[currentEmote.name];
+        if (Date.now() - currentEmote.startTime > emoteDef.duration) {
+          c.emote = null;
+          currentEmote = null;
+          if (c === player) syncPlayerToJSON();
+          emoteDef = null;
+        } else if (emoteDef.setup) {
+          emoteDef.setup(ctx, currentEmote, c);
+        }
       }
-    }
 
-    const legSwing = Math.sin(c.legAnimationTime || 0);
-    const legStride = 15;
-    const armStride = 8;
+      const legSwing = Math.sin(c.legAnimationTime || 0);
+      const legStride = 15;
+      const armStride = 8;
 
-    let limbs = {
-      leftArmX: 4 - legSwing * armStride,
-      leftArmY: -14,
-      rightArmX: 4 + legSwing * armStride,
-      rightArmY: 14,
-      leftLegStartX: -2,
-      leftLegStartY: -6,
-      leftLegEndX: -2 + 10 + legSwing * legStride,
-      leftLegEndY: -6,
-      rightLegStartX: -2,
-      rightLegStartY: 6,
-      rightLegEndX: -2 + 10 - legSwing * legStride,
-      rightLegEndY: 6
-    };
+      let limbs = {
+        leftArmX: 4 - legSwing * armStride,
+        leftArmY: -14,
+        rightArmX: 4 + legSwing * armStride,
+        rightArmY: 14,
+        leftLegStartX: -2,
+        leftLegStartY: -6,
+        leftLegEndX: -2 + 10 + legSwing * legStride,
+        leftLegEndY: -6,
+        rightLegStartX: -2,
+        rightLegStartY: 6,
+        rightLegEndX: -2 + 10 - legSwing * legStride,
+        rightLegEndY: 6
+      };
 
-    if (emoteDef && emoteDef.updateLimbs) {
-      emoteDef.updateLimbs(limbs, currentEmote);
-    }
+      if (emoteDef && emoteDef.updateLimbs) {
+        emoteDef.updateLimbs(limbs, currentEmote);
+      }
 
-    // --- LEGS ---
-    ctx.lineWidth = 7;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = c.pantsColor || '#2c3e50';
+      const drawLine = (ctxObj, sx, sy, ex, ey) => {
+        ctxObj.beginPath();
+        ctxObj.moveTo(sx, sy);
+        ctxObj.lineTo(ex, ey);
+        ctxObj.stroke();
+      };
 
-    // Left Leg
-    ctx.beginPath();
-    ctx.moveTo(limbs.leftLegStartX, limbs.leftLegStartY);
-    ctx.lineTo(limbs.leftLegEndX, limbs.leftLegEndY);
-    ctx.stroke();
+      // --- LEGS ---
+      ctx.lineWidth = 7;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = c.pantsColor || '#2c3e50';
 
-    // Right Leg
-    ctx.beginPath();
-    ctx.moveTo(limbs.rightLegStartX, limbs.rightLegStartY);
-    ctx.lineTo(limbs.rightLegEndX, limbs.rightLegEndY);
-    ctx.stroke();
+      drawLine(ctx, limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY);
+      drawLine(ctx, limbs.rightLegStartX, limbs.rightLegStartY, limbs.rightLegEndX, limbs.rightLegEndY);
 
-    // --- ARMS ---
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = c.armColor || '#3498db';
+      // --- ARMS ---
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = c.armColor || '#3498db';
 
-    // Left Arm
-    ctx.beginPath();
-    ctx.moveTo(0, -11);
-    ctx.lineTo(limbs.leftArmX, limbs.leftArmY);
-    ctx.stroke();
+      drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
+      drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
 
-    // Right Arm
-    ctx.beginPath();
-    ctx.moveTo(0, 11);
-    ctx.lineTo(limbs.rightArmX, limbs.rightArmY);
-    ctx.stroke();
-
-    // Hands
-    ctx.fillStyle = '#f1c27d'; // Skin tone
-    ctx.beginPath();
-    ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    // --- TORSO ---
-    ctx.fillStyle = c.shirtColor || '#3498db';
-    if (ctx.roundRect) {
+      // Hands
+      ctx.fillStyle = '#f1c27d'; // Skin tone
       ctx.beginPath();
-      ctx.roundRect(-8, -12, 16, 24, 6);
+      ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, Math.PI * 2);
       ctx.fill();
-    } else {
-      ctx.fillRect(-8, -12, 16, 24);
-    }
 
-    // --- HEAD ---
-    ctx.beginPath();
-    ctx.arc(2, 0, 8, 0, Math.PI * 2);
-    ctx.fillStyle = '#f1c27d'; // Skin tone
-    ctx.fill();
-
-    // If gender modifies appearance
-    if (c.gender === 'female') {
-      ctx.fillStyle = '#e67e22'; // Default hair color example
       ctx.beginPath();
-      // Draw simple curved hair
-      ctx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
+      ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, Math.PI * 2);
       ctx.fill();
-    }
 
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-    ctx.stroke();
+      // --- TORSO ---
+      ctx.fillStyle = c.shirtColor || '#3498db';
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(-8, -12, 16, 24, 6);
+        ctx.fill();
+      } else {
+        ctx.fillRect(-8, -12, 16, 24);
+      }
 
-    // Draw X eyes if dead or tears or apply other custom drawing
-    if (emoteDef && emoteDef.draw) {
-      emoteDef.draw(ctx, currentEmote);
-    }
+      // --- HEAD ---
+      ctx.beginPath();
+      ctx.arc(2, 0, 8, 0, Math.PI * 2);
+      ctx.fillStyle = '#f1c27d'; // Skin tone
+      ctx.fill();
+
+      // If gender modifies appearance
+      if (c.gender === 'female') {
+        ctx.fillStyle = '#e67e22'; // Default hair color example
+        ctx.beginPath();
+        // Draw simple curved hair
+        ctx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
+        ctx.fill();
+      }
+
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.stroke();
+
+      // Draw X eyes if dead or tears or apply other custom drawing
+      if (emoteDef && emoteDef.draw) {
+        emoteDef.draw(ctx, currentEmote);
+      }
     } // End of prerender else branch
   }
 
@@ -995,6 +1101,11 @@ window.bgAudio = new Audio();
 window.bgAudio.loop = true;
 window.gameStarted = window.isAdmin || false;
 
+/**
+ * Fired when the user clicks 'Start Game' or presses Enter. Evaluates whether
+ * they have entered an appropriate name, assigns it, and transitions visual UI
+ * state into active gameplay loops.
+ */
 function attemptStartGame() {
   if (window.init !== null) {
     if (nameInput && nameInput.value.trim() !== '') {
@@ -1024,14 +1135,20 @@ if (nameInput) {
   });
 }
 
+/**
+ * Intercepts the `init` payload from the WebSocket server after joining or mapping 
+ * into a new world. Prepares and overwrites all lists of loaded NPCs, objects, 
+ * background environments, and schedules the start of rendering logic.
+ * @param {Object} data - The map's initialization data payload structured by the server.
+ */
 function handleInitData(data) {
   window.init = data;
   if (!window.init.characters) window.init.characters = [];
   if (!window.init.npcs) window.init.npcs = [];
   activeNpc = null;
-  if (selectedObject) window.selectedObject.set(null);
+  if (window.selectedObject) window.selectedObject.set(null);
 
-  const avatarsContainer = document.getElementById('avatars-container');
+  const avatarsContainer = UI.avatarsContainer;
   if (avatarsContainer) {
     avatarsContainer.innerHTML = '';
   }
@@ -1110,6 +1227,11 @@ function handleInitData(data) {
   });
 }
 
+/**
+ * Verifies upon map initialization whether the player's initial coordinate payload
+ * places them directly over overlapping trigger zones like a Spawn Area. Instantly 
+ * initiates any actions on their entries if so.
+ */
 function checkInitialSpawn() {
   if (!window.gameStarted || !window.init) return;
   const playerRadius = 15;
@@ -1117,7 +1239,9 @@ function checkInitialSpawn() {
     Math.hypot(player.x - o.x, player.y - o.y) < Math.max(o.width, o.length) + playerRadius
   ) : [];
   if (possibleOverlaps.length > 0) {
-    const actuallyInObject = findObjectsAt(possibleOverlaps, [{ x: player.x, y: player.y }], 0);
+    exactCoords[0].x = player.x;
+    exactCoords[0].y = player.y;
+    const actuallyInObject = findObjectsAt(possibleOverlaps, exactCoords, 0);
     const newBuilding = actuallyInObject.length > 0 ? actuallyInObject[0].id : null;
     if (newBuilding) {
       player.activeBuilding = newBuilding;
