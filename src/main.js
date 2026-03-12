@@ -19,9 +19,7 @@ ws.onmessage = (event) => {
   try {
     const data = JSON.parse(event.data);
     if (data.type === 'init') {
-      if (typeof handleInitData === 'function') {
-        handleInitData(data);
-      }
+      handleInitData(data);
     } else if (data.type === 'update' || data.type === 'tick') {
       const charactersToUpdate = data.type === 'tick' ? data.characters : [data.character];
       charactersToUpdate.forEach(serverChar => {
@@ -372,7 +370,7 @@ function update() {
         player.activeBuilding = newBuilding;
         if (newBuilding) {
           const matchedObj = actuallyInObject[0];
-          if (matchedObj.on_enter && matchedObj.on_enter.length > 0) {
+          if (matchedObj.on_enter && (typeof matchedObj.on_enter === 'number' || matchedObj.on_enter.length > 0)) {
             executeNpcActions(matchedObj, matchedObj.on_enter);
           }
         } else {
@@ -462,7 +460,7 @@ function update() {
 
   for (const c of [...(window.init?.characters || []), ...(window.init?.npcs || [])]) {
     if (c.id === player.id) continue;
-    if (!c.isNpc && (!c.on_enter && !c.on_exit)) continue;
+    if (!c.isNpc && (c.on_enter === undefined && c.on_exit === undefined)) continue;
 
     const dist = Math.hypot(player.x - c.x, player.y - c.y);
     if (dist <= interactionRadius && dist < minNpcDist) {
@@ -479,7 +477,7 @@ function update() {
         prevNpc.activeAudio.currentTime = 0;
         prevNpc.activeAudio = null;
       }
-      if (prevNpc.on_exit && prevNpc.on_exit.length > 0) {
+      if (prevNpc.on_exit && (typeof prevNpc.on_exit === 'number' || prevNpc.on_exit.length > 0)) {
         executeNpcActions(prevNpc, prevNpc.on_exit);
       }
       // Auto-clear avatar when walking away from an NPC
@@ -494,7 +492,7 @@ function update() {
 
   if (closestNpc && activeNpc !== closestNpc.id) {
     activeNpc = closestNpc.id;
-    if (closestNpc.on_enter && closestNpc.on_enter.length > 0) {
+    if (closestNpc.on_enter && (typeof closestNpc.on_enter === 'number' || closestNpc.on_enter.length > 0)) {
       executeNpcActions(closestNpc, closestNpc.on_enter);
     }
   }
@@ -514,7 +512,14 @@ function update() {
   }
 }
 
-function executeNpcActions(npc, actions) {
+function executeNpcActions(npc, rawActions) {
+  let actions = rawActions;
+  if (typeof rawActions === 'number') {
+    const parentObj = window.init?.objects?.find(o => o.id === rawActions);
+    if (!parentObj || !parentObj.on_enter) return;
+    actions = parentObj.on_enter;
+  }
+
   for (const action of actions) {
     if (action.avatar) {
       const container = document.getElementById('avatars-container');
@@ -927,7 +932,7 @@ function handleInitData(data) {
   if (!window.init.characters) window.init.characters = [];
   if (!window.init.npcs) window.init.npcs = [];
   activeNpc = null;
-  window.selectedObject = null;
+  if (selectedObject) window.selectedObject.set(null);
 
   const avatarsContainer = document.getElementById('avatars-container');
   if (avatarsContainer) {
@@ -1020,7 +1025,7 @@ function checkInitialSpawn() {
     if (newBuilding) {
       player.activeBuilding = newBuilding;
       const matchedObj = actuallyInObject[0];
-      if (matchedObj.on_enter && matchedObj.on_enter.length > 0) {
+      if (matchedObj.on_enter && (typeof matchedObj.on_enter === 'number' || matchedObj.on_enter.length > 0)) {
         executeNpcActions(matchedObj, matchedObj.on_enter);
       }
     }
