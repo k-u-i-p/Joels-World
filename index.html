@@ -3,7 +3,8 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="icon" type="image/png" href="/favicon.png" />
@@ -12,7 +13,7 @@
 
 <body>
   <div id="avatars-container"
-    style="position: absolute; top: 30px; left: 40px; z-index: 10; display: flex; flex-direction: column; gap: 15px;">
+    style="position: absolute; top: 30px; left: 30px; z-index: 10; display: flex; flex-direction: column; gap: 15px;">
   </div>
   <!-- Naming Dialog Overlay -->
   <div id="name-dialog" class="overlay">
@@ -51,7 +52,7 @@
 
   <!-- Action Dialog Overlay -->
   <div id="action-dialog" class="overlay"
-    style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-bottom: 40px; justify-content: flex-end;">
+    style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-bottom: calc(40px + env(safe-area-inset-bottom)); justify-content: flex-end;">
     <div id="action-dialog-content" class="dialog-content"
       style="display: none; text-align: center; width: 100%; max-width: 400px; pointer-events: auto; margin-bottom: 10px;">
       <h2 id="action-dialog-text" style="font-size: 18px; margin-bottom: 20px;"></h2>
