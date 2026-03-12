@@ -131,10 +131,27 @@ let isDraggingBackground = false;
 let isDraggingAdminImage = false;
 let isDraggingObject = false;
 let isDraggingNpc = false;
+let isDraggingAdminPanel = false;
+let adminPanelOffsetX = 0;
+let adminPanelOffsetY = 0;
 let bgDragOffsetX = 0;
 let bgDragOffsetY = 0;
 let lastMouseX = 0;
 let lastMouseY = 0;
+
+const adminPanelHandle = document.getElementById('admin-panel-handle');
+if (adminPanelHandle) {
+  adminPanelHandle.addEventListener('mousedown', (e) => {
+    isDraggingAdminPanel = true;
+    const rect = adminPanel.getBoundingClientRect();
+    adminPanelOffsetX = e.clientX - rect.left;
+    adminPanelOffsetY = e.clientY - rect.top;
+    
+    adminPanel.style.right = 'auto'; // Disable flex/right alignment
+    adminPanel.style.left = `${rect.left}px`;
+    adminPanel.style.top = `${rect.top}px`;
+  });
+}
 
 document.getElementById('btn-create-obj-building').onclick = () => {
   if (window.ws.readyState === WebSocket.OPEN) {
@@ -472,6 +489,12 @@ window.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
+  if (isDraggingAdminPanel) {
+    adminPanel.style.left = `${e.clientX - adminPanelOffsetX}px`;
+    adminPanel.style.top = `${e.clientY - adminPanelOffsetY}px`;
+    return;
+  }
+
   if (isDraggingObject && window.selectedObject.get()) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
@@ -536,6 +559,7 @@ window.addEventListener('mouseup', () => {
   isDraggingNpc = false;
   isDraggingBackground = false;
   isDraggingAdminImage = false;
+  isDraggingAdminPanel = false;
 });
 
 window.addEventListener('wheel', (e) => {
