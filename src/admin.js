@@ -259,6 +259,24 @@ if (npcNameInput) {
   }
 });
 
+bindHoldAction('btn-npc-rot-left', () => {
+  if (!window.selectedNpc.get()) return;
+  window.selectedNpc.get().rotation = Math.max(0, (window.selectedNpc.get().rotation || 0) - 5);
+}, () => {
+  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { rotation: window.selectedNpc.get().rotation } }));
+  }
+});
+
+bindHoldAction('btn-npc-rot-right', () => {
+  if (!window.selectedNpc.get()) return;
+  window.selectedNpc.get().rotation = ((window.selectedNpc.get().rotation || 0) + 5) % 360;
+}, () => {
+  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { rotation: window.selectedNpc.get().rotation } }));
+  }
+});
+
 bindHoldAction('btn-npc-width-dec', () => {
   if (!window.selectedNpc.get()) return;
   window.selectedNpc.get().width = Math.max(5, (window.selectedNpc.get().width || 40) - 2);
