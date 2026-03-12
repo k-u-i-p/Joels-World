@@ -435,6 +435,9 @@ function update() {
             oldObj.activeAudio.currentTime = 0;
             oldObj.activeAudio = null;
           }
+          if (oldObj && oldObj.on_exit && (typeof oldObj.on_exit === 'number' || oldObj.on_exit.length > 0)) {
+            executeEvents(oldObj, oldObj.on_exit);
+          }
         }
         player.activeBuilding = newBuilding;
         if (newBuilding) {
@@ -455,6 +458,9 @@ function update() {
           oldObj.activeAudio.pause();
           oldObj.activeAudio.currentTime = 0;
           oldObj.activeAudio = null;
+        }
+        if (oldObj && oldObj.on_exit && (typeof oldObj.on_exit === 'number' || oldObj.on_exit.length > 0)) {
+          executeEvents(oldObj, oldObj.on_exit);
         }
         player.activeBuilding = null;
         const dialogOverlay = UI.dialogOverlay;
