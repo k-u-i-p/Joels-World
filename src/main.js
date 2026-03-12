@@ -1069,8 +1069,9 @@ function drawCharacter(c) {
     ctx.shadowOffsetY = 1;
 
     const baseScale = window.init?.mapData?.character_scale || 1;
+    const nameYOffset = ((c.height || 40) / 2) * baseScale + 15;
     // Names should only scale uniformly with baseScale, not with character stretching, to keep text readable
-    ctx.fillText(c.name, 0, 15 + 15 * baseScale);
+    ctx.fillText(c.name, 0, nameYOffset);
     ctx.restore();
   }
 
@@ -1084,7 +1085,7 @@ function drawCharacter(c) {
     const bubbleWidth = textWidth + 24;
     const bubbleHeight = 32;
     const baseScale = window.init?.mapData?.character_scale || 1;
-    const bubbleY = -(20 + 15 * baseScale);
+    const bubbleY = -(((c.height || 40) / 2) * baseScale + 10);
 
     ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
     ctx.shadowBlur = 6;
