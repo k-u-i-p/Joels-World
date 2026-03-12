@@ -1,6 +1,6 @@
 [
   {
-    "id": "pine_1",
+    "id": 1,
     "shape": "circle",
     "x": 672,
     "y": 220,
@@ -8,7 +8,7 @@
     "length": 122
   },
   {
-    "id": "shrub_1",
+    "id": 2,
     "shape": "circle",
     "x": 488,
     "y": 126,
@@ -16,7 +16,7 @@
     "length": 84
   },
   {
-    "id": "flower_1",
+    "id": 3,
     "shape": "circle",
     "x": 1194,
     "y": 117,
@@ -24,7 +24,7 @@
     "length": 170
   },
   {
-    "id": "oak_2",
+    "id": 4,
     "shape": "circle",
     "x": 1431,
     "y": 195,
@@ -32,7 +32,7 @@
     "length": 158
   },
   {
-    "id": "pine_2",
+    "id": 5,
     "shape": "circle",
     "x": 710,
     "y": 118,
@@ -40,7 +40,7 @@
     "length": 86
   },
   {
-    "id": "shrub_2",
+    "id": 6,
     "shape": "circle",
     "x": -889,
     "y": -12,
@@ -48,7 +48,7 @@
     "length": 40
   },
   {
-    "id": "flower_2",
+    "id": 7,
     "shape": "circle",
     "x": 1035,
     "y": 108,
@@ -56,7 +56,7 @@
     "length": 84
   },
   {
-    "id": "flower_3",
+    "id": 8,
     "shape": "circle",
     "x": 894,
     "y": 116,
@@ -64,7 +64,7 @@
     "length": 64
   },
   {
-    "id": "flower_4",
+    "id": 9,
     "shape": "circle",
     "x": 802,
     "y": 115,
@@ -72,7 +72,7 @@
     "length": 76
   },
   {
-    "id": "tennis_court",
+    "id": 10,
     "name": "Tennis Court",
     "shape": "rect",
     "x": 312,
@@ -83,7 +83,7 @@
     "clip": -1
   },
   {
-    "id": "main_building",
+    "id": 11,
     "name": "Main School Building",
     "shape": "rect",
     "x": 973,
@@ -103,7 +103,7 @@
     ]
   },
   {
-    "id": "pool",
+    "id": 12,
     "name": "Pool",
     "shape": "rect",
     "x": -393,
@@ -114,7 +114,7 @@
     "clip": -1
   },
   {
-    "id": "rugby_pitch",
+    "id": 13,
     "name": "Rugby Pitch",
     "shape": "rect",
     "x": -759,
@@ -125,7 +125,7 @@
     "clip": -1
   },
   {
-    "id": "2_to_8_playground",
+    "id": 14,
     "name": "2-8 Playground",
     "shape": "rect",
     "x": -673,
@@ -136,7 +136,7 @@
     "clip": -1
   },
   {
-    "id": "astro_turf",
+    "id": 15,
     "name": "Astro Turf",
     "shape": "rect",
     "x": 1038,
@@ -147,7 +147,7 @@
     "clip": -1
   },
   {
-    "id": "track_field",
+    "id": 16,
     "name": "Track & Field",
     "shape": "rect",
     "x": -587,
@@ -158,7 +158,7 @@
     "clip": -1
   },
   {
-    "id": "building_1773231977714",
+    "id": 17,
     "name": "Mr Hardy's Office",
     "shape": "rect",
     "x": 1065,
@@ -169,7 +169,7 @@
     "clip": -1
   },
   {
-    "id": "building_1773231980812",
+    "id": 18,
     "name": "Nursery",
     "shape": "rect",
     "x": -793,
@@ -180,7 +180,7 @@
     "clip": -1
   },
   {
-    "id": "spawn_area",
+    "id": 19,
     "shape": "rect",
     "x": 449,
     "y": 327,

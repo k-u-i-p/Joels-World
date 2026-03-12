@@ -76,8 +76,9 @@ export function handleAdminMessage(ws, data, mapData) {
     }
     return true;
   } else if (data.type === 'create_object') {
+    const newId = objects.reduce((max, o) => Math.max(max, typeof o.id === 'number' ? o.id : 0), 0) + 1;
     const newObj = {
-      id: `obj_${Date.now()}`,
+      id: newId,
       shape: data.shape || 'rect',
       x: data.x,
       y: data.y,
@@ -106,8 +107,9 @@ export function handleAdminMessage(ws, data, mapData) {
     }
     return true;
   } else if (data.type === 'create_npc') {
+    const newId = (mapData.npcs || []).reduce((max, n) => Math.max(max, typeof n.id === 'number' ? n.id : 0), 0) + 1;
     const newNpc = {
-      id: `npc_${Date.now()}`,
+      id: newId,
       name: 'New NPC',
       x: data.x,
       y: data.y,
