@@ -8,7 +8,9 @@
 </head>
 
 <body>
-  <div id="avatars-container" style="position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; flex-direction: column; gap: 15px;"></div>  <!-- Help Button -->
+  <div id="avatars-container"
+    style="position: absolute; top: 30px; left: 40px; z-index: 10; display: flex; flex-direction: column; gap: 15px;">
+  </div> <!-- Help Button -->
   <button id="help-button">?</button>
 
   <!-- Help Dialog Overlay -->
@@ -34,15 +36,19 @@
   </div>
 
   <!-- Action Dialog Overlay -->
-  <div id="action-dialog" class="overlay" style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-bottom: 40px; justify-content: flex-end;">
-    <div id="action-dialog-content" class="dialog-content" style="display: none; text-align: center; width: 100%; max-width: 400px; pointer-events: auto; margin-bottom: 10px;">
+  <div id="action-dialog" class="overlay"
+    style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-bottom: 40px; justify-content: flex-end;">
+    <div id="action-dialog-content" class="dialog-content"
+      style="display: none; text-align: center; width: 100%; max-width: 400px; pointer-events: auto; margin-bottom: 10px;">
       <h2 id="action-dialog-text" style="font-size: 18px; margin-bottom: 20px;"></h2>
       <div style="display: flex; justify-content: space-around; gap: 10px;">
-        <button id="action-dialog-yes" style="padding: 8px 16px; border-radius: 6px; border: none; background: #2ecc71; color: white; cursor: pointer; font-weight: bold; flex: 1;">Yes</button>
-        <button id="action-dialog-no" style="padding: 8px 16px; border-radius: 6px; border: none; background: #e74c3c; color: white; cursor: pointer; font-weight: bold; flex: 1;">No</button>
+        <button id="action-dialog-yes"
+          style="padding: 8px 16px; border-radius: 6px; border: none; background: #2ecc71; color: white; cursor: pointer; font-weight: bold; flex: 1;">Yes</button>
+        <button id="action-dialog-no"
+          style="padding: 8px 16px; border-radius: 6px; border: none; background: #e74c3c; color: white; cursor: pointer; font-weight: bold; flex: 1;">No</button>
       </div>
     </div>
-    
+
     <div id="chat-container">
       <input type="text" id="chat-input" placeholder="Press Enter to chat..." autocomplete="off" maxlength="80" />
     </div>
@@ -99,7 +105,8 @@
       </div>
       <div class="control-row" style="margin-top: 5px;">
         <span>Clip:</span>
-        <input type="number" id="input-obj-clip" style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
+        <input type="number" id="input-obj-clip"
+          style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
       </div>
       <button id="btn-delete-obj"
         style="width:100%; margin-top:10px; padding:5px; background-color:#e74c3c; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Delete

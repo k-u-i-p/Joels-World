@@ -1,50 +1,50 @@
 [
-    {
-        "id": 1,
-        "name": "Ms Crosbie",
-        "x": -690,
-        "y": 619,
-        "width": 40,
-        "height": 40,
-        "rotation": 0,
-        "gender": "female",
-        "shirtColor": "#e74c3c",
-        "pantsColor": "#2c3e50",
-        "armColor": "#e74c3c",
-        "on_enter": [
-            {
-                "avatar": "avatars/ms_crosbie.png",
-                "say": [
-                    "Welcome to the main building, {name}!",
-                    "I don't think much of the new classrooms!",
-                    "Have you ever been trials riding?",
-                    "Want to make a volcano {name}?"
-                ]
-            }
-        ],
-        "on_exit": []
-    },
-    {
-        "id": 2,
-        "name": "Summer",
-        "x": -541,
-        "y": 776,
-        "width": 25,
-        "height": 25,
-        "rotation": 240,
-        "gender": "female",
-        "shirtColor": "#ff69b4",
-        "pantsColor": "#3498db",
-        "armColor": "#ff69b4",
-        "on_enter": [
-            {
-                "say": [
-                    "Hi {name}!",
-                    "I'm 6 years old!",
-                    "Ms Crosbie is my teacher!"
-                ]
-            }
-        ],
-        "on_exit": []
-    }
+  {
+    "id": 1,
+    "name": "Ms Crosbie",
+    "x": -690,
+    "y": 619,
+    "width": 48,
+    "height": 48,
+    "rotation": 0,
+    "gender": "female",
+    "shirtColor": "#e74c3c",
+    "pantsColor": "#2c3e50",
+    "armColor": "#e74c3c",
+    "on_enter": [
+      {
+        "avatar": "avatars/ms_crosbie.png",
+        "say": [
+          "Welcome to the main building, {name}!",
+          "I don't think much of the new classrooms!",
+          "Have you ever been trials riding?",
+          "Want to make a volcano {name}?"
+        ]
+      }
+    ],
+    "on_exit": []
+  },
+  {
+    "id": 2,
+    "name": "Summer",
+    "x": -541,
+    "y": 776,
+    "width": 29,
+    "height": 29,
+    "rotation": 240,
+    "gender": "female",
+    "shirtColor": "#ff69b4",
+    "pantsColor": "#3498db",
+    "armColor": "#ff69b4",
+    "on_enter": [
+      {
+        "say": [
+          "Hi {name}!",
+          "I'm 6 years old!",
+          "Ms Crosbie is my teacher!"
+        ]
+      }
+    ],
+    "on_exit": []
+  }
 ]

@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "id": 1,
+    "name": "Mr Maycock",
+    "x": 276,
+    "y": -380,
+    "width": 76,
+    "height": 68,
+    "rotation": 80,
+    "gender": "male",
+    "shirtColor": "#002e7a",
+    "pantsColor": "#111111",
+    "armColor": "#002e7a",
+    "on_enter": [
+      {
+        "avatar": "avatars/mr_maycock.png",
+        "say": [
+          "I used to play professional rugby, {name}, what's your excuse?",
+          "Hurry up and get in the pool! We're training champions here!",
+          "Keep those elbows high and your core tight, {name}!",
+          "Built like a tank, ain't I? You can get there too, {name}!",
+          "I want to see Michael Phelps speeds today! Let's go!",
+          "That's the spirit, {name}! Push through the burn!",
+          "In rugby we tackle through the pain! In the pool we swim through it!",
+          "Form is everything! Don't let me see you slouching, {name}!",
+          "Look at the width of these shoulders! Swimming did this! Get in!"
+        ]
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "Don't drown, {name}!"
+        ]
+      }
+    ]
+  }
+]
