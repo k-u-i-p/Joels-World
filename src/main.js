@@ -908,6 +908,7 @@ function attemptStartGame() {
       window.bgAudio.play().catch(e => console.warn("Autoplay block:", e));
     }
 
+    checkInitialSpawn();
     requestAnimationFrame(gameLoop); // Kick off the game loop
   }
 }
@@ -926,6 +927,7 @@ function handleInitData(data) {
   if (!window.init.characters) window.init.characters = [];
   if (!window.init.npcs) window.init.npcs = [];
   activeNpc = null;
+  window.selectedObject = null;
 
   const avatarsContainer = document.getElementById('avatars-container');
   if (avatarsContainer) {
@@ -966,6 +968,7 @@ function handleInitData(data) {
         window.bgAudio.pause();
         window.bgAudio.src = "";
       }
+      setTimeout(checkInitialSpawn, 100);
     }
   }
 
@@ -1003,6 +1006,25 @@ function handleInitData(data) {
       startBtn.disabled = false;
     }
   });
+}
+
+function checkInitialSpawn() {
+  if (!window.gameStarted || !window.init) return;
+  const playerRadius = 15;
+  const possibleOverlaps = window.init.objects ? window.init.objects.filter(o =>
+    Math.hypot(player.x - o.x, player.y - o.y) < Math.max(o.width, o.length) + playerRadius
+  ) : [];
+  if (possibleOverlaps.length > 0) {
+    const actuallyInObject = findObjectsAt(possibleOverlaps, [{ x: player.x, y: player.y }], 0);
+    const newBuilding = actuallyInObject.length > 0 ? actuallyInObject[0].id : null;
+    if (newBuilding) {
+      player.activeBuilding = newBuilding;
+      const matchedObj = actuallyInObject[0];
+      if (matchedObj.on_enter && matchedObj.on_enter.length > 0) {
+        executeNpcActions(matchedObj, matchedObj.on_enter);
+      }
+    }
+  }
 }
 
 // --- VIRTUAL JOYSTICK & MOBILE CONTROLS ---

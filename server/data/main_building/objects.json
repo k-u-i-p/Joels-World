@@ -1,56 +1,5 @@
 [
   {
-    "id": 1,
-    "shape": "rect",
-    "x": -463,
-    "y": -684
-  },
-  {
-    "id": 2,
-    "shape": "rect",
-    "x": -491,
-    "y": -719
-  },
-  {
-    "id": 3,
-    "shape": "rect",
-    "x": -491,
-    "y": -719
-  },
-  {
-    "id": 4,
-    "shape": "rect",
-    "x": -491,
-    "y": -719
-  },
-  {
-    "id": 5,
-    "shape": "rect",
-    "x": -491,
-    "y": -719,
-    "name": "New Building"
-  },
-  {
-    "id": 6,
-    "shape": "rect",
-    "x": -491,
-    "y": -719,
-    "name": "New Building"
-  },
-  {
-    "id": 7,
-    "shape": "rect",
-    "x": -427,
-    "y": -578
-  },
-  {
-    "id": 8,
-    "shape": "rect",
-    "x": -427,
-    "y": -578,
-    "name": "New Building"
-  },
-  {
     "id": 9,
     "shape": "rect",
     "x": -407,
@@ -58,7 +7,15 @@
     "width": 327,
     "length": 240,
     "name": "Spawn Area",
-    "clip": -1
+    "clip": -1,
+    "on_enter": [
+      {
+        "play_sound": {
+          "sound": "media/school_bell.mp3",
+          "volume": 1
+        }
+      }
+    ]
   },
   {
     "id": 10,
@@ -93,6 +50,24 @@
         "play_sound": {
           "sound": "media/f150.mp3",
           "volume": 0.25
+        }
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "shape": "rect",
+    "x": -580,
+    "y": -9,
+    "width": 313,
+    "length": 365,
+    "name": "Toilets",
+    "clip": -1,
+    "on_enter": [
+      {
+        "play_sound": {
+          "sound": "media/diarrhea.mp3",
+          "volume": 1
         }
       }
     ]

@@ -23,5 +23,30 @@
             }
         ],
         "on_exit": []
+    },
+    {
+        "id": 2,
+        "name": "Summer",
+        "x": -541,
+        "y": 776,
+        "width": 25,
+        "height": 25,
+        "rotation": 240,
+        "gender": "female",
+        "shirtColor": "#ff69b4",
+        "pantsColor": "#3498db",
+        "armColor": "#ff69b4",
+        "on_enter": [
+            {
+                "avatar": "avatars/summer.jpg",
+                "say": [
+                    "Hi {name}!",
+                    "I'm 6 years old!",
+                    "Ms Crosbie is my teacher!",
+                    "I know all about natural disasters!"
+                ]
+            }
+        ],
+        "on_exit": []
     }
 ]
