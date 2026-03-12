@@ -28,6 +28,9 @@ if (mapSelect) {
     if (window.ws.readyState === WebSocket.OPEN) {
       window.ws.send(JSON.stringify({ type: 'change_map', mapId: e.target.value }));
     }
+    e.target.blur();
+    window.selectedObject.set(null);
+    updateAdminPanel();
   });
 }
 
