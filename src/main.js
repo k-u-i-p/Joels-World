@@ -134,6 +134,25 @@ window.addEventListener('keydown', (e) => {
         if (msg[0] === '/') {
           const command = msg.toLowerCase().substring(1);
           if (emotes[command]) {
+            if (command === 'jump') {
+              const jumpDist = 108; // Appx physical integration distance
+              const destX = player.x + Math.cos(player.rotation * Math.PI / 180) * jumpDist;
+              const destY = player.y + Math.sin(player.rotation * Math.PI / 180) * jumpDist;
+              const scale = window.init?.mapData?.character_scale || 1;
+              const playerRadius = 15 * scale;
+              const coordsToTest = [
+                { x: destX, y: destY },
+                { x: player.x + (destX - player.x) / 2, y: player.y + (destY - player.y) / 2 } // test mid-point too
+              ];
+              const possibleOverlaps = findObjectsAt(window.init?.objects, coordsToTest, playerRadius);
+              if (!canMoveTo(possibleOverlaps, destX, destY, playerRadius) || 
+                  !canMoveTo(possibleOverlaps, coordsToTest[1].x, coordsToTest[1].y, playerRadius)) {
+                // Abort jump if destination or trajectory is blocked!
+                chatInput.blur();
+                return;
+              }
+            }
+
             player.emote = { name: command, startTime: Date.now() };
             if (emotes[command].message) {
               const msgText = emotes[command].message.replace('{name}', player.name || 'Someone');
@@ -187,7 +206,7 @@ function unlockAudio() {
   const dummySrc = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
   window.audioPool.forEach(audio => {
     audio.src = dummySrc;
-    audio.play().catch(() => {});
+    audio.play().catch(() => { });
   });
 }
 
@@ -421,7 +440,7 @@ function update() {
   // Movement
   let dx = 0;
   let dy = 0;
-  
+
   let emoteForcedMove = false;
   if (player.emote && player.emote.name === 'jump') {
     const jumpAge = Date.now() - player.emote.startTime;
@@ -429,7 +448,7 @@ function update() {
       emoteForcedMove = true;
       const progress = jumpAge / 800;
       // Burst of speed tapering down as they hit the ground
-      const jumpVel = (player.moveSpeed || 3) * 1.5 * (1 - progress);
+      const jumpVel = (player.moveSpeed || 3) * 2.5 * (1 - progress);
       dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * jumpVel);
       dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * jumpVel);
     }
