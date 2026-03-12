@@ -255,6 +255,111 @@ function drawAvatars() {
 }
 window.gameLoop = gameLoop;
 
+function findObjectsAt(objectsList, coordsArray, radius = 0) {
+  const foundObjects = [];
+  for (const obj of (objectsList || [])) {
+    for (const { x, y } of coordsArray) {
+      if (obj.shape === 'circle') {
+        const distSq = (x - obj.x) ** 2 + (y - obj.y) ** 2;
+        const r = Math.max(obj.width, obj.length) / 2;
+        if (distSq <= (r + radius) ** 2) {
+          foundObjects.push(obj);
+          break; // Avoid pushing same object multiple times if large radius intersects multiple coords
+        }
+      } else if (obj.shape === 'rect') {
+        let testX = x;
+        let testY = y;
+
+        if (obj.rotation) {
+          const angle = -obj.rotation * Math.PI / 180;
+          const bdx = x - obj.x;
+          const bdy = y - obj.y;
+          testX = obj.x + bdx * Math.cos(angle) - bdy * Math.sin(angle);
+          testY = obj.y + bdx * Math.sin(angle) + bdy * Math.cos(angle);
+        }
+
+        const halfW = obj.width / 2;
+        const halfL = obj.length / 2;
+        const rectLeft = obj.x - halfW;
+        const rectRight = obj.x + halfW;
+        const rectTop = obj.y - halfL;
+        const rectBottom = obj.y + halfL;
+
+        // closest point on rect to player
+        const closestX = Math.max(rectLeft, Math.min(testX, rectRight));
+        const closestY = Math.max(rectTop, Math.min(testY, rectBottom));
+
+        const distSq = (testX - closestX) ** 2 + (testY - closestY) ** 2;
+        if (distSq <= radius * radius) {
+          foundObjects.push(obj);
+          break; // Avoid duplicate obj pushes
+        }
+      }
+    }
+  }
+  return foundObjects;
+}
+
+function canMoveTo(objectsList, newX, newY, playerRadius) {
+  // Check map boundaries
+  const mapW = window.init?.mapData?.width || (window.mapImage && window.mapImage.complete ? window.mapImage.width : 0);
+  const mapH = window.init?.mapData?.height || (window.mapImage && window.mapImage.complete ? window.mapImage.height : 0);
+  if (mapW && mapH) {
+    const halfMapW = mapW / 2;
+    const halfMapH = mapH / 2;
+    if (newX - playerRadius < -halfMapW || newX + playerRadius > halfMapW ||
+      newY - playerRadius < -halfMapH || newY + playerRadius > halfMapH) {
+      return false;
+    }
+  }
+
+  // Check clipping
+  for (const obj of objectsList) {
+    if (obj.clip === undefined) obj.clip = 10;
+    const clipOverlapAllowed = obj.clip;
+
+    if (clipOverlapAllowed === -1) continue; // Completely noclip
+
+    if (obj.shape === 'circle') {
+      const distSq = (newX - obj.x) ** 2 + (newY - obj.y) ** 2;
+      const r = Math.max(obj.width, obj.length) / 2;
+      const minD = Math.max(0.1, r + playerRadius - clipOverlapAllowed);
+      if (distSq < minD * minD) {
+        return false;
+      }
+    } else if (obj.shape === 'rect') {
+      let testX = newX;
+      let testY = newY;
+
+      if (obj.rotation) {
+        const angle = -obj.rotation * Math.PI / 180;
+        const bdx = newX - obj.x;
+        const bdy = newY - obj.y;
+        testX = obj.x + bdx * Math.cos(angle) - bdy * Math.sin(angle);
+        testY = obj.y + bdx * Math.sin(angle) + bdy * Math.cos(angle);
+      }
+
+      const halfW = obj.width / 2;
+      const halfL = obj.length / 2;
+      const rectLeft = obj.x - halfW;
+      const rectRight = obj.x + halfW;
+      const rectTop = obj.y - halfL;
+      const rectBottom = obj.y + halfL;
+
+      const closestX = Math.max(rectLeft, Math.min(testX, rectRight));
+      const closestY = Math.max(rectTop, Math.min(testY, rectBottom));
+
+      const distSq = (testX - closestX) ** 2 + (testY - closestY) ** 2;
+      const effRadius = Math.max(0.1, playerRadius - clipOverlapAllowed);
+      if (distSq < effRadius * effRadius) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 function update() {
   // Rotation (tank controls)
   if (keys.ArrowLeft) {
@@ -284,75 +389,23 @@ function update() {
     const scale = window.init?.mapData?.character_scale || 1;
     const playerRadius = 15 * scale; // slightly smaller than half width for smooth collisions
 
-    const canMoveTo = (newX, newY) => {
-      // Check map boundaries
-      const mapW = window.init?.mapData?.width || (window.mapImage && window.mapImage.complete ? window.mapImage.width : 0);
-      const mapH = window.init?.mapData?.height || (window.mapImage && window.mapImage.complete ? window.mapImage.height : 0);
-      if (mapW && mapH) {
-        const halfMapW = mapW / 2;
-        const halfMapH = mapH / 2;
-        if (newX - playerRadius < -halfMapW || newX + playerRadius > halfMapW ||
-          newY - playerRadius < -halfMapH || newY + playerRadius > halfMapH) {
-          return false;
-        }
-      }
-
-      // Check window.init.objects
-      for (const obj of (window.init?.objects || [])) {
-        if (obj.clip === undefined) obj.clip = 10;
-        const clipOverlapAllowed = obj.clip;
-
-        if (clipOverlapAllowed === -1) continue; // Completely noclip
-
-        if (obj.shape === 'circle') {
-          const distSq = (newX - obj.x) ** 2 + (newY - obj.y) ** 2;
-          const r = Math.max(obj.width, obj.length) / 2;
-          const minD = Math.max(0.1, r + playerRadius - clipOverlapAllowed);
-          if (distSq < minD * minD) {
-            return false;
-          }
-        } else if (obj.shape === 'rect') {
-          let testX = newX;
-          let testY = newY;
-
-          if (obj.rotation) {
-            const angle = -obj.rotation * Math.PI / 180;
-            const bdx = newX - obj.x;
-            const bdy = newY - obj.y;
-            testX = obj.x + bdx * Math.cos(angle) - bdy * Math.sin(angle);
-            testY = obj.y + bdx * Math.sin(angle) + bdy * Math.cos(angle);
-          }
-
-          const halfW = obj.width / 2;
-          const halfL = obj.length / 2;
-          const rectLeft = obj.x - halfW;
-          const rectRight = obj.x + halfW;
-          const rectTop = obj.y - halfL;
-          const rectBottom = obj.y + halfL;
-
-          // closest point on rect to player
-          const closestX = Math.max(rectLeft, Math.min(testX, rectRight));
-          const closestY = Math.max(rectTop, Math.min(testY, rectBottom));
-
-          const distSq = (testX - closestX) ** 2 + (testY - closestY) ** 2;
-          const effRadius = Math.max(0.1, playerRadius - clipOverlapAllowed);
-          if (distSq < effRadius * effRadius) {
-            return false;
-          }
-        }
-      }
-
-      return true;
-    };
+    const possibleOverlaps = findObjectsAt(window.init?.objects, [{ x: player.x + dx, y: player.y + dy }, { x: player.x + dx, y: player.y }, { x: player.x, y: player.y + dy }], playerRadius);
 
     // Try moving in both axes, then X only, then Y only (sliding against walls)
-    if (canMoveTo(player.x + dx, player.y + dy)) {
+    if (canMoveTo(possibleOverlaps, player.x + dx, player.y + dy, playerRadius)) {
       player.x += dx;
       player.y += dy;
-    } else if (canMoveTo(player.x + dx, player.y)) {
+    } else if (canMoveTo(possibleOverlaps, player.x + dx, player.y, playerRadius)) {
       player.x += dx;
-    } else if (canMoveTo(player.x, player.y + dy)) {
+    } else if (canMoveTo(possibleOverlaps, player.x, player.y + dy, playerRadius)) {
       player.y += dy;
+    }
+
+    if (possibleOverlaps.length > 0) {
+      const actuallyInObject = findObjectsAt(possibleOverlaps, [{ x: player.x, y: player.y }], 0)
+      if (actuallyInObject.length > 0) {
+        console.log("In Building", actuallyInObject);
+      }
     }
   }
 

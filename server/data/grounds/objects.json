@@ -86,12 +86,17 @@
     "id": "8_13_main_building",
     "name": "8-13 Main Building",
     "shape": "rect",
-    "x": 986,
-    "y": 763,
+    "x": 981,
+    "y": 735,
     "rotation": -1,
     "width": 1067,
     "length": 591,
-    "clip": -1
+    "clip": 50,
+    "on_enter": [
+      {
+        "change_map": "main_building"
+      }
+    ]
   },
   {
     "id": "pool",
