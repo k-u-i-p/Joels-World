@@ -161,6 +161,24 @@ let bgDragOffsetX = 0;
 let bgDragOffsetY = 0;
 let lastMouseX = 0;
 let lastMouseY = 0;
+let resizeWorldTlx = 0;
+let resizeWorldTly = 0;
+
+function getObjectTopLeftAnchor(obj) {
+  const angle = (obj.rotation || 0) * Math.PI / 180;
+  return {
+    tlx: obj.x + (-obj.width / 2) * Math.cos(angle) - (-obj.length / 2) * Math.sin(angle),
+    tly: obj.y + (-obj.width / 2) * Math.sin(angle) + (-obj.length / 2) * Math.cos(angle)
+  };
+}
+
+function applyResizeWithTopLeftAnchor(obj, newWidth, newLength, tlx, tly) {
+  obj.width = newWidth;
+  obj.length = newLength;
+  const angle = (obj.rotation || 0) * Math.PI / 180;
+  obj.x = Math.round(tlx - ((-newWidth / 2) * Math.cos(angle) - (-newLength / 2) * Math.sin(angle)));
+  obj.y = Math.round(tly - ((-newWidth / 2) * Math.sin(angle) + (-newLength / 2) * Math.cos(angle)));
+}
 
 const adminPanelHandle = document.getElementById('admin-panel-handle');
 if (adminPanelHandle) {
@@ -252,35 +270,47 @@ bindHoldAction('btn-obj-rot-right', () => {
 });
 
 bindHoldAction('btn-obj-width-dec', () => {
-  if (!window.selectedObject.get()) return;
-  let change = Math.max(1, Math.round(window.selectedObject.get().width * 0.02));
-  window.selectedObject.get().width = Math.max(5, window.selectedObject.get().width - change);
+  const obj = window.selectedObject.get();
+  if (!obj) return;
+  const anchor = getObjectTopLeftAnchor(obj);
+  let change = Math.max(1, Math.round(obj.width * 0.02));
+  applyResizeWithTopLeftAnchor(obj, Math.max(5, obj.width - change), obj.length, anchor.tlx, anchor.tly);
 }, () => {
-  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: window.selectedObject.get().id, width: window.selectedObject.get().width, length: window.selectedObject.get().length }));
+  const obj = window.selectedObject.get();
+  if (obj && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y }));
 });
 
 bindHoldAction('btn-obj-width-inc', () => {
-  if (!window.selectedObject.get()) return;
-  let change = Math.max(1, Math.round(window.selectedObject.get().width * 0.02));
-  window.selectedObject.get().width += change;
+  const obj = window.selectedObject.get();
+  if (!obj) return;
+  const anchor = getObjectTopLeftAnchor(obj);
+  let change = Math.max(1, Math.round(obj.width * 0.02));
+  applyResizeWithTopLeftAnchor(obj, obj.width + change, obj.length, anchor.tlx, anchor.tly);
 }, () => {
-  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: window.selectedObject.get().id, width: window.selectedObject.get().width, length: window.selectedObject.get().length }));
+  const obj = window.selectedObject.get();
+  if (obj && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y }));
 });
 
 bindHoldAction('btn-obj-length-dec', () => {
-  if (!window.selectedObject.get()) return;
-  let change = Math.max(1, Math.round(window.selectedObject.get().length * 0.02));
-  window.selectedObject.get().length = Math.max(5, window.selectedObject.get().length - change);
+  const obj = window.selectedObject.get();
+  if (!obj) return;
+  const anchor = getObjectTopLeftAnchor(obj);
+  let change = Math.max(1, Math.round(obj.length * 0.02));
+  applyResizeWithTopLeftAnchor(obj, obj.width, Math.max(5, obj.length - change), anchor.tlx, anchor.tly);
 }, () => {
-  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: window.selectedObject.get().id, width: window.selectedObject.get().width, length: window.selectedObject.get().length }));
+  const obj = window.selectedObject.get();
+  if (obj && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y }));
 });
 
 bindHoldAction('btn-obj-length-inc', () => {
-  if (!window.selectedObject.get()) return;
-  let change = Math.max(1, Math.round(window.selectedObject.get().length * 0.02));
-  window.selectedObject.get().length += change;
+  const obj = window.selectedObject.get();
+  if (!obj) return;
+  const anchor = getObjectTopLeftAnchor(obj);
+  let change = Math.max(1, Math.round(obj.length * 0.02));
+  applyResizeWithTopLeftAnchor(obj, obj.width, obj.length + change, anchor.tlx, anchor.tly);
 }, () => {
-  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: window.selectedObject.get().id, width: window.selectedObject.get().width, length: window.selectedObject.get().length }));
+  const obj = window.selectedObject.get();
+  if (obj && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y }));
 });
 
 const objNoclipCheckbox = document.getElementById('checkbox-obj-noclip');
@@ -474,6 +504,9 @@ window.addEventListener('mousedown', (e) => {
 
   if (window.selectedObject.get() && window.selectedObject.checkResizeHandleHit(worldX, worldY)) {
     isResizingObject = true;
+    const anchor = getObjectTopLeftAnchor(window.selectedObject.get());
+    resizeWorldTlx = anchor.tlx;
+    resizeWorldTly = anchor.tly;
     return;
   }
 
@@ -532,20 +565,24 @@ window.addEventListener('mousemove', (e) => {
     const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
     const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
-    const bdx = worldX - obj.x;
-    const bdy = worldY - obj.y;
+    const dX = worldX - resizeWorldTlx;
+    const dY = worldY - resizeWorldTly;
     const angle = -(obj.rotation || 0) * Math.PI / 180;
-    const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
-    const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
+    
+    const localMouseXFromTl = dX * Math.cos(angle) - dY * Math.sin(angle);
+    const localMouseYFromTl = dX * Math.sin(angle) + dY * Math.cos(angle);
 
+    let newWidth, newLength;
     if (obj.shape === 'circle') {
-      const newRadius = Math.max(5, Math.hypot(localX, localY));
-      obj.width = Math.round(newRadius * 2);
-      obj.length = Math.round(newRadius * 2);
+      const size = Math.max(10, Math.round(Math.max(localMouseXFromTl, localMouseYFromTl)));
+      newWidth = size;
+      newLength = size;
     } else {
-      obj.width = Math.max(10, Math.round(localX * 2));
-      obj.length = Math.max(10, Math.round(localY * 2));
+      newWidth = Math.max(10, Math.round(localMouseXFromTl));
+      newLength = Math.max(10, Math.round(localMouseYFromTl));
     }
+
+    applyResizeWithTopLeftAnchor(obj, newWidth, newLength, resizeWorldTlx, resizeWorldTly);
   } else if (isDraggingObject && window.selectedObject.get()) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
@@ -593,7 +630,9 @@ window.addEventListener('mouseup', () => {
         type: 'resize_object',
         id: window.selectedObject.get().id,
         width: window.selectedObject.get().width,
-        length: window.selectedObject.get().length
+        length: window.selectedObject.get().length,
+        x: window.selectedObject.get().x,
+        y: window.selectedObject.get().y
       }));
     }
   } else if (isDraggingObject && window.selectedObject.get()) {

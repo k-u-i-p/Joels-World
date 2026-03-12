@@ -41,6 +41,8 @@ export function handleAdminMessage(ws, data, mapData) {
     if (obj) {
       if (data.width !== undefined) obj.width = data.width;
       if (data.length !== undefined) obj.length = data.length;
+      if (data.x !== undefined) obj.x = data.x;
+      if (data.y !== undefined) obj.y = data.y;
       try {
         fs.writeFileSync(objectsFile, JSON.stringify(objects, null, 2), 'utf-8');
       } catch (e) { console.error('Failed saving objects file:', e); }
