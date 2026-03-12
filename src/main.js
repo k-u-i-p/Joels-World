@@ -100,7 +100,8 @@ const keys = {
   ArrowUp: false,
   ArrowDown: false,
   ArrowLeft: false,
-  ArrowRight: false
+  ArrowRight: false,
+  TouchMove: false
 };
 
 const chatInput = document.getElementById('chat-input');
@@ -417,17 +418,23 @@ function update() {
     player.rotation += player.rotationSpeed;
   }
 
-  // Movement (tank controls)
+  // Movement
   let dx = 0;
   let dy = 0;
 
-  if (keys.ArrowUp) {
+  if (keys.TouchMove) {
     dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
     dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
-  }
-  if (keys.ArrowDown) {
-    dx -= Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
-    dy -= Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+  } else {
+    // Keyboard tank controls
+    if (keys.ArrowUp) {
+      dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+      dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+    }
+    if (keys.ArrowDown) {
+      dx -= Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+      dy -= Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+    }
   }
 
   let isMoving = false;
@@ -1320,19 +1327,11 @@ const setupJoystick = (container, knob, axis) => {
     const knobY = distance * Math.sin(angle);
     knob.style.transform = `translate(${knobX}px, ${knobY}px)`;
 
-    if (axis === 'move') {
-      keys.ArrowUp = false;
-      keys.ArrowDown = false;
+    if (axis === 'omni') {
+      keys.TouchMove = false;
       if (distance > 10) {
-        if (knobY < -15) keys.ArrowUp = true;
-        if (knobY > 15) keys.ArrowDown = true;
-      }
-    } else if (axis === 'turn') {
-      keys.ArrowLeft = false;
-      keys.ArrowRight = false;
-      if (distance > 10) {
-        if (knobX < -15) keys.ArrowLeft = true;
-        if (knobX > 15) keys.ArrowRight = true;
+        keys.TouchMove = true;
+        player.rotation = angle * 180 / Math.PI;
       }
     }
   };
@@ -1354,12 +1353,8 @@ const setupJoystick = (container, knob, axis) => {
     activeTouchId = null;
     knob.style.transform = `translate(0px, 0px)`;
 
-    if (axis === 'move') {
-      keys.ArrowUp = false;
-      keys.ArrowDown = false;
-    } else if (axis === 'turn') {
-      keys.ArrowLeft = false;
-      keys.ArrowRight = false;
+    if (axis === 'omni') {
+      keys.TouchMove = false;
     }
   };
 
@@ -1373,8 +1368,7 @@ const setupJoystick = (container, knob, axis) => {
   window.addEventListener('touchcancel', handleEnd);
 };
 
-setupJoystick(moveContainer, moveKnob, 'move');
-setupJoystick(turnContainer, turnKnob, 'turn');
+setupJoystick(moveContainer, moveKnob, 'omni');
 
 // Help Dialog Logic
 const helpButton = document.getElementById('help-button');

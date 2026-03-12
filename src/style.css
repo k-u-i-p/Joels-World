@@ -281,8 +281,7 @@ body {
 }
 
 /* Virtual Joystick */
-#joystick-move-container,
-#joystick-turn-container {
+#joystick-move-container {
   position: absolute;
   bottom: 20px;
   width: 120px;
@@ -297,18 +296,12 @@ body {
   touch-action: none;
   /* Prevent scrolling when using joystick */
   user-select: none;
-}
-
-#joystick-move-container {
   left: 20px;
 }
 
-#joystick-turn-container {
-  right: 20px;
-}
 
-#joystick-move-knob,
-#joystick-turn-knob {
+
+#joystick-move-knob {
   width: 40px;
   height: 40px;
   background-color: rgba(255, 255, 255, 0.8);
