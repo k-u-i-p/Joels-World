@@ -1,30 +1,44 @@
 [
-    {
-        "id": 1,
-        "name": "Mr Hardy",
-        "x": 3,
-        "y": -715,
-        "width": 40,
-        "height": 40,
-        "rotation": 90,
-        "gender": "male",
-        "shirtColor": "#3498db",
-        "pantsColor": "#2c3e50",
-        "armColor": "#3498db",
-        "on_enter": [
-            {
-                "say": [
-                    "Why are you in detention {name}?",
-                    "You are in detention {name}!"
-                ]
-            }
-        ],
-        "on_exit": [
-            {
-                "say": [
-                    "Go on then {name}!"
-                ]
-            }
+  {
+    "id": 1,
+    "name": "Mr Hardy",
+    "x": 3,
+    "y": -715,
+    "width": 40,
+    "height": 40,
+    "rotation": 90,
+    "gender": "male",
+    "shirtColor": "#3498db",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "on_enter": [
+      {
+        "say": [
+          "Why are you in detention {name}?",
+          "You are in detention {name}!"
         ]
-    }
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "Go on then {name}!"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "npc_1773316535825",
+    "name": "New NPC",
+    "x": 475,
+    "y": -236,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "shirtColor": "#3498db",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "on_enter": [],
+    "on_exit": []
+  }
 ]

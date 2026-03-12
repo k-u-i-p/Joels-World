@@ -154,6 +154,12 @@ document.getElementById('btn-create-obj-circle').onclick = () => {
   }
 };
 
+document.getElementById('btn-create-npc').onclick = () => {
+  if (window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'create_npc', x: Math.round(window.player.x), y: Math.round(window.player.y) }));
+  }
+};
+
 document.getElementById('btn-delete-obj').onclick = () => {
   const selected = window.selectedObject.get();
   if (selected && window.ws.readyState === WebSocket.OPEN) {
@@ -161,6 +167,19 @@ document.getElementById('btn-delete-obj').onclick = () => {
     if (window.confirm(`Are you sure you want to delete ${identifier}?`)) {
       window.ws.send(JSON.stringify({ type: 'delete_object', id: selected.id }));
       window.selectedObject.set(null);
+
+      updateAdminPanel();
+    }
+  }
+};
+
+document.getElementById('btn-delete-npc').onclick = () => {
+  const selected = window.selectedNpc.get();
+  if (selected && window.ws.readyState === WebSocket.OPEN) {
+    const identifier = selected.name || selected.id;
+    if (window.confirm(`Are you sure you want to delete ${identifier}?`)) {
+      window.ws.send(JSON.stringify({ type: 'delete_npc', id: selected.id }));
+      window.selectedNpc.set(null);
 
       updateAdminPanel();
     }

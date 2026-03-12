@@ -100,7 +100,38 @@ export function handleAdminMessage(ws, data, mapData) {
       } catch (e) { console.error('Failed saving npcs file:', e); }
     }
     return true;
+  } else if (data.type === 'create_npc') {
+    const newNpc = {
+      id: `npc_${Date.now()}`,
+      name: 'New NPC',
+      x: data.x,
+      y: data.y,
+      width: 40,
+      height: 40,
+      rotation: 0,
+      shirtColor: '#3498db',
+      pantsColor: '#2c3e50',
+      armColor: '#3498db',
+      on_enter: [],
+      on_exit: []
+    };
+    if (!mapData.npcs) mapData.npcs = [];
+    mapData.npcs.push(newNpc);
+    try {
+      if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, null, 2), 'utf-8');
+    } catch (e) { console.error('Failed saving npcs file:', e); }
+    return true;
+  } else if (data.type === 'delete_npc') {
+    if (mapData.npcs) {
+      const idx = mapData.npcs.findIndex(n => n.id === data.id);
+      if (idx !== -1) {
+        mapData.npcs.splice(idx, 1);
+        try {
+          if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, null, 2), 'utf-8');
+        } catch (e) { console.error('Failed saving npcs file:', e); }
+      }
+    }
+    return true;
   }
-
   return false;
 }
