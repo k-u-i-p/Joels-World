@@ -180,9 +180,9 @@
     "clip": -1
   },
   {
-    "id": "obj_1773334510639",
+    "id": "spawn_area",
     "shape": "rect",
-    "x": 461,
+    "x": 449,
     "y": 327,
     "width": 302,
     "length": 157,
