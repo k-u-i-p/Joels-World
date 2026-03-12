@@ -203,6 +203,49 @@ function gameLoop() {
   if (isAdmin && window.adminDraw) {
     window.adminDraw();
   }
+
+  // Draw active NPC avatars in the top left
+  if (activeNpcs && activeNpcs.size > 0 && window.init?.npcs) {
+    let avatarX = 20;
+    let avatarY = 20;
+    const avatarSize = 128;
+
+    activeNpcs.forEach(npcId => {
+      const npc = window.init.npcs.find(n => n.id === npcId);
+      if (npc && npc.avatar) {
+        if (!npc._avatarImage) {
+          npc._avatarImage = new Image();
+          npc._avatarImage.src = npc.avatar;
+        }
+        if (npc._avatarImage.complete) {
+          ctx.save();
+
+          // Draw image with rounded clipping mask if supported
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(avatarX, avatarY, avatarSize, avatarSize, 8);
+            ctx.clip();
+          }
+          ctx.drawImage(npc._avatarImage, avatarX, avatarY, avatarSize, avatarSize);
+          ctx.restore();
+
+          // Draw outline
+          ctx.strokeStyle = '#ecf0f1';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(avatarX, avatarY, avatarSize, avatarSize, 8);
+          } else {
+            ctx.rect(avatarX, avatarY, avatarSize, avatarSize);
+          }
+          ctx.stroke();
+
+          avatarY += avatarSize + 15;
+        }
+      }
+    });
+  }
+
   requestAnimationFrame(gameLoop);
 }
 window.gameLoop = gameLoop;
@@ -253,7 +296,7 @@ function update() {
       for (const obj of (window.init?.objects || [])) {
         if (obj.clip === undefined) obj.clip = 10;
         const clipOverlapAllowed = obj.clip;
-        
+
         if (clipOverlapAllowed === -1) continue; // Completely noclip
 
         if (obj.shape === 'circle') {
@@ -366,8 +409,6 @@ function update() {
       }
     }
   }
-
-  // (Basic screen boundaries removed to allow world movement)
 
   // Check NPC radius interactions
   const interactionRadius = 80 * (window.init?.mapData?.character_scale || 1);
