@@ -52,7 +52,7 @@
 
   <!-- Action Dialog Overlay -->
   <div id="action-dialog" class="overlay"
-    style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-bottom: calc(40px + env(safe-area-inset-bottom)); justify-content: flex-end;">
+    style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-top: calc(180px + env(safe-area-inset-top)); padding-bottom: calc(40px + env(safe-area-inset-bottom));">
     <div id="action-dialog-content" class="dialog-content"
       style="display: none; text-align: center; width: 100%; max-width: 400px; pointer-events: auto; margin-bottom: 10px;">
       <h2 id="action-dialog-text" style="font-size: 18px; margin-bottom: 20px;"></h2>
@@ -64,7 +64,7 @@
       </div>
     </div>
 
-    <div id="chat-container">
+    <div id="chat-container" style="margin-top: auto;">
       <input type="text" id="chat-input" placeholder="Press Enter to chat..." autocomplete="off" maxlength="80" />
     </div>
   </div>
