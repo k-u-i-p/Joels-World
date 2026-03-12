@@ -28,5 +28,29 @@
         }
       }
     ]
+  },
+  {
+    "id": 3,
+    "shape": "rect",
+    "x": -411,
+    "y": 6,
+    "width": 1149,
+    "length": 737,
+    "name": "Water",
+    "clip": -1,
+    "on_enter": [
+      {
+        "emote": "swim",
+        "play_sound": {
+          "sound": "media/splash.mp3",
+          "volume": 1
+        }
+      }
+    ],
+    "on_exit": [
+      {
+        "clear_emote": true
+      }
+    ]
   }
 ]

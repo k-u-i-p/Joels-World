@@ -720,6 +720,18 @@ function executeEvents(sourceObj, rawActions) {
         syncPlayerToJSON();
       }
     }
+
+    if (action.clear_emote) {
+      const isInteractiveObj = sourceObj.shape === 'rect' || sourceObj.shape === 'circle' && !sourceObj.gender;
+      const isMapObj = (sourceObj === window.init?.mapData) || (sourceObj.id === 'map');
+      
+      const targetEntity = (isInteractiveObj || isMapObj) ? player : sourceObj;
+      targetEntity.emote = null;
+      
+      if (targetEntity === player) {
+        syncPlayerToJSON();
+      }
+    }
   }
 }
 
