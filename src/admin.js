@@ -67,7 +67,41 @@ function bindHoldAction(id, action, syncAction) {
   btn.addEventListener('contextmenu', e => e.preventDefault());
 }
 
-let selectedObject = null;
+window.selectedObject = {
+  _id: null,
+  set: function (id) {
+    this._id = id;
+  },
+  get: function () {
+    return (window.objects || []).find(o => o.id === this._id);
+  },
+  findObjectAtXY: function(worldX, worldY) {
+    const objects = window.objects || [];
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const obj = objects[i];
+      let hit = false;
+      if (obj.shape === 'circle') {
+        const radius = Math.max(obj.width, obj.length) / 2;
+        if (Math.hypot(worldX - obj.x, worldY - obj.y) <= radius) hit = true;
+      } else {
+        const bdx = worldX - obj.x;
+        const bdy = worldY - obj.y;
+        const angle = -(obj.rotation || 0) * Math.PI / 180;
+        const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
+        const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
+        const hW = obj.width / 2;
+        const hL = obj.length / 2;
+        if (localX >= -hW && localX <= hW &&
+          localY >= -hL && localY <= hL) {
+          hit = true;
+        }
+      }
+      if (hit) return obj;
+    }
+    return null;
+  }
+};
+
 
 let dragOffsetX = 0;
 let dragOffsetY = 0;
@@ -98,10 +132,10 @@ document.getElementById('btn-create-obj-circle').onclick = () => {
 };
 
 document.getElementById('btn-delete-obj').onclick = () => {
-  if (selectedObject && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'delete_object', id: selectedObject.id }));
-    selectedObject = null;
-    window.adminSelectedObject = null;
+  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'delete_object', id: window.selectedObject.get().id }));
+    window.selectedObject.set(null);
+
     updateAdminPanel();
   }
 };
@@ -109,67 +143,67 @@ document.getElementById('btn-delete-obj').onclick = () => {
 const nameInput = document.getElementById('obj-name-input');
 if (nameInput) {
   nameInput.onchange = (e) => {
-    if (!selectedObject) return;
-    selectedObject.name = e.target.value.trim();
+    if (!window.selectedObject.get()) return;
+    window.selectedObject.get().name = e.target.value.trim();
     if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({ type: 'rename_object', id: selectedObject.id, name: selectedObject.name }));
+      window.ws.send(JSON.stringify({ type: 'rename_object', id: window.selectedObject.get().id, name: window.selectedObject.get().name }));
     }
   };
 }
 
 bindHoldAction('btn-obj-rot-left', () => {
-  if (!selectedObject) return;
-  selectedObject.rotation = Math.max(0, (selectedObject.rotation || 0) - 1);
+  if (!window.selectedObject.get()) return;
+  window.selectedObject.get().rotation = Math.max(0, (window.selectedObject.get().rotation || 0) - 1);
 }, () => {
-  if (selectedObject && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'rotate_object', id: selectedObject.id, rotation: selectedObject.rotation }));
+  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'rotate_object', id: window.selectedObject.get().id, rotation: window.selectedObject.get().rotation }));
 });
 
 bindHoldAction('btn-obj-rot-right', () => {
-  if (!selectedObject) return;
-  selectedObject.rotation = ((selectedObject.rotation || 0) + 1) % 360;
+  if (!window.selectedObject.get()) return;
+  window.selectedObject.get().rotation = ((window.selectedObject.get().rotation || 0) + 1) % 360;
 }, () => {
-  if (selectedObject && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'rotate_object', id: selectedObject.id, rotation: selectedObject.rotation }));
+  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'rotate_object', id: window.selectedObject.get().id, rotation: window.selectedObject.get().rotation }));
 });
 
 bindHoldAction('btn-obj-width-dec', () => {
-  if (!selectedObject) return;
-  let change = Math.max(1, Math.round(selectedObject.width * 0.02));
-  selectedObject.width = Math.max(5, selectedObject.width - change);
+  if (!window.selectedObject.get()) return;
+  let change = Math.max(1, Math.round(window.selectedObject.get().width * 0.02));
+  window.selectedObject.get().width = Math.max(5, window.selectedObject.get().width - change);
 }, () => {
-  if (selectedObject && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: selectedObject.id, width: selectedObject.width, length: selectedObject.length }));
+  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: window.selectedObject.get().id, width: window.selectedObject.get().width, length: window.selectedObject.get().length }));
 });
 
 bindHoldAction('btn-obj-width-inc', () => {
-  if (!selectedObject) return;
-  let change = Math.max(1, Math.round(selectedObject.width * 0.02));
-  selectedObject.width += change;
+  if (!window.selectedObject.get()) return;
+  let change = Math.max(1, Math.round(window.selectedObject.get().width * 0.02));
+  window.selectedObject.get().width += change;
 }, () => {
-  if (selectedObject && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: selectedObject.id, width: selectedObject.width, length: selectedObject.length }));
+  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: window.selectedObject.get().id, width: window.selectedObject.get().width, length: window.selectedObject.get().length }));
 });
 
 bindHoldAction('btn-obj-length-dec', () => {
-  if (!selectedObject) return;
-  let change = Math.max(1, Math.round(selectedObject.length * 0.02));
-  selectedObject.length = Math.max(5, selectedObject.length - change);
+  if (!window.selectedObject.get()) return;
+  let change = Math.max(1, Math.round(window.selectedObject.get().length * 0.02));
+  window.selectedObject.get().length = Math.max(5, window.selectedObject.get().length - change);
 }, () => {
-  if (selectedObject && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: selectedObject.id, width: selectedObject.width, length: selectedObject.length }));
+  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: window.selectedObject.get().id, width: window.selectedObject.get().width, length: window.selectedObject.get().length }));
 });
 
 bindHoldAction('btn-obj-length-inc', () => {
-  if (!selectedObject) return;
-  let change = Math.max(1, Math.round(selectedObject.length * 0.02));
-  selectedObject.length += change;
+  if (!window.selectedObject.get()) return;
+  let change = Math.max(1, Math.round(window.selectedObject.get().length * 0.02));
+  window.selectedObject.get().length += change;
 }, () => {
-  if (selectedObject && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: selectedObject.id, width: selectedObject.width, length: selectedObject.length }));
+  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: window.selectedObject.get().id, width: window.selectedObject.get().width, length: window.selectedObject.get().length }));
 });
 
 const objNoclipCheckbox = document.getElementById('checkbox-obj-noclip');
 if (objNoclipCheckbox) {
   objNoclipCheckbox.addEventListener('change', (e) => {
-    if (!selectedObject) return;
-    selectedObject.noclip = e.target.checked;
+    if (!window.selectedObject.get()) return;
+    window.selectedObject.get().noclip = e.target.checked;
     if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({ type: 'toggle_object_noclip', id: selectedObject.id, noclip: selectedObject.noclip }));
+      window.ws.send(JSON.stringify({ type: 'toggle_object_noclip', id: window.selectedObject.get().id, noclip: window.selectedObject.get().noclip }));
     }
   });
 }
@@ -179,15 +213,15 @@ function updateAdminPanel() {
 
   const editObjSection = document.getElementById('edit-obj-section');
 
-  if (selectedObject) {
+  if (window.selectedObject.get()) {
     editObjSection.style.display = 'block';
 
     if (nameInput) {
-      nameInput.value = selectedObject.name || '';
+      nameInput.value = window.selectedObject.get().name || '';
     }
-    
+
     if (objNoclipCheckbox) {
-      objNoclipCheckbox.checked = !!selectedObject.noclip;
+      objNoclipCheckbox.checked = !!window.selectedObject.get().noclip;
     }
   } else {
     editObjSection.style.display = 'none';
@@ -209,41 +243,18 @@ window.addEventListener('mousedown', (e) => {
   const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
   const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
-  selectedObject = null;
-  window.adminSelectedObject = null;
-  const objects = window.objects || [];
+  window.selectedObject.set(null);
 
-  for (let i = objects.length - 1; i >= 0; i--) {
-    const obj = objects[i];
-    let hit = false;
-    if (obj.shape === 'circle') {
-      const radius = Math.max(obj.width, obj.length) / 2;
-      if (Math.hypot(worldX - obj.x, worldY - obj.y) <= radius) hit = true;
-    } else {
-      const bdx = worldX - obj.x;
-      const bdy = worldY - obj.y;
-      const angle = -(obj.rotation || 0) * Math.PI / 180;
-      const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
-      const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
-      const hW = obj.width / 2;
-      const hL = obj.length / 2;
-      if (localX >= -hW && localX <= hW &&
-        localY >= -hL && localY <= hL) {
-        hit = true;
-      }
-    }
-
-    if (hit) {
-      console.log(`Dragging object: ${obj.id}`);
-      selectedObject = obj;
-      window.adminSelectedObject = obj;
-      dragOffsetX = obj.x - worldX;
-      dragOffsetY = obj.y - worldY;
-      break;
-    }
+  const hitObj = window.selectedObject.findObjectAtXY(worldX, worldY);
+  if (hitObj) {
+    console.log(`Dragging object: ${hitObj.id}`);
+    window.selectedObject.set(hitObj.id);
+    
+    dragOffsetX = hitObj.x - worldX;
+    dragOffsetY = hitObj.y - worldY;
   }
 
-  if (!selectedObject && !e.target.closest('#admin-panel')) {
+  if (!window.selectedObject.get() && !e.target.closest('#admin-panel')) {
     if (e.shiftKey && window.adminBackgroundImage) {
       isDraggingAdminImage = true;
       bgDragOffsetX = (window.adminBackgroundImage._x || 0) - worldX;
@@ -260,7 +271,7 @@ window.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
-  if (selectedObject && e.buttons === 1) {
+  if (window.selectedObject.get() && e.buttons === 1) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
@@ -268,8 +279,8 @@ window.addEventListener('mousemove', (e) => {
     const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
     const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
-    selectedObject.x = Math.round(worldX + dragOffsetX);
-    selectedObject.y = Math.round(worldY + dragOffsetY);
+    window.selectedObject.get().x = Math.round(worldX + dragOffsetX);
+    window.selectedObject.get().y = Math.round(worldY + dragOffsetY);
   } else if (isDraggingAdminImage && window.adminBackgroundImage) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
@@ -291,13 +302,13 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', () => {
-  if (selectedObject) {
+  if (window.selectedObject.get()) {
     if (window.ws.readyState === WebSocket.OPEN) {
       window.ws.send(JSON.stringify({
         type: 'move_object',
-        id: selectedObject.id,
-        x: selectedObject.x,
-        y: selectedObject.y
+        id: window.selectedObject.get().id,
+        x: window.selectedObject.get().x,
+        y: window.selectedObject.get().y
       }));
     }
   }
@@ -360,7 +371,7 @@ window.adminDraw = function () {
       ctx.rotate(obj.rotation * Math.PI / 180);
     }
 
-    if (window.adminSelectedObject && window.adminSelectedObject.id === obj.id) {
+    if (window.selectedObject.get() && window.selectedObject.get().id === obj.id) {
       ctx.fillStyle = 'purple';
     } else {
       ctx.fillStyle = obj.name ? 'rgba(255, 0, 0, 0.5)' : 'rgba(155, 89, 182, 0.5)';

@@ -2,8 +2,8 @@
   {
     "id": "pine_1",
     "shape": "circle",
-    "x": 673,
-    "y": 213,
+    "x": 665,
+    "y": 215,
     "width": 122,
     "length": 122
   },
@@ -97,10 +97,10 @@
     "id": "pool",
     "name": "Pool",
     "shape": "rect",
-    "x": -382,
-    "y": 76,
+    "x": -393,
+    "y": 69,
     "rotation": 98,
-    "width": 318,
+    "width": 317,
     "length": 474,
     "noclip": true
   },
