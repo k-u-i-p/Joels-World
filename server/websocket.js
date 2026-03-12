@@ -37,6 +37,27 @@ export function setupWebSocket(server) {
       try {
         if (fs.existsSync(npcPath)) mapObj.npcs = JSON.parse(fs.readFileSync(npcPath, 'utf-8'));
       } catch (e) { console.error(`Error loading npcs for map ${mapDef.id}:`, e); }
+
+      try {
+        if (fs.existsSync(npcPath)) {
+          let npcTimer;
+          fs.watch(npcPath, (eventType, filename) => {
+            if (npcTimer) clearTimeout(npcTimer);
+            npcTimer = setTimeout(() => {
+              try {
+                if (fs.existsSync(npcPath)) {
+                  mapObj.npcs = JSON.parse(fs.readFileSync(npcPath, 'utf-8'));
+                  console.log(`NPCs updated for map ${mapDef.id}, broadcasting...`);
+                  const broadcastMsg = JSON.stringify({ type: 'npcs_update', npcs: mapObj.npcs });
+                  mapObj.clients.forEach(client => {
+                    if (client.readyState === 1) client.send(broadcastMsg);
+                  });
+                }
+              } catch (e) { console.error('Error on npc watch:', e); }
+            }, 50);
+          });
+        }
+      } catch (e) { console.error(`Error setting up watch for npcs on map ${mapDef.id}:`, e); }
     }
 
     if (mapObj.objectsFile) {

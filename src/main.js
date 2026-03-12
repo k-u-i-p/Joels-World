@@ -63,6 +63,12 @@ ws.onmessage = (event) => {
       } else {
         window.init = { objects: data.objects || [] };
       }
+    } else if (data.type === 'npcs_update') {
+      if (window.init) {
+        window.init.npcs = data.npcs || [];
+      } else {
+        window.init = { npcs: data.npcs || [] };
+      }
     }
   } catch (e) {
     console.error(e);
@@ -152,7 +158,7 @@ window.addEventListener('keyup', (e) => {
 let player = {
   id: 'player1',
   moveSpeed: 3,
-  rotationSpeed: 0.05,
+  rotationSpeed: 3,
   legAnimationTime: 0,
   emote: null,
   _lastSentX: null,
@@ -215,12 +221,12 @@ function update() {
   let dy = 0;
 
   if (keys.ArrowUp) {
-    dx += Math.round(Math.cos(player.rotation) * (player.moveSpeed || 3));
-    dy += Math.round(Math.sin(player.rotation) * (player.moveSpeed || 3));
+    dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+    dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
   }
   if (keys.ArrowDown) {
-    dx -= Math.round(Math.cos(player.rotation) * (player.moveSpeed || 3));
-    dy -= Math.round(Math.sin(player.rotation) * (player.moveSpeed || 3));
+    dx -= Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+    dy -= Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
   }
 
   let isMoving = false;
@@ -342,11 +348,11 @@ function update() {
       // Interpolate rotation efficiently via shortest angle (even if not moving XY)
       if (c.targetRotation !== undefined) {
         let rotDiff = c.targetRotation - (c.rotation || 0);
-        while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-        while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+        while (rotDiff > 180) rotDiff -= 360;
+        while (rotDiff < -180) rotDiff += 360;
 
-        if (Math.abs(rotDiff) > 0.01) {
-          const rotSpeed = c.rotationSpeed || 0.15;
+        if (Math.abs(rotDiff) > 1) {
+          const rotSpeed = c.rotationSpeed || 5;
           const rotStep = Math.min(Math.abs(rotDiff), rotSpeed);
           c.rotation = (c.rotation || 0) + Math.sign(rotDiff) * rotStep;
         } else {
@@ -466,7 +472,7 @@ function draw() {
 
     ctx.save();
     ctx.translate(c.x, c.y);
-    ctx.rotate(c.rotation);
+    ctx.rotate(c.rotation * Math.PI / 180);
 
     const scale = window.init?.mapData?.character_scale || 1;
     ctx.scale(scale, scale);
@@ -475,13 +481,13 @@ function draw() {
       ctx.font = '60px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.rotate(-c.rotation); // keep it upright
+      ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
       ctx.fillText('💩', 0, 0);
     } else if (c.name === 'Dancing Toilet') {
       ctx.font = '60px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.rotate(-c.rotation); // keep it upright
+      ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
 
       // Make the toilet dance (bounce and tilt)
       const danceTime = Date.now() / 150;
