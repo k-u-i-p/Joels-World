@@ -13,6 +13,55 @@ export const emotes = {
     updateLimbs: (limbs, emote) => { },
     draw: (ctx, emote) => { }
   },
+  jump: {
+    duration: 800,
+    message: "{name} is jumping over a turnstile",
+    setup: (ctx, emote, c) => {
+      const age = Date.now() - emote.startTime;
+      if (age < 800) {
+        // Parabolic jump arc: max height at 400ms
+        const progress = age / 800;
+        // y = -x * (x - 1) * 4 * height
+        const height = progress * (1 - progress) * 4 * 35; // 35 pixels high
+        ctx.translate(0, -height);
+        
+        // Slight lean forward while jumping
+        const tilt = Math.sin(progress * Math.PI) * 0.3;
+        ctx.rotate(tilt);
+      }
+    },
+    updateLimbs: (limbs, emote) => {
+      const age = Date.now() - emote.startTime;
+      if (age < 800) {
+        const progress = age / 800;
+        
+        // Mid-air pose: knees tucked to clear turnstile
+        if (progress > 0.1 && progress < 0.9) {
+          limbs.leftLegStartY = -6; limbs.leftLegEndY = -8; limbs.leftLegEndX = -10;
+          limbs.rightLegStartY = 6; limbs.rightLegEndY = 8; limbs.rightLegEndX = -10;
+          
+          // Arms thrown back for momentum
+          limbs.leftArmX = -6; limbs.leftArmY = -18;
+          limbs.rightArmX = -6; limbs.rightArmY = 18;
+        }
+      }
+    },
+    draw: (ctx, emote) => {
+      const age = Date.now() - emote.startTime;
+      if (age < 800) {
+        // Draw little motion lines trailing behind
+        ctx.save();
+        ctx.globalAlpha = 0.5 * (1 - (age / 800));
+        ctx.beginPath();
+        ctx.moveTo(-20, -10); ctx.lineTo(-40, -15);
+        ctx.moveTo(-20, 10); ctx.lineTo(-40, 15);
+        ctx.strokeStyle = '#ecf0f1';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  },
   dance: {
     duration: 8000,
     message: "{name} is busting a move",

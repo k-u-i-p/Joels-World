@@ -421,19 +421,34 @@ function update() {
   // Movement
   let dx = 0;
   let dy = 0;
+  
+  let emoteForcedMove = false;
+  if (player.emote && player.emote.name === 'jump') {
+    const jumpAge = Date.now() - player.emote.startTime;
+    if (jumpAge < 800) {
+      emoteForcedMove = true;
+      const progress = jumpAge / 800;
+      // Burst of speed tapering down as they hit the ground
+      const jumpVel = (player.moveSpeed || 3) * 2.5 * (1 - progress);
+      dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * jumpVel);
+      dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * jumpVel);
+    }
+  }
 
-  if (keys.TouchMove) {
-    dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
-    dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
-  } else {
-    // Keyboard tank controls
-    if (keys.ArrowUp) {
+  if (!emoteForcedMove) {
+    if (keys.TouchMove) {
       dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
       dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
-    }
-    if (keys.ArrowDown) {
-      dx -= Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
-      dy -= Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+    } else {
+      // Keyboard tank controls
+      if (keys.ArrowUp) {
+        dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+        dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+      }
+      if (keys.ArrowDown) {
+        dx -= Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+        dy -= Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+      }
     }
   }
 
