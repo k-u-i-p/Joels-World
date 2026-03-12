@@ -27,22 +27,33 @@
 
   <!-- Help Dialog Overlay -->
   <div id="help-dialog" class="overlay" style="display: none;">
-    <div class="dialog-content" style="text-align: left; max-width: 400px;">
-      <h2 style="text-align: center;">Controls & Info</h2>
-      <ul>
-        <li><strong>Keyboard:</strong> Arrow keys to move and turn.</li>
-        <li><strong>Mobile:</strong> Use the left virtual joystick to move and the right virtual joystick to turn.</li>
-        <li><strong>Interact:</strong> Press Spacebar (or the Talk button on mobile) to talk to friends like hector
-          .</li>
-        <li><strong>Chat:</strong> Press Enter to type a message to other players.</li>
-        <li><strong>Fun Commands:</strong> Type <code>/dance</code>, <code>/fart</code>, <code>/dead</code>, or
-          <code>/cry</code> in the chat box!
-        </li>
-      </ul>
-      <div style="text-align: center; margin-top: 20px;">
-        <button id="close-help-btn"
-          style="padding: 8px 16px; border-radius: 6px; border: none; background: #3498db; color: white; cursor: pointer; font-weight: bold;">Got
-          it!</button>
+    <div class="dialog-content glass-panel" style="text-align: left; max-width: 450px; width: 90%;">
+      <h2 style="text-align: center; font-size: 24px; margin-bottom: 25px; color: #fff;">Controls & Commands</h2>
+      
+      <div class="help-section">
+        <h3><span class="icon">🎮</span> Controls</h3>
+        <ul class="help-list">
+          <li><strong>Keyboard:</strong> Arrow keys to move and turn.</li>
+          <li><strong>Mobile:</strong> Use the virtual joysticks to move and turn.</li>
+          <li><strong>Interact:</strong> Walk near an NPC or Press Spacebar (or mobile Talk button).</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <h3><span class="icon">💬</span> Chat & Emotes</h3>
+        <p style="margin: 0 0 10px 0; font-size: 14px; color: #cbd5e1;">Press Enter to type a message to other players.</p>
+        <div class="emote-tags">
+          <span class="emote-tag">/dance</span>
+          <span class="emote-tag">/fart</span>
+          <span class="emote-tag">/dead</span>
+          <span class="emote-tag">/cry</span>
+          <span class="emote-tag">/rugby</span>
+          <span class="emote-tag">/sit</span>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 30px;">
+        <button id="close-help-btn" class="primary-btn">Got it!</button>
       </div>
     </div>
   </div>
