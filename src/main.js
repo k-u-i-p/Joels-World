@@ -472,6 +472,20 @@ function update() {
   // Animation
   if (isMoving) {
     player.legAnimationTime += 0.2;
+    if (player.emote) {
+      let shouldCancel = true;
+      if (player.activeBuilding) {
+        const activeObj = window.init?.objects?.find(o => o.id === player.activeBuilding);
+        if (activeObj && activeObj.on_enter) {
+          const envEmote = activeObj.on_enter.find(a => a.emote === player.emote.name);
+          if (envEmote) shouldCancel = false;
+        }
+      }
+      if (shouldCancel) {
+        player.emote = null;
+        syncPlayerToJSON();
+      }
+    }
   } else {
     // Smoother stop: reset animation to neutral when stopped
     player.legAnimationTime = 0;
