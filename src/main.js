@@ -134,25 +134,6 @@ window.addEventListener('keydown', (e) => {
         if (msg[0] === '/') {
           const command = msg.toLowerCase().substring(1);
           if (emotes[command]) {
-            if (command === 'jump') {
-              const jumpDist = 108; // Appx physical integration distance
-              const destX = player.x + Math.cos(player.rotation * Math.PI / 180) * jumpDist;
-              const destY = player.y + Math.sin(player.rotation * Math.PI / 180) * jumpDist;
-              const scale = window.init?.mapData?.character_scale || 1;
-              const playerRadius = 15 * scale;
-              const coordsToTest = [
-                { x: destX, y: destY },
-                { x: player.x + (destX - player.x) / 2, y: player.y + (destY - player.y) / 2 } // test mid-point too
-              ];
-              const possibleOverlaps = findObjectsAt(window.init?.objects, coordsToTest, playerRadius);
-              if (!canMoveTo(possibleOverlaps, destX, destY, playerRadius) || 
-                  !canMoveTo(possibleOverlaps, coordsToTest[1].x, coordsToTest[1].y, playerRadius)) {
-                // Abort jump if destination or trajectory is blocked!
-                chatInput.blur();
-                return;
-              }
-            }
-
             player.emote = { name: command, startTime: Date.now() };
             if (emotes[command].message) {
               const msgText = emotes[command].message.replace('{name}', player.name || 'Someone');
@@ -488,13 +469,24 @@ function update() {
     const possibleOverlaps = findObjectsAt(window.init?.objects, movementCoords, playerRadius);
 
     // Try moving in both axes, then X only, then Y only (sliding against walls)
-    if (canMoveTo(possibleOverlaps, player.x + dx, player.y + dy, playerRadius)) {
-      player.x += dx;
-      player.y += dy;
-    } else if (canMoveTo(possibleOverlaps, player.x + dx, player.y, playerRadius)) {
-      player.x += dx;
-    } else if (canMoveTo(possibleOverlaps, player.x, player.y + dy, playerRadius)) {
-      player.y += dy;
+    if (emoteForcedMove) {
+      if (canMoveTo(possibleOverlaps, player.x + dx, player.y + dy, playerRadius)) {
+        player.x += dx;
+        player.y += dy;
+      } else {
+        // Hit something while jumping! Stop the jump and drop to ground immediately
+        player.emote = null;
+        syncPlayerToJSON();
+      }
+    } else {
+      if (canMoveTo(possibleOverlaps, player.x + dx, player.y + dy, playerRadius)) {
+        player.x += dx;
+        player.y += dy;
+      } else if (canMoveTo(possibleOverlaps, player.x + dx, player.y, playerRadius)) {
+        player.x += dx;
+      } else if (canMoveTo(possibleOverlaps, player.x, player.y + dy, playerRadius)) {
+        player.y += dy;
+      }
     }
 
     if (possibleOverlaps.length > 0) {
