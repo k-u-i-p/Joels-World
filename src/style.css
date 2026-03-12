@@ -141,6 +141,14 @@ body {
   color: #576574;
 }
 
+#action-dialog {
+  transition: padding-left 0.3s;
+}
+
+#action-dialog.avatar-active {
+  padding-left: 170px !important;
+}
+
 /* Admin Panel */
 #admin-panel {
   position: absolute;

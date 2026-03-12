@@ -19,6 +19,9 @@ export const EventHandlers = {
       } else {
         el.src = avatarSrc;
       }
+      
+      const actionDialog = document.getElementById('action-dialog');
+      if (actionDialog) actionDialog.classList.add('avatar-active');
     }
   },
 

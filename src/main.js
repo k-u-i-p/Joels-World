@@ -598,6 +598,10 @@ function update() {
       if (container) {
         const el = container.querySelector(`[data-npc-id="${prevNpc.id}"]`);
         if (el) el.remove();
+        if (container.children.length === 0) {
+          const actionDialog = document.getElementById('action-dialog');
+          if (actionDialog) actionDialog.classList.remove('avatar-active');
+        }
       }
     }
     activeNpc = null;

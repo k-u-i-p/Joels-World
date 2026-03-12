@@ -52,9 +52,14 @@
 
   <!-- Action Dialog Overlay -->
   <div id="action-dialog" class="overlay"
-    style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-top: calc(180px + env(safe-area-inset-top)); padding-bottom: calc(40px + env(safe-area-inset-bottom));">
+    style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-top: calc(30px + env(safe-area-inset-top)); justify-content: flex-start; padding-left: 30px; padding-right: 30px; box-sizing: border-box;">
+    
+    <div id="chat-container" style="margin-bottom: 10px;">
+      <input type="text" id="chat-input" placeholder="Press Enter to chat..." autocomplete="off" maxlength="80" />
+    </div>
+
     <div id="action-dialog-content" class="dialog-content"
-      style="display: none; text-align: center; width: 100%; max-width: 400px; pointer-events: auto; margin-bottom: 10px;">
+      style="display: none; text-align: center; width: 100%; max-width: 400px; pointer-events: auto;">
       <h2 id="action-dialog-text" style="font-size: 18px; margin-bottom: 20px;"></h2>
       <div style="display: flex; justify-content: space-around; gap: 10px;">
         <button id="action-dialog-yes"
@@ -62,10 +67,6 @@
         <button id="action-dialog-no"
           style="padding: 8px 16px; border-radius: 6px; border: none; background: #e74c3c; color: white; cursor: pointer; font-weight: bold; flex: 1;">No</button>
       </div>
-    </div>
-
-    <div id="chat-container" style="margin-top: auto;">
-      <input type="text" id="chat-input" placeholder="Press Enter to chat..." autocomplete="off" maxlength="80" />
     </div>
   </div>
   <div id="joystick-move-container">
