@@ -119,5 +119,30 @@
       "name": "bounce",
       "startTime": 0
     }
+  },
+  {
+    "id": 8,
+    "name": "Mr Savage",
+    "x": 350,
+    "y": -200,
+    "width": 46,
+    "height": 46,
+    "rotation": 90,
+    "gender": "male",
+    "shirtColor": "#bdc3c7",
+    "pantsColor": "#34495e",
+    "armColor": "#bdc3c7",
+    "on_enter": [
+      {
+        "avatar": "avatars/mr_savage.png",
+        "say": [
+          "I taught your father you know.",
+          "Looking forward to retirement and hitting the ski slopes!",
+          "In my day we didn't have these fancy rugby boots.",
+          "Keep those knees up! ...Well, I won't, but you should."
+        ]
+      }
+    ],
+    "on_exit": []
   }
 ]
