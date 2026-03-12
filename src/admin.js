@@ -235,6 +235,85 @@ if (objNoclipCheckbox) {
   });
 }
 
+const npcNameInput = document.getElementById('npc-name-input');
+if (npcNameInput) {
+  npcNameInput.onchange = (e) => {
+    if (!window.selectedNpc.get()) return;
+    window.selectedNpc.get().name = e.target.value.trim();
+    if (window.ws.readyState === WebSocket.OPEN) {
+      window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { name: window.selectedNpc.get().name } }));
+    }
+  };
+}
+
+['shirtColor', 'pantsColor', 'armColor'].forEach(part => {
+  const colInput = document.getElementById(`npc-${part === 'shirtColor' ? 'shirt' : part === 'pantsColor' ? 'pants' : 'arm'}-col`);
+  if (colInput) {
+    colInput.onchange = (e) => {
+      if (!window.selectedNpc.get()) return;
+      window.selectedNpc.get()[part] = e.target.value;
+      if (window.ws.readyState === WebSocket.OPEN) {
+        window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { [part]: e.target.value } }));
+      }
+    };
+  }
+});
+
+bindHoldAction('btn-npc-width-dec', () => {
+  if (!window.selectedNpc.get()) return;
+  window.selectedNpc.get().width = Math.max(5, (window.selectedNpc.get().width || 40) - 2);
+}, () => {
+  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { width: window.selectedNpc.get().width } }));
+  }
+});
+
+bindHoldAction('btn-npc-width-inc', () => {
+  if (!window.selectedNpc.get()) return;
+  window.selectedNpc.get().width = (window.selectedNpc.get().width || 40) + 2;
+}, () => {
+  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { width: window.selectedNpc.get().width } }));
+  }
+});
+
+bindHoldAction('btn-npc-height-dec', () => {
+  if (!window.selectedNpc.get()) return;
+  window.selectedNpc.get().height = Math.max(5, (window.selectedNpc.get().height || 40) - 2);
+}, () => {
+  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { height: window.selectedNpc.get().height } }));
+  }
+});
+
+bindHoldAction('btn-npc-height-inc', () => {
+  if (!window.selectedNpc.get()) return;
+  window.selectedNpc.get().height = (window.selectedNpc.get().height || 40) + 2;
+}, () => {
+  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { height: window.selectedNpc.get().height } }));
+  }
+});
+
+const btnSaveNpcDialog = document.getElementById('btn-save-npc-dialog');
+const npcDialogInput = document.getElementById('npc-dialog-input');
+if (btnSaveNpcDialog && npcDialogInput) {
+  btnSaveNpcDialog.onclick = () => {
+    if (!window.selectedNpc.get()) return;
+    try {
+      const parsed = JSON.parse(npcDialogInput.value);
+      window.selectedNpc.get().on_enter = parsed.on_enter;
+      window.selectedNpc.get().on_exit = parsed.on_exit;
+      if (window.ws.readyState === WebSocket.OPEN) {
+        window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { on_enter: parsed.on_enter, on_exit: parsed.on_exit } }));
+      }
+      alert('NPC dialog saved!');
+    } catch (e) {
+      alert('Invalid JSON in dialog input.');
+    }
+  };
+}
+
 function updateAdminPanel() {
   adminPanel.style.display = 'block';
 
@@ -252,6 +331,27 @@ function updateAdminPanel() {
     }
   } else {
     editObjSection.style.display = 'none';
+  }
+
+  const editNpcSection = document.getElementById('edit-npc-section');
+  if (window.selectedNpc.get()) {
+    if (editNpcSection) editNpcSection.style.display = 'block';
+    const npc = window.selectedNpc.get();
+    
+    if (npcNameInput) npcNameInput.value = npc.name || '';
+    
+    if (document.getElementById('npc-shirt-col')) document.getElementById('npc-shirt-col').value = npc.shirtColor || '#3498db';
+    if (document.getElementById('npc-pants-col')) document.getElementById('npc-pants-col').value = npc.pantsColor || '#2c3e50';
+    if (document.getElementById('npc-arm-col')) document.getElementById('npc-arm-col').value = npc.armColor || '#3498db';
+    
+    if (document.getElementById('npc-dialog-input')) {
+      document.getElementById('npc-dialog-input').value = JSON.stringify({
+        on_enter: npc.on_enter || [],
+        on_exit: npc.on_exit || []
+      }, null, 2);
+    }
+  } else {
+    if (editNpcSection) editNpcSection.style.display = 'none';
   }
 }
 

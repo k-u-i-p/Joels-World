@@ -91,6 +91,15 @@ export function handleAdminMessage(ws, data, mapData) {
       fs.writeFileSync(objectsFile, JSON.stringify(objects, null, 2), 'utf-8');
     } catch (e) { console.error('Failed saving objects file:', e); }
     return true;
+  } else if (data.type === 'update_npc') {
+    const npc = mapData.npcs.find(n => n.id === data.id);
+    if (npc && data.updates) {
+      Object.assign(npc, data.updates);
+      try {
+        if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, null, 2), 'utf-8');
+      } catch (e) { console.error('Failed saving npcs file:', e); }
+    }
+    return true;
   }
 
   return false;
