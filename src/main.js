@@ -108,8 +108,8 @@ const UI = {
   get btnNo() { return this._bn || (this._bn = document.getElementById('action-dialog-no')); }
 };
 
-const movementCoords = [{x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}];
-const exactCoords = [{x: 0, y: 0}];
+const movementCoords = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
+const exactCoords = [{ x: 0, y: 0 }];
 
 window.addEventListener('keydown', (e) => {
   const nameDialog = document.getElementById('name-dialog');
@@ -466,10 +466,6 @@ function update() {
   // Animation
   if (isMoving) {
     player.legAnimationTime += 0.2;
-    if (player.emote) {
-      player.emote = null;
-      syncPlayerToJSON();
-    }
   } else {
     // Smoother stop: reset animation to neutral when stopped
     player.legAnimationTime = 0;
@@ -543,7 +539,7 @@ function update() {
     const dx = player.x - c.x;
     const dy = player.y - c.y;
     const distSq = dx * dx + dy * dy;
-    
+
     if (distSq <= interactionRadiusSq && distSq < minNpcDistSq) {
       minNpcDistSq = distSq;
       closestNpc = c;
@@ -613,7 +609,7 @@ function executeEvents(sourceObj, rawActions) {
     if (!parentObj || !parentObj.on_enter) return;
     actions = parentObj.on_enter;
   }
-  
+
   if (!actions || !Array.isArray(actions)) return;
 
   for (const action of actions) {
@@ -709,13 +705,13 @@ function executeEvents(sourceObj, rawActions) {
     if (action.emote) {
       const isInteractiveObj = sourceObj.shape === 'rect' || sourceObj.shape === 'circle' && !sourceObj.gender;
       const isMapObj = (sourceObj === window.init?.mapData) || (sourceObj.id === 'map');
-      
+
       const targetEntity = (isInteractiveObj || isMapObj) ? player : sourceObj;
       targetEntity.emote = {
         name: action.emote,
         startTime: Date.now()
       };
-      
+
       if (targetEntity === player) {
         syncPlayerToJSON();
       }
@@ -724,10 +720,10 @@ function executeEvents(sourceObj, rawActions) {
     if (action.clear_emote) {
       const isInteractiveObj = sourceObj.shape === 'rect' || sourceObj.shape === 'circle' && !sourceObj.gender;
       const isMapObj = (sourceObj === window.init?.mapData) || (sourceObj.id === 'map');
-      
+
       const targetEntity = (isInteractiveObj || isMapObj) ? player : sourceObj;
       targetEntity.emote = null;
-      
+
       if (targetEntity === player) {
         syncPlayerToJSON();
       }
@@ -969,7 +965,7 @@ function drawCharacter(c) {
       // But we still need to offset by its raw dimensions.
       // Reset the main context scale temporarily because the cache already has it applied
       ctx.save();
-      ctx.scale(1/scaleX, 1/scaleY);
+      ctx.scale(1 / scaleX, 1 / scaleY);
       ctx.drawImage(prCnv, -prCnv.width / 2, -prCnv.height / 2);
       ctx.restore();
     } else {
