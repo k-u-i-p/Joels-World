@@ -4,8 +4,6 @@ console.log('Setting up admin');
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const getBuildings = () => window.buildings;
-const getCollisionObjects = () => window.collisionObjects;
 
 const adminPanel = document.getElementById('admin-panel');
 
@@ -69,8 +67,21 @@ function bindHoldAction(id, action, syncAction) {
   btn.addEventListener('contextmenu', e => e.preventDefault());
 }
 
-let isDraggingSelectedObject = false;
+let draggedObject = null;
 let selectedObject = null;
+
+function createObjectRef(type, id) {
+  return {
+    type,
+    id,
+    get data() {
+      if (this.type === 'building') return (window.buildings || []).find(b => b.id === this.id);
+      if (this.type === 'collision_object') return (window.collisionObjects || []).find(c => c.id === this.id);
+      return null;
+    }
+  };
+}
+
 let dragOffsetX = 0;
 let dragOffsetY = 0;
 
@@ -104,7 +115,7 @@ document.getElementById('btn-delete-building').onclick = () => {
   if (selectedObject && selectedObject.type === 'building' && window.ws.readyState === WebSocket.OPEN) {
     window.ws.send(JSON.stringify({ type: 'delete_building', id: selectedObject.data.id }));
     selectedObject = null;
-    isDraggingSelectedObject = false;
+    draggedObject = null;
     window.adminSelectedObject = null;
     updateAdminPanel();
   }
@@ -114,7 +125,7 @@ document.getElementById('btn-delete-col').onclick = () => {
   if (selectedObject && selectedObject.type === 'collision_object' && window.ws.readyState === WebSocket.OPEN) {
     window.ws.send(JSON.stringify({ type: 'delete_collision_object', id: selectedObject.data.id }));
     selectedObject = null;
-    isDraggingSelectedObject = false;
+    draggedObject = null;
     window.adminSelectedObject = null;
     updateAdminPanel();
   }
@@ -299,10 +310,11 @@ window.addEventListener('mousedown', (e) => {
   const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
   const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
-  let clickedObject = null;
-
-  const buildings = getBuildings();
-  const collisionObjects = getCollisionObjects() || [];
+  selectedObject = null;
+  window.adminSelectedObject = null;
+  draggedObject = null;
+  const buildings = window.buildings || [];
+  const collisionObjects = window.collisionObjects || [];
 
   // Check collision objects and buildings backwards so that top items are selected first
   for (let i = collisionObjects.length - 1; i >= 0; i--) {
@@ -326,33 +338,31 @@ window.addEventListener('mousedown', (e) => {
     }
 
     if (hit) {
-      clickedObject = { type: 'collision_object', data: obj };
+      console.log(`Dragging collision object: ${obj.id}`);
+      draggedObject = createObjectRef('collision_object', obj.id);
+      selectedObject = createObjectRef('collision_object', obj.id);
+      window.adminSelectedObject = obj;
+      dragOffsetX = obj.x - worldX;
+      dragOffsetY = obj.y - worldY;
       break;
     }
   }
 
-  if (!clickedObject) {
-    for (let i = buildings.length - 1; i >= 0; i--) {
-      const building = buildings[i];
-      if (isPointInBuilding(worldX, worldY, building)) {
-        clickedObject = { type: 'building', data: building };
+  if (!draggedObject) {
+    for (let i = window.buildings.length - 1; i >= 0; i--) {
+      if (isPointInBuilding(worldX, worldY, window.buildings[i])) {
+        console.log(`Dragging building: ${window.buildings[i].id}`);
+        draggedObject = createObjectRef('building', window.buildings[i].id);
+        selectedObject = createObjectRef('building', window.buildings[i].id);
+        window.adminSelectedObject = window.buildings[i];
+        dragOffsetX = window.buildings[i].x - worldX;
+        dragOffsetY = window.buildings[i].y - worldY;
         break;
       }
     }
   }
 
-  if (clickedObject) {
-    if (selectedObject && selectedObject.data.id === clickedObject.data.id && selectedObject.type === clickedObject.type) {
-      isDraggingSelectedObject = true;
-      dragOffsetX = clickedObject.data.x - worldX;
-      dragOffsetY = clickedObject.data.y - worldY;
-    } else {
-      selectedObject = clickedObject;
-      window.adminSelectedObject = clickedObject.data;
-    }
-  } else if (!e.target.closest('#admin-panel')) {
-    selectedObject = null;
-    window.adminSelectedObject = null;
+  if (!draggedObject && !e.target.closest('#admin-panel')) {
     if (e.shiftKey && window.adminBackgroundImage) {
       isDraggingAdminImage = true;
       bgDragOffsetX = (window.adminBackgroundImage._x || 0) - worldX;
@@ -369,7 +379,7 @@ window.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
-  if (isDraggingSelectedObject && selectedObject) {
+  if (draggedObject) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
@@ -377,8 +387,8 @@ window.addEventListener('mousemove', (e) => {
     const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
     const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
-    selectedObject.data.x = Math.round(worldX + dragOffsetX);
-    selectedObject.data.y = Math.round(worldY + dragOffsetY);
+    draggedObject.data.x = Math.round(worldX + dragOffsetX);
+    draggedObject.data.y = Math.round(worldY + dragOffsetY);
   } else if (isDraggingAdminImage && window.adminBackgroundImage) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
@@ -400,17 +410,17 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', () => {
-  if (isDraggingSelectedObject && selectedObject) {
+  if (draggedObject) {
     if (window.ws.readyState === WebSocket.OPEN) {
-      const typeStr = selectedObject.type === 'building' ? 'move_building' : 'move_collision_object';
+      const typeStr = draggedObject.type === 'building' ? 'move_building' : 'move_collision_object';
       window.ws.send(JSON.stringify({
         type: typeStr,
-        id: selectedObject.data.id,
-        x: selectedObject.data.x,
-        y: selectedObject.data.y
+        id: draggedObject.data.id,
+        x: draggedObject.data.x,
+        y: draggedObject.data.y
       }));
     }
-    isDraggingSelectedObject = false;
+    draggedObject = null;
   }
   isDraggingBackground = false;
   isDraggingAdminImage = false;
@@ -462,8 +472,7 @@ window.adminDraw = function () {
   if (window.adminBackgroundImage && window.adminBackgroundImage.complete) {
     ctx.drawImage(window.adminBackgroundImage, window.adminBackgroundImage._x || 0, window.adminBackgroundImage._y || 0);
   }
-
-  const buildings = getBuildings();
+  const buildings = window.buildings || [];
   buildings.forEach(building => {
     ctx.save();
     ctx.translate(building.x, building.y);
@@ -508,8 +517,7 @@ window.adminDraw = function () {
 
     ctx.restore();
   });
-
-  const collisionObjects = getCollisionObjects() || [];
+  const collisionObjects = window.collisionObjects || [];
   collisionObjects.forEach(obj => {
     ctx.save();
     ctx.translate(obj.x, obj.y);
