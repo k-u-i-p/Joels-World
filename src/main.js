@@ -204,6 +204,13 @@ function gameLoop() {
     window.adminDraw();
   }
 
+  drawAvatars();
+
+  requestAnimationFrame(gameLoop);
+}
+window.gameLoop = gameLoop;
+
+function drawAvatars() {
   // Draw active NPC avatars in the top left
   if (activeNpcs && activeNpcs.size > 0 && window.init?.npcs) {
     let avatarX = 20;
@@ -245,8 +252,6 @@ function gameLoop() {
       }
     });
   }
-
-  requestAnimationFrame(gameLoop);
 }
 window.gameLoop = gameLoop;
 
@@ -504,230 +509,238 @@ function draw() {
   ctx.scale(window.cameraZoom, window.cameraZoom);
   ctx.translate(-window.cameraX, -window.cameraY);
 
+  drawMap();
+  drawCharacters();
+
+  // Restore camera translation
+  ctx.restore();
+}
+
+function drawMap() {
   if (window.mapImage && window.mapImage.complete) {
     const drawW = window.init?.mapData?.width || window.mapImage.width;
     const drawH = window.init?.mapData?.height || window.mapImage.height;
     ctx.drawImage(window.mapImage, -drawW / 2, -drawH / 2, drawW, drawH);
   }
+}
 
-
-  // Draw Characters
+function drawCharacters() {
   [...(window.init?.characters || []), ...(window.init?.npcs || [])].forEach(char => {
     // Current player might have updated legAnimationTime / x / y locally
     const c = (char.id === player.id) ? player : char;
+    drawCharacter(c);
+  });
+}
 
+function drawCharacter(c) {
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(c.rotation * Math.PI / 180);
+
+  const scale = window.init?.mapData?.character_scale || 1;
+  ctx.scale(scale, scale);
+
+  if (c.name === 'Talking Poop') {
+    ctx.font = '60px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
+    ctx.fillText('💩', 0, 0);
+  } else if (c.name === 'Dancing Toilet') {
+    ctx.font = '60px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
+
+    // Make the toilet dance (bounce and tilt)
+    const danceTime = Date.now() / 150;
+    const bounce = Math.abs(Math.sin(danceTime)) * -15;
+    const tilt = Math.sin(danceTime * 0.8) * 0.3;
+
+    ctx.translate(0, bounce);
+    ctx.rotate(tilt);
+
+    ctx.fillText('🚽', 0, 0);
+  } else {
+    let currentEmote = c.emote;
+    let emoteDef = null;
+    if (currentEmote && emotes[currentEmote.name]) {
+      emoteDef = emotes[currentEmote.name];
+      if (Date.now() - currentEmote.startTime > emoteDef.duration) {
+        c.emote = null;
+        currentEmote = null;
+        if (c === player) syncPlayerToJSON();
+        emoteDef = null;
+      } else if (emoteDef.setup) {
+        emoteDef.setup(ctx, currentEmote, c);
+      }
+    }
+
+    const legSwing = Math.sin(c.legAnimationTime || 0);
+    const legStride = 15;
+    const armStride = 8;
+
+    let limbs = {
+      leftArmX: 4 - legSwing * armStride,
+      leftArmY: -14,
+      rightArmX: 4 + legSwing * armStride,
+      rightArmY: 14,
+      leftLegStartX: -2,
+      leftLegStartY: -6,
+      leftLegEndX: -2 + 10 + legSwing * legStride,
+      leftLegEndY: -6,
+      rightLegStartX: -2,
+      rightLegStartY: 6,
+      rightLegEndX: -2 + 10 - legSwing * legStride,
+      rightLegEndY: 6
+    };
+
+    if (emoteDef && emoteDef.updateLimbs) {
+      emoteDef.updateLimbs(limbs, currentEmote);
+    }
+
+    // --- LEGS ---
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = c.pantsColor || '#2c3e50';
+
+    // Left Leg
+    ctx.beginPath();
+    ctx.moveTo(limbs.leftLegStartX, limbs.leftLegStartY);
+    ctx.lineTo(limbs.leftLegEndX, limbs.leftLegEndY);
+    ctx.stroke();
+
+    // Right Leg
+    ctx.beginPath();
+    ctx.moveTo(limbs.rightLegStartX, limbs.rightLegStartY);
+    ctx.lineTo(limbs.rightLegEndX, limbs.rightLegEndY);
+    ctx.stroke();
+
+    // --- ARMS ---
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = c.armColor || '#3498db';
+
+    // Left Arm
+    ctx.beginPath();
+    ctx.moveTo(0, -11);
+    ctx.lineTo(limbs.leftArmX, limbs.leftArmY);
+    ctx.stroke();
+
+    // Right Arm
+    ctx.beginPath();
+    ctx.moveTo(0, 11);
+    ctx.lineTo(limbs.rightArmX, limbs.rightArmY);
+    ctx.stroke();
+
+    // Hands
+    ctx.fillStyle = '#f1c27d'; // Skin tone
+    ctx.beginPath();
+    ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // --- TORSO ---
+    ctx.fillStyle = c.shirtColor || '#3498db';
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(-8, -12, 16, 24, 6);
+      ctx.fill();
+    } else {
+      ctx.fillRect(-8, -12, 16, 24);
+    }
+
+    // --- HEAD ---
+    ctx.beginPath();
+    ctx.arc(2, 0, 8, 0, Math.PI * 2);
+    ctx.fillStyle = '#f1c27d'; // Skin tone
+    ctx.fill();
+
+    // If gender modifies appearance
+    if (c.gender === 'female') {
+      ctx.fillStyle = '#e67e22'; // Default hair color example
+      ctx.beginPath();
+      // Draw simple curved hair
+      ctx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
+      ctx.fill();
+    }
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.stroke();
+
+    // Draw X eyes if dead or tears or apply other custom drawing
+    if (emoteDef && emoteDef.draw) {
+      emoteDef.draw(ctx, currentEmote);
+    }
+  }
+
+  ctx.restore();
+
+  // --- NAME TAG ---
+  // Drawn after restore so it does not rotate with the character
+  if (c.name) {
     ctx.save();
     ctx.translate(c.x, c.y);
-    ctx.rotate(c.rotation * Math.PI / 180);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.font = 'bold 12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+    ctx.textAlign = 'center';
+
+    // Draw name with a slight shadow for readability
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 3;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
 
     const scale = window.init?.mapData?.character_scale || 1;
-    ctx.scale(scale, scale);
+    ctx.fillText(c.name, 0, 15 + 15 * scale);
+    ctx.restore();
+  }
 
-    if (c.name === 'Talking Poop') {
-      ctx.font = '60px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
-      ctx.fillText('💩', 0, 0);
-    } else if (c.name === 'Dancing Toilet') {
-      ctx.font = '60px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
+  // --- SPEECH BUBBLE ---
+  if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
+    ctx.save();
+    ctx.translate(c.x, c.y);
 
-      // Make the toilet dance (bounce and tilt)
-      const danceTime = Date.now() / 150;
-      const bounce = Math.abs(Math.sin(danceTime)) * -15;
-      const tilt = Math.sin(danceTime * 0.8) * 0.3;
+    ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+    const textWidth = ctx.measureText(c.chatMessage).width;
+    const bubbleWidth = textWidth + 24;
+    const bubbleHeight = 32;
+    const scale = window.init?.mapData?.character_scale || 1;
+    const bubbleY = -(20 + 15 * scale);
 
-      ctx.translate(0, bounce);
-      ctx.rotate(tilt);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
 
-      ctx.fillText('🚽', 0, 0);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight, 8);
     } else {
-      let currentEmote = c.emote;
-      let emoteDef = null;
-      if (currentEmote && emotes[currentEmote.name]) {
-        emoteDef = emotes[currentEmote.name];
-        if (Date.now() - currentEmote.startTime > emoteDef.duration) {
-          c.emote = null;
-          currentEmote = null;
-          if (c === player) syncPlayerToJSON();
-          emoteDef = null;
-        } else if (emoteDef.setup) {
-          emoteDef.setup(ctx, currentEmote, c);
-        }
-      }
-
-      const legSwing = Math.sin(c.legAnimationTime || 0);
-      const legStride = 15;
-      const armStride = 8;
-
-      let limbs = {
-        leftArmX: 4 - legSwing * armStride,
-        leftArmY: -14,
-        rightArmX: 4 + legSwing * armStride,
-        rightArmY: 14,
-        leftLegStartX: -2,
-        leftLegStartY: -6,
-        leftLegEndX: -2 + 10 + legSwing * legStride,
-        leftLegEndY: -6,
-        rightLegStartX: -2,
-        rightLegStartY: 6,
-        rightLegEndX: -2 + 10 - legSwing * legStride,
-        rightLegEndY: 6
-      };
-
-      if (emoteDef && emoteDef.updateLimbs) {
-        emoteDef.updateLimbs(limbs, currentEmote);
-      }
-
-      // --- LEGS ---
-      ctx.lineWidth = 7;
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = c.pantsColor || '#2c3e50';
-
-      // Left Leg
-      ctx.beginPath();
-      ctx.moveTo(limbs.leftLegStartX, limbs.leftLegStartY);
-      ctx.lineTo(limbs.leftLegEndX, limbs.leftLegEndY);
-      ctx.stroke();
-
-      // Right Leg
-      ctx.beginPath();
-      ctx.moveTo(limbs.rightLegStartX, limbs.rightLegStartY);
-      ctx.lineTo(limbs.rightLegEndX, limbs.rightLegEndY);
-      ctx.stroke();
-
-      // --- ARMS ---
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = c.armColor || '#3498db';
-
-      // Left Arm
-      ctx.beginPath();
-      ctx.moveTo(0, -11);
-      ctx.lineTo(limbs.leftArmX, limbs.leftArmY);
-      ctx.stroke();
-
-      // Right Arm
-      ctx.beginPath();
-      ctx.moveTo(0, 11);
-      ctx.lineTo(limbs.rightArmX, limbs.rightArmY);
-      ctx.stroke();
-
-      // Hands
-      ctx.fillStyle = '#f1c27d'; // Skin tone
-      ctx.beginPath();
-      ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      // --- TORSO ---
-      ctx.fillStyle = c.shirtColor || '#3498db';
-      if (ctx.roundRect) {
-        ctx.beginPath();
-        ctx.roundRect(-8, -12, 16, 24, 6);
-        ctx.fill();
-      } else {
-        ctx.fillRect(-8, -12, 16, 24);
-      }
-
-      // --- HEAD ---
-      ctx.beginPath();
-      ctx.arc(2, 0, 8, 0, Math.PI * 2);
-      ctx.fillStyle = '#f1c27d'; // Skin tone
-      ctx.fill();
-
-      // If gender modifies appearance
-      if (c.gender === 'female') {
-        ctx.fillStyle = '#e67e22'; // Default hair color example
-        ctx.beginPath();
-        // Draw simple curved hair
-        ctx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
-        ctx.fill();
-      }
-
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-      ctx.stroke();
-
-      // Draw X eyes if dead or tears or apply other custom drawing
-      if (emoteDef && emoteDef.draw) {
-        emoteDef.draw(ctx, currentEmote);
-      }
+      ctx.rect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight);
     }
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(-6, bubbleY);
+    ctx.lineTo(6, bubbleY);
+    ctx.lineTo(0, bubbleY + 8);
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    ctx.fillStyle = '#2c3e50';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.chatMessage, 0, bubbleY - bubbleHeight / 2);
 
     ctx.restore();
-
-    // --- NAME TAG ---
-    // Drawn after restore so it does not rotate with the character
-    if (c.name) {
-      ctx.save();
-      ctx.translate(c.x, c.y);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.font = 'bold 12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-      ctx.textAlign = 'center';
-
-      // Draw name with a slight shadow for readability
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-      ctx.shadowBlur = 3;
-      ctx.shadowOffsetX = 1;
-      ctx.shadowOffsetY = 1;
-
-      const scale = window.init?.mapData?.character_scale || 1;
-      ctx.fillText(c.name, 0, 15 + 15 * scale);
-      ctx.restore();
-    }
-
-    // --- SPEECH BUBBLE ---
-    if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
-      ctx.save();
-      ctx.translate(c.x, c.y);
-
-      ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-      const textWidth = ctx.measureText(c.chatMessage).width;
-      const bubbleWidth = textWidth + 24;
-      const bubbleHeight = 32;
-      const scale = window.init?.mapData?.character_scale || 1;
-      const bubbleY = -(20 + 15 * scale);
-
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
-      ctx.shadowBlur = 6;
-      ctx.shadowOffsetY = 3;
-
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight, 8);
-      } else {
-        ctx.rect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight);
-      }
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.moveTo(-6, bubbleY);
-      ctx.lineTo(6, bubbleY);
-      ctx.lineTo(0, bubbleY + 8);
-      ctx.fill();
-
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetY = 0;
-
-      ctx.fillStyle = '#2c3e50';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(c.chatMessage, 0, bubbleY - bubbleHeight / 2);
-
-      ctx.restore();
-    }
-  });
-
-  // Restore camera translation
-  ctx.restore();
+  }
 }
 
 
