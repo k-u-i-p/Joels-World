@@ -288,18 +288,18 @@ export const emotes = {
 
       // Breaststroke arms sweeping back and forth
       // Forward push
-      limbs.leftArmX = 12 - stroke * 8;
-      limbs.leftArmY = -4 - sweep * 5;
+      limbs.leftArmX = 14 - stroke * 8;
+      limbs.leftArmY = -6 - sweep * 5;
       
-      limbs.rightArmX = 12 - stroke * 8;
-      limbs.rightArmY = 4 + sweep * 5;
+      limbs.rightArmX = 14 - stroke * 8;
+      limbs.rightArmY = 6 + sweep * 5;
 
-      // Flutter kicks
-      limbs.leftLegStartX = -8; limbs.leftLegStartY = -4;
-      limbs.leftLegEndX = -18; limbs.leftLegEndY = -4 + kick;
+      // Flutter kicks pushed further back down the body to look elongated
+      limbs.leftLegStartX = -10; limbs.leftLegStartY = -4;
+      limbs.leftLegEndX = -24; limbs.leftLegEndY = -4 + kick;
 
-      limbs.rightLegStartX = -8; limbs.rightLegStartY = 4;
-      limbs.rightLegEndX = -18; limbs.rightLegEndY = 4 - kick;
+      limbs.rightLegStartX = -10; limbs.rightLegStartY = 4;
+      limbs.rightLegEndX = -24; limbs.rightLegEndY = 4 - kick;
     },
     draw: (ctx, emote) => {
       ctx.save();
@@ -316,9 +316,9 @@ export const emotes = {
         ctx.globalAlpha = 1 - progress;
         const rippleSize = 5 + progress * 15;
         
-        // Feet splashes
+        // Feet splashes moved further back
         ctx.beginPath();
-        ctx.arc(-16, 0, rippleSize, -Math.PI/2, Math.PI/2);
+        ctx.arc(-22, 0, rippleSize, -Math.PI/2, Math.PI/2);
         ctx.stroke();
 
         // Arm splashes
