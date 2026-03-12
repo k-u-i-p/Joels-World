@@ -265,7 +265,8 @@ export function setupWebSocket(server) {
                 width: mapData.width,
                 height: mapData.height,
                 background: mapData.background,
-                character_scale: mapData.character_scale || 1
+                character_scale: mapData.character_scale || 1,
+                background_sound: mapData.background_sound
               },
               mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
             }));

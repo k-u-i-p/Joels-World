@@ -32,6 +32,7 @@
     "npcs": "main_building/npc.json",
     "character_scale": 1.5,
     "objects": "main_building/objects.json",
+    "background_sound": "media/playground_sound_effect.mp3",
     "spawn_area": 9
   }
 ]

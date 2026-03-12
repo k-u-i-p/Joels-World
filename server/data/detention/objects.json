@@ -153,5 +153,43 @@
     "length": 260,
     "clip": -1,
     "name": "Spawn Area"
+  },
+  {
+    "id": 19,
+    "shape": "rect",
+    "x": 768,
+    "y": -484,
+    "width": 130,
+    "length": 224,
+    "name": "Exit",
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 0,
+          "description": "Do you want to exit the detention?"
+        }
+      }
+    ]
+  },
+  {
+    "id": 20,
+    "shape": "rect",
+    "x": 2,
+    "y": 869,
+    "width": 229,
+    "length": 141,
+    "name": "Exit 2",
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 0,
+          "description": "Do you want to exit the detention?"
+        }
+      }
+    ]
   }
 ]
