@@ -102,6 +102,28 @@ window.selectedObject = {
       if (hit) return obj;
     }
     return null;
+  },
+  checkResizeHandleHit: function(worldX, worldY) {
+    const obj = this.get();
+    if (!obj) return false;
+    
+    const bdx = worldX - obj.x;
+    const bdy = worldY - obj.y;
+    const angle = -(obj.rotation || 0) * Math.PI / 180;
+    const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
+    const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
+    
+    let handleX = 0, handleY = 0;
+    if (obj.shape === 'circle') {
+      const radius = Math.max(obj.width, obj.length) / 2;
+      handleX = radius * 0.707;
+      handleY = radius * 0.707;
+    } else {
+      handleX = obj.width / 2;
+      handleY = obj.length / 2;
+    }
+    
+    return Math.hypot(localX - handleX, localY - handleY) <= 15 / (window.cameraZoom || 1);
   }
 };
 
@@ -130,6 +152,7 @@ let dragOffsetY = 0;
 let isDraggingBackground = false;
 let isDraggingAdminImage = false;
 let isDraggingObject = false;
+let isResizingObject = false;
 let isDraggingNpc = false;
 let isDraggingAdminPanel = false;
 let adminPanelOffsetX = 0;
@@ -449,6 +472,11 @@ window.addEventListener('mousedown', (e) => {
     lastClickedElem.textContent = `Last Click: x: ${Math.round(worldX)}, y: ${Math.round(worldY)}`;
   }
 
+  if (window.selectedObject.get() && window.selectedObject.checkResizeHandleHit(worldX, worldY)) {
+    isResizingObject = true;
+    return;
+  }
+
   window.selectedObject.set(null);
   window.selectedNpc.set(null);
 
@@ -495,7 +523,30 @@ window.addEventListener('mousemove', (e) => {
     return;
   }
 
-  if (isDraggingObject && window.selectedObject.get()) {
+  if (isResizingObject && window.selectedObject.get()) {
+    const obj = window.selectedObject.get();
+    const canvasRect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - canvasRect.left;
+    const mouseY = e.clientY - canvasRect.top;
+
+    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
+    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
+
+    const bdx = worldX - obj.x;
+    const bdy = worldY - obj.y;
+    const angle = -(obj.rotation || 0) * Math.PI / 180;
+    const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
+    const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
+
+    if (obj.shape === 'circle') {
+      const newRadius = Math.max(5, Math.hypot(localX, localY));
+      obj.width = Math.round(newRadius * 2);
+      obj.length = Math.round(newRadius * 2);
+    } else {
+      obj.width = Math.max(10, Math.round(localX * 2));
+      obj.length = Math.max(10, Math.round(localY * 2));
+    }
+  } else if (isDraggingObject && window.selectedObject.get()) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
@@ -536,7 +587,16 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', () => {
-  if (isDraggingObject && window.selectedObject.get()) {
+  if (isResizingObject && window.selectedObject.get()) {
+    if (window.ws.readyState === WebSocket.OPEN) {
+      window.ws.send(JSON.stringify({
+        type: 'resize_object',
+        id: window.selectedObject.get().id,
+        width: window.selectedObject.get().width,
+        length: window.selectedObject.get().length
+      }));
+    }
+  } else if (isDraggingObject && window.selectedObject.get()) {
     if (window.ws.readyState === WebSocket.OPEN) {
       window.ws.send(JSON.stringify({
         type: 'move_object',
@@ -556,6 +616,7 @@ window.addEventListener('mouseup', () => {
     }
   }
   isDraggingObject = false;
+  isResizingObject = false;
   isDraggingNpc = false;
   isDraggingBackground = false;
   isDraggingAdminImage = false;
@@ -633,6 +694,28 @@ window.adminDraw = function () {
       ctx.rect(-obj.width / 2, -obj.length / 2, obj.width, obj.length);
     }
     ctx.fill();
+
+    if (window.selectedObject.get() && window.selectedObject.get().id === obj.id) {
+      let handleX = 0, handleY = 0;
+      if (obj.shape === 'circle') {
+        const radius = Math.max(obj.width, obj.length) / 2;
+        handleX = radius * 0.707;
+        handleY = radius * 0.707;
+      } else {
+        handleX = obj.width / 2;
+        handleY = obj.length / 2;
+      }
+
+      ctx.fillStyle = 'white';
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 2 / window.cameraZoom;
+      ctx.beginPath();
+      const s = 10 / window.cameraZoom;
+      ctx.rect(handleX - s/2, handleY - s/2, s, s);
+      ctx.fill();
+      ctx.stroke();
+    }
+
     ctx.restore();
   });
 
