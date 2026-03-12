@@ -1,4 +1,18 @@
 export const emotes = {
+  bounce: {
+    duration: 3600000, // 1 hour duration
+    message: "{name} is bouncing",
+    setup: (ctx, emote, c) => {
+      const danceTime = (Date.now() - emote.startTime) / 150;
+      const bounce = Math.abs(Math.sin(danceTime)) * -15;
+      const tilt = Math.sin(danceTime * 0.8) * 0.3;
+
+      ctx.translate(0, bounce);
+      ctx.rotate(tilt);
+    },
+    updateLimbs: (limbs, emote) => { },
+    draw: (ctx, emote) => { }
+  },
   dance: {
     duration: 5000,
     message: "{name} is dancing",

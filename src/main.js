@@ -913,27 +913,25 @@ function drawCharacter(c) {
   const scaleY = baseScale * heightScale;
   ctx.scale(scaleX, scaleY);
 
-  if (c.name === 'Talking Poop') {
-    ctx.font = '60px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
-    ctx.fillText('💩', 0, 0);
-  } else if (c.name === 'Dancing Toilet') {
+  if (c.name === 'Talking Poop' || c.name === 'Dancing Toilet') {
     ctx.font = '60px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
 
-    // Make the toilet dance (bounce and tilt)
-    const danceTime = Date.now() / 150;
-    const bounce = Math.abs(Math.sin(danceTime)) * -15;
-    const tilt = Math.sin(danceTime * 0.8) * 0.3;
+    let currentEmote = c.emote;
+    let emoteDef = null;
+    if (currentEmote && emotes[currentEmote.name]) {
+      emoteDef = emotes[currentEmote.name];
+      // Note: for emoji objects we ignore duration drops as they are likely permanent configs for NPCs like toilets, 
+      // but if a player managed to become an emoji, it would respect standard emote durations in the other branch.
+      // Simply applying setup here:
+      if (emoteDef.setup) {
+        emoteDef.setup(ctx, currentEmote, c);
+      }
+    }
 
-    ctx.translate(0, bounce);
-    ctx.rotate(tilt);
-
-    ctx.fillText('🚽', 0, 0);
+    ctx.fillText(c.name === 'Talking Poop' ? '💩' : '🚽', 0, 0);
   } else {
     const isActualNpc = window.init?.npcs && window.init.npcs.some(n => n.id === c.id);
     const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;

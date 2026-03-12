@@ -133,6 +133,10 @@
     "gender": "male",
     "shirtColor": "#ffffff",
     "pantsColor": "#ffffff",
-    "armColor": "#ffffff"
+    "armColor": "#ffffff",
+    "emote": {
+      "name": "bounce",
+      "startTime": 0
+    }
   }
 ]
