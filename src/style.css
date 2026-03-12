@@ -104,11 +104,9 @@ body {
 
 /* Chat System */
 #chat-container {
-  position: absolute;
-  bottom: 20px;
-  left: 20px;
-  z-index: 10;
-  width: 300px;
+  width: 100%;
+  max-width: 400px;
+  pointer-events: auto;
 }
 
 #chat-input {

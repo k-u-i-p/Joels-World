@@ -414,14 +414,14 @@ function update() {
           }
         } else {
           // Exited building
-          const dialogOverlay = document.getElementById('action-dialog');
+          const dialogOverlay = document.getElementById('action-dialog-content');
           if (dialogOverlay) dialogOverlay.style.display = 'none';
         }
       }
     } else {
       if (player.activeBuilding) {
         player.activeBuilding = null;
-        const dialogOverlay = document.getElementById('action-dialog');
+        const dialogOverlay = document.getElementById('action-dialog-content');
         if (dialogOverlay) dialogOverlay.style.display = 'none';
       }
     }
@@ -541,14 +541,14 @@ function executeNpcActions(npc, actions) {
     }
     
     if (action.show_dialog) {
-      const dialogOverlay = document.getElementById('action-dialog');
+      const dialogOverlay = document.getElementById('action-dialog-content');
       const dialogText = document.getElementById('action-dialog-text');
       const btnYes = document.getElementById('action-dialog-yes');
       const btnNo = document.getElementById('action-dialog-no');
 
       if (dialogOverlay && dialogText && btnYes && btnNo) {
         dialogText.textContent = action.show_dialog.description || 'Proceed?';
-        dialogOverlay.style.display = 'flex';
+        dialogOverlay.style.display = 'block';
 
         btnNo.onclick = () => {
           dialogOverlay.style.display = 'none';
