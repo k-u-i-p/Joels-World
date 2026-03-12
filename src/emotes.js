@@ -296,6 +296,53 @@ export const emotes = {
       ctx.restore();
     }
   },
+  rugby: {
+    duration: 3600000, // Lasts for 1 hour, or until player moves
+    message: "{name} is holding a rugby ball",
+    setup: (ctx, emote, c) => {},
+    updateLimbs: (limbs, emote) => {
+      // Hold ball under right arm
+      limbs.rightArmX = 4; limbs.rightArmY = 12; // arm tucked
+    },
+    draw: (ctx, emote) => {
+      ctx.save();
+      // Draw a brown rugby ball at the right arm position
+      ctx.translate(6, 10); // move to right arm area
+      ctx.rotate(Math.PI / 4); // tilt the ball
+      
+      // Brown ball body
+      ctx.fillStyle = '#8B4513';
+      ctx.beginPath();
+      if (ctx.ellipse) {
+        ctx.ellipse(0, 0, 7, 4, 0, 0, Math.PI * 2);
+      } else {
+        ctx.arc(0, 0, 5, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      
+      // White laces/stripes
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-4, 0);
+      ctx.lineTo(4, 0);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-2, -1);
+      ctx.lineTo(-2, 1);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(2, -1);
+      ctx.lineTo(2, 1);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -1);
+      ctx.lineTo(0, 1);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+  },
   sit: {
     duration: 3600000, // Lasts for 1 hour, or until player moves
     message: "{name} sat down",
