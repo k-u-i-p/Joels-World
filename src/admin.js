@@ -498,6 +498,38 @@ window.adminDraw = function () {
       ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
     }
     ctx.fillRect(-building.width / 2, -building.height / 2, building.width, building.height);
+
+    if (building.walls && building.walls.length > 0) {
+      ctx.save();
+      // Walls are relative to top-left of the building
+      ctx.translate(-building.width / 2, -building.height / 2);
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      
+      building.walls.forEach(wall => {
+        const wStartX = wall.x;
+        const wStartY = wall.y;
+        let wEndX = wStartX;
+        let wEndY = wStartY;
+
+        if (wall.endX !== undefined && wall.endY !== undefined) {
+          wEndX = wall.endX;
+          wEndY = wall.endY;
+        } else if (wall.height !== undefined) {
+          wEndY = wStartY + wall.height;
+        } else {
+          wEndX = wStartX + (wall.length || wall.width || 0);
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(wStartX, wStartY);
+        ctx.lineTo(wEndX, wEndY);
+        ctx.stroke();
+      });
+      
+      ctx.restore();
+    }
+
     ctx.restore();
   });
 

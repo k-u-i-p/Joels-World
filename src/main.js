@@ -277,7 +277,7 @@ function update() {
         } else if (obj.shape === 'rect') {
           let testX = newX;
           let testY = newY;
-          
+
           if (obj.rotation) {
             const angle = -obj.rotation * Math.PI / 180;
             const bdx = newX - obj.x;
@@ -775,8 +775,6 @@ function handleInitData(data) {
     window.characterScale = mapMetadata.character_scale || 1;
   }
 
-  console.log(mapsList)
-  console.log(window.mapsList)
   if (mapsList) {
     window.mapsList = mapsList;
     if (window.populateAdminMaps) window.populateAdminMaps();
