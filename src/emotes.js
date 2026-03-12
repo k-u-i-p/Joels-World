@@ -289,9 +289,7 @@ export const emotes = {
       const swimTime = (Date.now() - emote.startTime) / 200;
       const bob = Math.sin(swimTime) * 3;
       
-      // Rotate 90 degrees so they face "forward" in the water,
       // and bob them slightly.
-      ctx.rotate(Math.PI / 2);
       ctx.translate(0, bob);
     },
     updateLimbs: (limbs, emote) => {
