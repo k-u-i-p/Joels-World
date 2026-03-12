@@ -175,7 +175,19 @@ window.addEventListener('keyup', (e) => {
   }
 });
 
+// Global Audio Unlock for Mobile Safari
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  // Play a tiny silent wav file to unlock the HTML5 Audio context on the document
+  const dummy = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+  dummy.play().catch(() => {});
+}
 
+window.addEventListener('touchstart', unlockAudio, { once: true });
+window.addEventListener('pointerdown', unlockAudio, { once: true });
+window.addEventListener('keydown', unlockAudio, { once: true });
 
 // Player Entity
 let player = {
