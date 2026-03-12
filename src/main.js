@@ -856,6 +856,10 @@ const nameDialog = document.getElementById('name-dialog');
 const nameInput = document.getElementById('player-name-input');
 const startBtn = document.getElementById('start-game-btn');
 
+window.bgAudio = new Audio();
+window.bgAudio.loop = true;
+window.gameStarted = window.isAdmin || false;
+
 function attemptStartGame() {
   if (window.init !== null) {
     if (nameInput && nameInput.value.trim() !== '') {
@@ -863,6 +867,14 @@ function attemptStartGame() {
       syncPlayerToJSON(); // Save the new name right away
     }
     if (nameDialog) nameDialog.style.display = 'none';
+    window.gameStarted = true;
+    
+    // Play background audio if mapped
+    if (window.init.mapData && window.init.mapData.background_sound) {
+      window.bgAudio.src = window.init.mapData.background_sound;
+      window.bgAudio.play().catch(e => console.warn("Autoplay block:", e));
+    }
+
     requestAnimationFrame(gameLoop); // Kick off the game loop
   }
 }
@@ -903,6 +915,19 @@ function handleInitData(data) {
   if (mapMetadata) {
     if (mapMetadata.background) {
       window.mapImage.src = mapMetadata.background;
+    }
+    
+    // Handle dynamic map audio swapping if already playing
+    if (window.gameStarted) {
+      if (mapMetadata.background_sound) {
+        if (!window.bgAudio.src.endsWith(mapMetadata.background_sound)) {
+          window.bgAudio.src = mapMetadata.background_sound;
+          window.bgAudio.play().catch(e => console.warn("Autoplay block:", e));
+        }
+      } else {
+        window.bgAudio.pause();
+        window.bgAudio.src = "";
+      }
     }
   }
 

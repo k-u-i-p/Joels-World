@@ -7,7 +7,8 @@
     "background": "/grounds/background.jpg",
     "npcs": "grounds/npc.json",
     "character_scale": 1,
-    "objects": "grounds/objects.json"
+    "objects": "grounds/objects.json",
+    "background_sound": "media/the_wall.mp3"
   },
   {
     "id": 1,
