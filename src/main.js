@@ -789,14 +789,16 @@ function drawCharacters() {
  * Optimizes static NPC rendering by painting them onto an OffscreenCanvas once, 
  * then returning that canvas to be cheaply drawn each frame.
  * @param {Object} c - The character object data.
+ * @param {number} scale - The character scale multiplier from the map.
  * @returns {HTMLCanvasElement|OffscreenCanvas} Prerendered graphics context instance.
  */
-function getPrerenderedNpc(c) {
-  if (c.prerenderedCanvas) {
+function getPrerenderedNpc(c, scale = 1) {
+  if (c.prerenderedCanvas && c.prerenderedScale === scale) {
     return c.prerenderedCanvas;
   }
 
-  const size = 100;
+  const baseSize = 100;
+  const size = baseSize * scale;
   const canvas = window.OffscreenCanvas ? new OffscreenCanvas(size, size) : document.createElement('canvas');
   if (!window.OffscreenCanvas) {
     canvas.width = size;
@@ -805,6 +807,7 @@ function getPrerenderedNpc(c) {
   const octx = canvas.getContext('2d');
 
   octx.translate(size / 2, size / 2);
+  octx.scale(scale, scale);
 
   const limbs = {
     leftArmX: 4, leftArmY: -14,
@@ -869,6 +872,7 @@ function getPrerenderedNpc(c) {
   octx.strokeStyle = 'rgba(0,0,0,0.4)';
   octx.stroke();
 
+  c.prerenderedScale = scale;
   c.prerenderedCanvas = canvas;
   return canvas;
 }
@@ -913,8 +917,14 @@ function drawCharacter(c) {
     const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;
 
     if (isActualNpc && !hasMovement && !c.emote) {
-      const prCnv = getPrerenderedNpc(c);
+      const prCnv = getPrerenderedNpc(c, scale);
+      // We pass the unscaled width/height because the prerendered canvas already baked the scale in.
+      // But we still need to offset by its raw dimensions.
+      // Reset the main context scale temporarily because the cache already has it applied
+      ctx.save();
+      ctx.scale(1/scale, 1/scale);
       ctx.drawImage(prCnv, -prCnv.width / 2, -prCnv.height / 2);
+      ctx.restore();
     } else {
       let currentEmote = c.emote;
       let emoteDef = null;

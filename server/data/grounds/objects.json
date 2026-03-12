@@ -39,7 +39,16 @@
     "rotation": 98,
     "width": 317,
     "length": 474,
-    "clip": -1
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 3,
+          "description": "Do you want to enter the Pool building?"
+        }
+      }
+    ]
   },
   {
     "id": 13,

@@ -14,8 +14,8 @@
   {
     "id": 1,
     "name": "Detention",
-    "width": 1952,
-    "height": 2146,
+    "width": 2048,
+    "height": 2048,
     "background": "/detention/background.jpg",
     "npcs": "detention/npc.json",
     "character_scale": 4,
@@ -28,11 +28,23 @@
     "name": "Main Building",
     "width": 1952,
     "height": 2146,
-    "background": "/main_building/background2.png",
+    "background": "/main_building/background.png",
     "npcs": "main_building/npc.json",
     "character_scale": 1.5,
     "objects": "main_building/objects.json",
     "background_sound": "media/playground_sound_effect.mp3",
     "spawn_area": 9
+  },
+  {
+    "id": 3,
+    "name": "Pool",
+    "width": 2752,
+    "height": 1536,
+    "background": "/pool/background.png",
+    "npcs": "pool/npc.json",
+    "character_scale": 2,
+    "objects": "pool/objects.json",
+    "background_sound": "media/pool_sound_effect.mp3",
+    "spawn_area": 1
   }
 ]
