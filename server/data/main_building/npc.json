@@ -38,12 +38,10 @@
         "armColor": "#ff69b4",
         "on_enter": [
             {
-                "avatar": "avatars/summer.jpg",
                 "say": [
                     "Hi {name}!",
                     "I'm 6 years old!",
-                    "Ms Crosbie is my teacher!",
-                    "I know all about natural disasters!"
+                    "Ms Crosbie is my teacher!"
                 ]
             }
         ],

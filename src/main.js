@@ -440,7 +440,7 @@ function update() {
         if (newBuilding) {
           const matchedObj = actuallyInObject[0];
           if (matchedObj.on_enter && (typeof matchedObj.on_enter === 'number' || matchedObj.on_enter.length > 0)) {
-            executeNpcActions(matchedObj, matchedObj.on_enter);
+            executeEvents(matchedObj, matchedObj.on_enter);
           }
         } else {
           // Exited building
@@ -566,7 +566,7 @@ function update() {
         prevNpc.activeAudio = null;
       }
       if (prevNpc.on_exit && (typeof prevNpc.on_exit === 'number' || prevNpc.on_exit.length > 0)) {
-        executeNpcActions(prevNpc, prevNpc.on_exit);
+        executeEvents(prevNpc, prevNpc.on_exit);
       }
       // Auto-clear avatar when walking away from an NPC
       const container = UI.avatarsContainer;
@@ -581,7 +581,7 @@ function update() {
   if (closestNpc && activeNpc !== closestNpc.id) {
     activeNpc = closestNpc.id;
     if (closestNpc.on_enter && (typeof closestNpc.on_enter === 'number' || closestNpc.on_enter.length > 0)) {
-      executeNpcActions(closestNpc, closestNpc.on_enter);
+      executeEvents(closestNpc, closestNpc.on_enter);
     }
   }
 
@@ -603,10 +603,10 @@ function update() {
 /**
  * Executes a sequence of NPC or interactive object actions, including dialogs,
  * sounds, avatars, map transitions, or chat messages.
- * @param {Object} npc - The NPC character or building object executing the actions.
+ * @param {Object} sourceObj - The character, building, or map object executing the actions.
  * @param {Array|number} rawActions - The actions array, or an integer pointing to another object's actions list.
  */
-function executeNpcActions(npc, rawActions) {
+function executeEvents(sourceObj, rawActions) {
   let actions = rawActions;
   if (typeof rawActions === 'number') {
     const parentObj = window.init?.objects?.find(o => o.id === rawActions);
@@ -618,12 +618,12 @@ function executeNpcActions(npc, rawActions) {
     if (action.avatar) {
       const container = UI.avatarsContainer;
       if (container) {
-        let el = container.querySelector(`[data-npc-id="${npc.id}"]`);
+        let el = container.querySelector(`[data-npc-id="${sourceObj.id}"]`);
         const avatarSrc = action.avatar.startsWith('/') ? action.avatar : '/' + action.avatar;
 
         if (!el) {
           el = document.createElement('img');
-          el.dataset.npcId = npc.id;
+          el.dataset.npcId = sourceObj.id;
           el.src = avatarSrc;
           el.style.width = '128px';
           el.style.height = '128px';
@@ -644,8 +644,8 @@ function executeNpcActions(npc, rawActions) {
       } else {
         randomMsg = randomMsg.replace(/{name}/g, 'Student');
       }
-      npc.chatMessage = randomMsg;
-      npc.chatTime = Date.now();
+      sourceObj.chatMessage = randomMsg;
+      sourceObj.chatTime = Date.now();
     }
 
     if (action.show_dialog) {
@@ -679,16 +679,29 @@ function executeNpcActions(npc, rawActions) {
     }
 
     if (action.play_sound && action.play_sound.sound) {
-      if (npc.activeAudio) {
-        npc.activeAudio.pause();
-        npc.activeAudio.currentTime = 0;
-      }
       const soundSrc = action.play_sound.sound.startsWith('/') ? action.play_sound.sound : '/' + action.play_sound.sound;
-      npc.activeAudio = new Audio(soundSrc);
-      if (typeof action.play_sound.volume === 'number') {
-        npc.activeAudio.volume = Math.max(0, Math.min(1, action.play_sound.volume));
+      const isMapObj = (sourceObj === window.init?.mapData) || (sourceObj.id === 'map');
+
+      if (isMapObj) {
+        if (!window.bgAudio.src.endsWith(soundSrc)) {
+          window.bgAudio.pause();
+          window.bgAudio.src = soundSrc;
+          if (typeof action.play_sound.volume === 'number') {
+            window.bgAudio.volume = Math.max(0, Math.min(1, action.play_sound.volume));
+          }
+          window.bgAudio.play().catch(e => console.warn("Failed to play bg sound:", e));
+        }
+      } else {
+        if (sourceObj.activeAudio) {
+          sourceObj.activeAudio.pause();
+          sourceObj.activeAudio.currentTime = 0;
+        }
+        sourceObj.activeAudio = new Audio(soundSrc);
+        if (typeof action.play_sound.volume === 'number') {
+          sourceObj.activeAudio.volume = Math.max(0, Math.min(1, action.play_sound.volume));
+        }
+        sourceObj.activeAudio.play().catch(e => console.warn("Failed to play sound:", e));
       }
-      npc.activeAudio.play().catch(e => console.warn("Failed to play sound:", e));
     }
   }
 }
@@ -1125,10 +1138,9 @@ function attemptStartGame() {
     if (nameDialog) nameDialog.style.display = 'none';
     window.gameStarted = true;
 
-    // Play background audio if mapped
-    if (window.init.mapData && window.init.mapData.background_sound) {
-      window.bgAudio.src = window.init.mapData.background_sound;
-      window.bgAudio.play().catch(e => console.warn("Autoplay block:", e));
+    // Initial load map events
+    if (window.init.mapData && window.init.mapData.on_enter) {
+      executeEvents(window.init.mapData, window.init.mapData.on_enter);
     }
 
     checkInitialSpawn();
@@ -1188,11 +1200,8 @@ function handleInitData(data) {
 
     // Handle dynamic map audio swapping if already playing
     if (window.gameStarted) {
-      if (mapMetadata.background_sound) {
-        if (!window.bgAudio.src.endsWith(mapMetadata.background_sound)) {
-          window.bgAudio.src = mapMetadata.background_sound;
-          window.bgAudio.play().catch(e => console.warn("Autoplay block:", e));
-        }
+      if (mapMetadata.on_enter) {
+        executeEvents(mapMetadata, mapMetadata.on_enter);
       } else {
         window.bgAudio.pause();
         window.bgAudio.src = "";
@@ -1257,7 +1266,7 @@ function checkInitialSpawn() {
       player.activeBuilding = newBuilding;
       const matchedObj = actuallyInObject[0];
       if (matchedObj.on_enter && (typeof matchedObj.on_enter === 'number' || matchedObj.on_enter.length > 0)) {
-        executeNpcActions(matchedObj, matchedObj.on_enter);
+        executeEvents(matchedObj, matchedObj.on_enter);
       }
     }
   }

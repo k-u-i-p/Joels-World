@@ -8,8 +8,15 @@
     "npcs": "grounds/npc.json",
     "character_scale": 1,
     "objects": "grounds/objects.json",
-    "background_sound": "media/the_wall.mp3",
-    "spawn_area": 19
+    "spawn_area": 19,
+    "on_enter": [
+      {
+        "play_sound": {
+          "sound": "media/the_wall.mp3",
+          "volume": 1
+        }
+      }
+    ]
   },
   {
     "id": 1,
@@ -20,8 +27,15 @@
     "npcs": "detention/npc.json",
     "character_scale": 4,
     "objects": "detention/objects.json",
-    "background_sound": "media/ticking_clock.mp3",
-    "spawn_area": 18
+    "spawn_area": 18,
+    "on_enter": [
+      {
+        "play_sound": {
+          "sound": "media/ticking_clock.mp3",
+          "volume": 1
+        }
+      }
+    ]
   },
   {
     "id": 2,
@@ -32,8 +46,15 @@
     "npcs": "main_building/npc.json",
     "character_scale": 1.5,
     "objects": "main_building/objects.json",
-    "background_sound": "media/playground_sound_effect.mp3",
-    "spawn_area": 9
+    "spawn_area": 9,
+    "on_enter": [
+      {
+        "play_sound": {
+          "sound": "media/playground_sound_effect.mp3",
+          "volume": 1
+        }
+      }
+    ]
   },
   {
     "id": 3,
@@ -44,7 +65,14 @@
     "npcs": "pool/npc.json",
     "character_scale": 2,
     "objects": "pool/objects.json",
-    "background_sound": "media/pool_sound_effect.mp3",
-    "spawn_area": 1
+    "spawn_area": 1,
+    "on_enter": [
+      {
+        "play_sound": {
+          "sound": "media/pool_sound_effect.mp3",
+          "volume": 1
+        }
+      }
+    ]
   }
 ]
