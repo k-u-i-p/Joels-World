@@ -177,13 +177,27 @@ window.addEventListener('keyup', (e) => {
 
 // Global Audio Unlock for Mobile Safari
 let audioUnlocked = false;
+window.audioPool = Array.from({ length: 10 }, () => new Audio());
+
 function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
   // Play a tiny silent wav file to unlock the HTML5 Audio context on the document
-  const dummy = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
-  dummy.play().catch(() => {});
+  const dummySrc = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+  window.audioPool.forEach(audio => {
+    audio.src = dummySrc;
+    audio.play().catch(() => {});
+  });
 }
+
+window.playPooledAudio = (src, volume = 1) => {
+  const available = window.audioPool.find(a => a.paused || a.ended) || window.audioPool[0];
+  available.pause();
+  available.src = src;
+  available.volume = volume;
+  available.play().catch(e => console.warn("Failed to play pooled sound:", e));
+  return available;
+};
 
 window.addEventListener('touchstart', unlockAudio, { once: true });
 window.addEventListener('pointerdown', unlockAudio, { once: true });

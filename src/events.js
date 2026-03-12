@@ -89,11 +89,8 @@ export const EventHandlers = {
           sourceObj.activeAudio.pause();
           sourceObj.activeAudio.currentTime = 0;
         }
-        sourceObj.activeAudio = new Audio(soundSrc);
-        if (typeof payload.volume === 'number') {
-          sourceObj.activeAudio.volume = Math.max(0, Math.min(1, payload.volume));
-        }
-        sourceObj.activeAudio.play().catch(e => console.warn("Failed to play sound:", e));
+        let targetVolume = typeof payload.volume === 'number' ? Math.max(0, Math.min(1, payload.volume)) : 1;
+        sourceObj.activeAudio = window.playPooledAudio(soundSrc, targetVolume);
       }
     }
   },
