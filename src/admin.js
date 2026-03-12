@@ -67,7 +67,6 @@ function bindHoldAction(id, action, syncAction) {
   btn.addEventListener('contextmenu', e => e.preventDefault());
 }
 
-let draggedObject = null;
 let selectedObject = null;
 
 let dragOffsetX = 0;
@@ -102,7 +101,6 @@ document.getElementById('btn-delete-obj').onclick = () => {
   if (selectedObject && window.ws.readyState === WebSocket.OPEN) {
     window.ws.send(JSON.stringify({ type: 'delete_object', id: selectedObject.id }));
     selectedObject = null;
-    draggedObject = null;
     window.adminSelectedObject = null;
     updateAdminPanel();
   }
@@ -213,7 +211,6 @@ window.addEventListener('mousedown', (e) => {
 
   selectedObject = null;
   window.adminSelectedObject = null;
-  draggedObject = null;
   const objects = window.objects || [];
 
   for (let i = objects.length - 1; i >= 0; i--) {
@@ -238,7 +235,6 @@ window.addEventListener('mousedown', (e) => {
 
     if (hit) {
       console.log(`Dragging object: ${obj.id}`);
-      draggedObject = obj;
       selectedObject = obj;
       window.adminSelectedObject = obj;
       dragOffsetX = obj.x - worldX;
@@ -247,7 +243,7 @@ window.addEventListener('mousedown', (e) => {
     }
   }
 
-  if (!draggedObject && !e.target.closest('#admin-panel')) {
+  if (!selectedObject && !e.target.closest('#admin-panel')) {
     if (e.shiftKey && window.adminBackgroundImage) {
       isDraggingAdminImage = true;
       bgDragOffsetX = (window.adminBackgroundImage._x || 0) - worldX;
@@ -264,7 +260,7 @@ window.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
-  if (draggedObject) {
+  if (selectedObject && e.buttons === 1) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
@@ -272,8 +268,8 @@ window.addEventListener('mousemove', (e) => {
     const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
     const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
-    draggedObject.x = Math.round(worldX + dragOffsetX);
-    draggedObject.y = Math.round(worldY + dragOffsetY);
+    selectedObject.x = Math.round(worldX + dragOffsetX);
+    selectedObject.y = Math.round(worldY + dragOffsetY);
   } else if (isDraggingAdminImage && window.adminBackgroundImage) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
@@ -295,16 +291,15 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', () => {
-  if (draggedObject) {
+  if (selectedObject) {
     if (window.ws.readyState === WebSocket.OPEN) {
       window.ws.send(JSON.stringify({
         type: 'move_object',
-        id: draggedObject.id,
-        x: draggedObject.x,
-        y: draggedObject.y
+        id: selectedObject.id,
+        x: selectedObject.x,
+        y: selectedObject.y
       }));
     }
-    draggedObject = null;
   }
   isDraggingBackground = false;
   isDraggingAdminImage = false;
