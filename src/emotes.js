@@ -22,11 +22,23 @@ export const emotes = {
         // Parabolic jump arc: max height at 400ms
         const progress = age / 800;
         // y = -x * (x - 1) * 4 * height
-        const height = progress * (1 - progress) * 4 * 35; // 35 pixels high
+        const height = progress * (1 - progress) * 4 * 50; // 50 pixels high
+
+        // Draw shadow on the ground before translating up
+        ctx.save();
+        ctx.globalAlpha = 0.3 * (1 - height / 60);
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        // Since ctx.ellipse might not be supported on very old browsers, we use arc + scale
+        ctx.scale(1, 0.5);
+        ctx.arc(0, 0, Math.max(0.1, 20 - height / 3), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
         ctx.translate(0, -height);
         
         // Slight lean forward while jumping
-        const tilt = Math.sin(progress * Math.PI) * 0.3;
+        const tilt = Math.sin(progress * Math.PI) * 0.4;
         ctx.rotate(tilt);
       }
     },
@@ -35,29 +47,65 @@ export const emotes = {
       if (age < 800) {
         const progress = age / 800;
         
-        // Mid-air pose: knees tucked to clear turnstile
-        if (progress > 0.1 && progress < 0.9) {
-          limbs.leftLegStartY = -6; limbs.leftLegEndY = -8; limbs.leftLegEndX = -10;
-          limbs.rightLegStartY = 6; limbs.rightLegEndY = 8; limbs.rightLegEndX = -10;
-          
-          // Arms thrown back for momentum
-          limbs.leftArmX = -6; limbs.leftArmY = -18;
-          limbs.rightArmX = -6; limbs.rightArmY = 18;
-        }
+        // Easing function for tucking knees (smooth instead of sharp)
+        // A parabola that peaks at 0.5
+        const tuck = Math.sin(progress * Math.PI);
+
+        // Smoothly tuck knees up toward the body
+        limbs.leftLegStartY = -6; 
+        limbs.leftLegEndY = -6 - 2 * tuck; 
+        limbs.leftLegEndX = -2 - 12 * tuck;
+        
+        limbs.rightLegStartY = 6; 
+        limbs.rightLegEndY = 6 + 2 * tuck; 
+        limbs.rightLegEndX = -2 - 12 * tuck;
+        
+        // Arms swing forward on jump, throw back in air, forward on land.
+        // Let's make arms follow a cosine wave.
+        const armSwing = Math.cos(progress * Math.PI * 2); 
+        
+        limbs.leftArmX = 4 + armSwing * 10; 
+        limbs.leftArmY = -14 + armSwing * 4;
+        
+        limbs.rightArmX = 4 + armSwing * 10; 
+        limbs.rightArmY = 14 - armSwing * 4;
       }
     },
     draw: (ctx, emote) => {
       const age = Date.now() - emote.startTime;
       if (age < 800) {
+        const progress = age / 800;
         // Draw little motion lines trailing behind
         ctx.save();
-        ctx.globalAlpha = 0.5 * (1 - (age / 800));
+        ctx.globalAlpha = 0.5 * (1 - progress);
+        const trailOffset = -20 * progress;
         ctx.beginPath();
-        ctx.moveTo(-20, -10); ctx.lineTo(-40, -15);
-        ctx.moveTo(-20, 10); ctx.lineTo(-40, 15);
+        ctx.moveTo(-15 + trailOffset, -10); ctx.lineTo(-35 + trailOffset, -15);
+        ctx.moveTo(-15 + trailOffset, 10); ctx.lineTo(-35 + trailOffset, 15);
         ctx.strokeStyle = '#ecf0f1';
         ctx.lineWidth = 2;
         ctx.stroke();
+
+        // Dust clouds on takeoff and landing
+        if (progress < 0.25) {
+          const dustP = progress / 0.25; 
+          ctx.globalAlpha = Math.max(0, 1 - dustP * 1.5);
+          ctx.fillStyle = '#bdc3c7';
+          ctx.beginPath();
+          ctx.arc(-10 - dustP * 20, 10 + dustP * 10, 4 + dustP * 4, 0, Math.PI * 2);
+          ctx.arc(-10 - dustP * 20, -10 - dustP * 10, 4 + dustP * 4, 0, Math.PI * 2);
+          ctx.arc(-5 - dustP * 10, 0 + dustP * 4, 5 + dustP * 6, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (progress > 0.75) {
+          const dustP = (progress - 0.75) / 0.25; 
+          ctx.globalAlpha = Math.max(0, 1 - dustP * 1.5);
+          ctx.fillStyle = '#bdc3c7';
+          ctx.beginPath();
+          ctx.arc(10 + dustP * 20, 10 + dustP * 10, 5 + dustP * 5, 0, Math.PI * 2);
+          ctx.arc(10 + dustP * 20, -10 - dustP * 10, 5 + dustP * 5, 0, Math.PI * 2);
+          ctx.arc(5 + dustP * 10, 0 + dustP * 4, 6 + dustP * 7, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       }
     }
