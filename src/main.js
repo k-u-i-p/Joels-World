@@ -207,7 +207,7 @@ window.addEventListener('keydown', unlockAudio, { once: true });
 // Player Entity
 let player = {
   id: 'player1',
-  moveSpeed: 3,
+  moveSpeed: 2,
   rotationSpeed: 3,
   legAnimationTime: 0,
   emote: null,
@@ -430,24 +430,24 @@ function update() {
       const progress = jumpAge / 800;
       // Burst of speed tapering down as they hit the ground
       const jumpVel = (player.moveSpeed || 3) * 1.0 * (1 - progress);
-      dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * jumpVel);
-      dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * jumpVel);
+      dx += Math.cos(player.rotation * Math.PI / 180) * jumpVel;
+      dy += Math.sin(player.rotation * Math.PI / 180) * jumpVel;
     }
   }
 
   if (!emoteForcedMove) {
     if (keys.TouchMove) {
-      dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
-      dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+      dx += Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
+      dy += Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
     } else {
       // Keyboard tank controls
       if (keys.ArrowUp) {
-        dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
-        dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+        dx += Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
+        dy += Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
       }
       if (keys.ArrowDown) {
-        dx -= Math.round(Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
-        dy -= Math.round(Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3));
+        dx -= Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
+        dy -= Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
       }
     }
   }
@@ -781,11 +781,11 @@ function draw() {
       ctx.globalAlpha = Math.max(0, 0.6 * (1 - age / 10000));
       ctx.translate(f.x, f.y);
       ctx.rotate(f.rot * Math.PI / 180);
-      
+
       ctx.fillStyle = '#74b9ff'; // wet footprint color
-      
+
       const offsetX = f.isLeft ? -5 : 5;
-      
+
       ctx.beginPath();
       if (ctx.ellipse) {
         ctx.ellipse(offsetX, -4, 2.5, 4.5, 0, 0, Math.PI * 2);
