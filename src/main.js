@@ -429,7 +429,7 @@ function update() {
       emoteForcedMove = true;
       const progress = jumpAge / 800;
       // Burst of speed tapering down as they hit the ground
-      const jumpVel = (player.moveSpeed || 3) * 2.5 * (1 - progress);
+      const jumpVel = (player.moveSpeed || 3) * 1.0 * (1 - progress);
       dx += Math.round(Math.cos(player.rotation * Math.PI / 180) * jumpVel);
       dy += Math.round(Math.sin(player.rotation * Math.PI / 180) * jumpVel);
     }
