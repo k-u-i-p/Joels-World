@@ -993,7 +993,7 @@ function drawCharacter(c) {
       let emoteDef = null;
       if (currentEmote && emotes[currentEmote.name]) {
         emoteDef = emotes[currentEmote.name];
-        if (Date.now() - currentEmote.startTime > emoteDef.duration) {
+        if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
           c.emote = null;
           currentEmote = null;
           if (c === player) syncPlayerToJSON();
