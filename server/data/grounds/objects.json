@@ -83,11 +83,11 @@
     "clip": -1
   },
   {
-    "id": "8_13_main_building",
-    "name": "8-13 Main Building",
+    "id": "main_building",
+    "name": "Main School Building",
     "shape": "rect",
-    "x": 981,
-    "y": 734,
+    "x": 973,
+    "y": 729,
     "rotation": -1,
     "width": 1067,
     "length": 591,
@@ -150,11 +150,11 @@
     "id": "track_field",
     "name": "Track & Field",
     "shape": "rect",
-    "x": -617,
-    "y": 879,
+    "x": -587,
+    "y": 870,
     "rotation": 17,
-    "width": 1576,
-    "length": 1165,
+    "width": 1641,
+    "length": 1150,
     "clip": -1
   },
   {
@@ -177,28 +177,6 @@
     "rotation": 38,
     "width": 319,
     "length": 256,
-    "clip": -1
-  },
-  {
-    "id": "building_1773231981197",
-    "name": "2 To 8 Main Building",
-    "shape": "rect",
-    "x": -1187,
-    "y": -1476,
-    "rotation": 41,
-    "width": 256,
-    "length": 415,
-    "clip": -1
-  },
-  {
-    "id": "building_1773231981381",
-    "name": "13 to 18 Main Building",
-    "shape": "rect",
-    "x": 787,
-    "y": -1506,
-    "rotation": 0,
-    "width": 940,
-    "length": 392,
     "clip": -1
   }
 ]

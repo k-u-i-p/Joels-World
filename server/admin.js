@@ -87,6 +87,8 @@ export function handleAdminMessage(ws, data, mapData) {
     } else {
       if (data.name !== undefined) newObj.name = data.name;
       if (data.rotation !== undefined) newObj.rotation = data.rotation;
+      if (data.width !== undefined) newObj.width = data.width;
+      if (data.length !== undefined) newObj.length = data.length;
     }
     
     objects.push(newObj);
