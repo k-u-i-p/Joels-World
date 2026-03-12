@@ -17,7 +17,8 @@
                 "say": [
                     "Welcome to the main building, {name}!",
                     "I don't think much of the new classrooms!",
-                    "Have you ever been trials riding?"
+                    "Have you ever been trials riding?",
+                    "Want to make a volcano {name}?"
                 ]
             }
         ],

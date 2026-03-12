@@ -586,6 +586,9 @@ function executeNpcActions(npc, actions) {
       }
       const soundSrc = action.play_sound.sound.startsWith('/') ? action.play_sound.sound : '/' + action.play_sound.sound;
       npc.activeAudio = new Audio(soundSrc);
+      if (typeof action.play_sound.volume === 'number') {
+        npc.activeAudio.volume = Math.max(0, Math.min(1, action.play_sound.volume));
+      }
       npc.activeAudio.play().catch(e => console.warn("Failed to play sound:", e));
     }
   }
@@ -923,7 +926,7 @@ function handleInitData(data) {
   if (!window.init.characters) window.init.characters = [];
   if (!window.init.npcs) window.init.npcs = [];
   activeNpc = null;
-  
+
   const avatarsContainer = document.getElementById('avatars-container');
   if (avatarsContainer) {
     avatarsContainer.innerHTML = '';

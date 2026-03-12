@@ -91,8 +91,8 @@
     "on_enter": [
       {
         "play_sound": {
-          "type": "play_sound",
-          "sound": "media/f150.mp3"
+          "sound": "media/f150.mp3",
+          "volume": 0.25
         }
       }
     ]
