@@ -178,7 +178,7 @@ export function setupWebSocket(server) {
         height: mapData.height,
         background: mapData.background,
         character_scale: mapData.character_scale || 1,
-        background_sound: mapData.background_sound
+        on_enter: mapData.on_enter
       },
       mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
     }));
@@ -266,7 +266,7 @@ export function setupWebSocket(server) {
                 height: mapData.height,
                 background: mapData.background,
                 character_scale: mapData.character_scale || 1,
-                background_sound: mapData.background_sound
+                on_enter: mapData.on_enter
               },
               mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
             }));

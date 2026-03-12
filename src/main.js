@@ -613,6 +613,8 @@ function executeEvents(sourceObj, rawActions) {
     if (!parentObj || !parentObj.on_enter) return;
     actions = parentObj.on_enter;
   }
+  
+  if (!actions || !Array.isArray(actions)) return;
 
   for (const action of actions) {
     if (action.avatar) {

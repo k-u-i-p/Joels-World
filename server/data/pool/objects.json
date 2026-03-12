@@ -8,13 +8,23 @@
     "rotation": 0,
     "width": 297,
     "length": 139,
+    "clip": -1
+  },
+  {
+    "id": 2,
+    "shape": "rect",
+    "x": 756,
+    "y": -660,
+    "width": 156,
+    "length": 198,
+    "name": "Pool Exit",
     "clip": -1,
     "on_enter": [
       {
         "show_dialog": {
           "type": "change_map",
           "map": 0,
-          "description": "Do you want to exit to the School Grounds?"
+          "description": "Do you want to exit the pool?"
         }
       }
     ]
