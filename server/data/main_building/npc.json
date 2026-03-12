@@ -1,54 +1,53 @@
 [
-  {
-    "id": 1,
-    "name": "Ms Crosbie",
-    "x": -690,
-    "y": 619,
-    "width": 48,
-    "height": 48,
-    "rotation": 0,
-    "gender": "female",
-    "shirtColor": "#e74c3c",
-    "pantsColor": "#2c3e50",
-    "armColor": "#e74c3c",
-    "on_enter": [
-      {
-        "avatar": "avatars/ms_crosbie.png",
-        "say": [
-          "Welcome to the main building, {name}!",
-          "I don't think much of the new classrooms!",
-          "Have you ever been trials riding?",
-          "Want to make a volcano {name}?",
-          "If you're not offering me pasta or a heated blanket, keep walking.",
-          "This school feels like an escape room, but nobody gave me the clues.",
-          "Forward. Only forward. Always forward... mostly toward the staff room.",
-          "I’m operating on three hours of sleep and pure sarcasm."
-        ]
-      }
-    ],
-    "on_exit": []
-  },
-  {
-    "id": 2,
-    "name": "Summer",
-    "x": -541,
-    "y": 776,
-    "width": 29,
-    "height": 29,
-    "rotation": 240,
-    "gender": "female",
-    "shirtColor": "#ff69b4",
-    "pantsColor": "#3498db",
-    "armColor": "#ff69b4",
-    "on_enter": [
-      {
-        "say": [
-          "Hi {name}!",
-          "I'm 6 years old!",
-          "Ms Crosbie is my teacher!"
-        ]
-      }
-    ],
-    "on_exit": []
-  }
+    {
+        "id": 1,
+        "name": "Ms Crosbie",
+        "x": -690,
+        "y": 619,
+        "width": 48,
+        "height": 48,
+        "rotation": 0,
+        "gender": "female",
+        "shirtColor": "#e74c3c",
+        "pantsColor": "#2c3e50",
+        "armColor": "#e74c3c",
+        "on_enter": [
+            {
+                "avatar": "avatars/ms_crosbie.png",
+                "say": [
+                    "I don't think much of the new classrooms!",
+                    "Have you ever been trials riding?",
+                    "Want to make a volcano {name}?",
+                    "If you're not offering me pasta or a heated blanket, keep walking.",
+                    "This school feels like an escape room, but nobody gave me the clues.",
+                    "Forward. Only forward. Always forward... mostly toward the staff room.",
+                    "I’m operating on three hours of sleep and pure sarcasm."
+                ]
+            }
+        ],
+        "on_exit": []
+    },
+    {
+        "id": 2,
+        "name": "Summer",
+        "x": -541,
+        "y": 776,
+        "width": 29,
+        "height": 29,
+        "rotation": 240,
+        "gender": "female",
+        "shirtColor": "#ff69b4",
+        "pantsColor": "#3498db",
+        "armColor": "#ff69b4",
+        "on_enter": [
+            {
+                "say": [
+                    "Hi {name}!",
+                    "I'm 6 years old!",
+                    "Ms Crosbie is my teacher!"
+                ]
+            }
+        ],
+        "on_exit": []
+    }
 ]
