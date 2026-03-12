@@ -766,7 +766,7 @@ window.adminDraw = function () {
     }
 
     if (window.selectedObject.get() && window.selectedObject.get().id === obj.id) {
-      ctx.fillStyle = 'purple';
+      ctx.fillStyle = 'rgba(128, 0, 128, 0.5)';
     } else if (obj.noclip || obj.clip === -1) {
       ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
     } else {
