@@ -69,7 +69,7 @@ function bindHoldAction(id, action, syncAction) {
   btn.addEventListener('contextmenu', e => e.preventDefault());
 }
 
-let draggedObject = null;
+let isDraggingSelectedObject = false;
 let selectedObject = null;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
@@ -104,7 +104,7 @@ document.getElementById('btn-delete-building').onclick = () => {
   if (selectedObject && selectedObject.type === 'building' && window.ws.readyState === WebSocket.OPEN) {
     window.ws.send(JSON.stringify({ type: 'delete_building', id: selectedObject.data.id }));
     selectedObject = null;
-    draggedObject = null;
+    isDraggingSelectedObject = false;
     window.adminSelectedObject = null;
     updateAdminPanel();
   }
@@ -114,7 +114,7 @@ document.getElementById('btn-delete-col').onclick = () => {
   if (selectedObject && selectedObject.type === 'collision_object' && window.ws.readyState === WebSocket.OPEN) {
     window.ws.send(JSON.stringify({ type: 'delete_collision_object', id: selectedObject.data.id }));
     selectedObject = null;
-    draggedObject = null;
+    isDraggingSelectedObject = false;
     window.adminSelectedObject = null;
     updateAdminPanel();
   }
@@ -299,9 +299,7 @@ window.addEventListener('mousedown', (e) => {
   const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
   const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
-  selectedObject = null;
-  window.adminSelectedObject = null;
-  draggedObject = null;
+  let clickedObject = null;
 
   const buildings = getBuildings();
   const collisionObjects = getCollisionObjects() || [];
@@ -310,7 +308,7 @@ window.addEventListener('mousedown', (e) => {
   for (let i = collisionObjects.length - 1; i >= 0; i--) {
     const obj = collisionObjects[i];
     let hit = false;
-      if (obj.shape === 'circle') {
+    if (obj.shape === 'circle') {
       const radius = Math.max(obj.width, obj.length) / 2;
       if (Math.hypot(worldX - obj.x, worldY - obj.y) <= radius) hit = true;
     } else {
@@ -328,32 +326,33 @@ window.addEventListener('mousedown', (e) => {
     }
 
     if (hit) {
-      console.log(`Dragging collision object: ${obj.id}`);
-      draggedObject = { type: 'collision_object', data: obj };
-      selectedObject = { type: 'collision_object', data: obj };
-      window.adminSelectedObject = obj;
-      dragOffsetX = obj.x - worldX;
-      dragOffsetY = obj.y - worldY;
+      clickedObject = { type: 'collision_object', data: obj };
       break;
     }
   }
 
-  if (!draggedObject) {
+  if (!clickedObject) {
     for (let i = buildings.length - 1; i >= 0; i--) {
       const building = buildings[i];
       if (isPointInBuilding(worldX, worldY, building)) {
-        console.log(`Dragging building: ${building.id}`);
-        draggedObject = { type: 'building', data: building };
-        selectedObject = { type: 'building', data: building };
-        window.adminSelectedObject = building;
-        dragOffsetX = building.x - worldX;
-        dragOffsetY = building.y - worldY;
+        clickedObject = { type: 'building', data: building };
         break;
       }
     }
   }
 
-  if (!draggedObject && !e.target.closest('#admin-panel')) {
+  if (clickedObject) {
+    if (selectedObject && selectedObject.data.id === clickedObject.data.id && selectedObject.type === clickedObject.type) {
+      isDraggingSelectedObject = true;
+      dragOffsetX = clickedObject.data.x - worldX;
+      dragOffsetY = clickedObject.data.y - worldY;
+    } else {
+      selectedObject = clickedObject;
+      window.adminSelectedObject = clickedObject.data;
+    }
+  } else if (!e.target.closest('#admin-panel')) {
+    selectedObject = null;
+    window.adminSelectedObject = null;
     if (e.shiftKey && window.adminBackgroundImage) {
       isDraggingAdminImage = true;
       bgDragOffsetX = (window.adminBackgroundImage._x || 0) - worldX;
@@ -370,7 +369,7 @@ window.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
-  if (draggedObject) {
+  if (isDraggingSelectedObject && selectedObject) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
@@ -378,8 +377,8 @@ window.addEventListener('mousemove', (e) => {
     const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
     const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
-    draggedObject.data.x = Math.round(worldX + dragOffsetX);
-    draggedObject.data.y = Math.round(worldY + dragOffsetY);
+    selectedObject.data.x = Math.round(worldX + dragOffsetX);
+    selectedObject.data.y = Math.round(worldY + dragOffsetY);
   } else if (isDraggingAdminImage && window.adminBackgroundImage) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
@@ -401,17 +400,17 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', () => {
-  if (draggedObject) {
+  if (isDraggingSelectedObject && selectedObject) {
     if (window.ws.readyState === WebSocket.OPEN) {
-      const typeStr = draggedObject.type === 'building' ? 'move_building' : 'move_collision_object';
+      const typeStr = selectedObject.type === 'building' ? 'move_building' : 'move_collision_object';
       window.ws.send(JSON.stringify({
         type: typeStr,
-        id: draggedObject.data.id,
-        x: draggedObject.data.x,
-        y: draggedObject.data.y
+        id: selectedObject.data.id,
+        x: selectedObject.data.x,
+        y: selectedObject.data.y
       }));
     }
-    draggedObject = null;
+    isDraggingSelectedObject = false;
   }
   isDraggingBackground = false;
   isDraggingAdminImage = false;
@@ -482,7 +481,7 @@ window.adminDraw = function () {
       ctx.translate(-building.width / 2, -building.height / 2);
       ctx.strokeStyle = 'red';
       ctx.lineWidth = 2;
-      
+
       building.walls.forEach(wall => {
         const wStartX = wall.x;
         const wStartY = wall.y;
@@ -503,7 +502,7 @@ window.adminDraw = function () {
         ctx.lineTo(wEndX, wEndY);
         ctx.stroke();
       });
-      
+
       ctx.restore();
     }
 
@@ -517,13 +516,13 @@ window.adminDraw = function () {
     if (obj.rotation) {
       ctx.rotate(obj.rotation * Math.PI / 180);
     }
-    
+
     if (window.adminSelectedObject && window.adminSelectedObject.id === obj.id) {
       ctx.fillStyle = 'purple';
     } else {
       ctx.fillStyle = 'rgba(155, 89, 182, 0.5)';
     }
-    
+
     ctx.beginPath();
     if (obj.shape === 'circle') {
       const radius = Math.max(obj.width, obj.length) / 2;

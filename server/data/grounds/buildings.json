@@ -49,10 +49,10 @@
   {
     "id": "pool",
     "name": "Pool",
-    "x": -381,
-    "y": 69,
+    "x": -382,
+    "y": 76,
     "rotation": 98,
-    "width": 296,
+    "width": 319,
     "height": 474,
     "walls": [
       {
