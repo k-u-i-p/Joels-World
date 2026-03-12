@@ -705,6 +705,21 @@ function executeEvents(sourceObj, rawActions) {
         sourceObj.activeAudio.play().catch(e => console.warn("Failed to play sound:", e));
       }
     }
+
+    if (action.emote) {
+      const isInteractiveObj = sourceObj.shape === 'rect' || sourceObj.shape === 'circle' && !sourceObj.gender;
+      const isMapObj = (sourceObj === window.init?.mapData) || (sourceObj.id === 'map');
+      
+      const targetEntity = (isInteractiveObj || isMapObj) ? player : sourceObj;
+      targetEntity.emote = {
+        name: action.emote,
+        startTime: Date.now()
+      };
+      
+      if (targetEntity === player) {
+        syncPlayerToJSON();
+      }
+    }
   }
 }
 
