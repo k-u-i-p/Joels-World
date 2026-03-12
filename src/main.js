@@ -226,13 +226,13 @@ function update() {
   if (dx !== 0 || dy !== 0) {
     isMoving = true;
 
-    const scale = window.characterScale || 1;
+    const scale = window.init?.mapData?.character_scale || 1;
     const playerRadius = 15 * scale; // slightly smaller than half width for smooth collisions
 
     const canMoveTo = (newX, newY) => {
       // Check map boundaries
-      const mapW = window.mapWidth || (window.mapImage && window.mapImage.complete ? window.mapImage.width : 0);
-      const mapH = window.mapHeight || (window.mapImage && window.mapImage.complete ? window.mapImage.height : 0);
+      const mapW = window.init?.mapData?.width || (window.mapImage && window.mapImage.complete ? window.mapImage.width : 0);
+      const mapH = window.init?.mapData?.height || (window.mapImage && window.mapImage.complete ? window.mapImage.height : 0);
       if (mapW && mapH) {
         const halfMapW = mapW / 2;
         const halfMapH = mapH / 2;
@@ -358,7 +358,7 @@ function update() {
   // (Basic screen boundaries removed to allow world movement)
 
   // Check NPC radius interactions
-  const interactionRadius = 80 * (window.characterScale || 1);
+  const interactionRadius = 80 * (window.init?.mapData?.character_scale || 1);
   for (const c of [...(window.init?.characters || []), ...(window.init?.npcs || [])]) {
     if (c.id === player.id) continue;
     if (!c.isNpc && (!c.on_enter && !c.on_exit)) continue;
@@ -417,9 +417,9 @@ function draw() {
   window.cameraX = player.x;
   window.cameraY = player.y;
 
-  if (window.mapWidth && window.mapHeight) {
-    const halfMapW = window.mapWidth / 2;
-    const halfMapH = window.mapHeight / 2;
+  if (window.init?.mapData?.width && window.init?.mapData?.height) {
+    const halfMapW = window.init.mapData.width / 2;
+    const halfMapH = window.init.mapData.height / 2;
     const viewHalfW = (canvas.width / window.cameraZoom) / 2;
     const viewHalfH = (canvas.height / window.cameraZoom) / 2;
 
@@ -452,8 +452,8 @@ function draw() {
   ctx.translate(-window.cameraX, -window.cameraY);
 
   if (window.mapImage && window.mapImage.complete) {
-    const drawW = window.mapWidth || window.mapImage.width;
-    const drawH = window.mapHeight || window.mapImage.height;
+    const drawW = window.init?.mapData?.width || window.mapImage.width;
+    const drawH = window.init?.mapData?.height || window.mapImage.height;
     ctx.drawImage(window.mapImage, -drawW / 2, -drawH / 2, drawW, drawH);
   }
 
@@ -467,7 +467,7 @@ function draw() {
     ctx.translate(c.x, c.y);
     ctx.rotate(c.rotation);
 
-    const scale = window.characterScale || 1;
+    const scale = window.init?.mapData?.character_scale || 1;
     ctx.scale(scale, scale);
 
     if (c.name === 'Talking Poop') {
@@ -624,7 +624,7 @@ function draw() {
       ctx.shadowOffsetX = 1;
       ctx.shadowOffsetY = 1;
 
-      const scale = window.characterScale || 1;
+      const scale = window.init?.mapData?.character_scale || 1;
       ctx.fillText(c.name, 0, 15 + 15 * scale);
       ctx.restore();
     }
@@ -638,7 +638,7 @@ function draw() {
       const textWidth = ctx.measureText(c.chatMessage).width;
       const bubbleWidth = textWidth + 24;
       const bubbleHeight = 32;
-      const scale = window.characterScale || 1;
+      const scale = window.init?.mapData?.character_scale || 1;
       const bubbleY = -(20 + 15 * scale);
 
       ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
@@ -737,10 +737,6 @@ function handleInitData(data) {
     if (mapMetadata.background) {
       window.mapImage.src = mapMetadata.background;
     }
-    window.mapWidth = mapMetadata.width;
-    window.mapHeight = mapMetadata.height;
-    window.currentMapId = mapMetadata.id;
-    window.characterScale = mapMetadata.character_scale || 1;
   }
 
   if (mapsList) {

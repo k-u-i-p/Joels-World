@@ -15,7 +15,7 @@ window.populateAdminMaps = () => {
     const opt = document.createElement('option');
     opt.value = mapData.id;
     opt.textContent = mapData.name;
-    if (window.currentMapId === mapData.id) {
+    if (window.init?.mapData?.id === mapData.id) {
       opt.selected = true;
     }
     select.appendChild(opt);
