@@ -69,10 +69,8 @@ function bindHoldAction(id, action, syncAction) {
   btn.addEventListener('contextmenu', e => e.preventDefault());
 }
 
-let draggedBuilding = null;
-let selectedBuilding = null;
-let draggedCollisionObject = null;
-let selectedCollisionObject = null;
+let draggedObject = null;
+let selectedObject = null;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
 
@@ -103,147 +101,147 @@ document.getElementById('btn-create-col-circle').onclick = () => {
 };
 
 document.getElementById('btn-delete-building').onclick = () => {
-  if (selectedBuilding && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'delete_building', id: selectedBuilding.id }));
-    selectedBuilding = null;
-    draggedBuilding = null;
-    window.adminSelectedBuilding = null;
+  if (selectedObject && selectedObject.type === 'building' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'delete_building', id: selectedObject.data.id }));
+    selectedObject = null;
+    draggedObject = null;
+    window.adminSelectedObject = null;
     updateAdminPanel();
   }
 };
 
 document.getElementById('btn-delete-col').onclick = () => {
-  if (selectedCollisionObject && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'delete_collision_object', id: selectedCollisionObject.id }));
-    selectedCollisionObject = null;
-    draggedCollisionObject = null;
-    window.adminSelectedCollisionObject = null;
+  if (selectedObject && selectedObject.type === 'collision_object' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'delete_collision_object', id: selectedObject.data.id }));
+    selectedObject = null;
+    draggedObject = null;
+    window.adminSelectedObject = null;
     updateAdminPanel();
   }
 };
 
 const nameInput = document.getElementById('building-name-input');
 nameInput.onchange = (e) => {
-  if (!selectedBuilding) return;
-  selectedBuilding.name = e.target.value.trim();
+  if (!selectedObject || selectedObject.type !== 'building') return;
+  selectedObject.data.name = e.target.value.trim();
   if (window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'rename_building', id: selectedBuilding.id, name: selectedBuilding.name }));
+    window.ws.send(JSON.stringify({ type: 'rename_building', id: selectedObject.data.id, name: selectedObject.data.name }));
   }
 };
 
 bindHoldAction('btn-rot-left', () => {
-  if (!selectedBuilding) return;
-  selectedBuilding.rotation = Math.max(0, (selectedBuilding.rotation || 0) - 1);
+  if (!selectedObject || selectedObject.type !== 'building') return;
+  selectedObject.data.rotation = Math.max(0, (selectedObject.data.rotation || 0) - 1);
 }, () => {
-  if (selectedBuilding && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
+  if (selectedObject && selectedObject.type === 'building' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'rotate_building', id: selectedObject.data.id, rotation: selectedObject.data.rotation }));
   }
 });
 
 bindHoldAction('btn-rot-right', () => {
-  if (!selectedBuilding) return;
-  selectedBuilding.rotation = ((selectedBuilding.rotation || 0) + 1) % 360;
+  if (!selectedObject || selectedObject.type !== 'building') return;
+  selectedObject.data.rotation = ((selectedObject.data.rotation || 0) + 1) % 360;
 }, () => {
-  if (selectedBuilding && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'rotate_building', id: selectedBuilding.id, rotation: selectedBuilding.rotation }));
+  if (selectedObject && selectedObject.type === 'building' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'rotate_building', id: selectedObject.data.id, rotation: selectedObject.data.rotation }));
   }
 });
 
 bindHoldAction('btn-width-dec', () => {
-  if (!selectedBuilding) return;
-  let change = Math.max(1, Math.round(selectedBuilding.width * 0.02));
-  selectedBuilding.width = Math.max(10, selectedBuilding.width - change);
+  if (!selectedObject || selectedObject.type !== 'building') return;
+  let change = Math.max(1, Math.round(selectedObject.data.width * 0.02));
+  selectedObject.data.width = Math.max(10, selectedObject.data.width - change);
 }, () => {
-  if (selectedBuilding && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+  if (selectedObject && selectedObject.type === 'building' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'resize_building', id: selectedObject.data.id, width: selectedObject.data.width, height: selectedObject.data.height }));
   }
 });
 
 bindHoldAction('btn-width-inc', () => {
-  if (!selectedBuilding) return;
-  let change = Math.max(1, Math.round(selectedBuilding.width * 0.02));
-  selectedBuilding.width += change;
+  if (!selectedObject || selectedObject.type !== 'building') return;
+  let change = Math.max(1, Math.round(selectedObject.data.width * 0.02));
+  selectedObject.data.width += change;
 }, () => {
-  if (selectedBuilding && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+  if (selectedObject && selectedObject.type === 'building' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'resize_building', id: selectedObject.data.id, width: selectedObject.data.width, height: selectedObject.data.height }));
   }
 });
 
 bindHoldAction('btn-height-dec', () => {
-  if (!selectedBuilding) return;
-  let change = Math.max(1, Math.round(selectedBuilding.height * 0.02));
-  selectedBuilding.height = Math.max(10, selectedBuilding.height - change);
+  if (!selectedObject || selectedObject.type !== 'building') return;
+  let change = Math.max(1, Math.round(selectedObject.data.height * 0.02));
+  selectedObject.data.height = Math.max(10, selectedObject.data.height - change);
 }, () => {
-  if (selectedBuilding && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+  if (selectedObject && selectedObject.type === 'building' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'resize_building', id: selectedObject.data.id, width: selectedObject.data.width, height: selectedObject.data.height }));
   }
 });
 
 bindHoldAction('btn-height-inc', () => {
-  if (!selectedBuilding) return;
-  let change = Math.max(1, Math.round(selectedBuilding.height * 0.02));
-  selectedBuilding.height += change;
+  if (!selectedObject || selectedObject.type !== 'building') return;
+  let change = Math.max(1, Math.round(selectedObject.data.height * 0.02));
+  selectedObject.data.height += change;
 }, () => {
-  if (selectedBuilding && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'resize_building', id: selectedBuilding.id, width: selectedBuilding.width, height: selectedBuilding.height }));
+  if (selectedObject && selectedObject.type === 'building' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'resize_building', id: selectedObject.data.id, width: selectedObject.data.width, height: selectedObject.data.height }));
   }
 });
 
 bindHoldAction('btn-col-rot-left', () => {
-  if (!selectedCollisionObject) return;
-  selectedCollisionObject.rotation = Math.max(0, (selectedCollisionObject.rotation || 0) - 1);
+  if (!selectedObject || selectedObject.type !== 'collision_object') return;
+  selectedObject.data.rotation = Math.max(0, (selectedObject.data.rotation || 0) - 1);
 }, () => {
-  if (selectedCollisionObject && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'rotate_collision_object', id: selectedCollisionObject.id, rotation: selectedCollisionObject.rotation }));
+  if (selectedObject && selectedObject.type === 'collision_object' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'rotate_collision_object', id: selectedObject.data.id, rotation: selectedObject.data.rotation }));
   }
 });
 
 bindHoldAction('btn-col-rot-right', () => {
-  if (!selectedCollisionObject) return;
-  selectedCollisionObject.rotation = ((selectedCollisionObject.rotation || 0) + 1) % 360;
+  if (!selectedObject || selectedObject.type !== 'collision_object') return;
+  selectedObject.data.rotation = ((selectedObject.data.rotation || 0) + 1) % 360;
 }, () => {
-  if (selectedCollisionObject && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'rotate_collision_object', id: selectedCollisionObject.id, rotation: selectedCollisionObject.rotation }));
+  if (selectedObject && selectedObject.type === 'collision_object' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'rotate_collision_object', id: selectedObject.data.id, rotation: selectedObject.data.rotation }));
   }
 });
 
 bindHoldAction('btn-col-width-dec', () => {
-  if (!selectedCollisionObject) return;
-  let change = Math.max(1, Math.round(selectedCollisionObject.width * 0.02));
-  selectedCollisionObject.width = Math.max(5, selectedCollisionObject.width - change);
+  if (!selectedObject || selectedObject.type !== 'collision_object') return;
+  let change = Math.max(1, Math.round(selectedObject.data.width * 0.02));
+  selectedObject.data.width = Math.max(5, selectedObject.data.width - change);
 }, () => {
-  if (selectedCollisionObject && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
+  if (selectedObject && selectedObject.type === 'collision_object' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedObject.data.id, width: selectedObject.data.width, length: selectedObject.data.length }));
   }
 });
 
 bindHoldAction('btn-col-width-inc', () => {
-  if (!selectedCollisionObject) return;
-  let change = Math.max(1, Math.round(selectedCollisionObject.width * 0.02));
-  selectedCollisionObject.width += change;
+  if (!selectedObject || selectedObject.type !== 'collision_object') return;
+  let change = Math.max(1, Math.round(selectedObject.data.width * 0.02));
+  selectedObject.data.width += change;
 }, () => {
-  if (selectedCollisionObject && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
+  if (selectedObject && selectedObject.type === 'collision_object' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedObject.data.id, width: selectedObject.data.width, length: selectedObject.data.length }));
   }
 });
 
 bindHoldAction('btn-col-length-dec', () => {
-  if (!selectedCollisionObject) return;
-  let change = Math.max(1, Math.round(selectedCollisionObject.length * 0.02));
-  selectedCollisionObject.length = Math.max(5, selectedCollisionObject.length - change);
+  if (!selectedObject || selectedObject.type !== 'collision_object') return;
+  let change = Math.max(1, Math.round(selectedObject.data.length * 0.02));
+  selectedObject.data.length = Math.max(5, selectedObject.data.length - change);
 }, () => {
-  if (selectedCollisionObject && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
+  if (selectedObject && selectedObject.type === 'collision_object' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedObject.data.id, width: selectedObject.data.width, length: selectedObject.data.length }));
   }
 });
 
 bindHoldAction('btn-col-length-inc', () => {
-  if (!selectedCollisionObject) return;
-  let change = Math.max(1, Math.round(selectedCollisionObject.length * 0.02));
-  selectedCollisionObject.length += change;
+  if (!selectedObject || selectedObject.type !== 'collision_object') return;
+  let change = Math.max(1, Math.round(selectedObject.data.length * 0.02));
+  selectedObject.data.length += change;
 }, () => {
-  if (selectedCollisionObject && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedCollisionObject.id, width: selectedCollisionObject.width, length: selectedCollisionObject.length }));
+  if (selectedObject && selectedObject.type === 'collision_object' && window.ws.readyState === WebSocket.OPEN) {
+    window.ws.send(JSON.stringify({ type: 'resize_collision_object', id: selectedObject.data.id, width: selectedObject.data.width, length: selectedObject.data.length }));
   }
 });
 
@@ -253,13 +251,13 @@ function updateAdminPanel() {
   const editSection = document.getElementById('edit-building-section');
   const editColObjSection = document.getElementById('edit-col-obj-section');
 
-  if (selectedBuilding) {
+  if (selectedObject && selectedObject.type === 'building') {
     editSection.style.display = 'block';
     editColObjSection.style.display = 'none';
 
     const nameInput = document.getElementById('building-name-input');
-    nameInput.value = selectedBuilding.name || selectedBuilding.id;
-  } else if (selectedCollisionObject) {
+    nameInput.value = selectedObject.data.name || selectedObject.data.id;
+  } else if (selectedObject && selectedObject.type === 'collision_object') {
     editSection.style.display = 'none';
     editColObjSection.style.display = 'block';
   } else {
@@ -301,10 +299,9 @@ window.addEventListener('mousedown', (e) => {
   const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
   const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
-  selectedBuilding = null;
-  window.adminSelectedBuilding = null;
-  selectedCollisionObject = null;
-  window.adminSelectedCollisionObject = null;
+  selectedObject = null;
+  window.adminSelectedObject = null;
+  draggedObject = null;
 
   const buildings = getBuildings();
   const collisionObjects = getCollisionObjects() || [];
@@ -332,23 +329,23 @@ window.addEventListener('mousedown', (e) => {
 
     if (hit) {
       console.log(`Dragging collision object: ${obj.id}`);
-      draggedCollisionObject = obj;
-      selectedCollisionObject = obj;
-      window.adminSelectedCollisionObject = obj;
+      draggedObject = { type: 'collision_object', data: obj };
+      selectedObject = { type: 'collision_object', data: obj };
+      window.adminSelectedObject = obj;
       dragOffsetX = obj.x - worldX;
       dragOffsetY = obj.y - worldY;
       break;
     }
   }
 
-  if (!draggedCollisionObject) {
+  if (!draggedObject) {
     for (let i = buildings.length - 1; i >= 0; i--) {
       const building = buildings[i];
       if (isPointInBuilding(worldX, worldY, building)) {
         console.log(`Dragging building: ${building.id}`);
-        draggedBuilding = building;
-        selectedBuilding = building;
-        window.adminSelectedBuilding = building;
+        draggedObject = { type: 'building', data: building };
+        selectedObject = { type: 'building', data: building };
+        window.adminSelectedObject = building;
         dragOffsetX = building.x - worldX;
         dragOffsetY = building.y - worldY;
         break;
@@ -356,7 +353,7 @@ window.addEventListener('mousedown', (e) => {
     }
   }
 
-  if (!draggedCollisionObject && !draggedBuilding && !e.target.closest('#admin-panel')) {
+  if (!draggedObject && !e.target.closest('#admin-panel')) {
     if (e.shiftKey && window.adminBackgroundImage) {
       isDraggingAdminImage = true;
       bgDragOffsetX = (window.adminBackgroundImage._x || 0) - worldX;
@@ -373,7 +370,7 @@ window.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
-  if (draggedBuilding) {
+  if (draggedObject) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
@@ -381,18 +378,8 @@ window.addEventListener('mousemove', (e) => {
     const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
     const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
-    draggedBuilding.x = Math.round(worldX + dragOffsetX);
-    draggedBuilding.y = Math.round(worldY + dragOffsetY);
-  } else if (draggedCollisionObject) {
-    const canvasRect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - canvasRect.left;
-    const mouseY = e.clientY - canvasRect.top;
-
-    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
-    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
-
-    draggedCollisionObject.x = Math.round(worldX + dragOffsetX);
-    draggedCollisionObject.y = Math.round(worldY + dragOffsetY);
+    draggedObject.data.x = Math.round(worldX + dragOffsetX);
+    draggedObject.data.y = Math.round(worldY + dragOffsetY);
   } else if (isDraggingAdminImage && window.adminBackgroundImage) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
@@ -414,27 +401,17 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', () => {
-  if (draggedBuilding) {
+  if (draggedObject) {
     if (window.ws.readyState === WebSocket.OPEN) {
+      const typeStr = draggedObject.type === 'building' ? 'move_building' : 'move_collision_object';
       window.ws.send(JSON.stringify({
-        type: 'move_building',
-        id: draggedBuilding.id,
-        x: draggedBuilding.x,
-        y: draggedBuilding.y
+        type: typeStr,
+        id: draggedObject.data.id,
+        x: draggedObject.data.x,
+        y: draggedObject.data.y
       }));
     }
-    draggedBuilding = null;
-  }
-  if (draggedCollisionObject) {
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({
-        type: 'move_collision_object',
-        id: draggedCollisionObject.id,
-        x: draggedCollisionObject.x,
-        y: draggedCollisionObject.y
-      }));
-    }
-    draggedCollisionObject = null;
+    draggedObject = null;
   }
   isDraggingBackground = false;
   isDraggingAdminImage = false;
@@ -492,7 +469,7 @@ window.adminDraw = function () {
     ctx.save();
     ctx.translate(building.x, building.y);
     ctx.rotate((building.rotation || 0) * Math.PI / 180);
-    if (window.adminSelectedBuilding && window.adminSelectedBuilding.id === building.id) {
+    if (window.adminSelectedObject && window.adminSelectedObject.id === building.id) {
       ctx.fillStyle = 'rgba(155, 89, 182, 0.7)';
     } else {
       ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
@@ -541,7 +518,7 @@ window.adminDraw = function () {
       ctx.rotate(obj.rotation * Math.PI / 180);
     }
     
-    if (window.adminSelectedCollisionObject && window.adminSelectedCollisionObject.id === obj.id) {
+    if (window.adminSelectedObject && window.adminSelectedObject.id === obj.id) {
       ctx.fillStyle = 'purple';
     } else {
       ctx.fillStyle = 'rgba(155, 89, 182, 0.5)';
