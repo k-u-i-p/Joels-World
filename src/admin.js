@@ -105,6 +105,24 @@ window.selectedObject = {
   }
 };
 
+window.selectedNpc = {
+  _id: null,
+  set: function (id) {
+    this._id = id;
+  },
+  get: function () {
+    return (window.init?.npcs || []).find(n => n.id === this._id);
+  },
+  findNpcAtXY: function(worldX, worldY) {
+    const npcs = window.init?.npcs || [];
+    for (let i = npcs.length - 1; i >= 0; i--) {
+      const npc = npcs[i];
+      const radius = Math.max(npc.width, npc.height) / 2 || 20;
+      if (Math.hypot(worldX - npc.x, worldY - npc.y) <= radius) return npc;
+    }
+    return null;
+  }
+};
 
 let dragOffsetX = 0;
 let dragOffsetY = 0;
@@ -112,6 +130,7 @@ let dragOffsetY = 0;
 let isDraggingBackground = false;
 let isDraggingAdminImage = false;
 let isDraggingObject = false;
+let isDraggingNpc = false;
 let bgDragOffsetX = 0;
 let bgDragOffsetY = 0;
 let lastMouseX = 0;
@@ -257,18 +276,29 @@ window.addEventListener('mousedown', (e) => {
   }
 
   window.selectedObject.set(null);
+  window.selectedNpc.set(null);
 
-  const hitObj = window.selectedObject.findObjectAtXY(worldX, worldY);
-  if (hitObj) {
-    console.log(`Dragging object: ${hitObj.id}`);
-    window.selectedObject.set(hitObj.id);
-    isDraggingObject = true;
+  const hitNpc = window.selectedNpc.findNpcAtXY(worldX, worldY);
+  if (hitNpc) {
+    console.log(`Dragging npc: ${hitNpc.id}`);
+    window.selectedNpc.set(hitNpc.id);
+    isDraggingNpc = true;
     
-    dragOffsetX = hitObj.x - worldX;
-    dragOffsetY = hitObj.y - worldY;
+    dragOffsetX = hitNpc.x - worldX;
+    dragOffsetY = hitNpc.y - worldY;
+  } else {
+    const hitObj = window.selectedObject.findObjectAtXY(worldX, worldY);
+    if (hitObj) {
+      console.log(`Dragging object: ${hitObj.id}`);
+      window.selectedObject.set(hitObj.id);
+      isDraggingObject = true;
+      
+      dragOffsetX = hitObj.x - worldX;
+      dragOffsetY = hitObj.y - worldY;
+    }
   }
 
-  if (!window.selectedObject.get() && !e.target.closest('#admin-panel')) {
+  if (!window.selectedObject.get() && !window.selectedNpc.get() && !e.target.closest('#admin-panel')) {
     if (e.shiftKey && window.adminBackgroundImage) {
       isDraggingAdminImage = true;
       bgDragOffsetX = (window.adminBackgroundImage._x || 0) - worldX;
@@ -295,6 +325,16 @@ window.addEventListener('mousemove', (e) => {
 
     window.selectedObject.get().x = Math.round(worldX + dragOffsetX);
     window.selectedObject.get().y = Math.round(worldY + dragOffsetY);
+  } else if (isDraggingNpc && window.selectedNpc.get()) {
+    const canvasRect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - canvasRect.left;
+    const mouseY = e.clientY - canvasRect.top;
+
+    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
+    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
+
+    window.selectedNpc.get().x = Math.round(worldX + dragOffsetX);
+    window.selectedNpc.get().y = Math.round(worldY + dragOffsetY);
   } else if (isDraggingAdminImage && window.adminBackgroundImage) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
@@ -325,8 +365,18 @@ window.addEventListener('mouseup', () => {
         y: window.selectedObject.get().y
       }));
     }
+  } else if (isDraggingNpc && window.selectedNpc.get()) {
+    if (window.ws.readyState === WebSocket.OPEN) {
+      window.ws.send(JSON.stringify({
+        type: 'move_npc',
+        id: window.selectedNpc.get().id,
+        x: window.selectedNpc.get().x,
+        y: window.selectedNpc.get().y
+      }));
+    }
   }
   isDraggingObject = false;
+  isDraggingNpc = false;
   isDraggingBackground = false;
   isDraggingAdminImage = false;
 });
@@ -403,6 +453,20 @@ window.adminDraw = function () {
     }
     ctx.fill();
     ctx.restore();
+  });
+
+  const npcs = window.init?.npcs || [];
+  npcs.forEach(npc => {
+    if (window.selectedNpc.get() && window.selectedNpc.get().id === npc.id) {
+      ctx.save();
+      ctx.translate(npc.x, npc.y);
+      ctx.beginPath();
+      ctx.arc(0, 0, (Math.max(npc.width, npc.height) / 2 || 20) + 5, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'cyan';
+      ctx.stroke();
+      ctx.restore();
+    }
   });
 
   ctx.restore();

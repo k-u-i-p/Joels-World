@@ -246,5 +246,26 @@ export const emotes = {
       
       ctx.restore();
     }
+  },
+  sit: {
+    duration: 3600000, // Lasts for 1 hour, or until player moves
+    message: "{name} sat down",
+    setup: (ctx, emote, c) => {
+      // Translate slightly to look lower to the ground
+      ctx.translate(-2, 0); 
+    },
+    updateLimbs: (limbs, emote) => {
+      // Legs spread out straight in front (thighs visible)
+      limbs.leftLegStartX = 0; limbs.leftLegStartY = -6;
+      limbs.leftLegEndX = 16; limbs.leftLegEndY = -6;
+      
+      limbs.rightLegStartX = 0; limbs.rightLegStartY = 6;
+      limbs.rightLegEndX = 16; limbs.rightLegEndY = 6;
+
+      // Arms resting on sides
+      limbs.leftArmX = 2; limbs.leftArmY = -12;
+      limbs.rightArmX = 2; limbs.rightArmY = 12;
+    },
+    draw: (ctx, emote) => { }
   }
 };

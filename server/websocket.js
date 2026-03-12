@@ -29,7 +29,8 @@ export function setupWebSocket(server) {
       characters: {},
       npcs: [],
       objects: [],
-      objectsFile: mapDef.objects ? path.resolve(__dirname, 'data', mapDef.objects) : null
+      objectsFile: mapDef.objects ? path.resolve(__dirname, 'data', mapDef.objects) : null,
+      npcsFile: mapDef.npcs ? path.resolve(__dirname, 'data', mapDef.npcs) : null
     };
 
     if (mapDef.npcs) {
@@ -214,6 +215,7 @@ export function setupWebSocket(server) {
               // Reset position safely to not be OOB of new map bounds
               oldChar.x = Math.round(Math.random() * 800 + 100);
               oldChar.y = Math.round(Math.random() * 600 + 100);
+              oldChar.emote = null;
 
               mapData.characters[ws.clientId] = oldChar;
               mapData.clients.add(ws);

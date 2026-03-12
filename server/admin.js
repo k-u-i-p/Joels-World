@@ -16,6 +16,16 @@ export function handleAdminMessage(ws, data, mapData) {
       } catch (e) { console.error('Failed saving objects file:', e); }
     }
     return true;
+  } else if (data.type === 'move_npc') {
+    const npc = mapData.npcs.find(n => n.id === data.id);
+    if (npc) {
+      npc.x = data.x;
+      npc.y = data.y;
+      try {
+        if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, null, 2), 'utf-8');
+      } catch (e) { console.error('Failed saving npcs file:', e); }
+    }
+    return true;
   } else if (data.type === 'rename_object') {
     const obj = objects.find(o => o.id === data.id);
     if (obj) {
