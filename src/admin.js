@@ -388,6 +388,8 @@ window.adminDraw = function () {
 
     if (window.selectedObject.get() && window.selectedObject.get().id === obj.id) {
       ctx.fillStyle = 'purple';
+    } else if (obj.noclip) {
+      ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
     } else {
       ctx.fillStyle = obj.name ? 'rgba(255, 0, 0, 0.5)' : 'rgba(155, 89, 182, 0.5)';
     }
