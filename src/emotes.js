@@ -306,39 +306,51 @@ export const emotes = {
     },
     draw: (ctx, emote) => {
       ctx.save();
-      // Draw a brown rugby ball at the right arm position
+      // Draw a white english rugby ball at the right arm position
       ctx.translate(6, 10); // move to right arm area
       ctx.rotate(Math.PI / 4); // tilt the ball
       
-      // Brown ball body
-      ctx.fillStyle = '#8B4513';
+      // White ball body
+      ctx.fillStyle = '#f0f0f0';
       ctx.beginPath();
       if (ctx.ellipse) {
-        ctx.ellipse(0, 0, 7, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 7, 4.5, 0, 0, Math.PI * 2);
       } else {
-        ctx.arc(0, 0, 5, 0, Math.PI * 2);
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
       }
       ctx.fill();
       
-      // White laces/stripes
-      ctx.strokeStyle = 'white';
+      // Dark outline for visibility
+      ctx.strokeStyle = '#333333';
       ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-4, 0);
-      ctx.lineTo(4, 0);
       ctx.stroke();
+      
+      // Subtle seams along the length typical of a rugby ball
+      ctx.strokeStyle = '#aaaaaa';
+      ctx.lineWidth = 0.5;
       ctx.beginPath();
-      ctx.moveTo(-2, -1);
-      ctx.lineTo(-2, 1);
+      ctx.moveTo(-7, 0);
+      ctx.quadraticCurveTo(0, -2.5, 7, 0);
       ctx.stroke();
+      
       ctx.beginPath();
-      ctx.moveTo(2, -1);
-      ctx.lineTo(2, 1);
+      ctx.moveTo(-7, 0);
+      ctx.quadraticCurveTo(0, 2.5, 7, 0);
       ctx.stroke();
+
+      // Colored grips/patterns on the ends (like standard Gilbert balls)
+      ctx.fillStyle = '#2ecc71'; // green accent
       ctx.beginPath();
-      ctx.moveTo(0, -1);
-      ctx.lineTo(0, 1);
-      ctx.stroke();
+      if (ctx.ellipse) {
+        ctx.ellipse(-5, 0, 2, 3, 0, -Math.PI/2, Math.PI/2);
+      }
+      ctx.fill();
+
+      ctx.beginPath();
+      if (ctx.ellipse) {
+        ctx.ellipse(5, 0, 2, 3, 0, Math.PI/2, -Math.PI/2);
+      }
+      ctx.fill();
 
       ctx.restore();
     }
