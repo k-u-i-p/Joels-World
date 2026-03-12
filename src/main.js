@@ -542,7 +542,7 @@ function update() {
     player.legAnimationTime += 0.2;
     if (player.emote) {
       let shouldCancel = true;
-      if (player.emote.name === 'jump') {
+      if (player.emote.name === 'jump' || player.emote.name === 'wet') {
         shouldCancel = false;
       }
       if (player.activeBuilding) {
@@ -766,6 +766,37 @@ function draw() {
   ctx.translate(-window.cameraX, -window.cameraY);
 
   drawMap();
+
+  // Render global footprints underneath characters
+  if (window.footprints) {
+    const now = Date.now();
+    for (let i = window.footprints.length - 1; i >= 0; i--) {
+      const f = window.footprints[i];
+      const age = now - f.time;
+      if (age > 10000) {
+        window.footprints.splice(i, 1);
+        continue;
+      }
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 0.6 * (1 - age / 10000));
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.rot * Math.PI / 180);
+      
+      ctx.fillStyle = '#74b9ff'; // wet footprint color
+      
+      const offsetX = f.isLeft ? -5 : 5;
+      
+      ctx.beginPath();
+      if (ctx.ellipse) {
+        ctx.ellipse(offsetX, -4, 2.5, 4.5, 0, 0, Math.PI * 2);
+      } else {
+        ctx.arc(offsetX, -4, 3, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   drawCharacters();
 
   // Restore camera translation
