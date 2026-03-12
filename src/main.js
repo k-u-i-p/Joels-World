@@ -504,7 +504,7 @@ function update() {
             oldObj.activeAudio = null;
           }
           if (oldObj && oldObj.on_exit && (typeof oldObj.on_exit === 'number' || oldObj.on_exit.length > 0)) {
-            executeEvents(oldObj, oldObj.on_exit);
+            executeEvents(oldObj, oldObj.on_exit, 'on_exit');
           }
         }
         player.activeBuilding = newBuilding;
@@ -528,7 +528,7 @@ function update() {
           oldObj.activeAudio = null;
         }
         if (oldObj && oldObj.on_exit && (typeof oldObj.on_exit === 'number' || oldObj.on_exit.length > 0)) {
-          executeEvents(oldObj, oldObj.on_exit);
+          executeEvents(oldObj, oldObj.on_exit, 'on_exit');
         }
         player.activeBuilding = null;
         const dialogOverlay = UI.dialogOverlay;
@@ -659,8 +659,8 @@ function update() {
         prevNpc.activeAudio.currentTime = 0;
         prevNpc.activeAudio = null;
       }
-      if (prevNpc.on_exit && (typeof prevNpc.on_exit === 'number' || prevNpc.on_exit.length > 0)) {
-        executeEvents(prevNpc, prevNpc.on_exit);
+      if (prevNpc && prevNpc.on_exit && (typeof prevNpc.on_exit === 'number' || prevNpc.on_exit.length > 0)) {
+        executeEvents(prevNpc, prevNpc.on_exit, 'on_exit');
       }
       // Auto-clear avatar when walking away from an NPC
       const container = UI.avatarsContainer;
@@ -698,12 +698,12 @@ function update() {
   }
 }
 
-function executeEvents(sourceObj, rawActions) {
+function executeEvents(sourceObj, rawActions, eventType = 'on_enter') {
   let actions = rawActions;
   if (typeof rawActions === 'number') {
     const parentObj = window.init?.objects?.find(o => o.id === rawActions);
-    if (!parentObj || !parentObj.on_enter) return;
-    actions = parentObj.on_enter;
+    if (!parentObj || !parentObj[eventType]) return;
+    actions = parentObj[eventType];
   }
 
   if (!actions || !Array.isArray(actions)) return;
