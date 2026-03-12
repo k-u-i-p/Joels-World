@@ -548,8 +548,15 @@ function update() {
       if (player.activeBuilding) {
         const activeObj = window.init?.objects?.find(o => o.id === player.activeBuilding);
         if (activeObj && activeObj.on_enter) {
-          const envEmote = activeObj.on_enter.find(a => a.emote === player.emote.name);
-          if (envEmote) shouldCancel = false;
+          let actions = activeObj.on_enter;
+          if (typeof actions === 'number') {
+            const parentObj = window.init?.objects?.find(o => o.id === actions);
+            if (parentObj && parentObj.on_enter) actions = parentObj.on_enter;
+          }
+          if (Array.isArray(actions)) {
+            const envEmote = actions.find(a => a.emote === player.emote.name);
+            if (envEmote) shouldCancel = false;
+          }
         }
       }
       if (shouldCancel) {
