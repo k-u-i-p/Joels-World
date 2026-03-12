@@ -42,6 +42,7 @@ ws.onmessage = (event) => {
         serverChar.targetX = serverChar.x;
         serverChar.targetY = serverChar.y;
         serverChar.targetRotation = serverChar.rotation;
+        if (!window.init) return;
         if (!window.init.characters) window.init.characters = [];
         window.init.characters.push(serverChar);
       }
@@ -167,7 +168,7 @@ let player = {
 window.player = player;
 
 // Initialization Object
-window.init = { objects: [] };
+window.init = null;
 let lastSyncTime = 0;
 let activeNpcs = new Set();
 
@@ -683,13 +684,12 @@ function draw() {
 
 // Start By Fetching Data
 
-let isDataLoaded = false;
 const nameDialog = document.getElementById('name-dialog');
 const nameInput = document.getElementById('player-name-input');
 const startBtn = document.getElementById('start-game-btn');
 
 function attemptStartGame() {
-  if (isDataLoaded) {
+  if (window.init !== null) {
     if (nameInput && nameInput.value.trim() !== '') {
       player.name = nameInput.value.trim();
       syncPlayerToJSON(); // Save the new name right away
@@ -709,7 +709,6 @@ if (nameInput) {
 }
 
 function handleInitData(data) {
-  isDataLoaded = false;
   window.init = data;
   if (!window.init.characters) window.init.characters = [];
   if (!window.init.npcs) window.init.npcs = [];
@@ -759,7 +758,6 @@ function handleInitData(data) {
   });
 
   Promise.all([mapPromise]).then(() => {
-    isDataLoaded = true;
     if (startBtn) {
       startBtn.textContent = 'Start Game';
       startBtn.disabled = false;
@@ -769,7 +767,6 @@ function handleInitData(data) {
     }
   }).catch(err => {
     // Allow trying to start despite errors
-    isDataLoaded = true;
     if (startBtn) {
       startBtn.textContent = 'Start Game';
       startBtn.disabled = false;
