@@ -267,5 +267,66 @@ export const emotes = {
       limbs.rightArmX = 2; limbs.rightArmY = 12;
     },
     draw: (ctx, emote) => { }
+  },
+  swim: {
+    duration: 3600000, // 1 hour duration or until moved/canceled
+    message: "{name} is swimming",
+    setup: (ctx, emote, c) => {
+      const swimTime = (Date.now() - emote.startTime) / 200;
+      const bob = Math.sin(swimTime) * 3;
+      
+      // Rotate 90 degrees so they face "forward" in the water,
+      // and bob them slightly.
+      ctx.rotate(Math.PI / 2);
+      ctx.translate(0, bob);
+    },
+    updateLimbs: (limbs, emote) => {
+      const swimTime = (Date.now() - emote.startTime) / 200;
+      const stroke = Math.sin(swimTime);
+      const sweep = Math.cos(swimTime);
+      const kick = Math.sin(swimTime * 3) * 5;
+
+      // Breaststroke arms sweeping back and forth
+      // Forward push
+      limbs.leftArmX = 12 - stroke * 8;
+      limbs.leftArmY = -4 - sweep * 5;
+      
+      limbs.rightArmX = 12 - stroke * 8;
+      limbs.rightArmY = 4 + sweep * 5;
+
+      // Flutter kicks
+      limbs.leftLegStartX = -8; limbs.leftLegStartY = -4;
+      limbs.leftLegEndX = -18; limbs.leftLegEndY = -4 + kick;
+
+      limbs.rightLegStartX = -8; limbs.rightLegStartY = 4;
+      limbs.rightLegEndX = -18; limbs.rightLegEndY = 4 - kick;
+    },
+    draw: (ctx, emote) => {
+      ctx.save();
+      // Draw splash particles / water ripples at the feet and hands
+      const swimTime = Date.now() - emote.startTime;
+      
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 1.5;
+
+      for (let i = 0; i < 3; i++) {
+        const offset = i * 400;
+        const progress = ((swimTime + offset) % 1200) / 1200;
+        
+        ctx.globalAlpha = 1 - progress;
+        const rippleSize = 5 + progress * 15;
+        
+        // Feet splashes
+        ctx.beginPath();
+        ctx.arc(-16, 0, rippleSize, -Math.PI/2, Math.PI/2);
+        ctx.stroke();
+
+        // Arm splashes
+        ctx.beginPath();
+        ctx.arc(10, 0, rippleSize * 1.5, Math.PI/2, Math.PI*1.5);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 };
