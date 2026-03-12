@@ -82,11 +82,13 @@ export function handleAdminMessage(ws, data, mapData) {
       shape: data.shape || 'rect',
       x: data.x,
       y: data.y,
-      width: 500,
-      length: 500
     };
-    if (data.name !== undefined) newObj.name = data.name;
-    if (data.rotation !== undefined) newObj.rotation = data.rotation;
+    if (data.cloneData) {
+      Object.assign(newObj, data.cloneData, { id: newObj.id, x: data.x, y: data.y });
+    } else {
+      if (data.name !== undefined) newObj.name = data.name;
+      if (data.rotation !== undefined) newObj.rotation = data.rotation;
+    }
     
     objects.push(newObj);
     try {
@@ -117,6 +119,9 @@ export function handleAdminMessage(ws, data, mapData) {
       on_enter: [],
       on_exit: []
     };
+    if (data.cloneData) {
+      Object.assign(newNpc, data.cloneData, { id: newNpc.id, x: data.x, y: data.y });
+    }
     if (!mapData.npcs) mapData.npcs = [];
     mapData.npcs.push(newNpc);
     try {

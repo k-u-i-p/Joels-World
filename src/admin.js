@@ -697,6 +697,52 @@ window.addEventListener('drop', (e) => {
   }
 });
 
+let adminClipboard = null;
+
+window.addEventListener('copy', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  if (window.selectedObject.get()) {
+    adminClipboard = { type: 'object', data: JSON.parse(JSON.stringify(window.selectedObject.get())) };
+    console.log('Copied object');
+  } else if (window.selectedNpc.get()) {
+    adminClipboard = { type: 'npc', data: JSON.parse(JSON.stringify(window.selectedNpc.get())) };
+    console.log('Copied npc');
+  }
+});
+
+window.addEventListener('paste', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (!adminClipboard) return;
+
+  const canvasRect = canvas.getBoundingClientRect();
+  const mouseX = lastMouseX - canvasRect.left;
+  const mouseY = lastMouseY - canvasRect.top;
+
+  const worldX = Math.round((mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x));
+  const worldY = Math.round((mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y));
+
+  if (adminClipboard.type === 'object') {
+    if (window.ws.readyState === WebSocket.OPEN) {
+      window.ws.send(JSON.stringify({ 
+        type: 'create_object', 
+        x: worldX, 
+        y: worldY,
+        cloneData: adminClipboard.data 
+      }));
+    }
+  } else if (adminClipboard.type === 'npc') {
+    if (window.ws.readyState === WebSocket.OPEN) {
+      window.ws.send(JSON.stringify({ 
+        type: 'create_npc', 
+        x: worldX, 
+        y: worldY,
+        cloneData: adminClipboard.data 
+      }));
+    }
+  }
+});
+
 updateAdminPanel();
 
 window.adminDraw = function () {
