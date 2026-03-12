@@ -14,25 +14,60 @@ export const emotes = {
     draw: (ctx, emote) => { }
   },
   dance: {
-    duration: 5000,
-    message: "{name} is dancing",
-    setup: (ctx, emote, c) => { },
-    updateLimbs: (limbs, emote) => {
-      const danceTime = (Date.now() - emote.startTime) / 100;
-      const swing = Math.sin(danceTime) * 12;
-      const hipSwing = -swing * 0.4;
+    duration: 8000,
+    message: "{name} is busting a move",
+    setup: (ctx, emote, c) => {
+      const danceTime = (Date.now() - emote.startTime) / 150;
+      const bob = Math.abs(Math.sin(danceTime * 2)) * -4; // bounce up and down
+      const tilt = Math.sin(danceTime) * 0.2; // slight sway
 
-      limbs.leftLegStartY = -6 + hipSwing;
-      limbs.leftLegEndY = -6 + hipSwing + 10;
-      limbs.leftLegEndX = -2;
-      limbs.rightLegStartY = 6 + hipSwing;
-      limbs.rightLegEndY = 6 + hipSwing + 10;
-      limbs.rightLegEndX = -2;
-
-      limbs.leftArmX = 0; limbs.leftArmY = -14 + swing;
-      limbs.rightArmX = 0; limbs.rightArmY = 14 + swing;
+      ctx.translate(0, bob);
+      ctx.rotate(tilt);
     },
-    draw: (ctx, emote) => { }
+    updateLimbs: (limbs, emote) => {
+      const danceTime = (Date.now() - emote.startTime) / 150;
+      const armSwing = Math.sin(danceTime * 2);
+      const legStep = Math.cos(danceTime * 2);
+
+      // Arms alternating up and down disco style
+      limbs.leftArmX = 8 + armSwing * 6;
+      limbs.leftArmY = -14 - armSwing * 6;
+      
+      limbs.rightArmX = 8 - armSwing * 6;
+      limbs.rightArmY = 14 + armSwing * 6;
+
+      // Legs stepping out side to side
+      limbs.leftLegStartX = -2; limbs.leftLegStartY = -6;
+      limbs.leftLegEndX = -2 + Math.max(0, legStep * 8); 
+      limbs.leftLegEndY = -6 - Math.max(0, -legStep * 6); 
+      
+      limbs.rightLegStartX = -2; limbs.rightLegStartY = 6;
+      limbs.rightLegEndX = -2 + Math.max(0, -legStep * 8); 
+      limbs.rightLegEndY = 6 + Math.max(0, legStep * 6);
+    },
+    draw: (ctx, emote) => {
+      ctx.save();
+      const timeActive = Date.now() - emote.startTime;
+      
+      // Emit floating music notes
+      for (let i = 0; i < 3; i++) {
+        const offset = i * 400;
+        const noteAge = (timeActive + offset) % 1200;
+        const progress = noteAge / 1200;
+        
+        ctx.globalAlpha = 1 - progress;
+        
+        // Float up and drift sinusoidally
+        const noteX = Math.sin(progress * Math.PI * 4 + i) * 15;
+        const noteY = -20 - progress * 40;
+        
+        ctx.font = `${10 + progress * 10}px sans-serif`;
+        const symbol = i % 2 === 0 ? '🎵' : '🎶';
+        
+        ctx.fillText(symbol, noteX, noteY);
+      }
+      ctx.restore();
+    }
   },
   fart: {
     duration: 2000,
