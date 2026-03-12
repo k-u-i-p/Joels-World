@@ -804,25 +804,27 @@ function drawCharacters() {
  * Optimizes static NPC rendering by painting them onto an OffscreenCanvas once, 
  * then returning that canvas to be cheaply drawn each frame.
  * @param {Object} c - The character object data.
- * @param {number} scale - The character scale multiplier from the map.
+ * @param {number} scaleX - The character horizontal scale multiplier.
+ * @param {number} scaleY - The character vertical scale multiplier.
  * @returns {HTMLCanvasElement|OffscreenCanvas} Prerendered graphics context instance.
  */
-function getPrerenderedNpc(c, scale = 1) {
-  if (c.prerenderedCanvas && c.prerenderedScale === scale) {
+function getPrerenderedNpc(c, scaleX = 1, scaleY = 1) {
+  if (c.prerenderedCanvas && c.prerenderedScaleX === scaleX && c.prerenderedScaleY === scaleY) {
     return c.prerenderedCanvas;
   }
 
   const baseSize = 100;
-  const size = baseSize * scale;
-  const canvas = window.OffscreenCanvas ? new OffscreenCanvas(size, size) : document.createElement('canvas');
+  const width = baseSize * scaleX;
+  const height = baseSize * scaleY;
+  const canvas = window.OffscreenCanvas ? new OffscreenCanvas(width, height) : document.createElement('canvas');
   if (!window.OffscreenCanvas) {
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = width;
+    canvas.height = height;
   }
   const octx = canvas.getContext('2d');
 
-  octx.translate(size / 2, size / 2);
-  octx.scale(scale, scale);
+  octx.translate(width / 2, height / 2);
+  octx.scale(scaleX, scaleY);
 
   const limbs = {
     leftArmX: 4, leftArmY: -14,
@@ -887,7 +889,8 @@ function getPrerenderedNpc(c, scale = 1) {
   octx.strokeStyle = 'rgba(0,0,0,0.4)';
   octx.stroke();
 
-  c.prerenderedScale = scale;
+  c.prerenderedScaleX = scaleX;
+  c.prerenderedScaleY = scaleY;
   c.prerenderedCanvas = canvas;
   return canvas;
 }
@@ -903,8 +906,12 @@ function drawCharacter(c) {
   ctx.translate(c.x, c.y);
   ctx.rotate(c.rotation * Math.PI / 180);
 
-  const scale = window.init?.mapData?.character_scale || 1;
-  ctx.scale(scale, scale);
+  const baseScale = window.init?.mapData?.character_scale || 1;
+  const widthScale = (c.width || 40) / 40;
+  const heightScale = (c.height || 40) / 40;
+  const scaleX = baseScale * widthScale;
+  const scaleY = baseScale * heightScale;
+  ctx.scale(scaleX, scaleY);
 
   if (c.name === 'Talking Poop') {
     ctx.font = '60px sans-serif';
@@ -932,12 +939,12 @@ function drawCharacter(c) {
     const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;
 
     if (isActualNpc && !hasMovement && !c.emote) {
-      const prCnv = getPrerenderedNpc(c, scale);
+      const prCnv = getPrerenderedNpc(c, scaleX, scaleY);
       // We pass the unscaled width/height because the prerendered canvas already baked the scale in.
       // But we still need to offset by its raw dimensions.
       // Reset the main context scale temporarily because the cache already has it applied
       ctx.save();
-      ctx.scale(1/scale, 1/scale);
+      ctx.scale(1/scaleX, 1/scaleY);
       ctx.drawImage(prCnv, -prCnv.width / 2, -prCnv.height / 2);
       ctx.restore();
     } else {
@@ -1063,8 +1070,9 @@ function drawCharacter(c) {
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 1;
 
-    const scale = window.init?.mapData?.character_scale || 1;
-    ctx.fillText(c.name, 0, 15 + 15 * scale);
+    const baseScale = window.init?.mapData?.character_scale || 1;
+    // Names should only scale uniformly with baseScale, not with character stretching, to keep text readable
+    ctx.fillText(c.name, 0, 15 + 15 * baseScale);
     ctx.restore();
   }
 
@@ -1077,8 +1085,8 @@ function drawCharacter(c) {
     const textWidth = ctx.measureText(c.chatMessage).width;
     const bubbleWidth = textWidth + 24;
     const bubbleHeight = 32;
-    const scale = window.init?.mapData?.character_scale || 1;
-    const bubbleY = -(20 + 15 * scale);
+    const baseScale = window.init?.mapData?.character_scale || 1;
+    const bubbleY = -(20 + 15 * baseScale);
 
     ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
     ctx.shadowBlur = 6;
