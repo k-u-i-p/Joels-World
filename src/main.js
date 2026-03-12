@@ -913,7 +913,7 @@ function drawCharacter(c) {
   const scaleY = baseScale * heightScale;
   ctx.scale(scaleX, scaleY);
 
-  if (c.name === 'Talking Poop' || c.name === 'Dancing Toilet') {
+  if (c.emoji) {
     ctx.font = '60px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -931,7 +931,7 @@ function drawCharacter(c) {
       }
     }
 
-    ctx.fillText(c.name === 'Talking Poop' ? '💩' : '🚽', 0, 0);
+    ctx.fillText(c.emoji, 0, 0);
   } else {
     const isActualNpc = window.init?.npcs && window.init.npcs.some(n => n.id === c.id);
     const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;

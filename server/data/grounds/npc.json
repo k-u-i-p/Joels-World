@@ -114,6 +114,7 @@
     "shirtColor": "#5C4033",
     "pantsColor": "#5C4033",
     "armColor": "#5C4033",
+    "emoji": "💩",
     "on_enter": [
       {
         "say": [
@@ -134,6 +135,7 @@
     "shirtColor": "#ffffff",
     "pantsColor": "#ffffff",
     "armColor": "#ffffff",
+    "emoji": "🚽",
     "emote": {
       "name": "bounce",
       "startTime": 0
