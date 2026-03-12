@@ -136,11 +136,24 @@ export function setupWebSocket(server) {
     const newPlayerId = 'player_' + Math.random().toString(36).substring(2, 9);
     ws.clientId = newPlayerId;
 
+    let spawnX = Math.round(Math.random() * 800 + 100);
+    let spawnY = Math.round(Math.random() * 600 + 100);
+
+    if (mapData.spawn_area && mapData.objects) {
+      const spawnObj = mapData.objects.find(o => o.id === mapData.spawn_area);
+      if (spawnObj && spawnObj.shape === 'rect') {
+        const halfW = spawnObj.width / 2;
+        const halfL = spawnObj.length / 2;
+        spawnX = Math.round(spawnObj.x - halfW + Math.random() * spawnObj.width);
+        spawnY = Math.round(spawnObj.y - halfL + Math.random() * spawnObj.length);
+      }
+    }
+
     const newChar = {
       id: newPlayerId,
       name: ws.isAdmin ? 'Admin' : '',
-      x: Math.round(Math.random() * 800 + 100),
-      y: Math.round(Math.random() * 600 + 100),
+      x: spawnX,
+      y: spawnY,
       width: 40,
       height: 40,
       rotation: 0,
@@ -217,9 +230,22 @@ export function setupWebSocket(server) {
             ws.mapId = requestedMapId;
             mapData = newMapData;
 
-            // Reset position safely to not be OOB of new map bounds
-            oldChar.x = Math.round(Math.random() * 800 + 100);
-            oldChar.y = Math.round(Math.random() * 600 + 100);
+            // Reset position safely using spawn_area if available
+            let spawnX = Math.round(Math.random() * 800 + 100);
+            let spawnY = Math.round(Math.random() * 600 + 100);
+
+            if (newMapData.spawn_area && newMapData.objects) {
+              const spawnObj = newMapData.objects.find(o => o.id === newMapData.spawn_area);
+              if (spawnObj && spawnObj.shape === 'rect') {
+                const halfW = spawnObj.width / 2;
+                const halfL = spawnObj.length / 2;
+                spawnX = Math.round(spawnObj.x - halfW + Math.random() * spawnObj.width);
+                spawnY = Math.round(spawnObj.y - halfL + Math.random() * spawnObj.length);
+              }
+            }
+
+            oldChar.x = spawnX;
+            oldChar.y = spawnY;
             oldChar.emote = null;
 
             mapData.characters[ws.clientId] = oldChar;

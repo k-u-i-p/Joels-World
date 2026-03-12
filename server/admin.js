@@ -84,7 +84,9 @@ export function handleAdminMessage(ws, data, mapData) {
       y: data.y,
     };
     if (data.cloneData) {
-      Object.assign(newObj, data.cloneData, { id: newObj.id, x: data.x, y: data.y });
+      const cloneCopy = { ...data.cloneData };
+      delete cloneCopy.id;
+      Object.assign(newObj, cloneCopy, { id: newId, x: data.x, y: data.y });
     } else {
       if (data.name !== undefined) newObj.name = data.name;
       if (data.rotation !== undefined) newObj.rotation = data.rotation;
@@ -123,7 +125,9 @@ export function handleAdminMessage(ws, data, mapData) {
       on_exit: []
     };
     if (data.cloneData) {
-      Object.assign(newNpc, data.cloneData, { id: newNpc.id, x: data.x, y: data.y });
+      const cloneCopy = { ...data.cloneData };
+      delete cloneCopy.id;
+      Object.assign(newNpc, cloneCopy, { id: newId, x: data.x, y: data.y });
     }
     if (!mapData.npcs) mapData.npcs = [];
     mapData.npcs.push(newNpc);

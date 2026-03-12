@@ -8,7 +8,8 @@
     "npcs": "grounds/npc.json",
     "character_scale": 1,
     "objects": "grounds/objects.json",
-    "background_sound": "media/the_wall.mp3"
+    "background_sound": "media/the_wall.mp3",
+    "spawn_area": 19
   },
   {
     "id": 1,
@@ -18,7 +19,9 @@
     "background": "/detention/background.jpg",
     "npcs": "detention/npc.json",
     "character_scale": 4,
-    "objects": "detention/objects.json"
+    "objects": "detention/objects.json",
+    "background_sound": "media/ticking_clock.mp3",
+    "spawn_area": 18
   },
   {
     "id": 2,
@@ -28,6 +31,7 @@
     "background": "/main_building/background2.png",
     "npcs": "main_building/npc.json",
     "character_scale": 1.5,
-    "objects": "main_building/objects.json"
+    "objects": "main_building/objects.json",
+    "spawn_area": 9
   }
 ]
