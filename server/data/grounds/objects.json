@@ -1,0 +1,195 @@
+[
+  {
+    "id": "pine_1",
+    "shape": "circle",
+    "x": 673,
+    "y": 213,
+    "width": 122,
+    "length": 122
+  },
+  {
+    "id": "shrub_1",
+    "shape": "circle",
+    "x": 488,
+    "y": 126,
+    "width": 74,
+    "length": 74
+  },
+  {
+    "id": "flower_1",
+    "shape": "circle",
+    "x": 1194,
+    "y": 117,
+    "width": 165,
+    "length": 170
+  },
+  {
+    "id": "oak_2",
+    "shape": "circle",
+    "x": 1431,
+    "y": 195,
+    "width": 158,
+    "length": 158
+  },
+  {
+    "id": "pine_2",
+    "shape": "circle",
+    "x": 710,
+    "y": 118,
+    "width": 86,
+    "length": 86
+  },
+  {
+    "id": "shrub_2",
+    "shape": "circle",
+    "x": -889,
+    "y": -12,
+    "width": 40,
+    "length": 40
+  },
+  {
+    "id": "flower_2",
+    "shape": "circle",
+    "x": 1035,
+    "y": 108,
+    "width": 84,
+    "length": 84
+  },
+  {
+    "id": "flower_3",
+    "shape": "circle",
+    "x": 894,
+    "y": 116,
+    "width": 64,
+    "length": 64
+  },
+  {
+    "id": "flower_4",
+    "shape": "circle",
+    "x": 802,
+    "y": 115,
+    "width": 76,
+    "length": 76
+  },
+  {
+    "id": "tennis_court",
+    "name": "Tennis Court",
+    "shape": "rect",
+    "x": 312,
+    "y": 1455,
+    "rotation": 17,
+    "width": 381,
+    "length": 470,
+    "noclip": true
+  },
+  {
+    "id": "8_13_main_building",
+    "name": "8-13 Main Building",
+    "shape": "rect",
+    "x": 972,
+    "y": 740,
+    "rotation": -1,
+    "width": 1067,
+    "length": 591,
+    "noclip": true
+  },
+  {
+    "id": "pool",
+    "name": "Pool",
+    "shape": "rect",
+    "x": -382,
+    "y": 76,
+    "rotation": 98,
+    "width": 319,
+    "length": 474,
+    "noclip": true
+  },
+  {
+    "id": "rugby_pitch",
+    "name": "Rugby Pitch",
+    "shape": "rect",
+    "x": -759,
+    "y": -536,
+    "rotation": 6,
+    "width": 1105,
+    "length": 727,
+    "noclip": true
+  },
+  {
+    "id": "2_to_8_playground",
+    "name": "2-8 Playground",
+    "shape": "rect",
+    "x": -673,
+    "y": -1123,
+    "rotation": 1,
+    "width": 1052,
+    "length": 247,
+    "noclip": true
+  },
+  {
+    "id": "astro_turf",
+    "name": "Astro Turf",
+    "shape": "rect",
+    "x": 1038,
+    "y": 1580,
+    "rotation": 106,
+    "width": 670,
+    "length": 1039,
+    "noclip": true
+  },
+  {
+    "id": "track_field",
+    "name": "Track & Field",
+    "shape": "rect",
+    "x": -596,
+    "y": 884,
+    "rotation": 17,
+    "width": 1576,
+    "length": 1165,
+    "noclip": true
+  },
+  {
+    "id": "building_1773231977714",
+    "name": "Mr Hardy's Office",
+    "shape": "rect",
+    "x": 1065,
+    "y": -1761,
+    "rotation": 0,
+    "width": 140,
+    "length": 114,
+    "noclip": true
+  },
+  {
+    "id": "building_1773231980812",
+    "name": "Nursery",
+    "shape": "rect",
+    "x": -793,
+    "y": -1483,
+    "rotation": 38,
+    "width": 319,
+    "length": 256,
+    "noclip": true
+  },
+  {
+    "id": "building_1773231981197",
+    "name": "2 To 8 Main Building",
+    "shape": "rect",
+    "x": -1187,
+    "y": -1476,
+    "rotation": 41,
+    "width": 256,
+    "length": 415,
+    "noclip": true
+  },
+  {
+    "id": "building_1773231981381",
+    "name": "13 to 18 Main Building",
+    "shape": "rect",
+    "x": 787,
+    "y": -1506,
+    "rotation": 0,
+    "width": 940,
+    "length": 392,
+    "noclip": true
+  }
+]

@@ -5,10 +5,9 @@
     "width": 3904,
     "height": 4292,
     "background": "/grounds/background.png",
-    "collision_objects": "grounds/collision_objects.json",
-    "buildings": "grounds/buildings.json",
     "npcs": "grounds/npc.json",
-    "character_scale": 1
+    "character_scale": 1,
+    "objects": "grounds/objects.json"
   },
   {
     "id": 1,
@@ -16,9 +15,8 @@
     "width": 1952,
     "height": 2146,
     "background": "/detention/background.png",
-    "collision_objects": "detention/collision_objects.json",
-    "buildings": "detention/buildings.json",
     "npcs": "detention/npc.json",
-    "character_scale": 4
+    "character_scale": 4,
+    "objects": "detention/objects.json"
   }
 ]

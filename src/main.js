@@ -55,12 +55,9 @@ ws.onmessage = (event) => {
         player.chatMessage = data.message;
         player.chatTime = Date.now();
       }
-    } else if (data.type === 'collision_objects_update') {
-      collisionObjects = data.collisionObjects || [];
-      window.collisionObjects = collisionObjects;
-    } else if (data.type === 'buildings_update') {
-      buildings = data.buildings || [];
-      window.buildings = buildings;
+    } else if (data.type === 'objects_update') {
+      objects = data.objects || [];
+      window.objects = objects;
     }
   } catch (e) {
     console.error(e);
@@ -187,10 +184,8 @@ let player = {
 window.player = player;
 
 // Map Objects
-let collisionObjects = [];
-window.collisionObjects = collisionObjects;
-let buildings = [];
-window.buildings = buildings;
+let objects = [];
+window.objects = objects;
 let characters = [];
 let lastSyncTime = 0;
 
@@ -265,8 +260,8 @@ function update() {
         }
       }
 
-      // Check collision objects
-      for (const obj of collisionObjects) {
+      // Check objects
+      for (const obj of objects) {
         if (obj.noclip) continue;
         if (obj.shape === 'circle') {
           const distSq = (newX - obj.x) ** 2 + (newY - obj.y) ** 2;
@@ -300,56 +295,6 @@ function update() {
 
           const distSq = (testX - closestX) ** 2 + (testY - closestY) ** 2;
           if (distSq < playerRadius * playerRadius) {
-            return false;
-          }
-        }
-      }
-
-      // Check building walls
-      for (const building of buildings) {
-        if (!building.walls) continue;
-
-        const bdx = newX - building.x;
-        const bdy = newY - building.y;
-        const angle = -(building.rotation || 0) * Math.PI / 180;
-
-        // Inverse rotation to get local coordinates relative to center
-        const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
-        const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
-
-        // Offset so (0,0) is top-left
-        const tlX = localX + building.width / 2;
-        const tlY = localY + building.height / 2;
-
-        for (const wall of building.walls) {
-          const wStartX = wall.x;
-          const wStartY = wall.y;
-          let wEndX = wStartX;
-          let wEndY = wStartY;
-
-          if (wall.endX !== undefined && wall.endY !== undefined) {
-            wEndX = wall.endX;
-            wEndY = wall.endY;
-          } else if (wall.height !== undefined) {
-            // Vertical wall
-            wEndY = wStartY + wall.height;
-          } else {
-            // Horizontal wall
-            wEndX = wStartX + (wall.length || wall.width || 0);
-          }
-
-          let checkDistSq;
-          const l2 = (wEndX - wStartX) ** 2 + (wEndY - wStartY) ** 2;
-
-          if (l2 === 0) {
-            checkDistSq = (tlX - wStartX) ** 2 + (tlY - wStartY) ** 2;
-          } else {
-            let t = ((tlX - wStartX) * (wEndX - wStartX) + (tlY - wStartY) * (wEndY - wStartY)) / l2;
-            t = Math.max(0, Math.min(1, t));
-            checkDistSq = (tlX - (wStartX + t * (wEndX - wStartX))) ** 2 + (tlY - (wStartY + t * (wEndY - wStartY))) ** 2;
-          }
-
-          if (checkDistSq < playerRadius * playerRadius) {
             return false;
           }
         }
@@ -742,10 +687,8 @@ if (nameInput) {
 
 function handleInitData(data) {
   isDataLoaded = false;
-  collisionObjects = data.collisionObjects || [];
-  buildings = data.buildings || [];
-  window.collisionObjects = collisionObjects;
-  window.buildings = buildings;
+  objects = data.objects || [];
+  window.objects = objects;
   characters = [...(data.npcs || []), ...(data.characters || [])];
 
   const myCharacter = data.myCharacter;

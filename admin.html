@@ -39,56 +39,37 @@
       <select id="admin-map-select" style="width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white;">
         <option value="">Select Map...</option>
       </select>
-      <button id="btn-create-building" style="width: 100%; padding: 8px; background-color: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 5px;">+ Create Building</button>
-      <button id="btn-create-col-rect" style="width: 100%; padding: 8px; background-color: #e67e22; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 5px;">+ Create Rect Col</button>
-      <button id="btn-create-col-circle" style="width: 100%; padding: 8px; background-color: #f1c40f; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">+ Create Circle Col</button>
+      <button id="btn-create-obj-building" style="width: 100%; padding: 8px; background-color: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 5px;">+ Create Building</button>
+      <button id="btn-create-obj-rect" style="width: 100%; padding: 8px; background-color: #e67e22; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 5px;">+ Create Rect Col</button>
+      <button id="btn-create-obj-circle" style="width: 100%; padding: 8px; background-color: #f1c40f; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">+ Create Circle Col</button>
     </div>
-    <div id="edit-building-section" style="display: none;">
-      <h3>Edit Building</h3>
+    <div id="edit-obj-section" style="display: none;">
+      <h3>Edit Object</h3>
       <div style="text-align:center; margin-bottom:10px;">
-        <input type="text" id="building-name-input" style="width:100%; box-sizing:border-box; padding:5px; text-align:center; background:rgba(255,255,255,0.1); border:1px solid #7f8c8d; color:white; border-radius:4px;" placeholder="Building Name" />
+        <input type="text" id="obj-name-input" style="width:100%; box-sizing:border-box; padding:5px; text-align:center; background:rgba(255,255,255,0.1); border:1px solid #7f8c8d; color:white; border-radius:4px;" placeholder="Object Name (Optional)" />
       </div>
       <div class="control-row">
         <span>Rotate:</span>
-        <button id="btn-rot-left">↺</button>
-        <button id="btn-rot-right">↻</button>
+        <button id="btn-obj-rot-left">↺</button>
+        <button id="btn-obj-rot-right">↻</button>
       </div>
       <div class="control-row">
         <span>Width:</span>
-        <button id="btn-width-dec">-</button>
-        <button id="btn-width-inc">+</button>
-      </div>
-      <div class="control-row">
-        <span>Height:</span>
-        <button id="btn-height-dec">-</button>
-        <button id="btn-height-inc">+</button>
-      </div>
-      <button id="btn-delete-building" style="width:100%; margin-top:10px; padding:5px; background-color:#e74c3c; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Delete Building</button>
-    </div>
-    <div id="edit-col-obj-section" style="display: none;">
-      <h3>Edit Collision Object</h3>
-      <div class="control-row">
-        <span>Rotate:</span>
-        <button id="btn-col-rot-left">↺</button>
-        <button id="btn-col-rot-right">↻</button>
-      </div>
-      <div class="control-row">
-        <span>Width:</span>
-        <button id="btn-col-width-dec">-</button>
-        <button id="btn-col-width-inc">+</button>
+        <button id="btn-obj-width-dec">-</button>
+        <button id="btn-obj-width-inc">+</button>
       </div>
       <div class="control-row">
         <span>Length:</span>
-        <button id="btn-col-length-dec">-</button>
-        <button id="btn-col-length-inc">+</button>
+        <button id="btn-obj-length-dec">-</button>
+        <button id="btn-obj-length-inc">+</button>
       </div>
       <div class="control-row" style="margin-top: 5px;">
         <label style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
-          <input type="checkbox" id="checkbox-col-noclip" />
+          <input type="checkbox" id="checkbox-obj-noclip" />
           Noclip (Pass through)
         </label>
       </div>
-      <button id="btn-delete-col" style="width:100%; margin-top:10px; padding:5px; background-color:#e74c3c; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Delete Object</button>
+      <button id="btn-delete-obj" style="width:100%; margin-top:10px; padding:5px; background-color:#e74c3c; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Delete Object</button>
     </div>
   </div>
 

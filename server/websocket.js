@@ -28,10 +28,8 @@ export function setupWebSocket(server) {
       clients: new Set(),
       characters: {},
       npcs: [],
-      collisionObjects: [],
-      buildings: [],
-      collisionObjectsFile: mapDef.collision_objects ? path.resolve(__dirname, 'data', mapDef.collision_objects) : null,
-      buildingsFile: mapDef.buildings ? path.resolve(__dirname, 'data', mapDef.buildings) : null
+      objects: [],
+      objectsFile: mapDef.objects ? path.resolve(__dirname, 'data', mapDef.objects) : null
     };
 
     if (mapDef.npcs) {
@@ -41,48 +39,25 @@ export function setupWebSocket(server) {
       } catch (e) { console.error(`Error loading npcs for map ${mapDef.id}:`, e); }
     }
 
-    if (mapObj.collisionObjectsFile) {
+    if (mapObj.objectsFile) {
       try {
-        if (fs.existsSync(mapObj.collisionObjectsFile)) mapObj.collisionObjects = JSON.parse(fs.readFileSync(mapObj.collisionObjectsFile, 'utf-8'));
-      } catch (e) { console.error(`Error loading collision objects for map ${mapDef.id}:`, e); }
+        if (fs.existsSync(mapObj.objectsFile)) mapObj.objects = JSON.parse(fs.readFileSync(mapObj.objectsFile, 'utf-8'));
+      } catch (e) { console.error(`Error loading objects for map ${mapDef.id}:`, e); }
 
-      let coTimer;
-      fs.watch(mapObj.collisionObjectsFile, (eventType, filename) => {
-        if (coTimer) clearTimeout(coTimer);
-        coTimer = setTimeout(() => {
+      let objTimer;
+      fs.watch(mapObj.objectsFile, (eventType, filename) => {
+        if (objTimer) clearTimeout(objTimer);
+        objTimer = setTimeout(() => {
           try {
-            if (fs.existsSync(mapObj.collisionObjectsFile)) {
-              mapObj.collisionObjects = JSON.parse(fs.readFileSync(mapObj.collisionObjectsFile, 'utf-8'));
-              console.log(`Collision objects updated for map ${mapDef.id}, broadcasting...`);
-              const broadcastMsg = JSON.stringify({ type: 'collision_objects_update', collisionObjects: mapObj.collisionObjects });
+            if (fs.existsSync(mapObj.objectsFile)) {
+              mapObj.objects = JSON.parse(fs.readFileSync(mapObj.objectsFile, 'utf-8'));
+              console.log(`Objects updated for map ${mapDef.id}, broadcasting...`);
+              const broadcastMsg = JSON.stringify({ type: 'objects_update', objects: mapObj.objects });
               mapObj.clients.forEach(client => {
                 if (client.readyState === 1) client.send(broadcastMsg);
               });
             }
-          } catch (e) { console.error('Error on co watch:', e); }
-        }, 50);
-      });
-    }
-
-    if (mapObj.buildingsFile) {
-      try {
-        if (fs.existsSync(mapObj.buildingsFile)) mapObj.buildings = JSON.parse(fs.readFileSync(mapObj.buildingsFile, 'utf-8'));
-      } catch (e) { console.error(`Error loading buildings for map ${mapDef.id}:`, e); }
-
-      let bTimer;
-      fs.watch(mapObj.buildingsFile, (eventType, filename) => {
-        if (bTimer) clearTimeout(bTimer);
-        bTimer = setTimeout(() => {
-          try {
-            if (fs.existsSync(mapObj.buildingsFile)) {
-              mapObj.buildings = JSON.parse(fs.readFileSync(mapObj.buildingsFile, 'utf-8'));
-              console.log(`Buildings updated for map ${mapDef.id}, broadcasting...`);
-              const broadcastMsg = JSON.stringify({ type: 'buildings_update', buildings: mapObj.buildings });
-              mapObj.clients.forEach(client => {
-                if (client.readyState === 1) client.send(broadcastMsg);
-              });
-            }
-          } catch (e) { console.error('Error on b watch:', e); }
+          } catch (e) { console.error('Error on obj watch:', e); }
         }, 50);
       });
     }
@@ -145,8 +120,7 @@ export function setupWebSocket(server) {
       type: 'init',
       characters: Object.values(mapData.characters),
       npcs: mapData.npcs,
-      collisionObjects: mapData.collisionObjects,
-      buildings: mapData.buildings,
+      objects: mapData.objects,
       myCharacter: newChar,
       mapData: {
         id: mapData.id,
@@ -228,8 +202,7 @@ export function setupWebSocket(server) {
                 type: 'init',
                 characters: Object.values(mapData.characters),
                 npcs: mapData.npcs,
-                collisionObjects: mapData.collisionObjects,
-                buildings: mapData.buildings,
+                objects: mapData.objects,
                 myCharacter: oldChar,
                 mapData: {
                   id: mapData.id,
