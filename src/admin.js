@@ -111,6 +111,7 @@ let dragOffsetY = 0;
 
 let isDraggingBackground = false;
 let isDraggingAdminImage = false;
+let isDraggingObject = false;
 let bgDragOffsetX = 0;
 let bgDragOffsetY = 0;
 let lastMouseX = 0;
@@ -135,11 +136,15 @@ document.getElementById('btn-create-obj-circle').onclick = () => {
 };
 
 document.getElementById('btn-delete-obj').onclick = () => {
-  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'delete_object', id: window.selectedObject.get().id }));
-    window.selectedObject.set(null);
+  const selected = window.selectedObject.get();
+  if (selected && window.ws.readyState === WebSocket.OPEN) {
+    const identifier = selected.name || selected.id;
+    if (window.confirm(`Are you sure you want to delete ${identifier}?`)) {
+      window.ws.send(JSON.stringify({ type: 'delete_object', id: selected.id }));
+      window.selectedObject.set(null);
 
-    updateAdminPanel();
+      updateAdminPanel();
+    }
   }
 };
 
@@ -252,6 +257,7 @@ window.addEventListener('mousedown', (e) => {
   if (hitObj) {
     console.log(`Dragging object: ${hitObj.id}`);
     window.selectedObject.set(hitObj.id);
+    isDraggingObject = true;
     
     dragOffsetX = hitObj.x - worldX;
     dragOffsetY = hitObj.y - worldY;
@@ -274,7 +280,7 @@ window.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
-  if (window.selectedObject.get() && e.buttons === 1) {
+  if (isDraggingObject && window.selectedObject.get()) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
@@ -305,7 +311,7 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', () => {
-  if (window.selectedObject.get()) {
+  if (isDraggingObject && window.selectedObject.get()) {
     if (window.ws.readyState === WebSocket.OPEN) {
       window.ws.send(JSON.stringify({
         type: 'move_object',
@@ -315,6 +321,7 @@ window.addEventListener('mouseup', () => {
       }));
     }
   }
+  isDraggingObject = false;
   isDraggingBackground = false;
   isDraggingAdminImage = false;
 });

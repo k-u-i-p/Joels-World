@@ -129,27 +129,6 @@ window.addEventListener('keydown', (e) => {
 
   if (isChatFocused || e.target.tagName === 'INPUT') return;
 
-  if (e.code === 'Space') {
-    const hector = characters.find(c => c.name === 'Hector');
-    if (hector) {
-      const dist = Math.hypot(hector.x - player.x, hector.y - player.y);
-      if (dist < 80) { // Interaction distance
-        hector.chatMessage = "today we shall play a good game";
-        hector.chatTime = Date.now();
-      }
-    }
-
-    const poop = characters.find(c => c.name === 'Talking Poop');
-    if (poop) {
-      const dist = Math.hypot(poop.x - player.x, poop.y - player.y);
-      if (dist < 80) {
-        poop.chatMessage = "god i am poo forever";
-        poop.chatTime = Date.now();
-      }
-    }
-    e.preventDefault();
-  }
-
   if (keys.hasOwnProperty(e.code)) {
     keys[e.code] = true;
   }
@@ -188,6 +167,7 @@ let objects = [];
 window.objects = objects;
 let characters = [];
 let lastSyncTime = 0;
+let activeNpcs = new Set();
 
 window.mapImage = new Image();
 window.mapImage.src = '/grounds/background.png'; // default fallback
@@ -375,6 +355,32 @@ function update() {
 
   // (Basic screen boundaries removed to allow world movement)
 
+  // Check NPC radius interactions
+  const interactionRadius = 80 * (window.characterScale || 1);
+  for (const c of characters) {
+    if (c.id === player.id) continue;
+    if (!c.isNpc && (!c.on_enter && !c.on_exit)) continue;
+
+    const dist = Math.hypot(player.x - c.x, player.y - c.y);
+    const wasActive = activeNpcs.has(c.id);
+
+    if (dist <= interactionRadius) {
+      if (!wasActive) {
+        activeNpcs.add(c.id);
+        if (c.on_enter && c.on_enter.length > 0) {
+          executeNpcActions(c, c.on_enter);
+        }
+      }
+    } else {
+      if (wasActive) {
+        activeNpcs.delete(c.id);
+        if (c.on_exit && c.on_exit.length > 0) {
+          executeNpcActions(c, c.on_exit);
+        }
+      }
+    }
+  }
+
   // Sync back via websocket 20 times a second if moved
   const now = Date.now();
   if (now - lastSyncTime > 50) {
@@ -386,6 +392,21 @@ function update() {
       player._lastSentRotation = player.rotation;
       lastSyncTime = now;
       syncPlayerToJSON();
+    }
+  }
+}
+
+function executeNpcActions(npc, actions) {
+  for (const action of actions) {
+    if (action.say && action.say.length > 0) {
+      let randomMsg = action.say[Math.floor(Math.random() * action.say.length)];
+      if (player && player.name) {
+        randomMsg = randomMsg.replace(/{name}/g, player.name);
+      } else {
+        randomMsg = randomMsg.replace(/{name}/g, 'Student');
+      }
+      npc.chatMessage = randomMsg;
+      npc.chatTime = Date.now();
     }
   }
 }
@@ -690,6 +711,7 @@ function handleInitData(data) {
   objects = data.objects || [];
   window.objects = objects;
   characters = [...(data.npcs || []), ...(data.characters || [])];
+  activeNpcs.clear();
 
   const myCharacter = data.myCharacter;
   const mapMetadata = data.mapData;
@@ -762,7 +784,6 @@ const moveContainer = document.getElementById('joystick-move-container');
 const moveKnob = document.getElementById('joystick-move-knob');
 const turnContainer = document.getElementById('joystick-turn-container');
 const turnKnob = document.getElementById('joystick-turn-knob');
-const actionButton = document.getElementById('action-button');
 
 const maxRadius = 40;
 
@@ -880,31 +901,6 @@ const setupJoystick = (container, knob, axis) => {
 
 setupJoystick(moveContainer, moveKnob, 'move');
 setupJoystick(turnContainer, turnKnob, 'turn');
-
-if (actionButton) {
-  const triggerAction = (e) => {
-    if (e.cancelable) e.preventDefault();
-    // Simulate Spacebar press for Hector to speak
-    const hector = characters.find(c => c.name === 'Hector');
-    if (hector) {
-      const dist = Math.hypot(hector.x - player.x, hector.y - player.y);
-      if (dist < 80) {
-        hector.chatMessage = "today we shall play a good game";
-        hector.chatTime = Date.now();
-      }
-    }
-    const poop = characters.find(c => c.name === 'Talking Poop');
-    if (poop) {
-      const dist = Math.hypot(poop.x - player.x, poop.y - player.y);
-      if (dist < 80) {
-        poop.chatMessage = "god i am poo forever";
-        poop.chatTime = Date.now();
-      }
-    }
-  };
-  actionButton.addEventListener('mousedown', triggerAction);
-  actionButton.addEventListener('touchstart', triggerAction, { passive: false });
-}
 
 // Help Dialog Logic
 const helpButton = document.getElementById('help-button');

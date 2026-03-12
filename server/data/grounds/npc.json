@@ -10,7 +10,22 @@
     "gender": "male",
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
-    "armColor": "#3498db"
+    "armColor": "#3498db",
+    "on_enter": [
+      {
+        "say": [
+          "Hello {name}, I'm Mr Hardy",
+          "Welcome to St Peters {name}!"
+        ]
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "Be Good {name}!"
+        ]
+      }
+    ]
   },
   {
     "id": 2,
@@ -62,7 +77,14 @@
     "gender": "male",
     "shirtColor": "#9b59b6",
     "pantsColor": "#2c3e50",
-    "armColor": "#9b59b6"
+    "armColor": "#9b59b6",
+    "on_enter": [
+      {
+        "say": [
+          "Today we shall play a good game?"
+        ]
+      }
+    ]
   },
   {
     "id": 6,
@@ -75,7 +97,14 @@
     "gender": "male",
     "shirtColor": "#5C4033",
     "pantsColor": "#5C4033",
-    "armColor": "#5C4033"
+    "armColor": "#5C4033",
+    "on_enter": [
+      {
+        "say": [
+          "I am the poop god!"
+        ]
+      }
+    ]
   },
   {
     "id": 7,
