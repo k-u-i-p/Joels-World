@@ -66,11 +66,10 @@ export function handleAdminMessage(ws, data, mapData) {
       } catch (e) { console.error('Failed saving objects file:', e); }
     }
     return true;
-  } else if (data.type === 'toggle_object_noclip') {
+  } else if (data.type === 'update_object') {
     const obj = objects.find(o => o.id === data.id);
-    if (obj) {
-      if (data.noclip) obj.noclip = true;
-      else delete obj.noclip;
+    if (obj && data.updates) {
+      Object.assign(obj, data.updates);
       try {
         fs.writeFileSync(objectsFile, JSON.stringify(objects, null, 2), 'utf-8');
       } catch (e) { console.error('Failed saving objects file:', e); }

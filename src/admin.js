@@ -313,13 +313,14 @@ bindHoldAction('btn-obj-length-inc', () => {
   if (obj && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y }));
 });
 
-const objNoclipCheckbox = document.getElementById('checkbox-obj-noclip');
-if (objNoclipCheckbox) {
-  objNoclipCheckbox.addEventListener('change', (e) => {
+const inputObjClip = document.getElementById('input-obj-clip');
+if (inputObjClip) {
+  inputObjClip.addEventListener('change', (e) => {
     if (!window.selectedObject.get()) return;
-    window.selectedObject.get().noclip = e.target.checked;
+    const clipVal = parseInt(e.target.value, 10);
+    window.selectedObject.get().clip = isNaN(clipVal) ? 10 : clipVal;
     if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({ type: 'toggle_object_noclip', id: window.selectedObject.get().id, noclip: window.selectedObject.get().noclip }));
+      window.ws.send(JSON.stringify({ type: 'update_object', id: window.selectedObject.get().id, updates: { clip: window.selectedObject.get().clip } }));
     }
   });
 }
@@ -441,8 +442,9 @@ function updateAdminPanel() {
       nameInput.value = window.selectedObject.get().name || '';
     }
 
-    if (objNoclipCheckbox) {
-      objNoclipCheckbox.checked = !!window.selectedObject.get().noclip;
+    const clipInputDisplay = document.getElementById('input-obj-clip');
+    if (clipInputDisplay) {
+      clipInputDisplay.value = window.selectedObject.get().clip !== undefined ? window.selectedObject.get().clip : 10;
     }
   } else {
     editObjSection.style.display = 'none';

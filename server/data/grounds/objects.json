@@ -80,7 +80,7 @@
     "rotation": 17,
     "width": 381,
     "length": 470,
-    "noclip": true
+    "clip": -1
   },
   {
     "id": "8_13_main_building",
@@ -91,7 +91,7 @@
     "rotation": -1,
     "width": 1067,
     "length": 591,
-    "noclip": true
+    "clip": -1
   },
   {
     "id": "pool",
@@ -102,7 +102,7 @@
     "rotation": 98,
     "width": 317,
     "length": 474,
-    "noclip": true
+    "clip": -1
   },
   {
     "id": "rugby_pitch",
@@ -113,7 +113,7 @@
     "rotation": 6,
     "width": 1105,
     "length": 727,
-    "noclip": true
+    "clip": -1
   },
   {
     "id": "2_to_8_playground",
@@ -124,7 +124,7 @@
     "rotation": 1,
     "width": 1052,
     "length": 247,
-    "noclip": true
+    "clip": -1
   },
   {
     "id": "astro_turf",
@@ -135,7 +135,7 @@
     "rotation": 106,
     "width": 670,
     "length": 1039,
-    "noclip": true
+    "clip": -1
   },
   {
     "id": "track_field",
@@ -146,7 +146,7 @@
     "rotation": 17,
     "width": 1576,
     "length": 1165,
-    "noclip": true
+    "clip": -1
   },
   {
     "id": "building_1773231977714",
@@ -157,7 +157,7 @@
     "rotation": 0,
     "width": 140,
     "length": 114,
-    "noclip": true
+    "clip": -1
   },
   {
     "id": "building_1773231980812",
@@ -168,7 +168,7 @@
     "rotation": 38,
     "width": 319,
     "length": 256,
-    "noclip": true
+    "clip": -1
   },
   {
     "id": "building_1773231981197",
@@ -179,7 +179,7 @@
     "rotation": 41,
     "width": 256,
     "length": 415,
-    "noclip": true
+    "clip": -1
   },
   {
     "id": "building_1773231981381",
@@ -190,6 +190,6 @@
     "rotation": 0,
     "width": 940,
     "length": 392,
-    "noclip": true
+    "clip": -1
   }
 ]

@@ -251,11 +251,15 @@ function update() {
 
       // Check window.init.objects
       for (const obj of (window.init?.objects || [])) {
-        if (obj.noclip) continue;
+        if (obj.clip === undefined) obj.clip = 10;
+        const clipOverlapAllowed = obj.clip;
+        
+        if (clipOverlapAllowed === -1) continue; // Completely noclip
+
         if (obj.shape === 'circle') {
           const distSq = (newX - obj.x) ** 2 + (newY - obj.y) ** 2;
           const r = Math.max(obj.width, obj.length) / 2;
-          const minD = r + playerRadius;
+          const minD = Math.max(0.1, r + playerRadius - clipOverlapAllowed);
           if (distSq < minD * minD) {
             return false;
           }
@@ -283,7 +287,8 @@ function update() {
           const closestY = Math.max(rectTop, Math.min(testY, rectBottom));
 
           const distSq = (testX - closestX) ** 2 + (testY - closestY) ** 2;
-          if (distSq < playerRadius * playerRadius) {
+          const effRadius = Math.max(0.1, playerRadius - clipOverlapAllowed);
+          if (distSq < effRadius * effRadius) {
             return false;
           }
         }
