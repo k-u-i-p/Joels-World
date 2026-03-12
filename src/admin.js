@@ -256,6 +256,17 @@ bindHoldAction('btn-col-length-inc', () => {
   }
 });
 
+const colNoclipCheckbox = document.getElementById('checkbox-col-noclip');
+if (colNoclipCheckbox) {
+  colNoclipCheckbox.addEventListener('change', (e) => {
+    if (!selectedObject || selectedObject.type !== 'collision_object') return;
+    selectedObject.data.noclip = e.target.checked;
+    if (window.ws.readyState === WebSocket.OPEN) {
+      window.ws.send(JSON.stringify({ type: 'toggle_collision_object_noclip', id: selectedObject.data.id, noclip: selectedObject.data.noclip }));
+    }
+  });
+}
+
 function updateAdminPanel() {
   adminPanel.style.display = 'block';
 
@@ -271,6 +282,11 @@ function updateAdminPanel() {
   } else if (selectedObject && selectedObject.type === 'collision_object') {
     editSection.style.display = 'none';
     editColObjSection.style.display = 'block';
+
+    const colNoclipCheckbox = document.getElementById('checkbox-col-noclip');
+    if (colNoclipCheckbox) {
+      colNoclipCheckbox.checked = !!selectedObject.data.noclip;
+    }
   } else {
     editSection.style.display = 'none';
     editColObjSection.style.display = 'none';

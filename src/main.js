@@ -267,6 +267,7 @@ function update() {
 
       // Check collision objects
       for (const obj of collisionObjects) {
+        if (obj.noclip) continue;
         if (obj.shape === 'circle') {
           const distSq = (newX - obj.x) ** 2 + (newY - obj.y) ** 2;
           const r = Math.max(obj.width, obj.length) / 2;
