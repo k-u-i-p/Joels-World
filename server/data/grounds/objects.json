@@ -39,7 +39,7 @@
     "rotation": 98,
     "width": 317,
     "length": 474,
-    "clip": -1,
+    "clip": 20,
     "on_enter": [
       {
         "show_dialog": {
@@ -59,7 +59,17 @@
     "rotation": 6,
     "width": 1105,
     "length": 727,
-    "clip": -1
+    "clip": -1,
+    "on_enter": [
+      {
+        "emote": "rugby"
+      }
+    ],
+    "on_exit": [
+      {
+        "clear_emote": true
+      }
+    ]
   },
   {
     "id": 14,
@@ -88,7 +98,7 @@
     "name": "Track & Field",
     "shape": "rect",
     "x": -587,
-    "y": 870,
+    "y": 868,
     "rotation": 17,
     "width": 1641,
     "length": 1150,

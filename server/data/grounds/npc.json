@@ -123,8 +123,8 @@
   {
     "id": 8,
     "name": "Mr Savage",
-    "x": 350,
-    "y": -200,
+    "x": -570,
+    "y": -538,
     "width": 46,
     "height": 46,
     "rotation": 90,
@@ -143,6 +143,10 @@
         ]
       }
     ],
-    "on_exit": []
+    "on_exit": [],
+    "emote": {
+      "name": "rugby",
+      "startTime": 0
+    }
   }
 ]
