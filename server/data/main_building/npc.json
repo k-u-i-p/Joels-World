@@ -18,7 +18,11 @@
           "Welcome to the main building, {name}!",
           "I don't think much of the new classrooms!",
           "Have you ever been trials riding?",
-          "Want to make a volcano {name}?"
+          "Want to make a volcano {name}?",
+          "If you're not offering me pasta or a heated blanket, keep walking.",
+          "This school feels like an escape room, but nobody gave me the clues.",
+          "Forward. Only forward. Always forward... mostly toward the staff room.",
+          "I’m operating on three hours of sleep and pure sarcasm."
         ]
       }
     ],
