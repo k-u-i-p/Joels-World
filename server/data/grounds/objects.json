@@ -178,5 +178,15 @@
     "width": 319,
     "length": 256,
     "clip": -1
+  },
+  {
+    "id": "obj_1773334510639",
+    "shape": "rect",
+    "x": 461,
+    "y": 327,
+    "width": 302,
+    "length": 157,
+    "name": "Spawn Area",
+    "clip": -1
   }
 ]

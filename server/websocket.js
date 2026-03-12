@@ -198,56 +198,54 @@ export function setupWebSocket(server) {
               client.send(broadcastMsg);
             }
           });
-        } else if (ws.isAdmin) {
-          if (data.type === 'change_map') {
-            const requestedMapId = Number(data.mapId);
-            const newMapData = mapState[requestedMapId];
-            if (newMapData && ws.mapId !== requestedMapId) {
-              const oldChar = mapData.characters[ws.clientId] || newChar;
-              delete mapData.characters[ws.clientId];
-              delete mapData.dirtyCharacters[ws.clientId];
-              const disconnectMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
-              mapData.clients.forEach(client => {
-                if (client !== ws && client.readyState === 1) {
-                  client.send(disconnectMsg);
-                }
-              });
-              mapData.clients.delete(ws);
+        } else if (data.type === 'change_map') {
+          const requestedMapId = Number(data.mapId);
+          const newMapData = mapState[requestedMapId];
+          if (newMapData && ws.mapId !== requestedMapId) {
+            const oldChar = mapData.characters[ws.clientId] || newChar;
+            delete mapData.characters[ws.clientId];
+            delete mapData.dirtyCharacters[ws.clientId];
+            const disconnectMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
+            mapData.clients.forEach(client => {
+              if (client !== ws && client.readyState === 1) {
+                client.send(disconnectMsg);
+              }
+            });
+            mapData.clients.delete(ws);
 
-              // Update client reference
-              ws.mapId = requestedMapId;
-              mapData = newMapData;
+            // Update client reference
+            ws.mapId = requestedMapId;
+            mapData = newMapData;
 
-              // Reset position safely to not be OOB of new map bounds
-              oldChar.x = Math.round(Math.random() * 800 + 100);
-              oldChar.y = Math.round(Math.random() * 600 + 100);
-              oldChar.emote = null;
+            // Reset position safely to not be OOB of new map bounds
+            oldChar.x = Math.round(Math.random() * 800 + 100);
+            oldChar.y = Math.round(Math.random() * 600 + 100);
+            oldChar.emote = null;
 
-              mapData.characters[ws.clientId] = oldChar;
-              mapData.dirtyCharacters[ws.clientId] = oldChar;
-              mapData.clients.add(ws);
+            mapData.characters[ws.clientId] = oldChar;
+            mapData.dirtyCharacters[ws.clientId] = oldChar;
+            mapData.clients.add(ws);
 
-              // Send init to immediately reset the client seamlessly
-              ws.send(JSON.stringify({
-                type: 'init',
-                characters: Object.values(mapData.characters),
-                npcs: mapData.npcs,
-                objects: mapData.objects,
-                myCharacter: oldChar,
-                mapData: {
-                  id: mapData.id,
-                  name: mapData.name,
-                  width: mapData.width,
-                  height: mapData.height,
-                  background: mapData.background,
-                  character_scale: mapData.character_scale || 1
-                },
-                mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
-              }));
-            }
-          } else {
-            handleAdminMessage(ws, data, mapData);
+            // Send init to immediately reset the client seamlessly
+            ws.send(JSON.stringify({
+              type: 'init',
+              characters: Object.values(mapData.characters),
+              npcs: mapData.npcs,
+              objects: mapData.objects,
+              myCharacter: oldChar,
+              mapData: {
+                id: mapData.id,
+                name: mapData.name,
+                width: mapData.width,
+                height: mapData.height,
+                background: mapData.background,
+                character_scale: mapData.character_scale || 1
+              },
+              mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
+            }));
           }
+        } else {
+          handleAdminMessage(ws, data, mapData);
         }
       } catch (err) {
         console.error('Error processing message:', err);

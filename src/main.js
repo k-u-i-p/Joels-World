@@ -502,7 +502,7 @@ function executeNpcActions(npc, actions) {
       if (container) {
         let el = container.querySelector(`[data-npc-id="${npc.id}"]`);
         const avatarSrc = action.avatar.startsWith('/') ? action.avatar : '/' + action.avatar;
-        
+
         if (!el) {
           el = document.createElement('img');
           el.dataset.npcId = npc.id;
@@ -549,10 +549,8 @@ function executeNpcActions(npc, actions) {
           if (action.show_dialog.type === 'change_map') {
             const mapId = Number(action.show_dialog.map);
             if (!isNaN(mapId)) {
-              if (window.ws.readyState === WebSocket.OPEN && window.isAdmin) {
+              if (window.ws.readyState === WebSocket.OPEN) {
                 window.ws.send(JSON.stringify({ type: 'change_map', mapId: mapId }));
-              } else {
-                window.location.search = `?mapId=${mapId}`;
               }
             } else {
               console.warn("Invalid map ID provided:", action.show_dialog.map);
@@ -896,6 +894,11 @@ function handleInitData(data) {
   if (!window.init.characters) window.init.characters = [];
   if (!window.init.npcs) window.init.npcs = [];
   activeNpc = null;
+  
+  const avatarsContainer = document.getElementById('avatars-container');
+  if (avatarsContainer) {
+    avatarsContainer.innerHTML = '';
+  }
 
   const myCharacter = data.myCharacter;
   const mapMetadata = data.mapData;
