@@ -11,9 +11,9 @@
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
-    "avatar": "avatars/mr_hardy.png",
     "on_enter": [
       {
+        "avatar": "avatars/mr_hardy.png",
         "say": [
           "Hello {name}, I'm Mr Hardy",
           "Welcome to St Peters {name}!"

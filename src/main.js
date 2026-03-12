@@ -178,7 +178,7 @@ window.player = player;
 // Initialization Object
 window.init = null;
 let lastSyncTime = 0;
-let activeNpcs = new Set();
+let activeNpc = null;
 
 window.mapImage = new Image();
 window.mapImage.src = '/grounds/background.png'; // default fallback
@@ -206,54 +206,7 @@ function gameLoop() {
     window.adminDraw();
   }
 
-  drawAvatars();
-
   requestAnimationFrame(gameLoop);
-}
-window.gameLoop = gameLoop;
-
-function drawAvatars() {
-  // Draw active NPC avatars in the top left
-  if (activeNpcs && activeNpcs.size > 0 && window.init?.npcs) {
-    let avatarX = 20;
-    let avatarY = 20;
-    const avatarSize = 128;
-
-    activeNpcs.forEach(npcId => {
-      const npc = window.init.npcs.find(n => n.id === npcId);
-      if (npc && npc.avatar) {
-        if (!npc._avatarImage) {
-          npc._avatarImage = new Image();
-          npc._avatarImage.src = npc.avatar;
-        }
-        if (npc._avatarImage.complete) {
-          ctx.save();
-
-          // Draw image with rounded clipping mask if supported
-          ctx.beginPath();
-          if (ctx.roundRect) {
-            ctx.roundRect(avatarX, avatarY, avatarSize, avatarSize, 8);
-            ctx.clip();
-          }
-          ctx.drawImage(npc._avatarImage, avatarX, avatarY, avatarSize, avatarSize);
-          ctx.restore();
-
-          // Draw outline
-          ctx.strokeStyle = '#ecf0f1';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          if (ctx.roundRect) {
-            ctx.roundRect(avatarX, avatarY, avatarSize, avatarSize, 8);
-          } else {
-            ctx.rect(avatarX, avatarY, avatarSize, avatarSize);
-          }
-          ctx.stroke();
-
-          avatarY += avatarSize + 15;
-        }
-      }
-    });
-  }
 }
 window.gameLoop = gameLoop;
 
@@ -490,27 +443,40 @@ function update() {
 
   // Check NPC radius interactions
   const interactionRadius = 80 * (window.init?.mapData?.character_scale || 1);
+  let closestNpc = null;
+  let minNpcDist = interactionRadius + 1;
+
   for (const c of [...(window.init?.characters || []), ...(window.init?.npcs || [])]) {
     if (c.id === player.id) continue;
     if (!c.isNpc && (!c.on_enter && !c.on_exit)) continue;
 
     const dist = Math.hypot(player.x - c.x, player.y - c.y);
-    const wasActive = activeNpcs.has(c.id);
+    if (dist <= interactionRadius && dist < minNpcDist) {
+      minNpcDist = dist;
+      closestNpc = c;
+    }
+  }
 
-    if (dist <= interactionRadius) {
-      if (!wasActive) {
-        activeNpcs.add(c.id);
-        if (c.on_enter && c.on_enter.length > 0) {
-          executeNpcActions(c, c.on_enter);
-        }
+  if (activeNpc && (!closestNpc || activeNpc !== closestNpc.id)) {
+    const prevNpc = [...(window.init?.characters || []), ...(window.init?.npcs || [])].find(c => c.id === activeNpc);
+    if (prevNpc) {
+      if (prevNpc.on_exit && prevNpc.on_exit.length > 0) {
+        executeNpcActions(prevNpc, prevNpc.on_exit);
       }
-    } else {
-      if (wasActive) {
-        activeNpcs.delete(c.id);
-        if (c.on_exit && c.on_exit.length > 0) {
-          executeNpcActions(c, c.on_exit);
-        }
+      // Auto-clear avatar when walking away from an NPC
+      const container = document.getElementById('avatars-container');
+      if (container) {
+        const el = container.querySelector(`[data-npc-id="${prevNpc.id}"]`);
+        if (el) el.remove();
       }
+    }
+    activeNpc = null;
+  }
+
+  if (closestNpc && activeNpc !== closestNpc.id) {
+    activeNpc = closestNpc.id;
+    if (closestNpc.on_enter && closestNpc.on_enter.length > 0) {
+      executeNpcActions(closestNpc, closestNpc.on_enter);
     }
   }
 
@@ -531,6 +497,28 @@ function update() {
 
 function executeNpcActions(npc, actions) {
   for (const action of actions) {
+    if (action.avatar) {
+      const container = document.getElementById('avatars-container');
+      if (container) {
+        let el = container.querySelector(`[data-npc-id="${npc.id}"]`);
+        const avatarSrc = action.avatar.startsWith('/') ? action.avatar : '/' + action.avatar;
+        
+        if (!el) {
+          el = document.createElement('img');
+          el.dataset.npcId = npc.id;
+          el.src = avatarSrc;
+          el.style.width = '128px';
+          el.style.height = '128px';
+          el.style.borderRadius = '8px';
+          el.style.border = '2px solid #ecf0f1';
+          el.style.objectFit = 'cover';
+          container.appendChild(el);
+        } else {
+          el.src = avatarSrc;
+        }
+      }
+    }
+
     if (action.say && action.say.length > 0) {
       let randomMsg = action.say[Math.floor(Math.random() * action.say.length)];
       if (player && player.name) {
@@ -541,7 +529,7 @@ function executeNpcActions(npc, actions) {
       npc.chatMessage = randomMsg;
       npc.chatTime = Date.now();
     }
-    
+
     if (action.show_dialog) {
       const dialogOverlay = document.getElementById('action-dialog-content');
       const dialogText = document.getElementById('action-dialog-text');
@@ -643,7 +631,7 @@ function drawCharacters() {
   [...(window.init?.characters || []), ...(window.init?.npcs || [])].forEach(char => {
     // Current player might have updated legAnimationTime / x / y locally
     const c = (char.id === player.id) ? player : char;
-    
+
     if (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY) {
       drawCharacter(c);
     }
@@ -883,7 +871,7 @@ function attemptStartGame() {
     }
     if (nameDialog) nameDialog.style.display = 'none';
     window.gameStarted = true;
-    
+
     // Play background audio if mapped
     if (window.init.mapData && window.init.mapData.background_sound) {
       window.bgAudio.src = window.init.mapData.background_sound;
@@ -907,7 +895,7 @@ function handleInitData(data) {
   window.init = data;
   if (!window.init.characters) window.init.characters = [];
   if (!window.init.npcs) window.init.npcs = [];
-  activeNpcs.clear();
+  activeNpc = null;
 
   const myCharacter = data.myCharacter;
   const mapMetadata = data.mapData;
@@ -931,7 +919,7 @@ function handleInitData(data) {
     if (mapMetadata.background) {
       window.mapImage.src = mapMetadata.background;
     }
-    
+
     // Handle dynamic map audio swapping if already playing
     if (window.gameStarted) {
       if (mapMetadata.background_sound) {

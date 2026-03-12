@@ -11,9 +11,9 @@
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
-    "avatar": "avatars/mr_hardy_grumpy.png",
     "on_enter": [
       {
+        "avatar": "avatars/mr_hardy_grumpy.png",
         "say": [
           "Why are you in detention {name}?",
           "You are in detention {name}!"
