@@ -94,7 +94,11 @@
     "clip": 50,
     "on_enter": [
       {
-        "change_map": "main_building"
+        "show_dialog": {
+          "type": "change_map",
+          "map": 2,
+          "description": "Do you want to enter the main building?"
+        }
       }
     ]
   },

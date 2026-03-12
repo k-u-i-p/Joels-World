@@ -323,7 +323,8 @@ function canMoveTo(objectsList, newX, newY, playerRadius) {
     if (obj.shape === 'circle') {
       const distSq = (newX - obj.x) ** 2 + (newY - obj.y) ** 2;
       const r = Math.max(obj.width, obj.length) / 2;
-      const minD = Math.max(0.1, r + playerRadius - clipOverlapAllowed);
+      const effectiveR = Math.max(0, r - clipOverlapAllowed);
+      const minD = effectiveR + playerRadius;
       if (distSq < minD * minD) {
         return false;
       }
@@ -339,8 +340,8 @@ function canMoveTo(objectsList, newX, newY, playerRadius) {
         testY = obj.y + bdx * Math.sin(angle) + bdy * Math.cos(angle);
       }
 
-      const halfW = obj.width / 2;
-      const halfL = obj.length / 2;
+      const halfW = Math.max(0, obj.width / 2 - clipOverlapAllowed);
+      const halfL = Math.max(0, obj.length / 2 - clipOverlapAllowed);
       const rectLeft = obj.x - halfW;
       const rectRight = obj.x + halfW;
       const rectTop = obj.y - halfL;
@@ -350,8 +351,7 @@ function canMoveTo(objectsList, newX, newY, playerRadius) {
       const closestY = Math.max(rectTop, Math.min(testY, rectBottom));
 
       const distSq = (testX - closestX) ** 2 + (testY - closestY) ** 2;
-      const effRadius = Math.max(0.1, playerRadius - clipOverlapAllowed);
-      if (distSq < effRadius * effRadius) {
+      if (distSq < playerRadius * playerRadius) {
         return false;
       }
     }
@@ -402,9 +402,27 @@ function update() {
     }
 
     if (possibleOverlaps.length > 0) {
-      const actuallyInObject = findObjectsAt(possibleOverlaps, [{ x: player.x, y: player.y }], 0)
-      if (actuallyInObject.length > 0) {
-        console.log("In Building", actuallyInObject);
+      const actuallyInObject = findObjectsAt(possibleOverlaps, [{ x: player.x, y: player.y }], 0);
+      const newBuilding = actuallyInObject.length > 0 ? actuallyInObject[0].id : null;
+
+      if (player.activeBuilding !== newBuilding) {
+        player.activeBuilding = newBuilding;
+        if (newBuilding) {
+          const matchedObj = actuallyInObject[0];
+          if (matchedObj.on_enter && matchedObj.on_enter.length > 0) {
+            executeNpcActions(matchedObj, matchedObj.on_enter);
+          }
+        } else {
+          // Exited building
+          const dialogOverlay = document.getElementById('action-dialog');
+          if (dialogOverlay) dialogOverlay.style.display = 'none';
+        }
+      }
+    } else {
+      if (player.activeBuilding) {
+        player.activeBuilding = null;
+        const dialogOverlay = document.getElementById('action-dialog');
+        if (dialogOverlay) dialogOverlay.style.display = 'none';
       }
     }
   }
@@ -520,6 +538,38 @@ function executeNpcActions(npc, actions) {
       }
       npc.chatMessage = randomMsg;
       npc.chatTime = Date.now();
+    }
+    
+    if (action.show_dialog) {
+      const dialogOverlay = document.getElementById('action-dialog');
+      const dialogText = document.getElementById('action-dialog-text');
+      const btnYes = document.getElementById('action-dialog-yes');
+      const btnNo = document.getElementById('action-dialog-no');
+
+      if (dialogOverlay && dialogText && btnYes && btnNo) {
+        dialogText.textContent = action.show_dialog.description || 'Proceed?';
+        dialogOverlay.style.display = 'flex';
+
+        btnNo.onclick = () => {
+          dialogOverlay.style.display = 'none';
+        };
+
+        btnYes.onclick = () => {
+          dialogOverlay.style.display = 'none';
+          if (action.show_dialog.type === 'change_map') {
+            const mapId = Number(action.show_dialog.map);
+            if (!isNaN(mapId)) {
+              if (window.ws.readyState === WebSocket.OPEN && window.isAdmin) {
+                window.ws.send(JSON.stringify({ type: 'change_map', mapId: mapId }));
+              } else {
+                window.location.search = `?mapId=${mapId}`;
+              }
+            } else {
+              console.warn("Invalid map ID provided:", action.show_dialog.map);
+            }
+          }
+        };
+      }
     }
   }
 }
