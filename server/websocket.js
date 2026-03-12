@@ -27,6 +27,7 @@ export function setupWebSocket(server) {
       ...mapDef,
       clients: new Set(),
       characters: {},
+      dirtyCharacters: {},
       npcs: [],
       objects: [],
       objectsFile: mapDef.objects ? path.resolve(__dirname, 'data', mapDef.objects) : null,
@@ -86,6 +87,19 @@ export function setupWebSocket(server) {
 
     mapState[mapDef.id] = mapObj;
   });
+
+  setInterval(() => {
+    Object.values(mapState).forEach(mapObj => {
+      const updates = Object.values(mapObj.dirtyCharacters);
+      if (updates.length > 0) {
+        const broadcastMsg = JSON.stringify({ type: 'tick', characters: updates });
+        mapObj.clients.forEach(client => {
+          if (client.readyState === 1) client.send(broadcastMsg);
+        });
+        mapObj.dirtyCharacters = {};
+      }
+    });
+  }, 100);
 
   const colors = ['#e74c3c', '#8e44ad', '#3498db', '#1abc9c', '#2ecc71', '#f1c40f', '#e67e22', '#34495e'];
   function getRandomColor() {
@@ -156,12 +170,7 @@ export function setupWebSocket(server) {
       mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
     }));
 
-    const broadcastMsg = JSON.stringify({ type: 'update', character: newChar });
-    mapData.clients.forEach(client => {
-      if (client !== ws && client.readyState === 1) { // OPEN
-        client.send(broadcastMsg);
-      }
-    });
+    mapData.dirtyCharacters[newPlayerId] = newChar;
 
     ws.on('message', (message) => {
       try {
@@ -171,13 +180,7 @@ export function setupWebSocket(server) {
           const char = data.character;
           ws.clientId = char.id;
           mapData.characters[char.id] = char;
-
-          const broadcastMsg = JSON.stringify({ type: 'update', character: char });
-          mapData.clients.forEach(client => {
-            if (client !== ws && client.readyState === 1) { // OPEN
-              client.send(broadcastMsg);
-            }
-          });
+          mapData.dirtyCharacters[char.id] = char;
         } else if (data.type === 'chat') {
           const broadcastMsg = JSON.stringify({ type: 'chat', id: ws.clientId, message: data.message });
           mapData.clients.forEach(client => {
@@ -188,6 +191,7 @@ export function setupWebSocket(server) {
         } else if (data.type === 'disconnect') {
           const id = data.id;
           delete mapData.characters[id];
+          delete mapData.dirtyCharacters[id];
           const broadcastMsg = JSON.stringify({ type: 'disconnect', id });
           mapData.clients.forEach(client => {
             if (client !== ws && client.readyState === 1) {
@@ -201,6 +205,7 @@ export function setupWebSocket(server) {
             if (newMapData && ws.mapId !== requestedMapId) {
               const oldChar = mapData.characters[ws.clientId] || newChar;
               delete mapData.characters[ws.clientId];
+              delete mapData.dirtyCharacters[ws.clientId];
               const disconnectMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
               mapData.clients.forEach(client => {
                 if (client !== ws && client.readyState === 1) {
@@ -219,6 +224,7 @@ export function setupWebSocket(server) {
               oldChar.emote = null;
 
               mapData.characters[ws.clientId] = oldChar;
+              mapData.dirtyCharacters[ws.clientId] = oldChar;
               mapData.clients.add(ws);
 
               // Send init to immediately reset the client seamlessly
@@ -238,12 +244,6 @@ export function setupWebSocket(server) {
                 },
                 mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
               }));
-
-              // Broadcast presence to new map clients
-              const broadcastMsg2 = JSON.stringify({ type: 'update', character: oldChar });
-              mapData.clients.forEach(client => {
-                if (client !== ws && client.readyState === 1) client.send(broadcastMsg2);
-              });
             }
           } else {
             handleAdminMessage(ws, data, mapData);
@@ -258,6 +258,7 @@ export function setupWebSocket(server) {
       console.log('Client disconnected');
       if (ws.clientId) {
         delete mapData.characters[ws.clientId];
+        delete mapData.dirtyCharacters[ws.clientId];
         const broadcastMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
         mapData.clients.forEach(client => {
           if (client.readyState === 1) {

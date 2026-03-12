@@ -22,30 +22,32 @@ ws.onmessage = (event) => {
       if (typeof handleInitData === 'function') {
         handleInitData(data);
       }
-    } else if (data.type === 'update') {
-      const serverChar = data.character;
-      if (serverChar.id === player.id) return; // Prevent echoing our own state
-      const localCharIndex = (window.init?.characters || []).findIndex(c => c.id === serverChar.id);
-      if (localCharIndex > -1) {
-        const localChar = window.init.characters[localCharIndex];
-        // Set targets for interpolation
-        localChar.targetX = serverChar.x;
-        localChar.targetY = serverChar.y;
-        localChar.targetRotation = serverChar.rotation;
+    } else if (data.type === 'update' || data.type === 'tick') {
+      const charactersToUpdate = data.type === 'tick' ? data.characters : [data.character];
+      charactersToUpdate.forEach(serverChar => {
+        if (serverChar.id === player.id) return; // Prevent echoing our own state
+        const localCharIndex = (window.init?.characters || []).findIndex(c => c.id === serverChar.id);
+        if (localCharIndex > -1) {
+          const localChar = window.init.characters[localCharIndex];
+          // Set targets for interpolation
+          localChar.targetX = serverChar.x;
+          localChar.targetY = serverChar.y;
+          localChar.targetRotation = serverChar.rotation;
 
-        // Directly sync visual properties
-        localChar.name = serverChar.name;
-        localChar.pantsColor = serverChar.pantsColor;
-        localChar.armColor = serverChar.armColor;
-        localChar.emote = serverChar.emote;
-      } else {
-        serverChar.targetX = serverChar.x;
-        serverChar.targetY = serverChar.y;
-        serverChar.targetRotation = serverChar.rotation;
-        if (!window.init) return;
-        if (!window.init.characters) window.init.characters = [];
-        window.init.characters.push(serverChar);
-      }
+          // Directly sync visual properties
+          localChar.name = serverChar.name;
+          localChar.pantsColor = serverChar.pantsColor;
+          localChar.armColor = serverChar.armColor;
+          localChar.emote = serverChar.emote;
+        } else {
+          serverChar.targetX = serverChar.x;
+          serverChar.targetY = serverChar.y;
+          serverChar.targetRotation = serverChar.rotation;
+          if (!window.init) return;
+          if (!window.init.characters) window.init.characters = [];
+          window.init.characters.push(serverChar);
+        }
+      });
     } else if (data.type === 'disconnect') {
       if (window.init?.characters) window.init.characters = window.init.characters.filter(c => c.id !== data.id);
     } else if (data.type === 'chat') {
@@ -628,10 +630,23 @@ function drawMap() {
 }
 
 function drawCharacters() {
+  const viewHalfW = (canvas.width / window.cameraZoom) / 2;
+  const viewHalfH = (canvas.height / window.cameraZoom) / 2;
+
+  // Add some margin for character width/height and name tag
+  const margin = 100;
+  const minX = window.cameraX - viewHalfW - margin;
+  const maxX = window.cameraX + viewHalfW + margin;
+  const minY = window.cameraY - viewHalfH - margin;
+  const maxY = window.cameraY + viewHalfH + margin;
+
   [...(window.init?.characters || []), ...(window.init?.npcs || [])].forEach(char => {
     // Current player might have updated legAnimationTime / x / y locally
     const c = (char.id === player.id) ? player : char;
-    drawCharacter(c);
+    
+    if (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY) {
+      drawCharacter(c);
+    }
   });
 }
 
