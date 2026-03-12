@@ -103,27 +103,6 @@
     ]
   },
   {
-    "id": 6,
-    "name": "Talking Poop",
-    "x": 0,
-    "y": -1900,
-    "width": 80,
-    "height": 80,
-    "rotation": 0,
-    "gender": "male",
-    "shirtColor": "#5C4033",
-    "pantsColor": "#5C4033",
-    "armColor": "#5C4033",
-    "emoji": "💩",
-    "on_enter": [
-      {
-        "say": [
-          "I am the poop god!"
-        ]
-      }
-    ]
-  },
-  {
     "id": 7,
     "name": "Dancing Toilet",
     "x": 0,

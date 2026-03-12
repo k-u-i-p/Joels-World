@@ -49,5 +49,26 @@
             }
         ],
         "on_exit": []
+    },
+    {
+        "id": 3,
+        "name": "Talking Poop",
+        "x": -600,
+        "y": 680,
+        "width": 80,
+        "height": 80,
+        "rotation": 0,
+        "gender": "male",
+        "shirtColor": "#5C4033",
+        "pantsColor": "#5C4033",
+        "armColor": "#5C4033",
+        "emoji": "💩",
+        "on_enter": [
+            {
+                "say": [
+                    "I am the poop god!"
+                ]
+            }
+        ]
     }
 ]
