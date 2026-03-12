@@ -76,10 +76,10 @@ window.selectedObject = {
     this._id = id;
   },
   get: function () {
-    return (window.objects || []).find(o => o.id === this._id);
+    return (window.init?.objects || []).find(o => o.id === this._id);
   },
   findObjectAtXY: function(worldX, worldY) {
-    const objects = window.objects || [];
+    const objects = window.init?.objects || [];
     for (let i = objects.length - 1; i >= 0; i--) {
       const obj = objects[i];
       let hit = false;
@@ -251,6 +251,11 @@ window.addEventListener('mousedown', (e) => {
   const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
   const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
 
+  const lastClickedElem = document.getElementById('admin-last-clicked');
+  if (lastClickedElem) {
+    lastClickedElem.textContent = `Last Click: x: ${Math.round(worldX)}, y: ${Math.round(worldY)}`;
+  }
+
   window.selectedObject.set(null);
 
   const hitObj = window.selectedObject.findObjectAtXY(worldX, worldY);
@@ -373,7 +378,7 @@ window.adminDraw = function () {
     ctx.drawImage(window.adminBackgroundImage, window.adminBackgroundImage._x || 0, window.adminBackgroundImage._y || 0);
   }
 
-  const objects = window.objects || [];
+  const objects = window.init?.objects || [];
   objects.forEach(obj => {
     ctx.save();
     ctx.translate(obj.x, obj.y);

@@ -81,7 +81,14 @@
     "on_enter": [
       {
         "say": [
-          "Today we shall play a good game?"
+          "Hi {name}, today we shall play a good game?"
+        ]
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "Fine! I didn't want to play anyway!"
         ]
       }
     ]

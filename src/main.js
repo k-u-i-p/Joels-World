@@ -25,9 +25,9 @@ ws.onmessage = (event) => {
     } else if (data.type === 'update') {
       const serverChar = data.character;
       if (serverChar.id === player.id) return; // Prevent echoing our own state
-      const localCharIndex = characters.findIndex(c => c.id === serverChar.id);
+      const localCharIndex = (window.init?.characters || []).findIndex(c => c.id === serverChar.id);
       if (localCharIndex > -1) {
-        const localChar = characters[localCharIndex];
+        const localChar = window.init.characters[localCharIndex];
         // Set targets for interpolation
         localChar.targetX = serverChar.x;
         localChar.targetY = serverChar.y;
@@ -42,22 +42,26 @@ ws.onmessage = (event) => {
         serverChar.targetX = serverChar.x;
         serverChar.targetY = serverChar.y;
         serverChar.targetRotation = serverChar.rotation;
-        characters.push(serverChar);
+        if (!window.init.characters) window.init.characters = [];
+        window.init.characters.push(serverChar);
       }
     } else if (data.type === 'disconnect') {
-      characters = characters.filter(c => c.id !== data.id);
+      if (window.init?.characters) window.init.characters = window.init.characters.filter(c => c.id !== data.id);
     } else if (data.type === 'chat') {
-      const charIndex = characters.findIndex(c => c.id === data.id);
+      const charIndex = (window.init?.characters || []).findIndex(c => c.id === data.id);
       if (charIndex > -1) {
-        characters[charIndex].chatMessage = data.message;
-        characters[charIndex].chatTime = Date.now();
+        window.init.characters[charIndex].chatMessage = data.message;
+        window.init.characters[charIndex].chatTime = Date.now();
       } else if (player.id === data.id) {
         player.chatMessage = data.message;
         player.chatTime = Date.now();
       }
     } else if (data.type === 'objects_update') {
-      objects = data.objects || [];
-      window.objects = objects;
+      if (window.init) {
+        window.init.objects = data.objects || [];
+      } else {
+        window.init = { objects: data.objects || [] };
+      }
     }
   } catch (e) {
     console.error(e);
@@ -162,10 +166,8 @@ let player = {
 };
 window.player = player;
 
-// Map Objects
-let objects = [];
-window.objects = objects;
-let characters = [];
+// Initialization Object
+window.init = { objects: [] };
 let lastSyncTime = 0;
 let activeNpcs = new Set();
 
@@ -173,16 +175,16 @@ window.mapImage = new Image();
 window.mapImage.src = '/grounds/background.png'; // default fallback
 
 function syncPlayerToJSON() {
-  const charIndex = characters.findIndex(c => c.id === player.id);
+  const charIndex = (window.init?.characters || []).findIndex(c => c.id === player.id);
   if (charIndex > -1) {
-    characters[charIndex].x = player.x;
-    characters[charIndex].y = player.y;
-    characters[charIndex].rotation = player.rotation;
-    characters[charIndex].name = player.name; // Keep name synced
-    characters[charIndex].emote = player.emote;
+    window.init.characters[charIndex].x = player.x;
+    window.init.characters[charIndex].y = player.y;
+    window.init.characters[charIndex].rotation = player.rotation;
+    window.init.characters[charIndex].name = player.name; // Keep name synced
+    window.init.characters[charIndex].emote = player.emote;
 
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'update', character: characters[charIndex] }));
+      ws.send(JSON.stringify({ type: 'update', character: window.init.characters[charIndex] }));
     }
   }
 }
@@ -240,8 +242,8 @@ function update() {
         }
       }
 
-      // Check objects
-      for (const obj of objects) {
+      // Check window.init.objects
+      for (const obj of (window.init?.objects || [])) {
         if (obj.noclip) continue;
         if (obj.shape === 'circle') {
           const distSq = (newX - obj.x) ** 2 + (newY - obj.y) ** 2;
@@ -307,7 +309,7 @@ function update() {
   }
 
   // Smoothly interpolate other characters to their server positions
-  for (const c of characters) {
+  for (const c of [...(window.init?.characters || []), ...(window.init?.npcs || [])]) {
     if (c.id === player.id) continue;
 
     if (c.targetX !== undefined && c.targetY !== undefined) {
@@ -357,7 +359,7 @@ function update() {
 
   // Check NPC radius interactions
   const interactionRadius = 80 * (window.characterScale || 1);
-  for (const c of characters) {
+  for (const c of [...(window.init?.characters || []), ...(window.init?.npcs || [])]) {
     if (c.id === player.id) continue;
     if (!c.isNpc && (!c.on_enter && !c.on_exit)) continue;
 
@@ -457,7 +459,7 @@ function draw() {
 
 
   // Draw Characters
-  characters.forEach(char => {
+  [...(window.init?.characters || []), ...(window.init?.npcs || [])].forEach(char => {
     // Current player might have updated legAnimationTime / x / y locally
     const c = (char.id === player.id) ? player : char;
 
@@ -708,9 +710,9 @@ if (nameInput) {
 
 function handleInitData(data) {
   isDataLoaded = false;
-  objects = data.objects || [];
-  window.objects = objects;
-  characters = [...(data.npcs || []), ...(data.characters || [])];
+  window.init = data;
+  if (!window.init.characters) window.init.characters = [];
+  if (!window.init.npcs) window.init.npcs = [];
   activeNpcs.clear();
 
   const myCharacter = data.myCharacter;
@@ -720,7 +722,7 @@ function handleInitData(data) {
   if (myCharacter) {
     Object.assign(player, myCharacter);
   } else {
-    const playerConfig = characters.find(c => c.id === player.id);
+    const playerConfig = window.init?.characters?.find(c => c.id === player.id);
     if (playerConfig) {
       Object.assign(player, playerConfig);
     }
