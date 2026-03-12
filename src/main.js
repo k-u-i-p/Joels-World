@@ -531,6 +531,9 @@ function update() {
     player.legAnimationTime += 0.2;
     if (player.emote) {
       let shouldCancel = true;
+      if (player.emote.name === 'jump') {
+        shouldCancel = false;
+      }
       if (player.activeBuilding) {
         const activeObj = window.init?.objects?.find(o => o.id === player.activeBuilding);
         if (activeObj && activeObj.on_enter) {
