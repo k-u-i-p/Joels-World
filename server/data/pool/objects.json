@@ -1,0 +1,22 @@
+[
+  {
+    "id": 1,
+    "name": "Pool Entrance",
+    "shape": "rect",
+    "x": 755,
+    "y": -488,
+    "rotation": 0,
+    "width": 297,
+    "length": 139,
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 0,
+          "description": "Do you want to exit to the School Grounds?"
+        }
+      }
+    ]
+  }
+]
