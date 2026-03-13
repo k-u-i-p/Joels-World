@@ -1280,6 +1280,7 @@ function handleInitData(data) {
               resolve();
             };
             img.src = layerData.image;
+            if (img.complete) resolve();
           });
           window.layerPromises.push(p);
           return { image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
