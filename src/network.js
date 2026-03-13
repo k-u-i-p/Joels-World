@@ -3,10 +3,7 @@ import { emotes } from './emotes.js';
 export class NetworkClient {
   constructor() {
     this.isAdmin = window.isAdmin === true;
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
-    this.ws = new WebSocket(wsUrl);
-    window.ws = this.ws;
+    this.ws = null;
 
     this.syncTimeout = null;
     this.lastSyncCallTime = 0;
@@ -17,7 +14,15 @@ export class NetworkClient {
    * Initializes WebSocket connections and sets up event routers.
    * @param {Function} onInitDataCallback Callback for when the server sends initial map and entity state.
    */
-  connect(onInitDataCallback) {
+  connect(onInitDataCallback, playerName = '') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // Append the name as a query parameter
+    const encodedName = encodeURIComponent(playerName);
+    const wsUrl = `${protocol}//${window.location.host}?name=${encodedName}&admin=${this.isAdmin}`;
+    
+    this.ws = new WebSocket(wsUrl);
+    window.ws = this.ws;
+
     this.ws.onopen = () => {
       console.log('Connected to WebSocket server');
     };
@@ -25,15 +30,19 @@ export class NetworkClient {
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'init') {
+        if (data.type === 'error') {
+          alert(data.message || 'Server Error');
+          window.location.reload();
+          return;
+        } else if (data.type === 'init') {
           if (onInitDataCallback) onInitDataCallback(data);
         } else if (data.type === 'update' || data.type === 'tick') {
           const charactersToUpdate = data.type === 'tick' ? data.characters : [data.character];
           const player = window.player;
-          
+
           charactersToUpdate.forEach(serverChar => {
             if (player && serverChar.id === player.id) return; // Prevent echoing our own state
-            
+
             const localCharIndex = (window.init?.characters || []).findIndex(c => c.id === serverChar.id);
             if (localCharIndex > -1) {
               const localChar = window.init.characters[localCharIndex];
@@ -68,13 +77,21 @@ export class NetworkClient {
           if (window.init?.characters) window.init.characters = window.init.characters.filter(c => c.id !== data.id);
         } else if (data.type === 'chat') {
           const player = window.player;
-          const charIndex = (window.init?.characters || []).findIndex(c => c.id === data.id);
+          // Check human characters first
+          let charIndex = (window.init?.characters || []).findIndex(c => c.id === data.id);
           if (charIndex > -1) {
             window.init.characters[charIndex].chatMessage = data.message;
             window.init.characters[charIndex].chatTime = Date.now();
           } else if (player && player.id === data.id) {
             player.chatMessage = data.message;
             player.chatTime = Date.now();
+          } else {
+            // Check NPCs
+            let npcIndex = (window.init?.npcs || []).findIndex(n => n.id === data.id);
+            if (npcIndex > -1) {
+              window.init.npcs[npcIndex].chatMessage = data.message;
+              window.init.npcs[npcIndex].chatTime = Date.now();
+            }
           }
         } else if (data.type === 'objects_update') {
           if (window.init) {
@@ -100,7 +117,7 @@ export class NetworkClient {
    * @param {string} msg 
    */
   sendChat(msg) {
-    if (this.ws.readyState === WebSocket.OPEN) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'chat', message: msg }));
     }
   }
@@ -145,7 +162,7 @@ export class NetworkClient {
       window.init.characters[charIndex].name = player.name; // Keep name synced
       window.init.characters[charIndex].emote = player.emote;
 
-      if (this.ws.readyState === WebSocket.OPEN) {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'update', character: window.init.characters[charIndex] }));
       }
     }

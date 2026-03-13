@@ -197,9 +197,21 @@ export function setupWebSocket(server) {
       }
     }
 
+    // Retrieve player name from query params (default to Admin if empty and is admin session)
+    let playerName = urlParams.get('name') || '';
+    if (!playerName && ws.isAdmin) {
+      playerName = 'Admin';
+    }
+
+    if (!ws.isAdmin && (!playerName || !/^[a-zA-Z]+$/.test(playerName))) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid Name. Please use only English letters with no spaces or symbols.' }));
+      ws.close();
+      return;
+    }
+
     const newChar = {
       id: newPlayerId,
-      name: ws.isAdmin ? 'Admin' : '',
+      name: playerName.substring(0, 15), // Basic clamp
       x: spawnX,
       y: spawnY,
       width: 40,
@@ -235,6 +247,11 @@ export function setupWebSocket(server) {
     }));
 
     mapData.dirtyCharacters[newPlayerId] = newChar;
+
+    appendToLog(mapData, {
+      player_id: newPlayerId,
+      message: `${newChar.name || 'Student'} entered the map`
+    });
 
     ws.on('message', (message) => {
       try {
@@ -311,6 +328,11 @@ export function setupWebSocket(server) {
             mapData.characters[ws.clientId] = oldChar;
             mapData.dirtyCharacters[ws.clientId] = oldChar;
             mapData.clients.add(ws);
+
+            appendToLog(mapData, {
+               player_id: ws.clientId,
+               message: `${oldChar.name || 'Student'} entered the map`
+            });
 
             // Send init to immediately reset the client seamlessly
             ws.send(JSON.stringify({

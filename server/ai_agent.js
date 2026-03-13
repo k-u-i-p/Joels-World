@@ -127,7 +127,7 @@ export function startAIAgent(mapState) {
     }, 5000); // Check every 5 seconds
 }
 
-function handleAgentAction(mapData, action) {
+async function handleAgentAction(mapData, action) {
     const actions = Array.isArray(action) ? action : [action];
 
     for (const act of actions) {
@@ -148,7 +148,8 @@ function handleAgentAction(mapData, action) {
         if (act.say) {
             console.log(`[AI][${mapData.name}] NPC '${npcChar.name || npcId}' says:`, act.say);
             const sayArr = Array.isArray(act.say) ? act.say : [act.say];
-            for (const msg of sayArr) {
+            for (let i = 0; i < sayArr.length; i++) {
+                const msg = sayArr[i];
                 const broadcastMsg = JSON.stringify({ type: 'chat', id: npcId, message: msg });
 
                 // log it
@@ -170,6 +171,10 @@ function handleAgentAction(mapData, action) {
                         client.send(broadcastMsg);
                     }
                 });
+
+                if (i < sayArr.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
             }
         }
 
@@ -221,6 +226,11 @@ function handleAgentAction(mapData, action) {
             } else {
                 console.warn(`[AI] Target player ${act.target_player_id} not found on map.`);
             }
+        }
+
+        // Apply delay between actions if necessary
+        if (act.say && actions.indexOf(act) < actions.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 5000));
         }
     }
 }

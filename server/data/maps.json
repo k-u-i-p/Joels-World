@@ -82,9 +82,6 @@
     "spawn_area": 18,
     "on_enter": [
       {
-        "log": {
-          "message": "{name} entered detention"
-        },
         "play_sound": {
           "sound": "media/ticking_clock.mp3",
           "volume": 1

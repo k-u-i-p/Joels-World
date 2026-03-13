@@ -1,174 +1,202 @@
 [
   {
     "player_id": 1,
-    "message": "Joel entered the toilet"
-  },
-  {
-    "player_id": 259,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 260,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 257,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 257,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 258,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 259,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 256,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 256,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 257,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 258,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 257,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 256,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 258,
-    "message": "Joel entered detention"
-  },
-  {
-    "player_id": 258,
-    "message": "Joel said: \"Hello Mr Hardy\""
-  },
-  {
-    "player_id": 258,
-    "message": "Joel said: \"Joel is farting\""
-  },
-  {
-    "player_id": 258,
-    "message": "Joel emoted [object Object]"
-  },
-  {
-    "player_id": 258,
-    "message": "Joel emoted [object Object]"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin said: \"Poop\""
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin said: \"poop\""
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
-  },
-  {
-    "player_id": 255,
-    "message": "Admin said: \"I smell\""
-  },
-  {
-    "player_id": 255,
-    "message": "Admin entered detention"
+    "message": "Mr Hardy said: \"Well? Don't just sit there staring into space! I asked a question. WHO was the primary songwriter and lyricist for 'The Wall'?\""
   },
   {
     "player_id": 1,
-    "message": "Mr Hardy said: \"Alright, you lot! Still here, are we? I'm not playing games.\""
-  },
-  {
-    "player_id": 1,
-    "message": "Mr Hardy said: \"One question. Get it right, and you can get out of my sight and back to the real world.\""
-  },
-  {
-    "player_id": 1,
-    "message": "Mr Hardy said: \"What is the most famous line from 'Another Brick in the Wall Part 2'?\""
+    "message": "Mr Hardy said: \"This isn't a staring contest. If you want out, give me the name!\""
   },
   {
     "player_id": 255,
-    "message": "Admin said: \"I am poop\""
+    "message": "Admin said: \"Mr Hardy smells!\""
   },
   {
     "player_id": 1,
-    "message": "Mr Hardy said: \"IS ANYONE GOING TO ANSWER THE QUESTION, OR ARE WE JUST GOING TO DISCUSS POOP ALL DAY? My patience is wearing thin!\""
+    "message": "Mr Hardy said: \"Admin (player_id 255)! That's quite enough insolence from you! Do you want to spend the rest of your life in here? I'm warning you!\""
   },
   {
     "player_id": 1,
-    "message": "Mr Hardy said: \"I repeat: What is the most famous line from 'Another Brick in the Wall Part 2'? And make it quick, or you'll be here all night!\""
+    "message": "Mr Hardy said: \"Now, for the LAST time, before I start assigning essays... WHO was the primary songwriter and lyricist for 'The Wall'? Is there anyone here with an actual brain?\""
   },
   {
     "player_id": 255,
-    "message": "Admin said: \"Leave them kids alone?\""
+    "message": "Admin was sent to detention (again)!"
   },
   {
     "player_id": 1,
-    "message": "Mr Hardy said: \"FINALLY! Someone with half a brain in this room. Yes, 'Leave them kids alone?' is the correct answer.\""
+    "message": "Mr Hardy said: \"DOES ANYONE in this room know ANYTHING?! This isn't rocket science! 'The Wall'! Pink Floyd! Primary songwriter! Just say the name!\""
   },
   {
     "player_id": 1,
-    "message": "Mr Hardy said: \"You. Admin, was it? Get out. And don't let me see you in here again!\""
+    "message": "Mr Hardy said: \"If no one answers this time, you'll all be writing out the lyrics to 'Another Brick in the Wall Part 2' a hundred times each! And no, 'Mr Hardy smells!' is not the correct answer, Admin (255)!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin said: \"Can I go please sir?\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Go? GO?! Admin (255), you'll go when you, or SOMEONE in this room, answers my question! I'm not running a charity here!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"For the love of all that is miserable and boring, WHO was the primary songwriter and lyricist for the Pink Floyd album 'The Wall'?! Just say the name! One name, and you might just get to see the outside world again!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin was sent to detention (again)!"
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"UNBELIEVABLE! Are you all collectively incapable of forming a coherent thought? Or are you just trying to get on my last nerve?!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"ADMIN (255)! Your antics are not amusing! You will NOT leave until SOMEONE, anyone, tells me: WHO was the primary songwriter and lyricist for 'The Wall'?!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"This is your final warning, you lot! If I don't get the name this instant, you'll be memorizing every single lyric from that album, and I'll make sure you write them out by hand, with a dull pencil, until your fingers bleed! Now, ANSWER!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin said: \"You smell Mr Hardy!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"ADMIN (255)! Your complete lack of respect is ASTOUNDING! You will NOT leave until you, or someone else, answers my question! 'You smell Mr Hardy!' is NOT an answer, it's just more proof of your abysmal manners!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Now, for the absolute FINAL TIME before I lose what little remains of my sanity: WHO was the primary songwriter and lyricist for the Pink Floyd album 'The Wall'?! I'm waiting! And my patience has officially RUN OUT!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin was sent to detention (again)!"
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"I cannot BELIEVE this! You people are utterly useless! Do you want to spend the rest of your miserable lives staring at these four walls?!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"I'll give you ONE more chance, just ONE, before I start assigning chores that would make a rock weep!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"WHO. WAS. THE. PRIMARY. SONGWRITER. AND. LYRICIST. FOR. 'THE WALL'?! Say the name! And no, 'Mr Hardy smells' is NOT the answer, ADMIN (255)! If I have to send you to your desk one more time, I'll bolt you to it!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin said: \"I'm back!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"I've HAD IT! You insufferable, brain-dead children! This is beyond ridiculous! My question is NOT difficult!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin was sent to detention (again)!"
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"ADMIN (255)! Your antics are unbearable! While you DID technically answer my FIRST question correctly, your behavior since then has been a complete disgrace! But a promise is a promise, no matter how much you make me regret it.\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Consider yourself lucky you got one right. Now GET OUT! And don't even THINK about coming back this time!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin said: \"I'm back!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Now, for the rest of you imbeciles, or if ADMIN somehow manages to worm their way back in: The question remains! WHO. WAS. THE. PRIMARY. SONGWRITER. AND. LYRICIST. FOR. THE. PINK. FLOYD. ALBUM. 'THE. WALL'?! Answer NOW, or face my wrath!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin was sent to detention (again)!"
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"ADMIN (255)! I have told you, over and over, you answered my FIRST question correctly! Despite your appalling behavior, I am a man of my word! You are dismissed! GET OUT! And if I see your face in here again, I'll personally escort you to the headmaster's office!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Now, for the rest of you, before I completely lose my mind! The question stands! WHO was the primary songwriter and lyricist for the Pink Floyd album 'The Wall'? One correct answer, and you're free! Otherwise, we'll be here until the sun burns out!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin was sent to detention (again)!"
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"ADMIN (255)! Are you deliberately trying to push me over the edge?! I said you were dismissed! Your persistence is beyond irritating!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Despite your utter insolence and blatant disregard for authority, I am a man of my word! You answered my FIRST question correctly. So, for the final, ABSOLUTE FINAL TIME...\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"GET OUT! And if you so much as breathe in the direction of this room again, I swear you'll regret it! Go on, SCRAM!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Now, for the rest of you delinquents! Don't think for a second that clown show changes anything for you! The question stands! And my patience is thinner than a wet tissue!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"WHO was the PRIMARY songwriter and lyricist for the Pink Floyd album 'The Wall'?! Answer me, NOW, before I unleash a punishment so severe you'll wish you were never born!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin was sent to detention (again)!"
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"ADMIN (255)! I DON'T BELIEVE IT! You are TESTING MY LAST NERVE! How many times must I tell you?! You were DISMISSED for correctly answering my FIRST question! I am a man of my word, infuriating as you are!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"I should have done this ages ago! CONSIDER YOURSELF EXPELLED from this room! GET OUT! And don't you DARE set foot in here again!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"This is a formal dismissal! If I see you in here again, I'm personally marching you to the Headmaster's office AND calling your parents!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Now, for the rest of you troublemakers! And for ADMIN, if they are foolish enough to worm their way back in despite my explicit instructions and the map change! The question REMAINS!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"WHO was the PRIMARY songwriter and lyricist for the Pink Floyd album 'The Wall'?! One correct answer, and you might just escape this torment! Fail, and you'll regret every single moment of your pathetic lives!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin was sent to detention (again)!"
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"ADMIN (255)! I CANNOT BELIEVE MY EYES! Are you a ghost?! A persistent, infuriating ghost?! I told you, EXPLICITLY, to SCRAM! Did those words not penetrate your thick skull?!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Fine! If you insist on haunting this detention room, then you'll earn your release properly this time! And don't you dare try to answer with 'Mr Hardy smells' again!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"For *your* specific torment, Admin: In the history of ancient Roman plumbing, what was the primary material used for their extensive network of sewers, and how did they prevent... let's say, 'unwanted effluvium' from escaping into public spaces?\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Answer THAT, Admin! And for the rest of you delinquents who are still here, don't think you're off the hook because of Admin's bizarre obsession with returning! My original question still stands!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"WHO was the PRIMARY songwriter and lyricist for the Pink Floyd album 'The Wall'?! One correct answer, and you're free! Fail, and you'll regret every single moment of your pathetic lives!\""
   }
 ]

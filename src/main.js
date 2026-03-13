@@ -13,9 +13,7 @@ const ctx = canvas.getContext('2d');
 window.cameraZoom = 1;
 
 // --- WEBSOCKET CLIENT ---
-networkClient.connect((data) => {
-  handleInitData(data);
-});
+// Connection is now deferred until the player chooses a name and clicks Start Game.
 
 let viewportWidth = window.innerWidth;
 let viewportHeight = window.innerHeight;
@@ -625,22 +623,23 @@ function draw() {
 // Start By Fetching Data
 window.gameStarted = window.isAdmin || false;
 
-const { nameInput, startBtn } = uiManager.initLobby((playerName) => {
-  if (window.init !== null) {
-    if (playerName) {
-      player.name = playerName;
-      networkClient.syncPlayerToJSON(); // Save the new name right away
-    }
+const { nameDialog, nameInput, startBtn } = uiManager.initLobby((playerName) => {
+  if (playerName) {
+    player.name = playerName;
+  }
+  
+  // Initiate network connection now that we have a name
+  networkClient.connect((data) => {
+    handleInitData(data);
+    
+    // Now that we have the init payload, setup the game loop
     window.gameStarted = true;
-
-    // Initial load map events
     if (window.init.mapData && window.init.mapData.on_enter) {
       executeEvents(window.init.mapData, window.init.mapData.on_enter);
     }
-
     checkInitialSpawn();
     requestAnimationFrame(gameLoop); // Kick off the game loop
-  }
+  }, player.name);
 });
 
 /**
@@ -712,23 +711,6 @@ function handleInitData(data) {
     if (mapsList) {
       window.mapsList = mapsList;
       if (window.populateAdminMaps) window.populateAdminMaps();
-    }
-
-    // Bypass completely for iOS safety - images load seamlessly in the background and canvas 
-    // strictly checks img.complete naturally per frame!
-
-    console.log('startBtn', startBtn ? startBtn.textContent : 'null');
-    if (startBtn) {
-      console.log('Enabling start button instantly');
-      startBtn.textContent = 'Start Game';
-      startBtn.disabled = false;
-      startBtn.removeAttribute('disabled');
-
-      // Force iOS Safari repaint/reflow
-      const currentDisplay = startBtn.style.display;
-      startBtn.style.display = 'none';
-      startBtn.offsetHeight; // force reflow
-      startBtn.style.display = currentDisplay;
     }
 
     if (nameInput && nameInput.value.trim() !== '') {
