@@ -1,4 +1,3 @@
-import './style.css'
 import { initSound, soundManager } from './sound.js';
 import { emotes } from './emotes.js';
 import { EventHandlers } from './events.js';
@@ -1321,6 +1320,13 @@ function handleInitData(data) {
         console.log('Enabling start button');
         startBtn.textContent = 'Start Game';
         startBtn.disabled = false;
+        startBtn.removeAttribute('disabled');
+        
+        // Force iOS Safari repaint/reflow
+        const currentDisplay = startBtn.style.display;
+        startBtn.style.display = 'none';
+        startBtn.offsetHeight; // force reflow
+        startBtn.style.display = currentDisplay;
       }
       if (nameInput && nameInput.value.trim() !== '') {
         console.log('Focusing name input');
