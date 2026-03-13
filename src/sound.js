@@ -1,21 +1,11 @@
-const POOL_SIZE = 10;
-const DUMMY_SRC = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
-
 class SoundManager {
   constructor() {
-    this.audioPool = Array.from({ length: POOL_SIZE }, () => {
-      const audio = new Audio();
-      return audio;
-    });
-
     this.audioCtx = null;
-    this.gainNodes = [];
-    
-    this.bgAudio = new Audio();
-    this.bgAudio.loop = true;
     this.bgGainNode = null;
-
     this.unlocked = false;
+    this.bufferCache = new Map();
+    this.bgSourceNode = null;
+    this.currentBgSrc = null;
   }
 
   unlock() {
@@ -30,64 +20,104 @@ class SoundManager {
       this.audioCtx.resume();
     }
 
-    this.audioPool.forEach((audio, idx) => {
-      if (!this.gainNodes[idx]) {
-        const source = this.audioCtx.createMediaElementSource(audio);
-        const gainNode = this.audioCtx.createGain();
-        source.connect(gainNode);
-        gainNode.connect(this.audioCtx.destination);
-        this.gainNodes[idx] = gainNode;
-      }
-      audio.src = DUMMY_SRC;
-      audio.play().catch(() => { });
-    });
+    // Play a silent oscillator to fully unlock the audio context on iOS
+    const osc = this.audioCtx.createOscillator();
+    const gain = this.audioCtx.createGain();
+    gain.gain.value = 0;
+    osc.connect(gain);
+    gain.connect(this.audioCtx.destination);
+    osc.start(0);
+    osc.stop(this.audioCtx.currentTime + 0.1);
 
     if (!this.bgGainNode) {
-      const bgSource = this.audioCtx.createMediaElementSource(this.bgAudio);
       this.bgGainNode = this.audioCtx.createGain();
-      bgSource.connect(this.bgGainNode);
       this.bgGainNode.connect(this.audioCtx.destination);
     }
   }
 
-  playPooled(src, volume = 1) {
-    const index = this.audioPool.findIndex(a => a.paused || a.ended);
-    const poolIndex = index !== -1 ? index : 0;
-    const audio = this.audioPool[poolIndex];
-
-    audio.pause();
-    audio.src = src;
-
-    if (this.gainNodes[poolIndex]) {
-      audio.volume = 1;
-      this.gainNodes[poolIndex].gain.value = Math.max(0, volume);
-    } else {
-      audio.volume = Math.max(0, volume); // Clamped if no Web Audio available, depending on browser
+  async getAudioBuffer(src) {
+    if (this.bufferCache.has(src)) {
+      return this.bufferCache.get(src);
     }
+    try {
+      const response = await fetch(src);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+      this.bufferCache.set(src, audioBuffer);
+      return audioBuffer;
+    } catch (e) {
+      console.warn("Failed to load audio:", src, e);
+      return null;
+    }
+  }
 
-    audio.play().catch(e => console.warn("Failed to play pooled sound:", e));
-    return audio;
+  playPooled(src, volume = 1) {
+    if (!this.audioCtx) return { pause: () => {} };
+    if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+
+    const result = {
+      source: null,
+      stopped: false,
+      pause: function() {
+        this.stopped = true;
+        if (this.source) {
+          try { this.source.stop(); } catch(e){}
+        }
+      }
+    };
+
+    this.getAudioBuffer(src).then(buffer => {
+      if (!buffer || result.stopped) return;
+      const source = this.audioCtx.createBufferSource();
+      source.buffer = buffer;
+      const gainNode = this.audioCtx.createGain();
+      gainNode.gain.value = Math.max(0, volume);
+      source.connect(gainNode);
+      gainNode.connect(this.audioCtx.destination);
+      source.start();
+      result.source = source;
+    });
+
+    return result;
   }
 
   playBackground(src, volume = 1) {
-    if (!this.bgAudio.src.endsWith(src)) {
-      this.bgAudio.pause();
-      this.bgAudio.src = src;
+    if (!this.audioCtx) return;
+    if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+
+    if (!this.bgGainNode) {
+      this.bgGainNode = this.audioCtx.createGain();
+      this.bgGainNode.connect(this.audioCtx.destination);
     }
 
-    if (this.bgGainNode) {
-      this.bgAudio.volume = 1;
-      this.bgGainNode.gain.value = Math.max(0, volume);
-    } else {
-      this.bgAudio.volume = Math.max(0, volume);
+    if (this.currentBgSrc !== src) {
+      if (this.bgSourceNode) {
+        try { this.bgSourceNode.stop(); } catch(e){}
+        this.bgSourceNode.disconnect();
+        this.bgSourceNode = null;
+      }
+      this.currentBgSrc = src;
+      
+      this.getAudioBuffer(src).then(buffer => {
+        if (!buffer || this.currentBgSrc !== src) return;
+        this.bgSourceNode = this.audioCtx.createBufferSource();
+        this.bgSourceNode.buffer = buffer;
+        this.bgSourceNode.loop = true;
+        this.bgSourceNode.connect(this.bgGainNode);
+        this.bgSourceNode.start();
+      });
     }
-
-    this.bgAudio.play().catch(e => console.warn("Failed to play bg sound:", e));
+    
+    this.bgGainNode.gain.value = Math.max(0, volume);
   }
 
   stopBackground() {
-    this.bgAudio.pause();
-    this.bgAudio.src = "";
+    if (this.bgSourceNode) {
+       try { this.bgSourceNode.stop(); } catch(e){}
+       this.bgSourceNode.disconnect();
+       this.bgSourceNode = null;
+    }
+    this.currentBgSrc = null;
   }
 }
 

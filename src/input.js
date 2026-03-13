@@ -60,6 +60,12 @@ export class InputManager {
         this.keys[e.code] = false;
       }
     });
+
+    window.addEventListener('blur', () => {
+      for (const key in this.keys) {
+        this.keys[key] = false;
+      }
+    });
   }
 
   initJoystick() {

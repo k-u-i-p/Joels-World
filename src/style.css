@@ -73,8 +73,9 @@ body {
 
 #action-dialog,
 #name-dialog .dialog-content {
-  background-color: var(--glass-bg);
-  color: var(--color-text-dark);
+  background-color: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-light);
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: var(--glass-border);
@@ -225,10 +226,11 @@ body {
   font-size: 14px;
   border-radius: 8px;
   border: var(--glass-border);
-  background-color: var(--glass-bg);
+  background-color: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  color: var(--color-text-dark);
+  color: var(--color-text-light);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
   outline: none;
   transition: all 0.2s;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -236,13 +238,14 @@ body {
 }
 
 .glass-input:focus {
-  background-color: var(--glass-bg-hover);
+  background-color: rgba(255, 255, 255, 0.3);
   border-color: var(--color-primary);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .glass-input::placeholder {
-  color: #576574;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: none;
 }
 
 #player-name-input {
@@ -293,6 +296,12 @@ body {
   pointer-events: auto;
   flex-grow: 1;
   min-width: 0;
+  background-color: rgba(255, 255, 255, 0.95);
+  color: #000;
+  text-shadow: none;
+}
+#chat-input::placeholder {
+  color: #555;
 }
 
 #top-center-ui {
@@ -321,7 +330,7 @@ body {
 #top-center-ui-header {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-end; /* Align to the bottom so chat input matches avatar */
   justify-content: center;
   gap: 15px;
   pointer-events: none;
@@ -348,7 +357,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end; /* Push content to bottom */
   flex-grow: 1;
   min-width: 0;
 }

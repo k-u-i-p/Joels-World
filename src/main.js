@@ -17,22 +17,22 @@ networkClient.connect((data) => {
   handleInitData(data);
 });
 
-// Resize canvas to fill window
-/**
- * Resizes the canvas dimensions to match the current window inner width and height.
- */
+let viewportWidth = window.innerWidth;
+let viewportHeight = window.innerHeight;
+
 function resize() {
-  const width = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-  const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-  canvas.width = width;
-  canvas.height = height;
-  canvas.style.width = width + 'px';
-  canvas.style.height = height + 'px';
+  viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+  viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', resize);
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', resize);
+  window.visualViewport.addEventListener('scroll', resize);
 }
 resize();
 
@@ -539,12 +539,15 @@ function draw() {
   window.cameraX = player.x;
   window.cameraY = player.y;
 
+  let yOffset = window.visualViewport ? window.visualViewport.offsetTop : 0;
+  let xOffset = window.visualViewport ? window.visualViewport.offsetLeft : 0;
+
   if (window.init?.mapData?.width && window.init?.mapData?.height) {
     const halfMapW = window.init.mapData.width / 2;
     const halfMapH = window.init.mapData.height / 2;
-    const viewHalfW = (canvas.width / window.cameraZoom) / 2;
-    const viewHalfH = (canvas.height / window.cameraZoom) / 2;
-
+    const viewHalfW = (viewportWidth / window.cameraZoom) / 2;
+    const viewHalfH = (viewportHeight / window.cameraZoom) / 2;
+  
     const minX = -halfMapW + viewHalfW;
     const maxX = halfMapW - viewHalfW;
     const minY = -halfMapH + viewHalfH;
@@ -569,7 +572,7 @@ function draw() {
 
   // Camera translation (Centers the world on the player)
   ctx.save();
-  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.translate(viewportWidth / 2 + xOffset, viewportHeight / 2 + yOffset);
   ctx.scale(window.cameraZoom, window.cameraZoom);
   ctx.translate(-window.cameraX, -window.cameraY);
 
