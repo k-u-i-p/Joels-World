@@ -585,15 +585,14 @@ function update() {
         c.y = c.targetY;
         c.rotation = c.targetRotation;
       } else if (distSq > 0.25) { // 0.5^2 = 0.25
-        const dist = Math.sqrt(distSq); // Only do square root if we actually need to walk
-        // Walk towards the target position at character's walking speed, or slightly faster if lagging far behind
-        const speed = c.moveSpeed || 3;
-        const moveStep = Math.max(speed, dist * 0.1);
-        const step = Math.min(dist, moveStep);
-
-        c.x += (cdx / dist) * step;
-        c.y += (cdy / dist) * step;
-        c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
+        const dist = Math.sqrt(distSq);
+        // Smooth interpolation (lerp) towards the target position
+        // This eliminates the fixed-speed jerkiness characteristic of low tick servers
+        c.x += cdx * 0.25;
+        c.y += cdy * 0.25;
+        
+        // Scale leg animation speed by the actual distance we are compensating
+        c.legAnimationTime = (c.legAnimationTime || 0) + Math.min(0.5, dist * 0.05);
 
       } else {
         c.x = c.targetX;
