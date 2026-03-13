@@ -60,9 +60,9 @@ export class CharacterManager {
       leftArmX: 4, leftArmY: -14,
       rightArmX: 4, rightArmY: 14,
       leftLegStartX: -2, leftLegStartY: -6,
-      leftLegEndX: 8, leftLegEndY: -6,
+      leftLegEndX: 4, leftLegEndY: -6,
       rightLegStartX: -2, rightLegStartY: 6,
-      rightLegEndX: 8, rightLegEndY: 6
+      rightLegEndX: 4, rightLegEndY: 6
     };
 
     const drawLine = (ctxObj, sx, sy, ex, ey) => {
@@ -81,17 +81,19 @@ export class CharacterManager {
 
     // Draw shoes
     const shoeColor = c.shoeColor || '#1a252f';
-    const leftShoeGradient = octx.createRadialGradient(limbs.leftLegEndX + 3, limbs.leftLegEndY - 1, 1, limbs.leftLegEndX + 4, limbs.leftLegEndY, 5);
-    leftShoeGradient.addColorStop(0, shadeColor(shoeColor, 20));
-    leftShoeGradient.addColorStop(1, shoeColor);
+    const leftShoeGradient = octx.createRadialGradient(limbs.leftLegEndX + 2, limbs.leftLegEndY - 1, 0.5, limbs.leftLegEndX + 3, limbs.leftLegEndY, 7);
+    leftShoeGradient.addColorStop(0, shadeColor(shoeColor, 40));
+    leftShoeGradient.addColorStop(0.5, shoeColor);
+    leftShoeGradient.addColorStop(1, shadeColor(shoeColor, -30));
     octx.fillStyle = leftShoeGradient;
     octx.beginPath();
     octx.ellipse(limbs.leftLegEndX + 3, limbs.leftLegEndY, 6, 3.5, 0, 0, PI2);
     octx.fill();
 
-    const rightShoeGradient = octx.createRadialGradient(limbs.rightLegEndX + 3, limbs.rightLegEndY - 1, 1, limbs.rightLegEndX + 4, limbs.rightLegEndY, 5);
-    rightShoeGradient.addColorStop(0, shadeColor(shoeColor, 20));
-    rightShoeGradient.addColorStop(1, shoeColor);
+    const rightShoeGradient = octx.createRadialGradient(limbs.rightLegEndX + 2, limbs.rightLegEndY - 1, 0.5, limbs.rightLegEndX + 3, limbs.rightLegEndY, 7);
+    rightShoeGradient.addColorStop(0, shadeColor(shoeColor, 40));
+    rightShoeGradient.addColorStop(0.5, shoeColor);
+    rightShoeGradient.addColorStop(1, shadeColor(shoeColor, -30));
     octx.fillStyle = rightShoeGradient;
     octx.beginPath();
     octx.ellipse(limbs.rightLegEndX + 3, limbs.rightLegEndY, 6, 3.5, 0, 0, PI2);
@@ -264,7 +266,7 @@ export class CharacterManager {
           }
 
           const legSwing = Math.sin(c.legAnimationTime || 0);
-          const legStride = 15;
+          const legStride = 9;
           const armStride = 8;
 
           let limbs = {
@@ -274,11 +276,11 @@ export class CharacterManager {
             rightArmY: 14,
             leftLegStartX: -2,
             leftLegStartY: -6,
-            leftLegEndX: -2 + 10 + legSwing * legStride,
+            leftLegEndX: -2 + 6 + legSwing * legStride,
             leftLegEndY: -6,
             rightLegStartX: -2,
             rightLegStartY: 6,
-            rightLegEndX: -2 + 10 - legSwing * legStride,
+            rightLegEndX: -2 + 6 - legSwing * legStride,
             rightLegEndY: 6
           };
 
@@ -302,17 +304,19 @@ export class CharacterManager {
 
           // Draw shoes
           const legShoeColor = c.shoeColor || '#1a252f';
-          const leftDynShoeGrad = ctx.createRadialGradient(limbs.leftLegEndX + 3, limbs.leftLegEndY - 1, 1, limbs.leftLegEndX + 4, limbs.leftLegEndY, 5);
-          leftDynShoeGrad.addColorStop(0, shadeColor(legShoeColor, 20));
-          leftDynShoeGrad.addColorStop(1, legShoeColor);
+          const leftDynShoeGrad = ctx.createRadialGradient(limbs.leftLegEndX + 2, limbs.leftLegEndY - 1, 0.5, limbs.leftLegEndX + 3, limbs.leftLegEndY, 7);
+          leftDynShoeGrad.addColorStop(0, shadeColor(legShoeColor, 40));
+          leftDynShoeGrad.addColorStop(0.5, legShoeColor);
+          leftDynShoeGrad.addColorStop(1, shadeColor(legShoeColor, -30));
           ctx.fillStyle = leftDynShoeGrad;
           ctx.beginPath();
           ctx.ellipse(limbs.leftLegEndX + 3, limbs.leftLegEndY, 6, 3.5, 0, 0, PI2);
           ctx.fill();
 
-          const rightDynShoeGrad = ctx.createRadialGradient(limbs.rightLegEndX + 3, limbs.rightLegEndY - 1, 1, limbs.rightLegEndX + 4, limbs.rightLegEndY, 5);
-          rightDynShoeGrad.addColorStop(0, shadeColor(legShoeColor, 20));
-          rightDynShoeGrad.addColorStop(1, legShoeColor);
+          const rightDynShoeGrad = ctx.createRadialGradient(limbs.rightLegEndX + 2, limbs.rightLegEndY - 1, 0.5, limbs.rightLegEndX + 3, limbs.rightLegEndY, 7);
+          rightDynShoeGrad.addColorStop(0, shadeColor(legShoeColor, 40));
+          rightDynShoeGrad.addColorStop(0.5, legShoeColor);
+          rightDynShoeGrad.addColorStop(1, shadeColor(legShoeColor, -30));
           ctx.fillStyle = rightDynShoeGrad;
           ctx.beginPath();
           ctx.ellipse(limbs.rightLegEndX + 3, limbs.rightLegEndY, 6, 3.5, 0, 0, PI2);
