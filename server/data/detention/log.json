@@ -6,5 +6,9 @@
   {
     "player_id": 259,
     "message": "Admin entered detention"
+  },
+  {
+    "player_id": 260,
+    "message": "Admin entered detention"
   }
 ]
