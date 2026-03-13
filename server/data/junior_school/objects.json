@@ -70,7 +70,15 @@
     "width": 411,
     "length": 359,
     "clip": -1,
-    "on_enter": 11
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 2,
+          "description": "Do you want to enter the Main Building?"
+        }
+      }
+    ]
   },
   {
     "id": 44,

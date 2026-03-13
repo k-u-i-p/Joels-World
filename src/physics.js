@@ -5,6 +5,9 @@ export class PhysicsEngine {
     this.clipMaskWidth = 0;
     this.clipMaskHeight = 0;
     this.clipMaskImageData = null;
+    this.clipMaskScale = 0.1;
+    this.mapW = 0;
+    this.mapH = 0;
   }
 
   /**
@@ -116,9 +119,12 @@ export class PhysicsEngine {
 
     // Start with a small scale for the mask check to avoid excessive memory on 4K maps
     // E.g., mask scale of 1 is full res, 0.5 is half. Let's use 1 for accuracy on SVGs.
-    const scale = 1;
-    this.clipMaskWidth = mapW * scale;
-    this.clipMaskHeight = mapH * scale;
+    this.mapW = mapW;
+    this.mapH = mapH;
+
+    // Crucial: Must be an integer! Floating point canvas sizes cause undefined array indices.
+    this.clipMaskWidth = Math.round(mapW * this.clipMaskScale);
+    this.clipMaskHeight = Math.round(mapH * this.clipMaskScale);
 
     const canvas = window.OffscreenCanvas ? new OffscreenCanvas(this.clipMaskWidth, this.clipMaskHeight) : document.createElement('canvas');
     if (!window.OffscreenCanvas) {
@@ -160,9 +166,9 @@ export class PhysicsEngine {
     if (!this.clipMaskImageData) return true; // Default to walkable if mask isn't loaded
 
     // Convert centered coordinates (-halfW to halfW) to top-left pixel coordinates (0 to W)
-    // Scale is 1.
-    const pixelX = Math.round(x + (this.clipMaskWidth / 2));
-    const pixelY = Math.round(y + (this.clipMaskHeight / 2));
+    // We add half the full unscaled map width to 0-index the coordinates, THEN apply the scale.
+    const pixelX = Math.floor((x + (this.mapW / 2)) * this.clipMaskScale);
+    const pixelY = Math.floor((y + (this.mapH / 2)) * this.clipMaskScale);
 
     // Bounds check
     if (pixelX < 0 || pixelX >= this.clipMaskWidth || pixelY < 0 || pixelY >= this.clipMaskHeight) {

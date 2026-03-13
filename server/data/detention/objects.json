@@ -59,14 +59,6 @@
     "length": 214
   },
   {
-    "id": 11,
-    "shape": "rect",
-    "x": -261,
-    "y": 364,
-    "width": 194,
-    "length": 214
-  },
-  {
     "id": 12,
     "shape": "rect",
     "x": -668,
@@ -83,33 +75,6 @@
     "width": 194,
     "length": 214,
     "clip": 50
-  },
-  {
-    "id": 14,
-    "shape": "rect",
-    "x": -266,
-    "y": 678,
-    "width": 194,
-    "length": 214,
-    "clip": 50
-  },
-  {
-    "id": 15,
-    "shape": "rect",
-    "x": 644,
-    "y": -237,
-    "width": 194,
-    "length": 214,
-    "clip": 40
-  },
-  {
-    "id": 16,
-    "shape": "rect",
-    "x": 647,
-    "y": 55,
-    "width": 194,
-    "length": 214,
-    "clip": 40
   },
   {
     "id": 18,
@@ -158,5 +123,37 @@
         }
       }
     ]
+  },
+  {
+    "id": 21,
+    "shape": "rect",
+    "x": -256,
+    "y": 368,
+    "width": 194,
+    "length": 214
+  },
+  {
+    "id": 22,
+    "shape": "rect",
+    "x": -262,
+    "y": 672,
+    "width": 194,
+    "length": 214
+  },
+  {
+    "id": 23,
+    "shape": "rect",
+    "x": 646,
+    "y": 54,
+    "width": 194,
+    "length": 214
+  },
+  {
+    "id": 24,
+    "shape": "rect",
+    "x": 644,
+    "y": -242,
+    "width": 194,
+    "length": 214
   }
 ]

@@ -19,6 +19,7 @@
       [
         {
           "alpha": 0.9,
+          "overlay": true,
           "chunked": true,
           "source_image": "/junior_school/trees.png",
           "chunk_size": 512,
@@ -27,17 +28,18 @@
           "path_template": "/junior_school/chunks/trees_{x}_{y}.png"
         },
         {
-          "alpha": 1,
+          "alpha": 0.9,
+          "overlay": true,
           "chunked": true,
-          "source_image": "/junior_school/roofs.png",
+          "source_image": "/junior_school/background_overlay.png",
           "chunk_size": 512,
           "grid_w": 9,
           "grid_h": 8,
-          "path_template": "/junior_school/chunks/roofs_{x}_{y}.png"
+          "path_template": "/junior_school/chunks/background_overlay_{x}_{y}.png"
         }
       ]
     ],
-    "clip_mask": "/junior_school/roofs.png",
+    "clip_mask": "junior_school/clip_mask.svg",
     "npcs": "junior_school/npc.json",
     "character_scale": 1.5,
     "default_zoom": 1,
@@ -71,7 +73,7 @@
       ]
     ],
     "npcs": "detention/npc.json",
-    "clip_mask": "pdetention/clip_mask.svg",
+    "clip_mask": "detention/clip_mask.svg",
     "character_scale": 4,
     "default_zoom": 0.5,
     "objects": "detention/objects.json",
@@ -105,9 +107,22 @@
           "grid_h": 5,
           "path_template": "/main_building/chunks/background_{x}_{y}.png"
         }
+      ],
+      [
+        {
+          "alpha": 0.9,
+          "overlay": true,
+          "chunked": true,
+          "source_image": "/main_building/background_overlay.png",
+          "chunk_size": 512,
+          "grid_w": 4,
+          "grid_h": 5,
+          "path_template": "/main_building/chunks/background_overlay_{x}_{y}.png"
+        }
       ]
     ],
     "npcs": "main_building/npc.json",
+    "clip_mask": "main_building/clip_mask.png",
     "character_scale": 2.0,
     "default_zoom": 1,
     "objects": "main_building/objects.json",
@@ -137,10 +152,22 @@
           "grid_h": 3,
           "path_template": "/pool/chunks/background_{x}_{y}.png"
         }
+      ],
+      [
+        {
+          "alpha": 0.9,
+          "overlay": true,
+          "chunked": true,
+          "source_image": "/pool/background_overlay.png",
+          "chunk_size": 512,
+          "grid_w": 6,
+          "grid_h": 3,
+          "path_template": "/pool/chunks/background_overlay_{x}_{y}.png"
+        }
       ]
     ],
     "npcs": "pool/npc.json",
-    "clip_mask": "pool/clipping_mask.svg",
+    "clip_mask": "pool/clip_mask.png",
     "character_scale": 2,
     "default_zoom": 1,
     "objects": "pool/objects.json",
