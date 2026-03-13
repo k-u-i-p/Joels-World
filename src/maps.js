@@ -178,6 +178,9 @@ export class MapManager {
             if (!chunkData) continue;
             if (chunkData.cx < startCol - gcBuffer || chunkData.cx > endCol + gcBuffer ||
               chunkData.cy < startRow - gcBuffer || chunkData.cy > endRow + gcBuffer) {
+              // Nullify handlers before changing src to prevent false positive onerror logs
+              chunkData.img.onload = null;
+              chunkData.img.onerror = null;
               // Nullify image source to free memory, then delete from cache
               chunkData.img.src = '';
               layer.chunks[i] = null;
