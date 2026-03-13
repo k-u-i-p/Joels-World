@@ -187,24 +187,61 @@ window.addEventListener('keyup', (e) => {
 
 // Global Audio Unlock for Mobile Safari
 let audioUnlocked = false;
-window.audioPool = Array.from({ length: 10 }, () => new Audio());
+window.audioPool = Array.from({ length: 10 }, () => {
+  const audio = new Audio();
+  audio.crossOrigin = "anonymous";
+  return audio;
+});
+
+window.audioCtx = null;
+window.audioGainNodes = [];
+window.bgGainNode = null;
 
 function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
+
+  if (!window.audioCtx) window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
+
   // Play a tiny silent wav file to unlock the HTML5 Audio context on the document
   const dummySrc = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
-  window.audioPool.forEach(audio => {
+  
+  window.audioPool.forEach((audio, idx) => {
+    if (!window.audioGainNodes[idx]) {
+      const source = window.audioCtx.createMediaElementSource(audio);
+      const gainNode = window.audioCtx.createGain();
+      source.connect(gainNode);
+      gainNode.connect(window.audioCtx.destination);
+      window.audioGainNodes[idx] = gainNode;
+    }
     audio.src = dummySrc;
     audio.play().catch(() => { });
   });
+
+  if (window.bgAudio && !window.bgGainNode) {
+    const bgSource = window.audioCtx.createMediaElementSource(window.bgAudio);
+    window.bgGainNode = window.audioCtx.createGain();
+    bgSource.connect(window.bgGainNode);
+    window.bgGainNode.connect(window.audioCtx.destination);
+  }
 }
 
 window.playPooledAudio = (src, volume = 1) => {
-  const available = window.audioPool.find(a => a.paused || a.ended) || window.audioPool[0];
+  const index = window.audioPool.findIndex(a => a.paused || a.ended);
+  const poolIndex = index !== -1 ? index : 0;
+  const available = window.audioPool[poolIndex];
+
   available.pause();
   available.src = src;
-  available.volume = volume;
+
+  if (window.audioGainNodes[poolIndex]) {
+    available.volume = 1;
+    window.audioGainNodes[poolIndex].gain.value = volume;
+  } else {
+    available.volume = Math.min(1, Math.max(0, volume));
+  }
+
   available.play().catch(e => console.warn("Failed to play pooled sound:", e));
   return available;
 };
@@ -1198,6 +1235,7 @@ const nameInput = document.getElementById('player-name-input');
 const startBtn = document.getElementById('start-game-btn');
 
 window.bgAudio = new Audio();
+window.bgAudio.crossOrigin = "anonymous";
 window.bgAudio.loop = true;
 window.gameStarted = window.isAdmin || false;
 
