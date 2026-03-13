@@ -1250,6 +1250,8 @@ function handleInitData(data) {
   const avatarsContainer = UI.avatarsContainer;
   if (avatarsContainer) {
     avatarsContainer.innerHTML = '';
+    const actionDialog = document.getElementById('action-dialog');
+    if (actionDialog) actionDialog.classList.remove('avatar-active');
   }
 
   const myCharacter = data.myCharacter;
