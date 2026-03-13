@@ -63,7 +63,7 @@
   {
     "id": 36,
     "shape": "rect",
-    "x": 457,
+    "x": 454,
     "y": -1271,
     "name": "Main School Building",
     "rotation": -3,
@@ -97,5 +97,25 @@
     "width": 3436,
     "length": 61,
     "rotation": 85
+  },
+  {
+    "id": 46,
+    "shape": "rect",
+    "x": -582,
+    "y": -713,
+    "name": "Main School Building",
+    "rotation": -3,
+    "width": 306,
+    "length": 269,
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 2,
+          "description": "Do you want to enter the Main Building?"
+        }
+      }
+    ]
   }
 ]
