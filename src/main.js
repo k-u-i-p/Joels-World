@@ -266,14 +266,35 @@ function doSyncPlayerToJSON() {
  * The main render and update loop handling user movement inputs, drawing operations,
  * and next frame scheduling.
  */
-function gameLoop() {
-  update();
-  draw();
-  if (isAdmin && window.adminDraw) {
-    window.adminDraw();
-  }
+let framesThisSecond = 0;
+let lastFpsUpdate = performance.now();
+let lastFrameTime = performance.now();
+const fpsInterval = 1000 / 60; // Target 60 FPS cap
 
+function gameLoop() {
   requestAnimationFrame(gameLoop);
+
+  const now = performance.now();
+  const elapsed = now - lastFrameTime;
+
+  if (elapsed > fpsInterval) {
+    lastFrameTime = now - (elapsed % fpsInterval);
+
+    framesThisSecond++;
+    if (now - lastFpsUpdate >= 1000) {
+      if (isAdmin && window.updateAdminFps) {
+        window.updateAdminFps(framesThisSecond);
+      }
+      framesThisSecond = 0;
+      lastFpsUpdate = now;
+    }
+
+    update();
+    draw();
+    if (isAdmin && window.adminDraw) {
+      window.adminDraw();
+    }
+  }
 }
 window.gameLoop = gameLoop;
 

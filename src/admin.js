@@ -6,6 +6,13 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 const adminPanel = document.getElementById('admin-panel');
+const adminFps = document.getElementById('admin-fps');
+
+window.updateAdminFps = (fps) => {
+  if (adminFps) {
+    adminFps.textContent = `FPS: ${fps}`;
+  }
+};
 
 window.populateAdminMaps = () => {
   const select = document.getElementById('admin-map-select');
