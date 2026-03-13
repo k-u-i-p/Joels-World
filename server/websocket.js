@@ -134,7 +134,7 @@ export function setupWebSocket(server) {
 
     mapData.clients.add(ws);
 
-    const newPlayerId = 'player_' + Math.random().toString(36).substring(2, 9);
+    const newPlayerId = Math.floor(Math.random() * 1000000000) + 10000;
     ws.clientId = newPlayerId;
 
     let spawnX = Math.round(Math.random() * 800 + 100);
@@ -280,16 +280,16 @@ export function setupWebSocket(server) {
                 const raw = fs.readFileSync(mapData.logFile, 'utf8');
                 if (raw.trim()) logArr = JSON.parse(raw);
               }
-            } catch(e) { console.error('Error reading log array:', e); }
-            
+            } catch (e) { console.error('Error reading log array:', e); }
+
             logArr.push({
-              character_id: ws.clientId,
+              player_id: ws.clientId,
               message: data.message
             });
-            
+
             try {
               fs.writeFileSync(mapData.logFile, JSON.stringify(logArr, null, 2), 'utf8');
-            } catch(e) { console.error('Error writing log array:', e); }
+            } catch (e) { console.error('Error writing log array:', e); }
           }
         } else {
           handleAdminMessage(ws, data, mapData);

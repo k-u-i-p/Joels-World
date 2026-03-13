@@ -191,7 +191,7 @@ initSound();
 
 // Player Entity
 let player = {
-  id: 'player1',
+  id: 0,
   moveSpeed: 2,
   rotationSpeed: 3,
   legAnimationTime: 0,
