@@ -13,6 +13,7 @@
     "armColor": "#e74c3c",
     "on_enter": [
       {
+        "avatar": "avatars/ms_crosbie.png",
         "say": [
           "I don't think much of the new classrooms!",
           "Have you ever been trials riding?",
