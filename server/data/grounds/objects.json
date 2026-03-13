@@ -135,5 +135,14 @@
     "length": 157,
     "name": "Spawn Area",
     "clip": -1
+  },
+  {
+    "id": 20,
+    "shape": "rect",
+    "x": 661,
+    "y": 133,
+    "width": 1220,
+    "length": 39,
+    "rotation": 177
   }
 ]
