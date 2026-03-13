@@ -204,6 +204,7 @@ export function setupWebSocket(server) {
         width: mapData.width,
         height: mapData.height,
         layers: mapData.layers,
+        clip_mask: mapData.clip_mask,
         character_scale: mapData.character_scale || 1,
         default_zoom: mapData.default_zoom || 1,
         on_enter: mapData.on_enter
@@ -293,6 +294,7 @@ export function setupWebSocket(server) {
                 width: mapData.width,
                 height: mapData.height,
                 layers: mapData.layers,
+                clip_mask: mapData.clip_mask,
                 character_scale: mapData.character_scale || 1,
                 default_zoom: mapData.default_zoom || 1,
                 on_enter: mapData.on_enter

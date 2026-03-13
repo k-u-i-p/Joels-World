@@ -233,7 +233,7 @@ function update() {
           const angle = -hitObj.rotation * (Math.PI / 180);
           const cosA = Math.cos(angle);
           const sinA = Math.sin(angle);
-          
+
           // Transform intended movement vector into local space of the rotated object
           const localDx = dx * cosA - dy * sinA;
           const localDy = dx * sinA + dy * cosA;
@@ -242,11 +242,11 @@ function update() {
           // Test local X sliding
           const testLocalDx = localDx;
           const testLocalDy = 0;
-          
+
           // Transform back to world space
           let slideWorldDx = testLocalDx * cosA + testLocalDy * sinA;
           let slideWorldDy = -testLocalDx * sinA + testLocalDy * cosA;
-          
+
           if (physicsEngine.canMoveTo(possibleOverlaps, player.x + slideWorldDx, player.y + slideWorldDy, playerRadius, mapW, mapH)) {
             player.x += slideWorldDx;
             player.y += slideWorldDy;
@@ -691,6 +691,9 @@ function handleInitData(data) {
       window.cameraZoom = mapMetadata.default_zoom || 1;
 
       mapManager.init(mapMetadata);
+
+      // Initialize the physics clip mask for this map if it has one
+      physicsEngine.loadClipMask(mapMetadata.clip_mask, mapMetadata.width, mapMetadata.height);
 
       // Handle dynamic map audio swapping if already playing
       if (window.gameStarted) {

@@ -1,4 +1,12 @@
 export class PhysicsEngine {
+  constructor() {
+    this.clipMaskCanvas = null;
+    this.clipMaskCtx = null;
+    this.clipMaskWidth = 0;
+    this.clipMaskHeight = 0;
+    this.clipMaskImageData = null;
+  }
+
   /**
    * Helper function to detect if a specific coordinate and radius overlaps with a collision object.
    * Applies rotated rectangle math and bounding circle math perfectly.
@@ -93,6 +101,91 @@ export class PhysicsEngine {
   }
 
   /**
+   * Loads a clip_mask image/SVG and renders it to an offscreen canvas for pixel reading.
+   * @param {string} url - The URL of the mask image.
+   * @param {number} mapW - Map width for canvas sizing.
+   * @param {number} mapH - Map height for canvas sizing.
+   */
+  loadClipMask(url, mapW, mapH) {
+    if (!url) {
+      this.clipMaskCanvas = null;
+      this.clipMaskCtx = null;
+      this.clipMaskImageData = null;
+      return;
+    }
+
+    // Start with a small scale for the mask check to avoid excessive memory on 4K maps
+    // E.g., mask scale of 1 is full res, 0.5 is half. Let's use 1 for accuracy on SVGs.
+    const scale = 1;
+    this.clipMaskWidth = mapW * scale;
+    this.clipMaskHeight = mapH * scale;
+
+    const canvas = window.OffscreenCanvas ? new OffscreenCanvas(this.clipMaskWidth, this.clipMaskHeight) : document.createElement('canvas');
+    if (!window.OffscreenCanvas) {
+      canvas.width = this.clipMaskWidth;
+      canvas.height = this.clipMaskHeight;
+    }
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    // Clear to white (walkable by default)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, this.clipMaskWidth, this.clipMaskHeight);
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, this.clipMaskWidth, this.clipMaskHeight);
+      this.clipMaskCanvas = canvas;
+      this.clipMaskCtx = ctx;
+      try {
+        this.clipMaskImageData = ctx.getImageData(0, 0, this.clipMaskWidth, this.clipMaskHeight).data;
+        console.log(`[PhysicsEngine] Clip mask loaded successfully: ${url}`);
+      } catch (e) {
+        console.warn(`[PhysicsEngine] Failed to read clip_mask image data - CORS issue?`);
+        this.clipMaskImageData = null;
+      }
+    };
+    img.onerror = () => console.warn(`[PhysicsEngine] Failed to load clip_mask at ${url}`);
+    img.src = url;
+  }
+
+  /**
+   * Evaluates if a given map coordinate is black on the clip_mask.
+   * @param {number} x - The target X coordinate.
+   * @param {number} y - The target Y coordinate.
+   * @param {number} playerRadius - The collision radius.
+   * @returns {boolean} True if the area is walkable, false if it is masked (black).
+   */
+  checkClipMask(x, y, playerRadius) {
+    if (!this.clipMaskImageData) return true; // Default to walkable if mask isn't loaded
+
+    // Convert centered coordinates (-halfW to halfW) to top-left pixel coordinates (0 to W)
+    // Scale is 1.
+    const pixelX = Math.round(x + (this.clipMaskWidth / 2));
+    const pixelY = Math.round(y + (this.clipMaskHeight / 2));
+
+    // Bounds check
+    if (pixelX < 0 || pixelX >= this.clipMaskWidth || pixelY < 0 || pixelY >= this.clipMaskHeight) {
+      return false; // Out of bounds of mask entirely
+    }
+
+    // Read pixel data: index = (y * width + x) * 4
+    const index = (pixelY * this.clipMaskWidth + pixelX) * 4;
+    const r = this.clipMaskImageData[index];
+    const g = this.clipMaskImageData[index + 1];
+    const b = this.clipMaskImageData[index + 2];
+    const a = this.clipMaskImageData[index + 3];
+
+    // If pixel is mostly black and opaque, it's a solid boundary
+    // Threshold can be adjusted; SVG usually renders pitch black #000000
+    if (a > 0 && r < 250 && g < 250 && b < 250) {
+      return false; // Cannot walk here
+    }
+
+    return true; // Walkable
+  }
+
+  /**
    * Evaluates whether a certain movement displacement is valid, factoring in map boundaries
    * and the `clip` permissions of all collision shapes in the world.
    * @param {Array} objectsList - List of map objects to test clipping against.
@@ -114,6 +207,11 @@ export class PhysicsEngine {
       ) {
         return false;
       }
+    }
+
+    // Check SVG clip mask
+    if (!this.checkClipMask(newX, newY, playerRadius)) {
+      return false;
     }
 
     if (!objectsList) return true;

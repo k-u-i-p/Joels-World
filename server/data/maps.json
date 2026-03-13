@@ -37,6 +37,7 @@
         }
       ]
     ],
+    "clip_mask": "/junior_school/roofs.png",
     "npcs": "junior_school/npc.json",
     "character_scale": 1.5,
     "default_zoom": 1,
@@ -70,6 +71,7 @@
       ]
     ],
     "npcs": "detention/npc.json",
+    "clip_mask": "pdetention/clip_mask.svg",
     "character_scale": 4,
     "default_zoom": 0.5,
     "objects": "detention/objects.json",
@@ -138,6 +140,7 @@
       ]
     ],
     "npcs": "pool/npc.json",
+    "clip_mask": "pool/clipping_mask.svg",
     "character_scale": 2,
     "default_zoom": 1,
     "objects": "pool/objects.json",
