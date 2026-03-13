@@ -1274,13 +1274,16 @@ function handleInitData(data) {
         const layers = layerGroup.map(layerData => {
           const img = new Image();
           const p = new Promise(resolve => {
-            img.onload = resolve;
+            let handled = false;
+            const complete = () => { if (!handled) { handled = true; resolve(); } };
+            img.onload = complete;
             img.onerror = () => {
               console.warn('Failed to load map background image layer');
-              resolve();
+              complete();
             };
             img.src = layerData.image;
-            if (img.complete) resolve();
+            if (img.complete) complete();
+            setTimeout(complete, 3000); // Safari event drop safety fallback
           });
           window.layerPromises.push(p);
           return { image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
