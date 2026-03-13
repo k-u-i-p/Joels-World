@@ -7,9 +7,6 @@
     "dev": "npm run server",
     "server": "node server/server.js"
   },
-  "devDependencies": {
-    "concurrently": "^9.2.1"
-  },
   "dependencies": {
     "cookie-parser": "^1.4.7",
     "express": "^5.2.1",

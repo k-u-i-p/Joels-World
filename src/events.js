@@ -22,7 +22,7 @@ export const EventHandlers = {
         el.src = avatarSrc;
       }
       
-      const actionDialog = document.getElementById('action-dialog');
+      const actionDialog = document.getElementById('top-center-ui');
       if (actionDialog) actionDialog.classList.add('avatar-active');
     }
   },

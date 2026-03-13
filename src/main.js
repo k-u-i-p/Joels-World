@@ -121,7 +121,7 @@ chatInput.addEventListener('blur', () => { isChatFocused = false; });
 
 const UI = {
   get avatarsContainer() { return this._ac || (this._ac = document.getElementById('avatars-container')); },
-  get dialogOverlay() { return this._do || (this._do = document.getElementById('action-dialog-content')); },
+  get dialogOverlay() { return this._do || (this._do = document.getElementById('action-dialog')); },
   get dialogText() { return this._dt || (this._dt = document.getElementById('action-dialog-text')); },
   get btnYes() { return this._by || (this._by = document.getElementById('action-dialog-yes')); },
   get btnNo() { return this._bn || (this._bn = document.getElementById('action-dialog-no')); }
@@ -665,7 +665,7 @@ function update() {
         const el = container.querySelector(`[data-npc-id="${prevNpc.id}"]`);
         if (el) el.remove();
         if (container.children.length === 0) {
-          const actionDialog = document.getElementById('action-dialog');
+          const actionDialog = document.getElementById('top-center-ui');
           if (actionDialog) actionDialog.classList.remove('avatar-active');
         }
       }
@@ -1236,7 +1236,7 @@ function handleInitData(data) {
     const avatarsContainer = UI.avatarsContainer;
     if (avatarsContainer) {
       avatarsContainer.innerHTML = '';
-      const actionDialog = document.getElementById('action-dialog');
+      const actionDialog = document.getElementById('top-center-ui');
       if (actionDialog) actionDialog.classList.remove('avatar-active');
     }
 
@@ -1321,7 +1321,7 @@ function handleInitData(data) {
         startBtn.textContent = 'Start Game';
         startBtn.disabled = false;
         startBtn.removeAttribute('disabled');
-        
+
         // Force iOS Safari repaint/reflow
         const currentDisplay = startBtn.style.display;
         startBtn.style.display = 'none';

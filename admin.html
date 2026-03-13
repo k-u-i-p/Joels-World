@@ -16,8 +16,8 @@
   <div id="avatars-container"
     style="position: absolute; top: calc(15px + env(safe-area-inset-top)); left: calc(15px + env(safe-area-inset-top)); z-index: 10; display: flex; flex-direction: column; gap: 15px;">
   </div>
-
-  <div id="action-dialog" class="overlay"
+  <!-- Top Center UI Overlay -->
+  <div id="top-center-ui" class="overlay"
     style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-top: env(safe-area-inset-top); justify-content: flex-start; padding-left: 30px; padding-right: 30px; box-sizing: border-box;">
 
     <div id="map-name-display"
@@ -26,41 +26,30 @@
 
     <div id="chat-container"
       style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center; justify-content: center; width: 100%; max-width: 400px; pointer-events: auto;">
-      <input type="text" id="chat-input" placeholder="Click to chat..." autocomplete="off" maxlength="80"
-        style="flex-grow: 1;" />
+            <input type="text" id="chat-input" class="glass-input" placeholder="Click to chat..." autocomplete="off" maxlength="80" />
     </div>
 
-    <div id="action-dialog-content" class="dialog-content"
+    <div id="action-dialog" class="dialog-content"
       style="display: none; text-align: center; width: 100%; max-width: 400px; pointer-events: auto;">
       <h2 id="action-dialog-text" style="font-size: 18px; margin-bottom: 20px;"></h2>
       <div style="display: flex; justify-content: space-around; gap: 10px;">
-        <button id="action-dialog-yes"
-          style="padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; flex: 1;">Yes</button>
-        <button id="action-dialog-no"
-          style="padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; flex: 1;">No</button>
+          <button id="action-dialog-yes" class="btn btn-success btn-action">Yes</button>
+          <button id="action-dialog-no" class="btn btn-danger btn-action">No</button>
       </div>
     </div>
   </div>
 
   <div id="admin-panel" style="display: none;">
-    <div id="admin-panel-handle"
-      style="background: rgba(0,0,0,0.3); padding: 5px; cursor: move; text-align: center; border-radius: 8px 8px 0 0; margin: -10px -10px 10px -10px; font-weight: bold; font-size: 12px; user-select: none;">
+      <div id="admin-panel-handle" class="admin-handle">
       Admin Panel
     </div>
     <div style="margin-bottom: 10px; text-align: center;">
-      <select id="admin-map-select"
-        style="width: 100%; padding: 4px; margin-bottom: 5px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; font-size: 11px;">
+      <select id="admin-map-select" class="admin-select">
         <option value="">Select Map...</option>
       </select>
-      <button id="btn-create-obj-rect"
-        style="width: 100%; padding: 4px; font-size: 11px; background-color: #e67e22; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 4px;">+
-        Collision Box</button>
-      <button id="btn-create-obj-circle"
-        style="width: 100%; padding: 4px; font-size: 11px; background-color: #f1c40f; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 4px;">+
-        Collision Circle</button>
-      <button id="btn-create-npc"
-        style="width: 100%; padding: 4px; font-size: 11px; background-color: #9b59b6; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">+
-        NPC</button>
+      <button id="btn-create-obj-rect" class="admin-full-btn" style="background-color: #e67e22;">+ Collision Box</button>
+      <button id="btn-create-obj-circle" class="admin-full-btn" style="background-color: #f1c40f;">+ Collision Circle</button>
+      <button id="btn-create-npc" class="admin-full-btn" style="background-color: #9b59b6;">+ NPC</button>
     </div>
     <div id="admin-last-clicked"
       style="font-size: 12px; font-family: monospace; color: #bdc3c7; text-align: center; margin-bottom: 10px;">
@@ -69,77 +58,68 @@
     <div id="edit-obj-section" style="display: none;">
       <h3>Edit Object</h3>
       <div style="text-align:center; margin-bottom:10px;">
-        <input type="text" id="obj-name-input"
-          style="width:100%; box-sizing:border-box; padding:5px; text-align:center; background:rgba(255,255,255,0.1); border:1px solid #7f8c8d; color:white; border-radius:4px;"
-          placeholder="Object Name (Optional)" />
+        <input type="text" id="obj-name-input" class="admin-input" placeholder="Object Name (Optional)" />
       </div>
-      <div class="control-row">
+      <div class="admin-control-row">
         <span>Rotate:</span>
-        <button id="btn-obj-rot-left">↺</button>
-        <button id="btn-obj-rot-right">↻</button>
+        <button id="btn-obj-rot-left" class="admin-btn">↺</button>
+        <button id="btn-obj-rot-right" class="admin-btn">↻</button>
       </div>
-      <div class="control-row">
+      <div class="admin-control-row">
         <span>Width:</span>
-        <button id="btn-obj-width-dec">-</button>
-        <button id="btn-obj-width-inc">+</button>
+        <button id="btn-obj-width-dec" class="admin-btn">-</button>
+        <button id="btn-obj-width-inc" class="admin-btn">+</button>
       </div>
-      <div class="control-row">
+      <div class="admin-control-row">
         <span>Length:</span>
-        <button id="btn-obj-length-dec">-</button>
-        <button id="btn-obj-length-inc">+</button>
+        <button id="btn-obj-length-dec" class="admin-btn">-</button>
+        <button id="btn-obj-length-inc" class="admin-btn">+</button>
       </div>
-      <div class="control-row" style="margin-top: 5px;">
+      <div class="admin-control-row" style="margin-top: 5px;">
         <span>Clip:</span>
-        <input type="number" id="input-obj-clip"
-          style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
+        <input type="number" id="input-obj-clip" style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
       </div>
-      <button id="btn-delete-obj"
-        style="width:100%; margin-top:10px; padding:5px; background-color:#e74c3c; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Delete
-        Object</button>
+      <button id="btn-delete-obj" class="admin-full-btn" style="background-color:#e74c3c; margin-top:10px;">Delete Object</button>
     </div>
     <div id="edit-npc-section" style="display: none; margin-top: 15px;">
       <h3>Edit NPC</h3>
       <div style="text-align:center; margin-bottom:5px;">
-        <input type="text" id="npc-name-input"
-          style="width:100%; box-sizing:border-box; padding:5px; text-align:center; background:rgba(255,255,255,0.1); border:1px solid #7f8c8d; color:white; border-radius:4px;"
-          placeholder="NPC Name" />
+        <input type="text" id="npc-name-input" class="admin-input" placeholder="NPC Name" />
       </div>
-      <div class="control-row" style="margin-bottom:5px;">
+      <div class="admin-control-row" style="margin-bottom:5px;">
         <span>Rotate:</span>
-        <button id="btn-npc-rot-left">↺</button>
-        <button id="btn-npc-rot-right">↻</button>
+        <button id="btn-npc-rot-left" class="admin-btn">↺</button>
+        <button id="btn-npc-rot-right" class="admin-btn">↻</button>
       </div>
-      <div class="control-row" style="margin-bottom:5px;">
-        <span>Width:</span><button id="btn-npc-width-dec">-</button><button id="btn-npc-width-inc">+</button>
+      <div class="admin-control-row" style="margin-bottom:5px;">
+        <span>Width:</span>
+        <button id="btn-npc-width-dec" class="admin-btn">-</button>
+        <button id="btn-npc-width-inc" class="admin-btn">+</button>
       </div>
-      <div class="control-row" style="margin-bottom:5px;">
-        <span>Height:</span><button id="btn-npc-height-dec">-</button><button id="btn-npc-height-inc">+</button>
-      </div>
-      <div style="margin-bottom:5px;">
-        <span>Shirt: </span><input type="color" id="npc-shirt-col" style="background:transparent; border:none;" />
-      </div>
-      <div style="margin-bottom:5px;">
-        <span>Pants: </span><input type="color" id="npc-pants-col" style="background:transparent; border:none;" />
+      <div class="admin-control-row" style="margin-bottom:5px;">
+        <span>Height:</span>
+        <button id="btn-npc-height-dec" class="admin-btn">-</button>
+        <button id="btn-npc-height-inc" class="admin-btn">+</button>
       </div>
       <div style="margin-bottom:5px;">
-        <span>Arms: </span><input type="color" id="npc-arm-col" style="background:transparent; border:none;" />
+        <span>Shirt: </span><input type="color" id="npc-shirt-col" class="admin-color-picker" />
+      </div>
+      <div style="margin-bottom:5px;">
+        <span>Pants: </span><input type="color" id="npc-pants-col" class="admin-color-picker" />
+      </div>
+      <div style="margin-bottom:5px;">
+        <span>Arms: </span><input type="color" id="npc-arm-col" class="admin-color-picker" />
       </div>
       <div style="margin-bottom: 5px;">
         <div style="font-size: 12px; margin-bottom: 2px;">On Enter Dialog (1 message per line):</div>
-        <textarea id="npc-on-enter-input"
-          style="width:100%; height:60px; box-sizing:border-box; padding:5px; background:rgba(255,255,255,0.1); border:1px solid #7f8c8d; color:white; border-radius:4px; font-family:monospace; font-size:11px;"></textarea>
+        <textarea id="npc-on-enter-input" class="admin-textarea"></textarea>
       </div>
       <div style="margin-bottom: 5px;">
         <div style="font-size: 12px; margin-bottom: 2px;">On Exit Dialog (1 message per line):</div>
-        <textarea id="npc-on-exit-input"
-          style="width:100%; height:60px; box-sizing:border-box; padding:5px; background:rgba(255,255,255,0.1); border:1px solid #7f8c8d; color:white; border-radius:4px; font-family:monospace; font-size:11px;"></textarea>
+        <textarea id="npc-on-exit-input" class="admin-textarea"></textarea>
       </div>
-      <button id="btn-save-npc-dialog"
-        style="width:100%; padding:5px; background-color:#3498db; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom: 5px;">Save
-        Dialog</button>
-      <button id="btn-delete-npc"
-        style="width:100%; padding:5px; background-color:#e74c3c; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Delete
-        NPC</button>
+      <button id="btn-save-npc-dialog" class="admin-full-btn" style="background-color:#3498db; margin-bottom: 5px;">Save Dialog</button>
+      <button id="btn-delete-npc" class="admin-full-btn" style="background-color:#e74c3c;">Delete NPC</button>
     </div>
   </div>
 
