@@ -891,10 +891,9 @@ function drawMapLayer(layerIndex) {
           
           if (chunkImg.complete && chunkImg.naturalWidth > 0) {
             // Map grid coordinates back to world offset coordinates (-halfMapW to +halfMapW)
-            const drawX = -halfMapW + (x * layer.chunk_size);
-            const drawY = -halfMapH + (y * layer.chunk_size);
-            
-            ctx.drawImage(chunkImg, drawX, drawY);
+            const drawX = Math.floor(-halfMapW + (x * layer.chunk_size));
+            const drawY = Math.floor(-halfMapH + (y * layer.chunk_size));
+            ctx.drawImage(chunkImg, drawX, drawY, layer.chunk_size + 1, layer.chunk_size + 1);
           }
         }
       }

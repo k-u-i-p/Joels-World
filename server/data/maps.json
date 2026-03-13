@@ -9,6 +9,7 @@
         {
           "alpha": 1,
           "chunked": true,
+          "source_image": "/grounds/background.jpg",
           "chunk_size": 512,
           "grid_w": 8,
           "grid_h": 9,
@@ -19,6 +20,7 @@
         {
           "alpha": 0.9,
           "chunked": true,
+          "source_image": "/grounds/trees.png",
           "chunk_size": 512,
           "grid_w": 8,
           "grid_h": 9,
