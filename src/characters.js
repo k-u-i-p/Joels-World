@@ -72,6 +72,15 @@ export class CharacterManager {
       ctxObj.stroke();
     };
 
+    const drawShoePath = (ctxObj, x, y) => {
+      ctxObj.beginPath();
+      ctxObj.moveTo(x - 2, y - 3.5);
+      ctxObj.lineTo(x + 5, y - 3.5);
+      ctxObj.bezierCurveTo(x + 10, y - 3.5, x + 10, y + 3.5, x + 5, y + 3.5);
+      ctxObj.lineTo(x - 2, y + 3.5);
+      ctxObj.quadraticCurveTo(x - 3.5, y + 3.5, x - 3.5, y - 3.5, x - 2, y - 3.5);
+    };
+
     octx.lineWidth = 7;
     octx.lineCap = 'round';
     octx.strokeStyle = c.pantsColor || '#2c3e50';
@@ -86,8 +95,7 @@ export class CharacterManager {
     leftShoeGradient.addColorStop(0.5, shoeColor);
     leftShoeGradient.addColorStop(1, shadeColor(shoeColor, -30));
     octx.fillStyle = leftShoeGradient;
-    octx.beginPath();
-    octx.ellipse(limbs.leftLegEndX + 3, limbs.leftLegEndY, 6, 3.5, 0, 0, PI2);
+    drawShoePath(octx, limbs.leftLegEndX, limbs.leftLegEndY);
     octx.fill();
 
     const rightShoeGradient = octx.createRadialGradient(limbs.rightLegEndX + 2, limbs.rightLegEndY - 1, 0.5, limbs.rightLegEndX + 3, limbs.rightLegEndY, 7);
@@ -95,8 +103,7 @@ export class CharacterManager {
     rightShoeGradient.addColorStop(0.5, shoeColor);
     rightShoeGradient.addColorStop(1, shadeColor(shoeColor, -30));
     octx.fillStyle = rightShoeGradient;
-    octx.beginPath();
-    octx.ellipse(limbs.rightLegEndX + 3, limbs.rightLegEndY, 6, 3.5, 0, 0, PI2);
+    drawShoePath(octx, limbs.rightLegEndX, limbs.rightLegEndY);
     octx.fill();
 
     // Draw little shoelaces
@@ -295,6 +302,15 @@ export class CharacterManager {
             ctxObj.stroke();
           };
 
+          const drawShoePath = (ctxObj, x, y) => {
+            ctxObj.beginPath();
+            ctxObj.moveTo(x - 2, y - 3.5);
+            ctxObj.lineTo(x + 5, y - 3.5);
+            ctxObj.bezierCurveTo(x + 10, y - 3.5, x + 10, y + 3.5, x + 5, y + 3.5);
+            ctxObj.lineTo(x - 2, y + 3.5);
+            ctxObj.quadraticCurveTo(x - 3.5, y + 3.5, x - 3.5, y - 3.5, x - 2, y - 3.5);
+          };
+
           ctx.lineWidth = 7;
           ctx.lineCap = 'round';
           ctx.strokeStyle = c.pantsColor || '#2c3e50';
@@ -309,8 +325,7 @@ export class CharacterManager {
           leftDynShoeGrad.addColorStop(0.5, legShoeColor);
           leftDynShoeGrad.addColorStop(1, shadeColor(legShoeColor, -30));
           ctx.fillStyle = leftDynShoeGrad;
-          ctx.beginPath();
-          ctx.ellipse(limbs.leftLegEndX + 3, limbs.leftLegEndY, 6, 3.5, 0, 0, PI2);
+          drawShoePath(ctx, limbs.leftLegEndX, limbs.leftLegEndY);
           ctx.fill();
 
           const rightDynShoeGrad = ctx.createRadialGradient(limbs.rightLegEndX + 2, limbs.rightLegEndY - 1, 0.5, limbs.rightLegEndX + 3, limbs.rightLegEndY, 7);
@@ -318,8 +333,7 @@ export class CharacterManager {
           rightDynShoeGrad.addColorStop(0.5, legShoeColor);
           rightDynShoeGrad.addColorStop(1, shadeColor(legShoeColor, -30));
           ctx.fillStyle = rightDynShoeGrad;
-          ctx.beginPath();
-          ctx.ellipse(limbs.rightLegEndX + 3, limbs.rightLegEndY, 6, 3.5, 0, 0, PI2);
+          drawShoePath(ctx, limbs.rightLegEndX, limbs.rightLegEndY);
           ctx.fill();
 
           // Draw little shoelaces

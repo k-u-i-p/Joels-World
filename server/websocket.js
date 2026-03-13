@@ -108,6 +108,8 @@ export function setupWebSocket(server) {
     return colors[Math.floor(Math.random() * colors.length)];
   }
 
+  const shoeColors = ['#111111', '#5e3a1f', '#7f8c8d']; // Black, Brown, Grey
+
   wss.on('connection', (ws, req) => {
     console.log('Client connected');
 
@@ -185,7 +187,7 @@ export function setupWebSocket(server) {
       shirtColor: getRandomColor(),
       pantsColor: getRandomColor(),
       armColor: getRandomColor(),
-      shoeColor: getRandomColor()
+      shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)]
     };
 
     mapData.characters[newPlayerId] = newChar;

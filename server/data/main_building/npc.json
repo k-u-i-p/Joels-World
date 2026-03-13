@@ -32,7 +32,7 @@
         ]
       }
     ],
-    "shoeColor": "#34495e"
+    "shoeColor": "#7f8c8d"
   },
   {
     "id": 2,
@@ -56,7 +56,7 @@
       }
     ],
     "on_exit": [],
-    "shoeColor": "#e67e22"
+    "shoeColor": "#111111"
   },
   {
     "id": 3,
@@ -96,7 +96,7 @@
         ]
       }
     ],
-    "shoeColor": "#f1c40f"
+    "shoeColor": "#111111"
   },
   {
     "id": 4,
@@ -130,7 +130,7 @@
       }
     ],
     "on_exit": [],
-    "shoeColor": "#1abc9c"
+    "shoeColor": "#111111"
   },
   {
     "id": 5,
@@ -164,6 +164,6 @@
       }
     ],
     "on_exit": [],
-    "shoeColor": "#2ecc71"
+    "shoeColor": "#7f8c8d"
   }
 ]

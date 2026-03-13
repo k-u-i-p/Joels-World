@@ -27,7 +27,7 @@
         ]
       }
     ],
-    "shoeColor": "#8e44ad"
+    "shoeColor": "#7f8c8d"
   },
   {
     "id": 2,
@@ -50,7 +50,7 @@
         ]
       }
     ],
-    "shoeColor": "#e67e22"
+    "shoeColor": "#5e3a1f"
   },
   {
     "id": 3,
@@ -75,7 +75,7 @@
       }
     ],
     "on_exit": [],
-    "shoeColor": "#e74c3c"
+    "shoeColor": "#111111"
   },
   {
     "id": 4,
@@ -89,7 +89,7 @@
     "shirtColor": "#f1c40f",
     "pantsColor": "#2c3e50",
     "armColor": "#f1c40f",
-    "shoeColor": "#1abc9c"
+    "shoeColor": "#5e3a1f"
   },
   {
     "id": 5,
@@ -117,7 +117,7 @@
         ]
       }
     ],
-    "shoeColor": "#2ecc71"
+    "shoeColor": "#111111"
   },
   {
     "id": 7,
@@ -136,7 +136,7 @@
       "name": "bounce",
       "startTime": 0
     },
-    "shoeColor": "#1abc9c"
+    "shoeColor": "#111111"
   },
   {
     "id": 8,
@@ -166,6 +166,6 @@
       "name": "rugby",
       "startTime": 0
     },
-    "shoeColor": "#3498db"
+    "shoeColor": "#111111"
   }
 ]

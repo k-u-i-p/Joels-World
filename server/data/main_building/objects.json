@@ -74,7 +74,11 @@
     ],
     "on_exit": [
       {
-        "emote": "wet"
+        "emote": "wet",
+        "play_sound": {
+          "sound": "media/wet_footprints.mp3",
+          "volume": 0.5
+        }
       }
     ]
   },
@@ -87,7 +91,8 @@
     "length": 108,
     "name": "Toilets",
     "clip": -1,
-    "on_enter": 12
+    "on_enter": 12,
+    "on_exit": 12
   },
   {
     "id": 14,
@@ -98,6 +103,7 @@
     "length": 124,
     "name": "Toilets",
     "clip": -1,
-    "on_enter": 12
+    "on_enter": 12,
+    "on_exit": 12
   }
 ]
