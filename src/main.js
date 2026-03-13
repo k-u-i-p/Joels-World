@@ -67,7 +67,7 @@ initSound();
 // Player Entity
 let player = {
   id: 0,
-  moveSpeed: 2,
+  moveSpeed: 3,
   rotationSpeed: 3,
   legAnimationTime: 0,
   emote: null,
@@ -623,16 +623,18 @@ function handleInitData(data) {
         mapNameDisplay.textContent = mapMetadata.name;
       }
 
+      window.cameraZoom = mapMetadata.default_zoom || 1;
+
       mapManager.init(mapMetadata);
 
       // Handle dynamic map audio swapping if already playing
       if (window.gameStarted) {
-         if (mapMetadata.on_enter) {
-           executeEvents(mapMetadata, mapMetadata.on_enter);
-         } else {
-           soundManager.stopBackground();
-         }
-         setTimeout(checkInitialSpawn, 100);
+        if (mapMetadata.on_enter) {
+          executeEvents(mapMetadata, mapMetadata.on_enter);
+        } else {
+          soundManager.stopBackground();
+        }
+        setTimeout(checkInitialSpawn, 100);
       }
     }
 
@@ -643,7 +645,7 @@ function handleInitData(data) {
 
     // Bypass completely for iOS safety - images load seamlessly in the background and canvas 
     // strictly checks img.complete naturally per frame!
-    
+
     console.log('startBtn', startBtn ? startBtn.textContent : 'null');
     if (startBtn) {
       console.log('Enabling start button instantly');
@@ -657,7 +659,7 @@ function handleInitData(data) {
       startBtn.offsetHeight; // force reflow
       startBtn.style.display = currentDisplay;
     }
-    
+
     if (nameInput && nameInput.value.trim() !== '') {
       console.log('Focusing name input');
       nameInput.focus();

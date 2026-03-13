@@ -177,7 +177,7 @@ export class MapManager {
             const chunkData = layer.chunks[i];
             if (!chunkData) continue;
             if (chunkData.cx < startCol - gcBuffer || chunkData.cx > endCol + gcBuffer ||
-              chunkData.cy < startRow - gcBuffer || chunkData.cyx > endRow + gcBuffer) {
+              chunkData.cy < startRow - gcBuffer || chunkData.cy > endRow + gcBuffer) {
               // Nullify image source to free memory, then delete from cache
               chunkData.img.src = '';
               layer.chunks[i] = null;

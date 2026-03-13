@@ -1,5 +1,10 @@
 import { emotes } from './emotes.js';
 
+const DEG_TO_RAD = Math.PI / 180;
+const PI2 = Math.PI * 2;
+const PI_HALF = Math.PI / 2;
+const PI_ONE_HALF = Math.PI * 1.5;
+
 export class CharacterManager {
   /**
    * Optimizes static NPC rendering by painting them onto an OffscreenCanvas once, 
@@ -58,11 +63,11 @@ export class CharacterManager {
 
     octx.fillStyle = '#f1c27d';
     octx.beginPath();
-    octx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, Math.PI * 2);
+    octx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
     octx.fill();
 
     octx.beginPath();
-    octx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, Math.PI * 2);
+    octx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
     octx.fill();
 
     octx.fillStyle = c.shirtColor || '#3498db';
@@ -75,14 +80,14 @@ export class CharacterManager {
     }
 
     octx.beginPath();
-    octx.arc(2, 0, 8, 0, Math.PI * 2);
+    octx.arc(2, 0, 8, 0, PI2);
     octx.fillStyle = '#f1c27d';
     octx.fill();
 
     if (c.gender === 'female') {
       octx.fillStyle = '#e67e22';
       octx.beginPath();
-      octx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
+      octx.arc(1, 0, 7, PI_HALF, PI_ONE_HALF, true);
       octx.fill();
     }
 
@@ -100,11 +105,11 @@ export class CharacterManager {
    * Master rendering component for an individual character.
    * @param {Object} c - The character data including positions, colors, and roles.
    */
-  drawCharacter(c, layerType, ctx, player, syncPlayerToJSON) {
+  drawCharacter(c, isNpc, layerType, ctx, player, syncPlayerToJSON) {
     if (layerType === 'all' || layerType === 'base') {
       ctx.save();
       ctx.translate(c.x, c.y);
-      ctx.rotate(c.rotation * Math.PI / 180);
+      ctx.rotate(c.rotation * DEG_TO_RAD);
 
       const baseScale = window.init?.mapData?.character_scale || 1;
       const widthScale = (c.width || 40) / 40;
@@ -117,7 +122,7 @@ export class CharacterManager {
         ctx.font = '60px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
+        ctx.rotate(-c.rotation * DEG_TO_RAD); // keep it upright
 
         let currentEmote = c.emote;
         let emoteDef = null;
@@ -130,7 +135,7 @@ export class CharacterManager {
 
         ctx.fillText(c.emoji, 0, 0);
       } else {
-        const isActualNpc = window.init?.npcs && window.init.npcs.some(n => n.id === c.id);
+        const isActualNpc = isNpc;
         const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;
 
         if (isActualNpc && !hasMovement && !c.emote) {
@@ -197,13 +202,12 @@ export class CharacterManager {
           drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
           drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
 
-          ctx.fillStyle = '#f1c27d'; // Skin tone
           ctx.beginPath();
-          ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, Math.PI * 2);
+          ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
           ctx.fill();
 
           ctx.beginPath();
-          ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, Math.PI * 2);
+          ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
           ctx.fill();
 
           ctx.fillStyle = c.shirtColor || '#3498db';
@@ -216,14 +220,14 @@ export class CharacterManager {
           }
 
           ctx.beginPath();
-          ctx.arc(2, 0, 8, 0, Math.PI * 2);
+          ctx.arc(2, 0, 8, 0, PI2);
           ctx.fillStyle = '#f1c27d'; // Skin tone
           ctx.fill();
 
           if (c.gender === 'female') {
             ctx.fillStyle = '#e67e22'; // Default hair color example
             ctx.beginPath();
-            ctx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
+            ctx.arc(1, 0, 7, PI_HALF, PI_ONE_HALF, true);
             ctx.fill();
           }
 
@@ -261,7 +265,7 @@ export class CharacterManager {
 
         const baseScale = window.init?.mapData?.character_scale || 1;
         const nameYOffset = ((c.height || 40) / 2) * baseScale + 15;
-        
+
         // draw raw instead of translating matrix
         ctx.fillText(c.name, c.x, c.y + nameYOffset);
 
@@ -288,7 +292,7 @@ export class CharacterManager {
         const bubbleWidth = textWidth + 24;
         const bubbleHeight = 32;
         const baseScale = window.init?.mapData?.character_scale || 1;
-        
+
         // compute offset coordinates physically
         const bX = c.x - bubbleWidth / 2;
         const bY = c.y - (((c.height || 40) / 2) * baseScale + 10) - bubbleHeight;
@@ -349,19 +353,19 @@ export class CharacterManager {
     const minY = cameraY - viewHalfH - margin;
     const maxY = cameraY + viewHalfH + margin;
 
-    const processDraw = (char) => {
+    const processDraw = (char, isNpc) => {
       const c = (char.id === player.id) ? player : char;
 
       if (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY) {
-        this.drawCharacter(c, layerType, ctx, player, syncPlayerToJSON);
+        this.drawCharacter(c, isNpc, layerType, ctx, player, syncPlayerToJSON);
       }
     };
 
     if (window.init?.characters) {
-      for (let i = 0; i < window.init.characters.length; i++) processDraw(window.init.characters[i]);
+      for (let i = 0; i < window.init.characters.length; i++) processDraw(window.init.characters[i], false);
     }
     if (window.init?.npcs) {
-      for (let i = 0; i < window.init.npcs.length; i++) processDraw(window.init.npcs[i]);
+      for (let i = 0; i < window.init.npcs.length; i++) processDraw(window.init.npcs[i], true);
     }
   }
 }

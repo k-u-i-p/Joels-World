@@ -1,36 +1,37 @@
 [
   {
     "id": 0,
-    "name": "St Peter's Campus",
-    "width": 3904,
-    "height": 4292,
+    "name": "St Peter's Junior School",
+    "width": 4372,
+    "height": 3840,
     "layers": [
       [
         {
           "alpha": 1,
           "chunked": true,
-          "source_image": "/grounds/background.png",
+          "source_image": "/junior_school/background.png",
           "chunk_size": 512,
-          "grid_w": 8,
-          "grid_h": 9,
-          "path_template": "/grounds/chunks/background_{x}_{y}.png"
+          "grid_w": 9,
+          "grid_h": 8,
+          "path_template": "/junior_school/chunks/background_{x}_{y}.png"
         }
       ],
       [
         {
           "alpha": 0.9,
           "chunked": true,
-          "source_image": "/grounds/trees.png",
+          "source_image": "/junior_school/trees.png",
           "chunk_size": 512,
-          "grid_w": 8,
-          "grid_h": 9,
-          "path_template": "/grounds/chunks/trees_{x}_{y}.png"
+          "grid_w": 9,
+          "grid_h": 8,
+          "path_template": "/junior_school/chunks/trees_{x}_{y}.png"
         }
       ]
     ],
-    "npcs": "grounds/npc.json",
-    "character_scale": 1,
-    "objects": "grounds/objects.json",
+    "npcs": "junior_school/npc.json",
+    "character_scale": 2,
+    "default_zoom": 0.5,
+    "objects": "junior_school/objects.json",
     "spawn_area": 19,
     "on_enter": [
       {
@@ -61,6 +62,7 @@
     ],
     "npcs": "detention/npc.json",
     "character_scale": 4,
+    "default_zoom": 0.5,
     "objects": "detention/objects.json",
     "logFile": "detention/log.json",
     "spawn_area": 18,
@@ -96,6 +98,7 @@
     ],
     "npcs": "main_building/npc.json",
     "character_scale": 1.5,
+    "default_zoom": 1,
     "objects": "main_building/objects.json",
     "spawn_area": 9,
     "on_enter": [
@@ -127,6 +130,7 @@
     ],
     "npcs": "pool/npc.json",
     "character_scale": 2,
+    "default_zoom": 1,
     "objects": "pool/objects.json",
     "spawn_area": 1,
     "on_enter": [

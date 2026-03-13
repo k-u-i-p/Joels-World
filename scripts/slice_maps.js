@@ -19,6 +19,8 @@ export async function ensureMapChunks() {
     return;
   }
   
+  let mapsModified = false;
+  
   for (const map of mapsData) {
     if (!map.layers) continue;
     
@@ -29,6 +31,22 @@ export async function ensureMapChunks() {
           const inputPath = path.join(basePath, sourceRel);
           const parsed = path.parse(sourceRel);
           const chunksDir = path.join(basePath, parsed.dir, 'chunks');
+          
+          if (fs.existsSync(inputPath)) {
+            try {
+              const metadata = await sharp(inputPath).metadata();
+              const calcGridW = Math.ceil(metadata.width / layer.chunk_size);
+              const calcGridH = Math.ceil(metadata.height / layer.chunk_size);
+              if (layer.grid_w !== calcGridW || layer.grid_h !== calcGridH) {
+                layer.grid_w = calcGridW;
+                layer.grid_h = calcGridH;
+                mapsModified = true;
+                console.log(`[Chunker] Updated grid dimensions for ${sourceRel}: ${calcGridW}x${calcGridH}`);
+              }
+            } catch (err) {
+              console.warn(`[Chunker] Failed to read metadata for ${inputPath}`, err);
+            }
+          }
           
           const metadataPath = path.join(chunksDir, `${parsed.name}_meta.json`);
           let needsGeneration = false;
@@ -66,6 +84,11 @@ export async function ensureMapChunks() {
         }
       }
     }
+  }
+
+  if (mapsModified) {
+    fs.writeFileSync(mapsJsonPath, JSON.stringify(mapsData, null, 2));
+    console.log('[Chunker] Updated maps.json with calculated grid dimensions.');
   }
 }
 

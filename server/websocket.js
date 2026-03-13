@@ -202,6 +202,7 @@ export function setupWebSocket(server) {
         height: mapData.height,
         layers: mapData.layers,
         character_scale: mapData.character_scale || 1,
+        default_zoom: mapData.default_zoom || 1,
         on_enter: mapData.on_enter
       },
       mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
@@ -290,6 +291,7 @@ export function setupWebSocket(server) {
                 height: mapData.height,
                 layers: mapData.layers,
                 character_scale: mapData.character_scale || 1,
+                default_zoom: mapData.default_zoom || 1,
                 on_enter: mapData.on_enter
               },
               mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))

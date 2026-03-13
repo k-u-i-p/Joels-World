@@ -1,0 +1,347 @@
+[
+  {
+    "id": 11,
+    "name": "Main School Building",
+    "shape": "rect",
+    "x": -1351,
+    "y": -861,
+    "rotation": -1,
+    "width": 369,
+    "length": 713,
+    "clip": 20,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 2,
+          "description": "Do you want to enter the main building?"
+        }
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "name": "Pool",
+    "shape": "rect",
+    "x": -2095,
+    "y": -1254,
+    "rotation": 90,
+    "width": 759,
+    "length": 202,
+    "clip": 20,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 3,
+          "description": "Do you want to enter the Pool building?"
+        }
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "name": "Rugby Pitch",
+    "shape": "rect",
+    "x": -1983,
+    "y": -370,
+    "rotation": 0,
+    "width": 408,
+    "length": 1006,
+    "clip": -1,
+    "on_enter": [
+      {
+        "emote": "rugby"
+      }
+    ],
+    "on_exit": [
+      {
+        "clear_emote": true
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "shape": "rect",
+    "x": -1171,
+    "y": -223,
+    "width": 413,
+    "length": 269,
+    "name": "Spawn Area",
+    "clip": -1,
+    "rotation": -3
+  },
+  {
+    "id": 20,
+    "shape": "rect",
+    "x": 661,
+    "y": 133,
+    "width": 1220,
+    "length": 39,
+    "rotation": 177
+  },
+  {
+    "id": 21,
+    "shape": "rect",
+    "x": -964,
+    "y": -820,
+    "name": "Main School Building",
+    "rotation": 178,
+    "width": 243,
+    "length": 676,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 22,
+    "shape": "rect",
+    "x": -224,
+    "y": 32,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 434,
+    "length": 294,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 23,
+    "shape": "rect",
+    "x": -427,
+    "y": -1022,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 637,
+    "length": 154,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 24,
+    "shape": "rect",
+    "x": -592,
+    "y": -1353,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 467,
+    "length": 267,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 25,
+    "shape": "rect",
+    "x": -1048,
+    "y": -1330,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 104,
+    "length": 254,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 26,
+    "shape": "rect",
+    "x": -728,
+    "y": -968,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 177,
+    "length": 220,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 27,
+    "shape": "rect",
+    "x": -134,
+    "y": -1388,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 140,
+    "length": 214,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 28,
+    "shape": "rect",
+    "x": 476,
+    "y": -409,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 254,
+    "length": 499,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 29,
+    "shape": "rect",
+    "x": 629,
+    "y": -223,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 156,
+    "length": 95,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 30,
+    "shape": "rect",
+    "x": 122,
+    "y": -1072,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 484,
+    "length": 485,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 31,
+    "shape": "rect",
+    "x": 412,
+    "y": -999,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 174,
+    "length": 712,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 32,
+    "shape": "rect",
+    "x": 198,
+    "y": -696,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 245,
+    "length": 249,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 33,
+    "shape": "rect",
+    "x": -286,
+    "y": -571,
+    "name": "Main School Building",
+    "rotation": 176,
+    "width": 350,
+    "length": 768,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 34,
+    "shape": "rect",
+    "x": 723,
+    "y": -868,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 453,
+    "length": 487,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 35,
+    "shape": "rect",
+    "x": -41,
+    "y": -807,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 345,
+    "length": 199,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 36,
+    "shape": "rect",
+    "x": 187,
+    "y": -1340,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 294,
+    "length": 145,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 37,
+    "shape": "rect",
+    "x": -778,
+    "y": -707,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 144,
+    "length": 210,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 38,
+    "shape": "rect",
+    "x": 417,
+    "y": 9,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 667,
+    "length": 360,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 39,
+    "shape": "rect",
+    "x": -887,
+    "y": -1331,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 187,
+    "length": 241,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 40,
+    "shape": "rect",
+    "x": -64,
+    "y": -285,
+    "name": "Main School Building",
+    "rotation": -1,
+    "width": 125,
+    "length": 202,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 41,
+    "shape": "rect",
+    "x": -560,
+    "y": -853,
+    "name": "Main School Building",
+    "rotation": -45,
+    "width": 211,
+    "length": 73,
+    "clip": 20,
+    "on_enter": 11
+  },
+  {
+    "id": 42,
+    "shape": "rect",
+    "x": -670,
+    "y": -783,
+    "name": "Main School Building",
+    "rotation": -2,
+    "width": 147,
+    "length": 62,
+    "clip": 20,
+    "on_enter": 11
+  }
+]
