@@ -24,6 +24,14 @@ export const EventHandlers = {
       
       const actionDialog = document.getElementById('top-center-ui');
       if (actionDialog) actionDialog.classList.add('avatar-active');
+
+      const mapNameDisplay = UI.mapNameDisplay;
+      if (mapNameDisplay) {
+        if (!mapNameDisplay.dataset.originalName) {
+          mapNameDisplay.dataset.originalName = mapNameDisplay.textContent;
+        }
+        mapNameDisplay.textContent = sourceObj.name || 'NPC';
+      }
     }
   },
 

@@ -12,6 +12,7 @@ export class UIManager {
   get dialogText() { return this._dt || (this._dt = document.getElementById('action-dialog-text')); }
   get btnYes() { return this._by || (this._by = document.getElementById('action-dialog-yes')); }
   get btnNo() { return this._bn || (this._bn = document.getElementById('action-dialog-no')); }
+  get mapNameDisplay() { return this._mnd || (this._mnd = document.getElementById('map-name-display')); }
 
   initLobby(onStartGame) {
     const nameDialog = document.getElementById('name-dialog');

@@ -473,6 +473,11 @@ function update() {
         if (container.children.length === 0) {
           const actionDialog = document.getElementById('top-center-ui');
           if (actionDialog) actionDialog.classList.remove('avatar-active');
+          const mapNameDisplay = uiManager.mapNameDisplay;
+          if (mapNameDisplay && mapNameDisplay.dataset.originalName) {
+            mapNameDisplay.textContent = mapNameDisplay.dataset.originalName;
+            delete mapNameDisplay.dataset.originalName;
+          }
         }
       }
     }
@@ -654,6 +659,10 @@ function handleInitData(data) {
       avatarsContainer.innerHTML = '';
       const actionDialog = document.getElementById('top-center-ui');
       if (actionDialog) actionDialog.classList.remove('avatar-active');
+      const mapNameDisplay = uiManager.mapNameDisplay;
+      if (mapNameDisplay && mapNameDisplay.dataset.originalName) {
+        delete mapNameDisplay.dataset.originalName;
+      }
     }
 
     const myCharacter = data.myCharacter;
