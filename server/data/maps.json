@@ -38,8 +38,8 @@
       ]
     ],
     "npcs": "junior_school/npc.json",
-    "character_scale": 2,
-    "default_zoom": 0.5,
+    "character_scale": 1.5,
+    "default_zoom": 1.0,
     "objects": "junior_school/objects.json",
     "spawn_area": 19,
     "on_enter": [

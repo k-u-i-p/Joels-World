@@ -6,27 +6,27 @@ const PI_HALF = Math.PI / 2;
 const PI_ONE_HALF = Math.PI * 1.5;
 
 function shadeColor(color, percent) {
-    let R = parseInt(color.substring(1,3),16);
-    let G = parseInt(color.substring(3,5),16);
-    let B = parseInt(color.substring(5,7),16);
+  let R = parseInt(color.substring(1, 3), 16);
+  let G = parseInt(color.substring(3, 5), 16);
+  let B = parseInt(color.substring(5, 7), 16);
 
-    R = parseInt(R * (100 + percent) / 100);
-    G = parseInt(G * (100 + percent) / 100);
-    B = parseInt(B * (100 + percent) / 100);
+  R = parseInt(R * (100 + percent) / 100);
+  G = parseInt(G * (100 + percent) / 100);
+  B = parseInt(B * (100 + percent) / 100);
 
-    R = (R<255)?R:255;  
-    G = (G<255)?G:255;  
-    B = (B<255)?B:255;  
+  R = (R < 255) ? R : 255;
+  G = (G < 255) ? G : 255;
+  B = (B < 255) ? B : 255;
 
-    R = Math.max(0, R);
-    G = Math.max(0, G);
-    B = Math.max(0, B);
+  R = Math.max(0, R);
+  G = Math.max(0, G);
+  B = Math.max(0, B);
 
-    let RR = ((R.toString(16).length==1)?"0"+R.toString(16):R.toString(16));
-    let GG = ((G.toString(16).length==1)?"0"+G.toString(16):G.toString(16));
-    let BB = ((B.toString(16).length==1)?"0"+B.toString(16):B.toString(16));
+  let RR = ((R.toString(16).length == 1) ? "0" + R.toString(16) : R.toString(16));
+  let GG = ((G.toString(16).length == 1) ? "0" + G.toString(16) : G.toString(16));
+  let BB = ((B.toString(16).length == 1) ? "0" + B.toString(16) : B.toString(16));
 
-    return "#"+RR+GG+BB;
+  return "#" + RR + GG + BB;
 }
 
 export class CharacterManager {
@@ -79,6 +79,40 @@ export class CharacterManager {
     drawLine(octx, limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY);
     drawLine(octx, limbs.rightLegStartX, limbs.rightLegStartY, limbs.rightLegEndX, limbs.rightLegEndY);
 
+    // Draw shoes
+    const shoeColor = c.shoeColor || '#1a252f';
+    const leftShoeGradient = octx.createRadialGradient(limbs.leftLegEndX + 3, limbs.leftLegEndY - 1, 1, limbs.leftLegEndX + 4, limbs.leftLegEndY, 5);
+    leftShoeGradient.addColorStop(0, shadeColor(shoeColor, 20));
+    leftShoeGradient.addColorStop(1, shoeColor);
+    octx.fillStyle = leftShoeGradient;
+    octx.beginPath();
+    octx.ellipse(limbs.leftLegEndX + 3, limbs.leftLegEndY, 6, 3.5, 0, 0, PI2);
+    octx.fill();
+
+    const rightShoeGradient = octx.createRadialGradient(limbs.rightLegEndX + 3, limbs.rightLegEndY - 1, 1, limbs.rightLegEndX + 4, limbs.rightLegEndY, 5);
+    rightShoeGradient.addColorStop(0, shadeColor(shoeColor, 20));
+    rightShoeGradient.addColorStop(1, shoeColor);
+    octx.fillStyle = rightShoeGradient;
+    octx.beginPath();
+    octx.ellipse(limbs.rightLegEndX + 3, limbs.rightLegEndY, 6, 3.5, 0, 0, PI2);
+    octx.fill();
+
+    // Draw little shoelaces
+    octx.lineWidth = 1;
+    octx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    octx.beginPath();
+    // Left laces
+    octx.moveTo(limbs.leftLegEndX + 2, limbs.leftLegEndY - 1);
+    octx.lineTo(limbs.leftLegEndX + 4, limbs.leftLegEndY + 1);
+    octx.moveTo(limbs.leftLegEndX + 4, limbs.leftLegEndY - 1);
+    octx.lineTo(limbs.leftLegEndX + 2, limbs.leftLegEndY + 1);
+    // Right laces
+    octx.moveTo(limbs.rightLegEndX + 2, limbs.rightLegEndY - 1);
+    octx.lineTo(limbs.rightLegEndX + 4, limbs.rightLegEndY + 1);
+    octx.moveTo(limbs.rightLegEndX + 4, limbs.rightLegEndY - 1);
+    octx.lineTo(limbs.rightLegEndX + 2, limbs.rightLegEndY + 1);
+    octx.stroke();
+
     // Gradient for arms (cylindrical simulation)
     const armGradient = octx.createLinearGradient(0, -11, 0, limbs.leftArmY);
     armGradient.addColorStop(0, c.armColor || '#3498db');
@@ -88,19 +122,28 @@ export class CharacterManager {
     octx.strokeStyle = armGradient;
 
     drawLine(octx, 0, -11, limbs.leftArmX, limbs.leftArmY);
-    
+
     const rightArmGradient = octx.createLinearGradient(0, 11, 0, limbs.rightArmY);
     rightArmGradient.addColorStop(0, c.armColor || '#3498db');
     rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
     octx.strokeStyle = rightArmGradient;
-    
+
     drawLine(octx, 0, 11, limbs.rightArmX, limbs.rightArmY);
 
-    octx.fillStyle = '#f1c27d';
+    const leftHandGrad = octx.createRadialGradient(limbs.leftArmX, limbs.leftArmY - 1, 0.5, limbs.leftArmX, limbs.leftArmY, 3);
+    leftHandGrad.addColorStop(0, '#f5d39e');
+    leftHandGrad.addColorStop(0.6, '#e0ab63');
+    leftHandGrad.addColorStop(1, '#a67232');
+    octx.fillStyle = leftHandGrad;
     octx.beginPath();
     octx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
     octx.fill();
 
+    const rightHandGrad = octx.createRadialGradient(limbs.rightArmX, limbs.rightArmY - 1, 0.5, limbs.rightArmX, limbs.rightArmY, 3);
+    rightHandGrad.addColorStop(0, '#f5d39e');
+    rightHandGrad.addColorStop(0.6, '#e0ab63');
+    rightHandGrad.addColorStop(1, '#a67232');
+    octx.fillStyle = rightHandGrad;
     octx.beginPath();
     octx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
     octx.fill();
@@ -111,7 +154,7 @@ export class CharacterManager {
     bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20)); // Highlight
     bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));  // Core shadow
     octx.fillStyle = bodyGradient;
-    
+
     if (octx.roundRect) {
       octx.beginPath();
       octx.roundRect(-8, -12, 16, 24, 6);
@@ -257,26 +300,70 @@ export class CharacterManager {
           drawLine(ctx, limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY);
           drawLine(ctx, limbs.rightLegStartX, limbs.rightLegStartY, limbs.rightLegEndX, limbs.rightLegEndY);
 
+          // Draw shoes
+          const legShoeColor = c.shoeColor || '#1a252f';
+          const leftDynShoeGrad = ctx.createRadialGradient(limbs.leftLegEndX + 3, limbs.leftLegEndY - 1, 1, limbs.leftLegEndX + 4, limbs.leftLegEndY, 5);
+          leftDynShoeGrad.addColorStop(0, shadeColor(legShoeColor, 20));
+          leftDynShoeGrad.addColorStop(1, legShoeColor);
+          ctx.fillStyle = leftDynShoeGrad;
+          ctx.beginPath();
+          ctx.ellipse(limbs.leftLegEndX + 3, limbs.leftLegEndY, 6, 3.5, 0, 0, PI2);
+          ctx.fill();
+
+          const rightDynShoeGrad = ctx.createRadialGradient(limbs.rightLegEndX + 3, limbs.rightLegEndY - 1, 1, limbs.rightLegEndX + 4, limbs.rightLegEndY, 5);
+          rightDynShoeGrad.addColorStop(0, shadeColor(legShoeColor, 20));
+          rightDynShoeGrad.addColorStop(1, legShoeColor);
+          ctx.fillStyle = rightDynShoeGrad;
+          ctx.beginPath();
+          ctx.ellipse(limbs.rightLegEndX + 3, limbs.rightLegEndY, 6, 3.5, 0, 0, PI2);
+          ctx.fill();
+
+          // Draw little shoelaces
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+          ctx.beginPath();
+          // Left laces
+          ctx.moveTo(limbs.leftLegEndX + 2, limbs.leftLegEndY - 1);
+          ctx.lineTo(limbs.leftLegEndX + 4, limbs.leftLegEndY + 1);
+          ctx.moveTo(limbs.leftLegEndX + 4, limbs.leftLegEndY - 1);
+          ctx.lineTo(limbs.leftLegEndX + 2, limbs.leftLegEndY + 1);
+          // Right laces
+          ctx.moveTo(limbs.rightLegEndX + 2, limbs.rightLegEndY - 1);
+          ctx.lineTo(limbs.rightLegEndX + 4, limbs.rightLegEndY + 1);
+          ctx.moveTo(limbs.rightLegEndX + 4, limbs.rightLegEndY - 1);
+          ctx.lineTo(limbs.rightLegEndX + 2, limbs.rightLegEndY + 1);
+          ctx.stroke();
+
           // Gradient for arms (cylindrical simulation)
           const armGradient = ctx.createLinearGradient(0, -11, 0, limbs.leftArmY);
           armGradient.addColorStop(0, c.armColor || '#3498db');
           armGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
-      
+
           ctx.lineWidth = 5;
           ctx.strokeStyle = armGradient;
 
           drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
-          
+
           const rightArmGradient = ctx.createLinearGradient(0, 11, 0, limbs.rightArmY);
           rightArmGradient.addColorStop(0, c.armColor || '#3498db');
           rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
           ctx.strokeStyle = rightArmGradient;
           drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
 
+          const leftHandGrad = ctx.createRadialGradient(limbs.leftArmX, limbs.leftArmY - 1, 0.5, limbs.leftArmX, limbs.leftArmY, 3);
+          leftHandGrad.addColorStop(0, '#f5d39e');
+          leftHandGrad.addColorStop(0.6, '#e0ab63');
+          leftHandGrad.addColorStop(1, '#a67232');
+          ctx.fillStyle = leftHandGrad;
           ctx.beginPath();
           ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
           ctx.fill();
 
+          const rightHandGrad = ctx.createRadialGradient(limbs.rightArmX, limbs.rightArmY - 1, 0.5, limbs.rightArmX, limbs.rightArmY, 3);
+          rightHandGrad.addColorStop(0, '#f5d39e');
+          rightHandGrad.addColorStop(0.6, '#e0ab63');
+          rightHandGrad.addColorStop(1, '#a67232');
+          ctx.fillStyle = rightHandGrad;
           ctx.beginPath();
           ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
           ctx.fill();
@@ -297,7 +384,7 @@ export class CharacterManager {
 
           ctx.beginPath();
           ctx.arc(2, 0, 8, 0, PI2);
-          
+
           // Spherical radial gradient for the head
           const headGradient = ctx.createRadialGradient(0, -2, 2, 2, 0, 8);
           headGradient.addColorStop(0, '#f5d39e'); // Specular highlight

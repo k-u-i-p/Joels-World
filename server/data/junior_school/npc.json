@@ -26,7 +26,8 @@
           "Be Good {name}!"
         ]
       }
-    ]
+    ],
+    "shoeColor": "#8e44ad"
   },
   {
     "id": 2,
@@ -48,7 +49,8 @@
           "Hey! Teacher! Leave them kids alone!"
         ]
       }
-    ]
+    ],
+    "shoeColor": "#e67e22"
   },
   {
     "id": 3,
@@ -72,7 +74,8 @@
         ]
       }
     ],
-    "on_exit": []
+    "on_exit": [],
+    "shoeColor": "#e74c3c"
   },
   {
     "id": 4,
@@ -85,7 +88,8 @@
     "gender": "male",
     "shirtColor": "#f1c40f",
     "pantsColor": "#2c3e50",
-    "armColor": "#f1c40f"
+    "armColor": "#f1c40f",
+    "shoeColor": "#1abc9c"
   },
   {
     "id": 5,
@@ -112,7 +116,8 @@
           "Fine! I didn't want to play anyway!"
         ]
       }
-    ]
+    ],
+    "shoeColor": "#2ecc71"
   },
   {
     "id": 7,
@@ -130,13 +135,14 @@
     "emote": {
       "name": "bounce",
       "startTime": 0
-    }
+    },
+    "shoeColor": "#1abc9c"
   },
   {
     "id": 8,
     "name": "Mr Savage",
-    "x": -2068,
-    "y": -371,
+    "x": -1957,
+    "y": -384,
     "width": 46,
     "height": 46,
     "rotation": 90,
@@ -159,6 +165,7 @@
     "emote": {
       "name": "rugby",
       "startTime": 0
-    }
+    },
+    "shoeColor": "#3498db"
   }
 ]

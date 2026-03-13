@@ -184,7 +184,8 @@ export function setupWebSocket(server) {
       gender: Math.random() > 0.5 ? 'male' : 'female',
       shirtColor: getRandomColor(),
       pantsColor: getRandomColor(),
-      armColor: getRandomColor()
+      armColor: getRandomColor(),
+      shoeColor: getRandomColor()
     };
 
     mapData.characters[newPlayerId] = newChar;
