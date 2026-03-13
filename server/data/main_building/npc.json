@@ -13,7 +13,6 @@
     "armColor": "#e74c3c",
     "on_enter": [
       {
-        "avatar": "avatars/ms_crosbie.png",
         "say": [
           "I don't think much of the new classrooms!",
           "Have you ever been trials riding?",
@@ -25,7 +24,13 @@
         ]
       }
     ],
-    "on_exit": []
+    "on_exit": [
+      {
+        "say": [
+          "Bye {name}!"
+        ]
+      }
+    ]
   },
   {
     "id": 2,
@@ -43,7 +48,7 @@
       {
         "say": [
           "Hi {name}!",
-          "I'm 6 years old!",
+          "I'm 7 years old! How old are you?",
           "Ms Crosbie is my teacher!"
         ]
       }
@@ -53,8 +58,8 @@
   {
     "id": 3,
     "name": "Talking Poop",
-    "x": -685,
-    "y": -123,
+    "x": -693,
+    "y": -129,
     "width": 22,
     "height": 26,
     "rotation": 0,
@@ -65,10 +70,6 @@
     "emoji": "💩",
     "on_enter": [
       {
-        "play_sound": {
-          "sound": "media/fart.mp3",
-          "volume": 1
-        },
         "say": [
           "I am the poop god!",
           "Did you hear that, {name}?!",
@@ -77,8 +78,75 @@
           "I think I need a change of pants.",
           "Oops, that one slipped out!",
           "Is that old cabbage I smell?"
+        ],
+        "play_sound": {
+          "sound": "media/mr_hanky.mp3",
+          "volume": 1
+        }
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "Remember to flush {name}!"
         ]
       }
     ]
+  },
+  {
+    "id": 4,
+    "name": "Tom",
+    "x": -450,
+    "y": -550,
+    "width": 30,
+    "height": 30,
+    "rotation": 0,
+    "gender": "male",
+    "shirtColor": "#3498db",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "emote": {
+      "name": "lunch",
+      "startTime": 0
+    },
+    "on_enter": [
+      {
+        "say": [
+          "This cafeteria food is basically radioactive.",
+          "I think the meatloaf just blinked at me.",
+          "Does this taste like cardboard to you too?",
+          "I miss my mom's cooking..."
+        ]
+      }
+    ],
+    "on_exit": []
+  },
+  {
+    "id": 5,
+    "name": "Jessica",
+    "x": -370,
+    "y": -550,
+    "width": 28,
+    "height": 28,
+    "rotation": 180,
+    "gender": "female",
+    "shirtColor": "#f1c40f",
+    "pantsColor": "#34495e",
+    "armColor": "#f1c40f",
+    "emote": {
+      "name": "lunch",
+      "startTime": 0
+    },
+    "on_enter": [
+      {
+        "say": [
+          "I genuinely can't tell what meat this is.",
+          "There's a 50% chance this gives me food poisoning.",
+          "I think I chipped a tooth on this bread.",
+          "Why is the gravy crunchy?"
+        ]
+      }
+    ],
+    "on_exit": []
   }
 ]
