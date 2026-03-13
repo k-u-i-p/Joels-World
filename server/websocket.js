@@ -200,7 +200,7 @@ export function setupWebSocket(server) {
         name: mapData.name,
         width: mapData.width,
         height: mapData.height,
-        background: mapData.background,
+        layers: mapData.layers,
         character_scale: mapData.character_scale || 1,
         on_enter: mapData.on_enter
       },
@@ -288,7 +288,7 @@ export function setupWebSocket(server) {
                 name: mapData.name,
                 width: mapData.width,
                 height: mapData.height,
-                background: mapData.background,
+                layers: mapData.layers,
                 character_scale: mapData.character_scale || 1,
                 on_enter: mapData.on_enter
               },
