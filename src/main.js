@@ -1180,11 +1180,7 @@ function drawCharacter(c, layerType = 'all') {
 }
 
 
-
-
-
 // Start By Fetching Data
-
 const nameDialog = document.getElementById('name-dialog');
 const nameInput = document.getElementById('player-name-input');
 const startBtn = document.getElementById('start-game-btn');
@@ -1277,7 +1273,7 @@ function handleInitData(data) {
             const p = new Promise(resolve => {
               let handled = false;
               const complete = () => { if (!handled) { handled = true; resolve(); } };
-              
+
               img.onload = complete;
               img.onerror = () => {
                 console.warn('Failed to load map background image layer directly:', layerData.image);
@@ -1286,7 +1282,7 @@ function handleInitData(data) {
 
               img.src = layerData.image;
               if (img.complete && img.naturalWidth > 0) complete();
-                
+
               setTimeout(complete, 2000); // Safari event drop safety fallback
             });
             window.layerPromises.push(p);
@@ -1312,14 +1308,22 @@ function handleInitData(data) {
       if (window.populateAdminMaps) window.populateAdminMaps();
     }
 
+    console.log('Making map promise');
+
     const mapPromise = window.layerPromises ? Promise.all(window.layerPromises) : Promise.resolve();
 
     Promise.all([mapPromise]).then(() => {
+      console.log('Map promise resolved');
+
+      console.log('startBtn', startBtn.textContent);
+
       if (startBtn) {
+        console.log('Enabling start button');
         startBtn.textContent = 'Start Game';
         startBtn.disabled = false;
       }
       if (nameInput && nameInput.value.trim() !== '') {
+        console.log('Focusing name input');
         nameInput.focus();
       }
     }).catch(err => {
