@@ -194,12 +194,6 @@ if (adminPanelHandle) {
   });
 }
 
-document.getElementById('btn-create-obj-building').onclick = () => {
-  if (window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'create_object', name: 'New Building', shape: 'rect', x: Math.round(window.player.x), y: Math.round(window.player.y), width: 100, length: 100 }));
-  }
-};
-
 document.getElementById('btn-create-obj-rect').onclick = () => {
   if (window.ws.readyState === WebSocket.OPEN) {
     window.ws.send(JSON.stringify({ type: 'create_object', shape: 'rect', x: Math.round(window.player.x), y: Math.round(window.player.y), width: 100, length: 100 }));
