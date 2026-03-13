@@ -105,6 +105,7 @@ const keys = {
 };
 
 const chatInput = document.getElementById('chat-input');
+const mapNameDisplay = document.getElementById('map-name-display');
 let isChatFocused = false;
 
 chatInput.addEventListener('focus', () => { isChatFocused = true; });
@@ -1249,6 +1250,10 @@ function handleInitData(data) {
   }
 
   if (mapMetadata) {
+    if (mapNameDisplay && mapMetadata.name) {
+      mapNameDisplay.textContent = mapMetadata.name;
+    }
+
     if (mapMetadata.background) {
       window.mapImage.src = mapMetadata.background;
     }

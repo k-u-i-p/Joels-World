@@ -65,6 +65,10 @@
   <!-- Action Dialog Overlay -->
   <div id="action-dialog" class="overlay"
     style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-top: calc(30px + env(safe-area-inset-top)); justify-content: flex-start; padding-left: 30px; padding-right: 30px; box-sizing: border-box;">
+    
+    <div id="map-name-display" style="font-family: 'Pricedown', sans-serif; font-size: 36px; color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin-bottom: 5px; pointer-events: none; user-select: none;">
+    </div>
+
     <div id="chat-container"
       style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center; justify-content: center; width: 100%; max-width: 400px; pointer-events: auto;">
       <input type="text" id="chat-input" placeholder="Press Enter to chat..." autocomplete="off" maxlength="80"
