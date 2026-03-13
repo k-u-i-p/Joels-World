@@ -71,6 +71,7 @@
     "emoji": "💩",
     "on_enter": [
       {
+        "avatar": "avatars/talking_poo.png",
         "say": [
           "I am the poop god!",
           "Did you hear that, {name}?!",
