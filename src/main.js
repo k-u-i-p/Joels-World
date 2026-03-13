@@ -213,8 +213,7 @@ window.init = null;
 let lastSyncTime = 0;
 let activeNpc = null;
 
-window.mapImage = new Image();
-window.mapImage.src = '/grounds/background.png'; // default fallback
+window.mapLayers = [];
 
 let syncTimeout = null;
 let lastSyncCallTime = 0;
@@ -362,8 +361,9 @@ function findObjectsAt(objectsList, coordsArray, radius = 0) {
  */
 function canMoveTo(objectsList, newX, newY, playerRadius) {
   // Check map boundaries
-  const mapW = window.init?.mapData?.width || (window.mapImage && window.mapImage.complete ? window.mapImage.width : 0);
-  const mapH = window.init?.mapData?.height || (window.mapImage && window.mapImage.complete ? window.mapImage.height : 0);
+  const baseImage = window.mapLayers?.[0]?.[0]?.image;
+  const mapW = window.init?.mapData?.width || (baseImage?.complete ? baseImage.width : 0);
+  const mapH = window.init?.mapData?.height || (baseImage?.complete ? baseImage.height : 0);
   if (mapW && mapH) {
     const halfMapW = mapW / 2;
     const halfMapH = mapH / 2;
@@ -763,7 +763,7 @@ function draw() {
   ctx.scale(window.cameraZoom, window.cameraZoom);
   ctx.translate(-window.cameraX, -window.cameraY);
 
-  drawMap();
+  drawMapLayer(0);
 
   // Render global footprints underneath characters
   if (window.footprints) {
@@ -795,7 +795,11 @@ function draw() {
     }
   }
 
-  drawCharacters();
+  drawCharacters('base');
+
+  drawMapLayer(1);
+
+  drawCharacters('overlay');
 
   // Restore camera translation
   ctx.restore();
@@ -804,11 +808,19 @@ function draw() {
 /**
  * Renders the static background image of the map onto the canvas given current scaling.
  */
-function drawMap() {
-  if (window.mapImage && window.mapImage.complete) {
-    const drawW = window.init?.mapData?.width || window.mapImage.width;
-    const drawH = window.init?.mapData?.height || window.mapImage.height;
-    ctx.drawImage(window.mapImage, -drawW / 2, -drawH / 2, drawW, drawH);
+function drawMapLayer(layerIndex) {
+  if (window.mapLayers && window.mapLayers[layerIndex]) {
+    const layerGroup = window.mapLayers[layerIndex];
+    layerGroup.forEach(layer => {
+      if (layer.image.complete) {
+        const drawW = window.init?.mapData?.width || layer.image.width;
+        const drawH = window.init?.mapData?.height || layer.image.height;
+        ctx.save();
+        if (layer.alpha !== undefined) ctx.globalAlpha = layer.alpha;
+        ctx.drawImage(layer.image, -drawW / 2, -drawH / 2, drawW, drawH);
+        ctx.restore();
+      }
+    });
   }
 }
 
@@ -816,7 +828,7 @@ function drawMap() {
  * Iterates through all players and NPCs and renders the ones currently visible
  * within the camera bounds.
  */
-function drawCharacters() {
+function drawCharacters(layerType = 'all') {
   const viewHalfW = (canvas.width / window.cameraZoom) / 2;
   const viewHalfH = (canvas.height / window.cameraZoom) / 2;
 
@@ -832,7 +844,7 @@ function drawCharacters() {
     const c = (char.id === player.id) ? player : char;
 
     if (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY) {
-      drawCharacter(c);
+      drawCharacter(c, layerType);
     }
   };
 
@@ -945,17 +957,18 @@ function getPrerenderedNpc(c, scaleX = 1, scaleY = 1) {
  * or prerendered canvas), and then draws the limbs, torsos, and nameplates.
  * @param {Object} c - The character data including positions, colors, and roles.
  */
-function drawCharacter(c) {
-  ctx.save();
-  ctx.translate(c.x, c.y);
-  ctx.rotate(c.rotation * Math.PI / 180);
+function drawCharacter(c, layerType = 'all') {
+  if (layerType === 'all' || layerType === 'base') {
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rotation * Math.PI / 180);
 
-  const baseScale = window.init?.mapData?.character_scale || 1;
-  const widthScale = (c.width || 40) / 40;
-  const heightScale = (c.height || 40) / 40;
-  const scaleX = baseScale * widthScale;
-  const scaleY = baseScale * heightScale;
-  ctx.scale(scaleX, scaleY);
+    const baseScale = window.init?.mapData?.character_scale || 1;
+    const widthScale = (c.width || 40) / 40;
+    const heightScale = (c.height || 40) / 40;
+    const scaleX = baseScale * widthScale;
+    const scaleY = baseScale * heightScale;
+    ctx.scale(scaleX, scaleY);
 
   if (c.emoji) {
     ctx.font = '60px sans-serif';
@@ -1096,7 +1109,9 @@ function drawCharacter(c) {
   }
 
   ctx.restore();
+  } // End of base layer check
 
+  if (layerType === 'all' || layerType === 'overlay') {
   // --- NAME TAG ---
   // Drawn after restore so it does not rotate with the character
   if (c.name) {
@@ -1161,6 +1176,7 @@ function drawCharacter(c) {
 
     ctx.restore();
   }
+  } // End of overlay layer check
 }
 
 
@@ -1251,8 +1267,16 @@ function handleInitData(data) {
       mapNameDisplay.textContent = mapMetadata.name;
     }
 
-    if (mapMetadata.background) {
-      window.mapImage.src = mapMetadata.background;
+    window.mapLayers = [];
+    if (mapMetadata.layers) {
+      mapMetadata.layers.forEach((layerGroup, index) => {
+        const layers = layerGroup.map(layerData => {
+          const img = new Image();
+          img.src = layerData.image;
+          return { image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
+        });
+        window.mapLayers[index] = layers;
+      });
     }
 
     // Handle dynamic map audio swapping if already playing
@@ -1272,17 +1296,24 @@ function handleInitData(data) {
   }
 
   const mapPromise = new Promise((resolve) => {
-    if (window.mapImage && window.mapImage.complete) {
+    let pending = 0;
+    if (!window.mapLayers || window.mapLayers.length === 0) {
       resolve();
-    } else if (window.mapImage) {
-      window.mapImage.onload = () => resolve();
-      window.mapImage.onerror = () => {
-        console.warn('Failed to load map background image');
-        resolve();
-      };
-    } else {
-      resolve();
+      return;
     }
+    window.mapLayers.forEach(layerGroup => {
+      layerGroup.forEach(layer => {
+        if (!layer.image.complete) {
+          pending++;
+          layer.image.onload = () => { pending--; if (pending === 0) resolve(); };
+          layer.image.onerror = () => { 
+            console.warn('Failed to load map background image layer');
+            pending--; if (pending === 0) resolve(); 
+          };
+        }
+      });
+    });
+    if (pending === 0) resolve();
   });
 
   Promise.all([mapPromise]).then(() => {
