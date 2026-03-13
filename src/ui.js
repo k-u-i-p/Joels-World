@@ -26,6 +26,9 @@ export class UIManager {
       }
       if (nameDialog) nameDialog.style.display = 'none';
       
+      const topUi = document.getElementById('top-center-ui');
+      if (topUi) topUi.style.display = 'flex';
+
       if (onStartGame) {
         onStartGame(playerName);
       }

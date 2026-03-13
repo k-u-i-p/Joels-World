@@ -14,10 +14,10 @@ app.use(cookieParser());
 
 setupWebSocket(server);
 
-// Ensure map chunks are fully sliced and generated before binding the main port
-await ensureMapChunks();
-
-// Generate clip mask overlays locally
+// Generate clip mask overlays locally FIRST
 await processOverlays();
+
+// Ensure ALL map layers (including new overlays) are sliced and generated before binding the port
+await ensureMapChunks();
 
 setupStatic(app, server, port);

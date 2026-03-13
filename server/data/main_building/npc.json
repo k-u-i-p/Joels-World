@@ -165,5 +165,37 @@
     ],
     "on_exit": [],
     "shoeColor": "#7f8c8d"
+  },
+  {
+    "id": 6,
+    "name": "Mr Allen",
+    "x": -64,
+    "y": 659,
+    "width": 48,
+    "height": 48,
+    "rotation": -115,
+    "gender": "male",
+    "shirtColor": "#e67e22",
+    "pantsColor": "#2c3e50",
+    "armColor": "#e67e22",
+    "on_enter": [
+      {
+        "say": [
+          "Alright everyone, let's see those moves!",
+          "I used to teach Summer and Joel, you know. They were great dancers!",
+          "Come on {name}, don't just stand there, bust a move!",
+          "Feel the rhythm, feel the rhyme!",
+          "Dancing is just maths set to music."
+        ]
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "Keep practicing your steps, {name}!"
+        ]
+      }
+    ],
+    "shoeColor": "#bdc3c7"
   }
 ]

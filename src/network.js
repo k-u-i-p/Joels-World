@@ -3,7 +3,8 @@ import { emotes } from './emotes.js';
 export class NetworkClient {
   constructor() {
     this.isAdmin = window.isAdmin === true;
-    const wsUrl = `ws://${window.location.host}`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
     this.ws = new WebSocket(wsUrl);
     window.ws = this.ws;
 

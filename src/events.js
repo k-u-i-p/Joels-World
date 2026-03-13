@@ -114,6 +114,15 @@ export const EventHandlers = {
     }
   },
 
+  player_emote: (sourceObj, payload, context) => {
+    const { player, syncPlayerToJSON } = context;
+    player.emote = {
+      name: payload,
+      startTime: Date.now()
+    };
+    syncPlayerToJSON();
+  },
+
   clear_emote: (sourceObj, payload, context) => {
     const { player, syncPlayerToJSON } = context;
     const isInteractiveObj = sourceObj.shape === 'rect' || sourceObj.shape === 'circle' && !sourceObj.gender;
