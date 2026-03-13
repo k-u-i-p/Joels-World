@@ -29,9 +29,13 @@ ws.onmessage = (event) => {
         if (localCharIndex > -1) {
           const localChar = window.init.characters[localCharIndex];
           // Set targets for interpolation
+          localChar.startX = localChar.x !== undefined ? localChar.x : serverChar.x;
+          localChar.startY = localChar.y !== undefined ? localChar.y : serverChar.y;
+          localChar.startRotation = localChar.rotation !== undefined ? localChar.rotation : serverChar.rotation;
           localChar.targetX = serverChar.x;
           localChar.targetY = serverChar.y;
           localChar.targetRotation = serverChar.rotation;
+          localChar.targetStartTime = Date.now();
 
           // Directly sync visual properties
           localChar.name = serverChar.name;
@@ -39,9 +43,13 @@ ws.onmessage = (event) => {
           localChar.armColor = serverChar.armColor;
           localChar.emote = serverChar.emote;
         } else {
+          serverChar.startX = serverChar.x;
+          serverChar.startY = serverChar.y;
+          serverChar.startRotation = serverChar.rotation;
           serverChar.targetX = serverChar.x;
           serverChar.targetY = serverChar.y;
           serverChar.targetRotation = serverChar.rotation;
+          serverChar.targetStartTime = Date.now();
           if (!window.init) return;
           if (!window.init.characters) window.init.characters = [];
           window.init.characters.push(serverChar);
@@ -584,20 +592,34 @@ function update() {
         c.x = c.targetX;
         c.y = c.targetY;
         c.rotation = c.targetRotation;
-      } else if (distSq > 0.25) { // 0.5^2 = 0.25
-        const dist = Math.sqrt(distSq);
-        // Smooth interpolation (lerp) towards the target position
-        // This eliminates the fixed-speed jerkiness characteristic of low tick servers
-        c.x += cdx * 0.25;
-        c.y += cdy * 0.25;
+        c.startX = c.targetX;
+        c.startY = c.targetY;
+      } else if (c.targetStartTime !== undefined && c.startX !== undefined && c.startY !== undefined) {
+        // True time-based network interpolation
+        // Standard server tick rate is 100ms
+        let t = (Date.now() - c.targetStartTime) / 100;
         
-        // Scale leg animation speed by the actual distance we are compensating
-        c.legAnimationTime = (c.legAnimationTime || 0) + Math.min(0.5, dist * 0.05);
+        // Allow up to 20% extrapolation into the future for packet latency jitter!
+        // This prevents the character from artificially stopping if the packet is delayed by a few ms.
+        if (t > 1.2) t = 1.2;
 
+        const newX = c.startX + (c.targetX - c.startX) * t;
+        const newY = c.startY + (c.targetY - c.startY) * t;
+
+        const stepDist = Math.hypot(newX - c.x, newY - c.y);
+        
+        c.x = newX;
+        c.y = newY;
+
+        if (stepDist > 0.05 && t < 1.2) {
+          c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
+        } else {
+          c.legAnimationTime = 0; // stop moving legs when we catch up
+        }
       } else {
         c.x = c.targetX;
         c.y = c.targetY;
-        c.legAnimationTime = 0; // stop moving legs
+        c.legAnimationTime = 0;
       }
 
       // Interpolate rotation efficiently via shortest angle (even if not moving XY)
