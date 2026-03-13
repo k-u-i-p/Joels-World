@@ -1264,28 +1264,26 @@ function handleInitData(data) {
       }
 
       window.mapLayers = [];
-      window.layerPromises = [];
+      console.log('Map layers: ', mapMetadata.layers);
+
       if (mapMetadata.layers) {
         mapMetadata.layers.forEach((layerGroup, index) => {
-          const layers = layerGroup.map(layerData => {
+          const layers = [];
+          layerGroup.forEach(layerData => {
             const img = new Image();
-            const p = new Promise(resolve => {
-              let handled = false;
-              const complete = () => { if (!handled) { handled = true; resolve(); } };
+            img.crossOrigin = 'anonymous'; // Help with iOS strict permissions
+            const layerObj = { image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
+            layers.push(layerObj);
 
-              img.onload = complete;
-              img.onerror = () => {
-                console.warn('Failed to load map background image layer directly:', layerData.image);
-                complete();
-              };
+            img.onload = () => {
+              console.log(`[Map Loader] Finished loading layer natively: ${layerData.image}`);
+            };
+            img.onerror = () => {
+              console.warn(`[Map Loader] Failed to load layer directly: ${layerData.image}`);
+            };
 
-              img.src = layerData.image;
-              if (img.complete && img.naturalWidth > 0) complete();
-
-              setTimeout(complete, 2000); // Safari event drop safety fallback
-            });
-            window.layerPromises.push(p);
-            return { image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
+            console.log(`[Map Loader] Assigning layer src synchronously: ${layerData.image}`);
+            img.src = layerData.image;
           });
           window.mapLayers[index] = layers;
         });
@@ -1293,12 +1291,12 @@ function handleInitData(data) {
 
       // Handle dynamic map audio swapping if already playing
       if (window.gameStarted) {
-        if (mapMetadata.on_enter) {
-          executeEvents(mapMetadata, mapMetadata.on_enter);
-        } else {
-          soundManager.stopBackground();
-        }
-        setTimeout(checkInitialSpawn, 100);
+         if (mapMetadata.on_enter) {
+           executeEvents(mapMetadata, mapMetadata.on_enter);
+         } else {
+           soundManager.stopBackground();
+         }
+         setTimeout(checkInitialSpawn, 100);
       }
     }
 
@@ -1307,38 +1305,27 @@ function handleInitData(data) {
       if (window.populateAdminMaps) window.populateAdminMaps();
     }
 
-    console.log('Making map promise');
+    // Bypass completely for iOS safety - images load seamlessly in the background and canvas 
+    // strictly checks img.complete naturally per frame!
+    
+    console.log('startBtn', startBtn ? startBtn.textContent : 'null');
+    if (startBtn) {
+      console.log('Enabling start button instantly');
+      startBtn.textContent = 'Start Game';
+      startBtn.disabled = false;
+      startBtn.removeAttribute('disabled');
 
-    const mapPromise = window.layerPromises ? Promise.all(window.layerPromises) : Promise.resolve();
-
-    Promise.all([mapPromise]).then(() => {
-      console.log('Map promise resolved');
-
-      console.log('startBtn', startBtn.textContent);
-
-      if (startBtn) {
-        console.log('Enabling start button');
-        startBtn.textContent = 'Start Game';
-        startBtn.disabled = false;
-        startBtn.removeAttribute('disabled');
-
-        // Force iOS Safari repaint/reflow
-        const currentDisplay = startBtn.style.display;
-        startBtn.style.display = 'none';
-        startBtn.offsetHeight; // force reflow
-        startBtn.style.display = currentDisplay;
-      }
-      if (nameInput && nameInput.value.trim() !== '') {
-        console.log('Focusing name input');
-        nameInput.focus();
-      }
-    }).catch(err => {
-      // Allow trying to start despite errors
-      if (startBtn) {
-        startBtn.textContent = 'Err1: ' + err.message;
-        startBtn.disabled = false;
-      }
-    });
+      // Force iOS Safari repaint/reflow
+      const currentDisplay = startBtn.style.display;
+      startBtn.style.display = 'none';
+      startBtn.offsetHeight; // force reflow
+      startBtn.style.display = currentDisplay;
+    }
+    
+    if (nameInput && nameInput.value.trim() !== '') {
+      console.log('Focusing name input');
+      nameInput.focus();
+    }
   } catch (err) {
     if (startBtn) {
       startBtn.textContent = "Err2: " + err.name + " " + err.message;
