@@ -12,6 +12,7 @@ export function setupWebSocket(server) {
   const wss = new WebSocketServer({ server });
 
   const mapState = {};
+  let globalPlayerIdCounter = 255;
   const mapsFile = path.resolve(__dirname, 'data/maps.json');
   let mapsData = [];
   try {
@@ -134,7 +135,29 @@ export function setupWebSocket(server) {
 
     mapData.clients.add(ws);
 
-    const newPlayerId = Math.floor(Math.random() * 1000000000) + 10000;
+    let currentMaxId = globalPlayerIdCounter - 1;
+    for (const mId in mapState) {
+      const data = mapState[mId];
+      if (data.characters) {
+        for (const charId in data.characters) {
+          const char = data.characters[charId];
+          if (typeof char.id === 'number' && char.id > currentMaxId) {
+            currentMaxId = char.id;
+          }
+        }
+      }
+      if (data.npcs) {
+        for (const npc of data.npcs) {
+          if (typeof npc.id === 'number' && npc.id > currentMaxId) {
+            currentMaxId = npc.id;
+          }
+        }
+      }
+    }
+    globalPlayerIdCounter = currentMaxId + 1;
+    if (globalPlayerIdCounter < 255) globalPlayerIdCounter = 255;
+
+    const newPlayerId = globalPlayerIdCounter++;
     ws.clientId = newPlayerId;
 
     let spawnX = Math.round(Math.random() * 800 + 100);
