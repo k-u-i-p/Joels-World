@@ -29,19 +29,20 @@
   <div id="help-dialog" class="overlay" style="display: none;">
     <div class="dialog-content glass-panel" style="text-align: left; max-width: 450px; width: 90%;">
       <h2 style="text-align: center; font-size: 24px; margin-bottom: 25px; color: #fff;">Controls & Commands</h2>
-      
+
       <div class="help-section">
         <h3><span class="icon">🎮</span> Controls</h3>
         <ul class="help-list">
           <li><strong>Keyboard:</strong> Arrow keys to move and turn.</li>
           <li><strong>Mobile:</strong> Use the virtual joysticks to move and turn.</li>
-          <li><strong>Interact:</strong> Walk near an NPC or Press Spacebar (or mobile Talk button).</li>
+          <li><strong>Interact:</strong> Figure out how to escape school!</li>
         </ul>
       </div>
 
       <div class="help-section">
         <h3><span class="icon">💬</span> Chat & Emotes</h3>
-        <p style="margin: 0 0 10px 0; font-size: 14px; color: #cbd5e1;">Press Enter to type a message to other players.</p>
+        <p style="margin: 0 0 10px 0; font-size: 14px; color: #cbd5e1;">Press Enter to type a message to other players.
+        </p>
         <div class="emote-tags">
           <span class="emote-tag">/dance</span>
           <span class="emote-tag">/fart</span>
@@ -50,6 +51,7 @@
           <span class="emote-tag">/rugby</span>
           <span class="emote-tag">/sit</span>
           <span class="emote-tag">/jump</span>
+          <span class="emote-tag">/eat</span>
         </div>
       </div>
 
@@ -62,8 +64,10 @@
   <!-- Action Dialog Overlay -->
   <div id="action-dialog" class="overlay"
     style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-top: calc(30px + env(safe-area-inset-top)); justify-content: flex-start; padding-left: 30px; padding-right: 30px; box-sizing: border-box;">
-    <div id="chat-container" style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center; justify-content: center; width: 100%; max-width: 400px; pointer-events: auto;">
-      <input type="text" id="chat-input" placeholder="Press Enter to chat..." autocomplete="off" maxlength="80" style="flex-grow: 1;" />
+    <div id="chat-container"
+      style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center; justify-content: center; width: 100%; max-width: 400px; pointer-events: auto;">
+      <input type="text" id="chat-input" placeholder="Press Enter to chat..." autocomplete="off" maxlength="80"
+        style="flex-grow: 1;" />
       <button id="help-button">?</button>
     </div>
 

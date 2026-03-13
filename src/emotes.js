@@ -14,18 +14,18 @@ export const emotes = {
     draw: (ctx, emote) => { }
   },
   wet: {
-    duration: 30000,
+    duration: 10000,
     message: "{name} is dripping wet",
     setup: (ctx, emote, c) => {
       window.footprints = window.footprints || [];
       if (!c._lastFootprintCoords) {
         c._lastFootprintCoords = { x: c.x, y: c.y, leg: 'left' };
       }
-      
+
       const dx = c.x - c._lastFootprintCoords.x;
       const dy = c.y - c._lastFootprintCoords.y;
       const distSq = dx * dx + dy * dy;
-      
+
       // Drop footprint every 15 pixels of movement
       if (distSq > Math.pow(15, 2)) {
         const isLeft = c._lastFootprintCoords.leg === 'left';
@@ -57,6 +57,76 @@ export const emotes = {
     },
     updateLimbs: (limbs, emote) => { },
     draw: (ctx, emote) => { }
+  },
+  eat: {
+    duration: 5000,
+    message: "{name} is eating an apple",
+    setup: (ctx, emote, c) => {
+      const eatTime = (Date.now() - emote.startTime) / 150;
+      // Head bobbing as if chewing
+      const bringToMouth = Math.max(0, Math.sin(eatTime));
+      if (bringToMouth > 0) {
+        // Chew animation
+        const chew = Math.abs(Math.sin(eatTime * 5)) * 1.5;
+        // The character faces the positive 'x' direction.
+        ctx.translate(chew, 0); 
+      }
+    },
+    updateLimbs: (limbs, emote) => {
+      const eatTime = (Date.now() - emote.startTime) / 150;
+      // Bring arm up in a sine wave
+      const bringToMouth = Math.max(0, Math.sin(eatTime));
+
+      // Right arm holds food and brings to face
+      limbs.rightArmX = 4 + bringToMouth * 3;
+      limbs.rightArmY = 14 - bringToMouth * 12; // Bring towards centerline
+
+      // Left arm stays at rest
+      limbs.leftArmX = 4; limbs.leftArmY = -14;
+    },
+    draw: (ctx, emote) => {
+      ctx.save();
+      const eatTime = (Date.now() - emote.startTime) / 150;
+      const bringToMouth = Math.max(0, Math.sin(eatTime));
+      
+      // Calculate hand coordinates (same as updateLimbs)
+      const handX = 4 + bringToMouth * 3;
+      const handY = 14 - bringToMouth * 12;
+
+      ctx.translate(handX, handY);
+      
+      // Draw an apple
+      ctx.fillStyle = '#e74c3c'; // red
+      ctx.beginPath();
+      ctx.arc(4, 0, 3, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw leaf/stem
+      ctx.strokeStyle = '#27ae60';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(4, -3);
+      ctx.lineTo(6, -5);
+      ctx.stroke();
+      
+      ctx.restore();
+
+      // Crumbs / apple pieces flying from face
+      if (bringToMouth > 0.8) {
+        ctx.save();
+        ctx.fillStyle = '#e74c3c'; // red crumbs
+        for (const i of [0, 1, 2]) {
+          const crumbTime = ((Date.now() - emote.startTime) % (200 + i * 50)) / 250;
+          ctx.globalAlpha = 1 - crumbTime;
+          const dropX = 8 + crumbTime * (5 + i); // Fly forward
+          const dropY = (i - 1) * 3 + crumbTime * 4; // Spread out slightly
+          ctx.beginPath();
+          ctx.arc(dropX, dropY, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
   },
   jump: {
     duration: 800,
