@@ -128,6 +128,113 @@ export const emotes = {
       }
     }
   },
+  lunch: {
+    duration: 3600000, // 1 hour duration or until moved
+    message: "{name} is having lunch",
+    setup: (ctx, emote, c) => {
+      // Translate slightly to look lower to the ground like sitting
+      ctx.translate(-2, 0);
+      const eatTime = (Date.now() - emote.startTime) / 200;
+      // Head chew motion
+      if (Math.sin(eatTime) > 0) {
+        const chew = Math.abs(Math.sin(eatTime * 5)) * 1.5;
+        ctx.translate(chew, 0); 
+      }
+    },
+    updateLimbs: (limbs, emote) => {
+      // Sit legs
+      limbs.leftLegStartX = 0; limbs.leftLegStartY = -6;
+      limbs.leftLegEndX = 14; limbs.leftLegEndY = -6;
+      limbs.rightLegStartX = 0; limbs.rightLegStartY = 6;
+      limbs.rightLegEndX = 14; limbs.rightLegEndY = 6;
+
+      const eatTime = (Date.now() - emote.startTime) / 200;
+      const armMove = Math.sin(eatTime);
+
+      if (armMove > 0) {
+        // Right arm moving to mouth
+        limbs.rightArmX = 14 - armMove * 10;
+        limbs.rightArmY = 8 - armMove * 8;
+        limbs.leftArmX = 14; limbs.leftArmY = -12;
+      } else {
+        // Left arm moving to mouth
+        limbs.rightArmX = 14; limbs.rightArmY = 12;
+        limbs.leftArmX = 14 + armMove * 10; // armMove is negative here
+        limbs.leftArmY = -8 - armMove * 8;
+      }
+    },
+    draw: (ctx, emote) => {
+      const eatTime = (Date.now() - emote.startTime) / 200;
+      const armMove = Math.sin(eatTime);
+      
+      ctx.save();
+      // Draw Plate in front
+      ctx.fillStyle = '#ecf0f1'; // white
+      ctx.beginPath();
+      if (ctx.ellipse) {
+        ctx.ellipse(22, 0, 4, 8, 0, 0, Math.PI * 2);
+      } else {
+        ctx.arc(22, 0, 6, 0, Math.PI * 2);
+      }
+      ctx.fill();
+
+      // Inner plate detail
+      ctx.strokeStyle = '#bdc3c7';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (ctx.ellipse) {
+        ctx.ellipse(22, 0, 2.5, 6, 0, 0, Math.PI * 2);
+      } else {
+        ctx.arc(22, 0, 4, 0, Math.PI * 2);
+      }
+      ctx.stroke();
+
+      // Delicious Steak
+      ctx.fillStyle = '#8e44ad'; // Purple steak
+      ctx.beginPath();
+      if (ctx.ellipse) {
+        ctx.ellipse(22, 0, 2, 4, 0, 0, Math.PI * 2);
+      } else {
+        ctx.arc(22, 0, 3, 0, Math.PI * 2);
+      }
+      ctx.fill();
+
+      // Draw utensils in hands
+      // Knife in right hand
+      ctx.save();
+      const rightX = armMove > 0 ? 14 - armMove * 10 : 14;
+      const rightY = armMove > 0 ? 8 - armMove * 8 : 12;
+      ctx.translate(rightX, rightY);
+      ctx.rotate(-Math.PI / 4);
+      // Handle
+      ctx.fillStyle = '#2c3e50';
+      ctx.fillRect(-2, -1, 4, 2);
+      // Blade
+      ctx.fillStyle = '#bdc3c7';
+      ctx.fillRect(2, -1, 5, 2);
+      ctx.restore();
+
+      // Fork in left hand
+      ctx.save();
+      const leftX = armMove <= 0 ? 14 + armMove * 10 : 14;
+      const leftY = armMove <= 0 ? -8 - armMove * 8 : -12;
+      ctx.translate(leftX, leftY);
+      ctx.rotate(Math.PI / 4);
+      // Handle
+      ctx.fillStyle = '#2c3e50';
+      ctx.fillRect(-2, -0.5, 5, 1);
+      // Prongs base
+      ctx.fillStyle = '#bdc3c7';
+      ctx.fillRect(3, -1.5, 2, 3); // base
+      // Prongs
+      ctx.fillRect(5, -1.5, 3, 0.5);
+      ctx.fillRect(5, -0.25, 3, 0.5);
+      ctx.fillRect(5, 1, 3, 0.5);
+      ctx.restore();
+
+      ctx.restore();
+    }
+  },
   jump: {
     duration: 800,
     message: "{name} leaps forward",
