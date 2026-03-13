@@ -27,7 +27,7 @@
           "path_template": "/junior_school/chunks/trees_{x}_{y}.png"
         },
         {
-          "alpha": 1.0,
+          "alpha": 1,
           "chunked": true,
           "source_image": "/junior_school/roofs.png",
           "chunk_size": 512,
@@ -39,7 +39,7 @@
     ],
     "npcs": "junior_school/npc.json",
     "character_scale": 1.5,
-    "default_zoom": 1.0,
+    "default_zoom": 1,
     "objects": "junior_school/objects.json",
     "spawn_area": 19,
     "on_enter": [
@@ -63,8 +63,8 @@
           "chunked": true,
           "source_image": "/detention/background.png",
           "chunk_size": 512,
-          "grid_w": 8,
-          "grid_h": 8,
+          "grid_w": 4,
+          "grid_h": 4,
           "path_template": "/detention/chunks/background_{x}_{y}.png"
         }
       ]
@@ -106,7 +106,7 @@
       ]
     ],
     "npcs": "main_building/npc.json",
-    "character_scale": 1.5,
+    "character_scale": 2.0,
     "default_zoom": 1,
     "objects": "main_building/objects.json",
     "spawn_area": 9,
@@ -114,7 +114,7 @@
       {
         "play_sound": {
           "sound": "media/playground_sound_effect.mp3",
-          "volume": 1
+          "volume": 0.5
         }
       }
     ]

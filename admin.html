@@ -13,29 +13,35 @@
 </head>
 
 <body>
-  <div id="avatars-container"
-    style="position: absolute; top: calc(15px + env(safe-area-inset-top)); left: calc(15px + env(safe-area-inset-top)); z-index: 10; display: flex; flex-direction: column; gap: 15px;">
-  </div>
   <!-- Top Center UI Overlay -->
-  <div id="top-center-ui" class="overlay"
-    style="display: flex; flex-direction: column; z-index: 1000; background-color: transparent; pointer-events: none; align-items: center; padding-top: env(safe-area-inset-top); justify-content: flex-start; padding-left: 30px; padding-right: 30px; box-sizing: border-box;">
-
-    <div id="map-name-display"
-      style="font-family: 'Pricedown', sans-serif; font-size: 36px; color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin-bottom: 5px; margin-top: 5px; pointer-events: none; user-select: none;">
-    </div>
-
-    <div id="chat-container"
-      style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center; justify-content: center; width: 100%; max-width: 400px; pointer-events: auto;">
+  <div id="top-center-ui" class="overlay">
+    <div id="top-center-ui-wrapper">
+      <div id="top-center-ui-header">
+        <div id="avatars-container"></div>
+        <div id="top-center-ui-header-right">
+          <div id="map-name-display"></div>
+          <div id="chat-container">
             <input type="text" id="chat-input" class="glass-input" placeholder="Click to chat..." autocomplete="off" maxlength="80" />
-    </div>
+          </div>
+        </div>
+      </div>
 
-    <div id="action-dialog" class="dialog-content"
-      style="display: none; text-align: center; width: 100%; max-width: 400px; pointer-events: auto;">
-      <h2 id="action-dialog-text" style="font-size: 18px; margin-bottom: 20px;"></h2>
-      <div style="display: flex; justify-content: space-around; gap: 10px;">
+      <div id="action-dialog" class="dialog-content" style="display: none;">
+        <h2 id="action-dialog-text"></h2>
+        <div class="action-dialog-buttons">
           <button id="action-dialog-yes" class="btn btn-success btn-action">Yes</button>
           <button id="action-dialog-no" class="btn btn-danger btn-action">No</button>
+        </div>
       </div>
+    </div>
+  <!-- Naming Dialog Overlay -->
+  <div id="name-dialog" class="overlay">
+    <div class="dialog-content">
+      <img src="media/logo_128_128.png" alt="Joel's World Logo" style="display: block; margin: 0 auto 15px auto; width: 128px; height: 128px;" />
+      <h2>Welcome to Joel's World</h2>
+      <input type="text" id="player-name-input" class="glass-input" placeholder="Enter your name..." maxlength="15" autocomplete="off" />
+      <br>
+      <button id="start-game-btn" class="btn btn-success" disabled>Loading...</button>
     </div>
   </div>
 
