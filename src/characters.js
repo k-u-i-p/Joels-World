@@ -5,6 +5,30 @@ const PI2 = Math.PI * 2;
 const PI_HALF = Math.PI / 2;
 const PI_ONE_HALF = Math.PI * 1.5;
 
+function shadeColor(color, percent) {
+    let R = parseInt(color.substring(1,3),16);
+    let G = parseInt(color.substring(3,5),16);
+    let B = parseInt(color.substring(5,7),16);
+
+    R = parseInt(R * (100 + percent) / 100);
+    G = parseInt(G * (100 + percent) / 100);
+    B = parseInt(B * (100 + percent) / 100);
+
+    R = (R<255)?R:255;  
+    G = (G<255)?G:255;  
+    B = (B<255)?B:255;  
+
+    R = Math.max(0, R);
+    G = Math.max(0, G);
+    B = Math.max(0, B);
+
+    let RR = ((R.toString(16).length==1)?"0"+R.toString(16):R.toString(16));
+    let GG = ((G.toString(16).length==1)?"0"+G.toString(16):G.toString(16));
+    let BB = ((B.toString(16).length==1)?"0"+B.toString(16):B.toString(16));
+
+    return "#"+RR+GG+BB;
+}
+
 export class CharacterManager {
   /**
    * Optimizes static NPC rendering by painting them onto an OffscreenCanvas once, 
@@ -55,10 +79,21 @@ export class CharacterManager {
     drawLine(octx, limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY);
     drawLine(octx, limbs.rightLegStartX, limbs.rightLegStartY, limbs.rightLegEndX, limbs.rightLegEndY);
 
+    // Gradient for arms (cylindrical simulation)
+    const armGradient = octx.createLinearGradient(0, -11, 0, limbs.leftArmY);
+    armGradient.addColorStop(0, c.armColor || '#3498db');
+    armGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
+
     octx.lineWidth = 5;
-    octx.strokeStyle = c.armColor || '#3498db';
+    octx.strokeStyle = armGradient;
 
     drawLine(octx, 0, -11, limbs.leftArmX, limbs.leftArmY);
+    
+    const rightArmGradient = octx.createLinearGradient(0, 11, 0, limbs.rightArmY);
+    rightArmGradient.addColorStop(0, c.armColor || '#3498db');
+    rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
+    octx.strokeStyle = rightArmGradient;
+    
     drawLine(octx, 0, 11, limbs.rightArmX, limbs.rightArmY);
 
     octx.fillStyle = '#f1c27d';
@@ -70,7 +105,13 @@ export class CharacterManager {
     octx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
     octx.fill();
 
-    octx.fillStyle = c.shirtColor || '#3498db';
+    // Gradient for the body (torso cylinder)
+    const bodyGradient = octx.createLinearGradient(-8, 0, 8, 0);
+    bodyGradient.addColorStop(0, c.shirtColor || '#3498db');
+    bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20)); // Highlight
+    bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));  // Core shadow
+    octx.fillStyle = bodyGradient;
+    
     if (octx.roundRect) {
       octx.beginPath();
       octx.roundRect(-8, -12, 16, 24, 6);
@@ -81,11 +122,21 @@ export class CharacterManager {
 
     octx.beginPath();
     octx.arc(2, 0, 8, 0, PI2);
-    octx.fillStyle = '#f1c27d';
+    // Spherical radial gradient for the head
+    const headGradient = octx.createRadialGradient(0, -2, 2, 2, 0, 8);
+    headGradient.addColorStop(0, '#f5d39e'); // Specular highlight
+    headGradient.addColorStop(0.6, '#e0ab63'); // Base skin tone
+    headGradient.addColorStop(1, '#a67232'); // Shadow rim
+    octx.fillStyle = headGradient;
     octx.fill();
 
     if (c.gender === 'female') {
-      octx.fillStyle = '#e67e22';
+      // Hair with gradient shine
+      const hairGradient = octx.createLinearGradient(-6, -7, 6, 7);
+      hairGradient.addColorStop(0, '#e67e22');
+      hairGradient.addColorStop(0.4, '#f0a35b'); // Shine
+      hairGradient.addColorStop(1, '#a15513'); // Shadow
+      octx.fillStyle = hairGradient;
       octx.beginPath();
       octx.arc(1, 0, 7, PI_HALF, PI_ONE_HALF, true);
       octx.fill();
@@ -109,13 +160,23 @@ export class CharacterManager {
     if (layerType === 'all' || layerType === 'base') {
       ctx.save();
       ctx.translate(c.x, c.y);
-      ctx.rotate(c.rotation * DEG_TO_RAD);
 
       const baseScale = window.init?.mapData?.character_scale || 1;
       const widthScale = (c.width || 40) / 40;
       const heightScale = (c.height || 40) / 40;
       const scaleX = baseScale * widthScale;
       const scaleY = baseScale * heightScale;
+
+      // Draw shadow before rotation so it stays aligned with the world lighting
+      ctx.save();
+      ctx.scale(scaleX, scaleY);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.beginPath();
+      ctx.arc(2, 4, 14, 0, PI2); // Offset slightly bottom-right
+      ctx.fill();
+      ctx.restore();
+
+      ctx.rotate(c.rotation * DEG_TO_RAD);
       ctx.scale(scaleX, scaleY);
 
       if (c.emoji) {
@@ -196,10 +257,20 @@ export class CharacterManager {
           drawLine(ctx, limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY);
           drawLine(ctx, limbs.rightLegStartX, limbs.rightLegStartY, limbs.rightLegEndX, limbs.rightLegEndY);
 
+          // Gradient for arms (cylindrical simulation)
+          const armGradient = ctx.createLinearGradient(0, -11, 0, limbs.leftArmY);
+          armGradient.addColorStop(0, c.armColor || '#3498db');
+          armGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
+      
           ctx.lineWidth = 5;
-          ctx.strokeStyle = c.armColor || '#3498db';
+          ctx.strokeStyle = armGradient;
 
           drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
+          
+          const rightArmGradient = ctx.createLinearGradient(0, 11, 0, limbs.rightArmY);
+          rightArmGradient.addColorStop(0, c.armColor || '#3498db');
+          rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
+          ctx.strokeStyle = rightArmGradient;
           drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
 
           ctx.beginPath();
@@ -210,7 +281,12 @@ export class CharacterManager {
           ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
           ctx.fill();
 
-          ctx.fillStyle = c.shirtColor || '#3498db';
+          // Gradient for the body (torso cylinder)
+          const bodyGradient = ctx.createLinearGradient(-8, 0, 8, 0);
+          bodyGradient.addColorStop(0, c.shirtColor || '#3498db');
+          bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20)); // Highlight
+          bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));  // Core shadow
+          ctx.fillStyle = bodyGradient;
           if (ctx.roundRect) {
             ctx.beginPath();
             ctx.roundRect(-8, -12, 16, 24, 6);
@@ -221,11 +297,22 @@ export class CharacterManager {
 
           ctx.beginPath();
           ctx.arc(2, 0, 8, 0, PI2);
-          ctx.fillStyle = '#f1c27d'; // Skin tone
+          
+          // Spherical radial gradient for the head
+          const headGradient = ctx.createRadialGradient(0, -2, 2, 2, 0, 8);
+          headGradient.addColorStop(0, '#f5d39e'); // Specular highlight
+          headGradient.addColorStop(0.6, '#e0ab63'); // Base skin tone
+          headGradient.addColorStop(1, '#a67232'); // Shadow rim
+          ctx.fillStyle = headGradient;
           ctx.fill();
 
           if (c.gender === 'female') {
-            ctx.fillStyle = '#e67e22'; // Default hair color example
+            // Hair with gradient shine
+            const hairGradient = ctx.createLinearGradient(-6, -7, 6, 7);
+            hairGradient.addColorStop(0, '#e67e22');
+            hairGradient.addColorStop(0.4, '#f0a35b'); // Shine
+            hairGradient.addColorStop(1, '#a15513'); // Shadow
+            ctx.fillStyle = hairGradient;
             ctx.beginPath();
             ctx.arc(1, 0, 7, PI_HALF, PI_ONE_HALF, true);
             ctx.fill();
