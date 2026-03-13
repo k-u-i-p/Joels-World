@@ -5,7 +5,6 @@ class SoundManager {
   constructor() {
     this.audioPool = Array.from({ length: POOL_SIZE }, () => {
       const audio = new Audio();
-      audio.crossOrigin = "anonymous";
       return audio;
     });
 
@@ -13,7 +12,6 @@ class SoundManager {
     this.gainNodes = [];
     
     this.bgAudio = new Audio();
-    this.bgAudio.crossOrigin = "anonymous";
     this.bgAudio.loop = true;
     this.bgGainNode = null;
 
@@ -98,7 +96,9 @@ export const soundManager = new SoundManager();
 export function initSound() {
   const unlockAudio = () => soundManager.unlock();
   window.addEventListener('touchstart', unlockAudio, { once: true });
+  window.addEventListener('touchend', unlockAudio, { once: true });
   window.addEventListener('pointerdown', unlockAudio, { once: true });
+  window.addEventListener('click', unlockAudio, { once: true });
   window.addEventListener('keydown', unlockAudio, { once: true });
 }
 
