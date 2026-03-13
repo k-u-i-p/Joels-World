@@ -360,9 +360,9 @@ function findObjectsAt(objectsList, coordsArray, radius = 0) {
  */
 function canMoveTo(objectsList, newX, newY, playerRadius) {
   // Check map boundaries
-  const baseImage = window.mapLayers?.[0]?.[0]?.image;
-  const mapW = window.init?.mapData?.width || (baseImage?.complete ? baseImage.width : 0);
-  const mapH = window.init?.mapData?.height || (baseImage?.complete ? baseImage.height : 0);
+  const mapW = window.init?.mapData?.width;
+  const mapH = window.init?.mapData?.height;
+
   if (mapW && mapH) {
     const halfMapW = mapW / 2;
     const halfMapH = mapH / 2;
@@ -807,20 +807,111 @@ function draw() {
 /**
  * Renders the static background image of the map onto the canvas given current scaling.
  */
+/**
+ * Renders a specific z-index layer of the current map background.
+ * If the layer is defined as 'chunked', it dynamically calculates which 512x512 tiles
+ * intersect the player's view camera, loads them on the fly if necessary, and renders them.
+ * @param {number} layerIndex - The index of the layer stack to draw.
+ */
 function drawMapLayer(layerIndex) {
-  if (window.mapLayers && window.mapLayers[layerIndex]) {
-    const layerGroup = window.mapLayers[layerIndex];
-    layerGroup.forEach(layer => {
-      if (layer.image.complete && layer.image.naturalWidth > 0) {
-        const drawW = window.init?.mapData?.width || layer.image.width;
-        const drawH = window.init?.mapData?.height || layer.image.height;
-        ctx.save();
-        if (layer.alpha !== undefined) ctx.globalAlpha = layer.alpha;
-        ctx.drawImage(layer.image, -drawW / 2, -drawH / 2, drawW, drawH);
-        ctx.restore();
+  if (!window.mapLayers || !window.mapLayers[layerIndex]) return;
+
+  let mapW = window.init?.mapData?.width || 0;
+  let mapH = window.init?.mapData?.height || 0;
+
+  if (mapW === 0 || mapH === 0) {
+    if (window.mapLayers && window.mapLayers[0]) {
+      for (const layer of window.mapLayers[0]) {
+        if (!layer.chunked && layer.image.complete) {
+          mapW = Math.max(mapW, layer.image.width);
+          mapH = Math.max(mapH, layer.image.height);
+        }
       }
-    });
+    }
   }
+
+  const halfMapW = mapW / 2;
+  const halfMapH = mapH / 2;
+
+  window.mapLayers[layerIndex].forEach(layer => {
+    ctx.save();
+    ctx.globalAlpha = layer.alpha;
+    
+    if (layer.chunked) {
+      // --- Spatial Chunking Logic ---
+      
+      // Calculate active camera boundaries (in map coordinates)
+      // window.cameraX/Y is the player's position from the center of the world
+      const viewHalfW = (canvas.width / window.cameraZoom) / 2;
+      const viewHalfH = (canvas.height / window.cameraZoom) / 2;
+      
+      const cameraLeft = window.cameraX - viewHalfW;
+      const cameraRight = window.cameraX + viewHalfW;
+      const cameraTop = window.cameraY - viewHalfH;
+      const cameraBottom = window.cameraY + viewHalfH;
+
+      // Add a 1-chunk buffer so we load slightly out of frame before they walk into it
+      const buffer = layer.chunk_size;
+      const minXMap = Math.max(-halfMapW, cameraLeft - buffer);
+      const maxXMap = Math.min(halfMapW, cameraRight + buffer);
+      const minYMap = Math.max(-halfMapH, cameraTop - buffer);
+      const maxYMap = Math.min(halfMapH, cameraBottom + buffer);
+
+      // Convert map bounds to strict chunk grid indices [0 ... grid_w-1]
+      // Important: minXMap ranges from -halfMapW to +halfMapW. We need to normalize to 0..mapW
+      const mapStartX = minXMap + halfMapW;
+      const mapEndX = maxXMap + halfMapW;
+      const mapStartY = minYMap + halfMapH;
+      const mapEndY = maxYMap + halfMapH;
+
+      const startCol = Math.max(0, Math.floor(mapStartX / layer.chunk_size));
+      const endCol = Math.min(layer.grid_w - 1, Math.floor(mapEndX / layer.chunk_size));
+      const startRow = Math.max(0, Math.floor(mapStartY / layer.chunk_size));
+      const endRow = Math.min(layer.grid_h - 1, Math.floor(mapEndY / layer.chunk_size));
+
+      // Loop over only the visible tiles
+      for (let y = startRow; y <= endRow; y++) {
+        for (let x = startCol; x <= endCol; x++) {
+          const chunkKey = `${x}_${y}`;
+          
+          if (!layer.chunks[chunkKey]) {
+            // Lazy load the chunk if it's never been seen
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onerror = () => console.warn(`[Chunk Loader] Failed to load chunk: ${chunkKey}`);
+            
+            // Generate path /grounds/chunks/background_X_Y.jpg
+            const src = layer.path_template.replace('{x}', x).replace('{y}', y);
+            img.src = src;
+            
+            layer.chunks[chunkKey] = img;
+          }
+
+          const chunkImg = layer.chunks[chunkKey];
+          
+          if (chunkImg.complete && chunkImg.naturalWidth > 0) {
+            // Map grid coordinates back to world offset coordinates (-halfMapW to +halfMapW)
+            const drawX = -halfMapW + (x * layer.chunk_size);
+            const drawY = -halfMapH + (y * layer.chunk_size);
+            
+            ctx.drawImage(chunkImg, drawX, drawY);
+          }
+        }
+      }
+      
+      // Optional Memory Cleanup: 
+      // If we wanted to aggressively clear RAM, we would loop through Object.keys(layer.chunks)
+      // and delete/unload chunks that were > 2 screens away from window.camera.
+      // For now, caching previously visited zones is fine as total loaded chunks stays low.
+
+    } else {
+      // --- Standard Legacy Image Rendering ---
+      if (layer.image.complete && layer.image.naturalWidth > 0) {
+        ctx.drawImage(layer.image, -layer.image.width / 2, -layer.image.height / 2);
+      }
+    }
+    ctx.restore();
+  });
 }
 
 /**
@@ -1270,20 +1361,33 @@ function handleInitData(data) {
         mapMetadata.layers.forEach((layerGroup, index) => {
           const layers = [];
           layerGroup.forEach(layerData => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous'; // Help with iOS strict permissions
-            const layerObj = { image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
-            layers.push(layerObj);
+            if (layerData.chunked) {
+              console.log(`[Map Loader] Initializing chunked architecture for: ${layerData.path_template}`);
+              layers.push({
+                chunked: true,
+                alpha: layerData.alpha !== undefined ? layerData.alpha : 1,
+                chunk_size: layerData.chunk_size,
+                grid_w: layerData.grid_w,
+                grid_h: layerData.grid_h,
+                path_template: layerData.path_template,
+                chunks: {} // Memory object to store individual lazily loaded tiles
+              });
+            } else {
+              const img = new Image();
+              img.crossOrigin = 'anonymous'; // Help with iOS strict permissions
+              const layerObj = { chunked: false, image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
+              layers.push(layerObj);
 
-            img.onload = () => {
-              console.log(`[Map Loader] Finished loading layer natively: ${layerData.image}`);
-            };
-            img.onerror = () => {
-              console.warn(`[Map Loader] Failed to load layer directly: ${layerData.image}`);
-            };
+              img.onload = () => {
+                console.log(`[Map Loader] Finished loading layer natively: ${layerData.image}`);
+              };
+              img.onerror = () => {
+                console.warn(`[Map Loader] Failed to load layer directly: ${layerData.image}`);
+              };
 
-            console.log(`[Map Loader] Assigning layer src synchronously: ${layerData.image}`);
-            img.src = layerData.image;
+              console.log(`[Map Loader] Assigning layer src synchronously: ${layerData.image}`);
+              img.src = layerData.image;
+            }
           });
           window.mapLayers[index] = layers;
         });

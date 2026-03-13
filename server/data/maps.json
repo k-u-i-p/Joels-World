@@ -8,13 +8,21 @@
       [
         {
           "alpha": 1,
-          "image": "/grounds/background.jpg"
+          "chunked": true,
+          "chunk_size": 512,
+          "grid_w": 8,
+          "grid_h": 9,
+          "path_template": "/grounds/chunks/background_{x}_{y}.jpg"
         }
       ],
       [
         {
           "alpha": 0.9,
-          "image": "/grounds/trees.png"
+          "chunked": true,
+          "chunk_size": 512,
+          "grid_w": 8,
+          "grid_h": 9,
+          "path_template": "/grounds/chunks/trees_{x}_{y}.png"
         }
       ]
     ],
