@@ -25,6 +25,15 @@
           "grid_w": 9,
           "grid_h": 8,
           "path_template": "/junior_school/chunks/trees_{x}_{y}.png"
+        },
+        {
+          "alpha": 1.0,
+          "chunked": true,
+          "source_image": "/junior_school/roofs.png",
+          "chunk_size": 512,
+          "grid_w": 9,
+          "grid_h": 8,
+          "path_template": "/junior_school/chunks/roofs_{x}_{y}.png"
         }
       ]
     ],
