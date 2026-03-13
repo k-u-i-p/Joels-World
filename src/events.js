@@ -122,5 +122,22 @@ export const EventHandlers = {
     if (targetEntity === player) {
       syncPlayerToJSON();
     }
+  },
+
+  log: (sourceObj, payload, context) => {
+    const { player } = context;
+    if (payload) {
+      let msg = typeof payload === 'string' ? payload : payload.message;
+      if (msg) {
+        if (player && player.name) {
+          msg = msg.replace(/{name}/g, player.name);
+        } else {
+          msg = msg.replace(/{name}/g, 'Student');
+        }
+        if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+          window.ws.send(JSON.stringify({ type: 'log', message: msg }));
+        }
+      }
+    }
   }
 };

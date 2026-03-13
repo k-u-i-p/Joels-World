@@ -31,7 +31,8 @@ export function setupWebSocket(server) {
       npcs: [],
       objects: [],
       objectsFile: mapDef.objects ? path.resolve(__dirname, 'data', mapDef.objects) : null,
-      npcsFile: mapDef.npcs ? path.resolve(__dirname, 'data', mapDef.npcs) : null
+      npcsFile: mapDef.npcs ? path.resolve(__dirname, 'data', mapDef.npcs) : null,
+      logFile: mapDef.logFile ? path.resolve(__dirname, 'data', mapDef.logFile) : null
     };
 
     if (mapDef.npcs) {
@@ -270,6 +271,25 @@ export function setupWebSocket(server) {
               },
               mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
             }));
+          }
+        } else if (data.type === 'log') {
+          if (mapData.logFile) {
+            let logArr = [];
+            try {
+              if (fs.existsSync(mapData.logFile)) {
+                const raw = fs.readFileSync(mapData.logFile, 'utf8');
+                if (raw.trim()) logArr = JSON.parse(raw);
+              }
+            } catch(e) { console.error('Error reading log array:', e); }
+            
+            logArr.push({
+              character_id: ws.clientId,
+              message: data.message
+            });
+            
+            try {
+              fs.writeFileSync(mapData.logFile, JSON.stringify(logArr, null, 2), 'utf8');
+            } catch(e) { console.error('Error writing log array:', e); }
           }
         } else {
           handleAdminMessage(ws, data, mapData);
