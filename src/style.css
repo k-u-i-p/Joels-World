@@ -176,7 +176,7 @@ body {
 
 #help-button {
   position: absolute;
-  top: max(20px, env(safe-area-inset-top));
+  bottom: max(20px, env(safe-area-inset-bottom));
   right: 20px;
   width: 40px;
   height: 40px;
