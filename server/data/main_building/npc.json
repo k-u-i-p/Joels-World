@@ -96,10 +96,10 @@
   {
     "id": 4,
     "name": "Tom",
-    "x": -450,
-    "y": -550,
-    "width": 30,
-    "height": 30,
+    "x": 35,
+    "y": -758,
+    "width": 35,
+    "height": 35,
     "rotation": 0,
     "gender": "male",
     "shirtColor": "#3498db",
@@ -112,10 +112,11 @@
     "on_enter": [
       {
         "say": [
-          "This cafeteria food is basically radioactive.",
-          "I think the meatloaf just blinked at me.",
-          "Does this taste like cardboard to you too?",
-          "I miss my mom's cooking..."
+          "Everything tastes better with hummus!",
+          "This does not meet my dietary requirements.",
+          "Nanny Maureen cooks better than this.",
+          "They ran out of organic quinoa. I am devastated.",
+          "My personal chef would be absolutely appalled."
         ]
       }
     ],
@@ -124,10 +125,10 @@
   {
     "id": 5,
     "name": "Jessica",
-    "x": -370,
-    "y": -550,
-    "width": 28,
-    "height": 28,
+    "x": 158,
+    "y": -716,
+    "width": 35,
+    "height": 35,
     "rotation": 180,
     "gender": "female",
     "shirtColor": "#f1c40f",
@@ -140,10 +141,11 @@
     "on_enter": [
       {
         "say": [
-          "I genuinely can't tell what meat this is.",
-          "There's a 50% chance this gives me food poisoning.",
-          "I think I chipped a tooth on this bread.",
-          "Why is the gravy crunchy?"
+          "Is this even locally sourced?",
+          "I exclusively eat hand-massaged wagyu, you know.",
+          "Do you think they have sparkling water? Or only tap?",
+          "I asked for gluten-free artisanal sourdough and got... this.",
+          "My father will be hearing about this catering disaster."
         ]
       }
     ],
