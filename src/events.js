@@ -1,3 +1,5 @@
+import { bgAudio, playPooledAudio, bgGainNode } from './sound.js';
+
 export const EventHandlers = {
   avatar: (sourceObj, payload, context) => {
     const { UI } = context;
@@ -76,18 +78,18 @@ export const EventHandlers = {
       const isMapObj = (sourceObj === window.init?.mapData) || (sourceObj.id === 'map');
 
       if (isMapObj) {
-        if (!window.bgAudio.src.endsWith(soundSrc)) {
-          window.bgAudio.pause();
-          window.bgAudio.src = soundSrc;
+        if (!bgAudio.src.endsWith(soundSrc)) {
+          bgAudio.pause();
+          bgAudio.src = soundSrc;
           if (typeof payload.volume === 'number') {
-            if (window.bgGainNode) {
-              window.bgAudio.volume = 1;
-              window.bgGainNode.gain.value = Math.max(0, payload.volume);
+            if (bgGainNode) {
+              bgAudio.volume = 1;
+              bgGainNode.gain.value = Math.max(0, payload.volume);
             } else {
-              window.bgAudio.volume = Math.max(0, Math.min(1, payload.volume));
+              bgAudio.volume = Math.max(0, payload.volume);
             }
           }
-          window.bgAudio.play().catch(e => console.warn("Failed to play bg sound:", e));
+          bgAudio.play().catch(e => console.warn("Failed to play bg sound:", e));
         }
       } else {
         if (sourceObj.activeAudio) {
@@ -95,7 +97,7 @@ export const EventHandlers = {
           sourceObj.activeAudio.currentTime = 0;
         }
         let targetVolume = typeof payload.volume === 'number' ? Math.max(0, payload.volume) : 1;
-        sourceObj.activeAudio = window.playPooledAudio(soundSrc, targetVolume);
+        sourceObj.activeAudio = playPooledAudio(soundSrc, targetVolume);
       }
     }
   },
