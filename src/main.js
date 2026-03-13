@@ -1,5 +1,5 @@
 import './style.css'
-import { initSound, bgAudio } from './sound.js';
+import { initSound, soundManager } from './sound.js';
 import { emotes } from './emotes.js';
 import { EventHandlers } from './events.js';
 
@@ -1260,8 +1260,7 @@ function handleInitData(data) {
       if (mapMetadata.on_enter) {
         executeEvents(mapMetadata, mapMetadata.on_enter);
       } else {
-        bgAudio.pause();
-        bgAudio.src = "";
+        soundManager.stopBackground();
       }
       setTimeout(checkInitialSpawn, 100);
     }

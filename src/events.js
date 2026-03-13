@@ -1,4 +1,4 @@
-import { bgAudio, playPooledAudio, bgGainNode } from './sound.js';
+import { soundManager } from './sound.js';
 
 export const EventHandlers = {
   avatar: (sourceObj, payload, context) => {
@@ -78,26 +78,14 @@ export const EventHandlers = {
       const isMapObj = (sourceObj === window.init?.mapData) || (sourceObj.id === 'map');
 
       if (isMapObj) {
-        if (!bgAudio.src.endsWith(soundSrc)) {
-          bgAudio.pause();
-          bgAudio.src = soundSrc;
-          if (typeof payload.volume === 'number') {
-            if (bgGainNode) {
-              bgAudio.volume = 1;
-              bgGainNode.gain.value = Math.max(0, payload.volume);
-            } else {
-              bgAudio.volume = Math.max(0, payload.volume);
-            }
-          }
-          bgAudio.play().catch(e => console.warn("Failed to play bg sound:", e));
-        }
+        soundManager.playBackground(soundSrc, payload.volume);
       } else {
         if (sourceObj.activeAudio) {
           sourceObj.activeAudio.pause();
           sourceObj.activeAudio.currentTime = 0;
         }
         let targetVolume = typeof payload.volume === 'number' ? Math.max(0, payload.volume) : 1;
-        sourceObj.activeAudio = playPooledAudio(soundSrc, targetVolume);
+        sourceObj.activeAudio = soundManager.playPooled(soundSrc, targetVolume);
       }
     }
   },
