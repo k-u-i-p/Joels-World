@@ -242,8 +242,14 @@ export class CharacterManager {
 
     if (layerType === 'all' || layerType === 'overlay') {
       if (c.name) {
-        ctx.save();
-        ctx.translate(c.x, c.y);
+        const prevFillStyle = ctx.fillStyle;
+        const prevFont = ctx.font;
+        const prevTextAlign = ctx.textAlign;
+        const prevShadowColor = ctx.shadowColor;
+        const prevShadowBlur = ctx.shadowBlur;
+        const prevShadowOffsetX = ctx.shadowOffsetX;
+        const prevShadowOffsetY = ctx.shadowOffsetY;
+
         ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         ctx.font = 'bold 12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
         ctx.textAlign = 'center';
@@ -255,20 +261,37 @@ export class CharacterManager {
 
         const baseScale = window.init?.mapData?.character_scale || 1;
         const nameYOffset = ((c.height || 40) / 2) * baseScale + 15;
-        ctx.fillText(c.name, 0, nameYOffset);
-        ctx.restore();
+        
+        // draw raw instead of translating matrix
+        ctx.fillText(c.name, c.x, c.y + nameYOffset);
+
+        ctx.fillStyle = prevFillStyle;
+        ctx.font = prevFont;
+        ctx.textAlign = prevTextAlign;
+        ctx.shadowColor = prevShadowColor;
+        ctx.shadowBlur = prevShadowBlur;
+        ctx.shadowOffsetX = prevShadowOffsetX;
+        ctx.shadowOffsetY = prevShadowOffsetY;
       }
 
       if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
-        ctx.save();
-        ctx.translate(c.x, c.y);
+        const prevFillStyle = ctx.fillStyle;
+        const prevFont = ctx.font;
+        const prevTextAlign = ctx.textAlign;
+        const prevTextBaseline = ctx.textBaseline;
+        const prevShadowColor = ctx.shadowColor;
+        const prevShadowBlur = ctx.shadowBlur;
+        const prevShadowOffsetY = ctx.shadowOffsetY;
 
         ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
         const textWidth = ctx.measureText(c.chatMessage).width;
         const bubbleWidth = textWidth + 24;
         const bubbleHeight = 32;
         const baseScale = window.init?.mapData?.character_scale || 1;
-        const bubbleY = -(((c.height || 40) / 2) * baseScale + 10);
+        
+        // compute offset coordinates physically
+        const bX = c.x - bubbleWidth / 2;
+        const bY = c.y - (((c.height || 40) / 2) * baseScale + 10) - bubbleHeight;
 
         ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
         ctx.shadowBlur = 6;
@@ -277,16 +300,19 @@ export class CharacterManager {
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         if (ctx.roundRect) {
-          ctx.roundRect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight, 8);
+          ctx.roundRect(bX, bY, bubbleWidth, bubbleHeight, 8);
         } else {
-          ctx.rect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight);
+          ctx.rect(bX, bY, bubbleWidth, bubbleHeight);
         }
         ctx.fill();
 
         ctx.beginPath();
-        ctx.moveTo(-6, bubbleY);
-        ctx.lineTo(6, bubbleY);
-        ctx.lineTo(0, bubbleY + 8);
+        // The little arrow tooltip at bottom middle
+        const arrowCenterX = c.x;
+        const arrowTopY = bY + bubbleHeight;
+        ctx.moveTo(arrowCenterX - 6, arrowTopY);
+        ctx.lineTo(arrowCenterX + 6, arrowTopY);
+        ctx.lineTo(arrowCenterX, arrowTopY + 8);
         ctx.fill();
 
         ctx.shadowColor = 'transparent';
@@ -296,9 +322,15 @@ export class CharacterManager {
         ctx.fillStyle = '#2c3e50';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(c.chatMessage, 0, bubbleY - bubbleHeight / 2);
+        ctx.fillText(c.chatMessage, c.x, bY + bubbleHeight / 2);
 
-        ctx.restore();
+        ctx.fillStyle = prevFillStyle;
+        ctx.font = prevFont;
+        ctx.textAlign = prevTextAlign;
+        ctx.textBaseline = prevTextBaseline;
+        ctx.shadowColor = prevShadowColor;
+        ctx.shadowBlur = prevShadowBlur;
+        ctx.shadowOffsetY = prevShadowOffsetY;
       }
     }
   }
