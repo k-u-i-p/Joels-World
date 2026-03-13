@@ -63,14 +63,6 @@ export const emotes = {
     message: "{name} is eating an apple",
     setup: (ctx, emote, c) => {
       const eatTime = (Date.now() - emote.startTime) / 150;
-      // Head bobbing as if chewing
-      const bringToMouth = Math.max(0, Math.sin(eatTime));
-      if (bringToMouth > 0) {
-        // Chew animation
-        const chew = Math.abs(Math.sin(eatTime * 5)) * 1.5;
-        // The character faces the positive 'x' direction.
-        ctx.translate(chew, 0); 
-      }
     },
     updateLimbs: (limbs, emote) => {
       const eatTime = (Date.now() - emote.startTime) / 150;
@@ -134,12 +126,6 @@ export const emotes = {
     setup: (ctx, emote, c) => {
       // Translate slightly to look lower to the ground like sitting
       ctx.translate(-2, 0);
-      const eatTime = (Date.now() - emote.startTime) / 200;
-      // Head chew motion
-      if (Math.sin(eatTime) > 0) {
-        const chew = Math.abs(Math.sin(eatTime * 5)) * 1.5;
-        ctx.translate(chew, 0); 
-      }
     },
     updateLimbs: (limbs, emote) => {
       // Sit legs
