@@ -2,5 +2,9 @@
   {
     "player_id": 1,
     "message": "Joel entered the toilet"
+  },
+  {
+    "player_id": 259,
+    "message": "Admin entered detention"
   }
 ]

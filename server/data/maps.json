@@ -1,10 +1,23 @@
 [
   {
     "id": 0,
-    "name": "School Grounds",
+    "name": "St Peter's Campus",
     "width": 3904,
     "height": 4292,
-    "background": "/grounds/background.jpg",
+    "layers": [
+      [
+        {
+          "alpha": 1,
+          "image": "/grounds/background.jpg"
+        }
+      ],
+      [
+        {
+          "alpha": 0.9,
+          "image": "/grounds/trees.png"
+        }
+      ]
+    ],
     "npcs": "grounds/npc.json",
     "character_scale": 1,
     "objects": "grounds/objects.json",
@@ -23,7 +36,14 @@
     "name": "Detention",
     "width": 2048,
     "height": 2048,
-    "background": "/detention/background.jpg",
+    "layers": [
+      [
+        {
+          "alpha": 1,
+          "image": "/detention/background.jpg"
+        }
+      ]
+    ],
     "npcs": "detention/npc.json",
     "character_scale": 4,
     "objects": "detention/objects.json",
@@ -46,7 +66,14 @@
     "name": "Main Building",
     "width": 1952,
     "height": 2146,
-    "background": "/main_building/background.png",
+    "layers": [
+      [
+        {
+          "alpha": 1,
+          "image": "/main_building/background.png"
+        }
+      ]
+    ],
     "npcs": "main_building/npc.json",
     "character_scale": 1.5,
     "objects": "main_building/objects.json",
@@ -65,7 +92,14 @@
     "name": "Pool",
     "width": 2752,
     "height": 1536,
-    "background": "/pool/background.png",
+    "layers": [
+      [
+        {
+          "alpha": 1,
+          "image": "/pool/background.png"
+        }
+      ]
+    ],
     "npcs": "pool/npc.json",
     "character_scale": 2,
     "objects": "pool/objects.json",
