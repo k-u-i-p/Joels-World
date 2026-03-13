@@ -1284,21 +1284,8 @@ function handleInitData(data) {
                 complete();
               };
 
-              // Use robust Blob fetching to bypass iOS Safari strict media engine policies
-              fetch(layerData.image, { cache: 'force-cache' })
-                .then(res => {
-                  if (!res.ok) throw new Error("HTTP " + res.status);
-                  return res.blob();
-                })
-                .then(blob => {
-                  img.src = URL.createObjectURL(blob);
-                  if (img.complete && img.naturalWidth > 0) complete();
-                })
-                .catch(err => {
-                  console.warn('Blob fetch failed, falling back to raw src assignment:', err);
-                  img.src = layerData.image;
-                  if (img.complete && img.naturalWidth > 0) complete();
-                });
+              img.src = layerData.image;
+              if (img.complete && img.naturalWidth > 0) complete();
                 
               setTimeout(complete, 2000); // Safari event drop safety fallback
             });
