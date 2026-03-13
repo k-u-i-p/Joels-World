@@ -812,7 +812,7 @@ function drawMapLayer(layerIndex) {
   if (window.mapLayers && window.mapLayers[layerIndex]) {
     const layerGroup = window.mapLayers[layerIndex];
     layerGroup.forEach(layer => {
-      if (layer.image.complete) {
+      if (layer.image.complete && layer.image.naturalWidth > 0) {
         const drawW = window.init?.mapData?.width || layer.image.width;
         const drawH = window.init?.mapData?.height || layer.image.height;
         ctx.save();
@@ -1283,8 +1283,8 @@ function handleInitData(data) {
                 complete();
               };
               img.src = layerData.image;
-              if (img.complete) complete();
-              setTimeout(complete, 3000); // Safari event drop safety fallback
+              if (img.complete && img.naturalWidth > 0) complete();
+              setTimeout(complete, 2000); // Safari event drop safety fallback
             });
             window.layerPromises.push(p);
             return { image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
