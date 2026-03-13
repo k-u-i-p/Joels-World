@@ -39,7 +39,16 @@
     "gender": "male",
     "shirtColor": "#e74c3c",
     "pantsColor": "#2c3e50",
-    "armColor": "#e74c3c"
+    "armColor": "#e74c3c",
+    "on_enter": [
+      {
+        "say": [
+          "We don't need no education!",
+          "We don't need no thought control!",
+          "Hey! Teacher! Leave them kids alone!"
+        ]
+      }
+    ]
   },
   {
     "id": 3,
@@ -56,7 +65,10 @@
     "on_enter": [
       {
         "say": [
-          "Hi {name}, I'm Oliver."
+          "No dark sarcasm in the classroom!",
+          "All in all it's just another brick in the wall.",
+          "Wrong! Do it again!",
+          "If you don't eat yer meat, you can't have any pudding!"
         ]
       }
     ],
@@ -107,8 +119,8 @@
     "name": "Dancing Toilet",
     "x": 0,
     "y": 1900,
-    "width": 80,
-    "height": 80,
+    "width": 62,
+    "height": 56,
     "rotation": 0,
     "gender": "male",
     "shirtColor": "#ffffff",
