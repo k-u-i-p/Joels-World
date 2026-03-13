@@ -119,7 +119,11 @@
           "Nanny Maureen cooks better than this.",
           "They ran out of organic quinoa. I am devastated.",
           "My personal chef would be absolutely appalled."
-        ]
+        ],
+        "play_sound": {
+          "sound": "media/chewing.mp3",
+          "volume": 1
+        }
       }
     ],
     "on_exit": []
@@ -148,7 +152,11 @@
           "Do you think they have sparkling water? Or only tap?",
           "I asked for gluten-free artisanal sourdough and got... this.",
           "My father will be hearing about this catering disaster."
-        ]
+        ],
+        "play_sound": {
+          "sound": "media/chewing.mp3",
+          "volume": 1
+        }
       }
     ],
     "on_exit": []
