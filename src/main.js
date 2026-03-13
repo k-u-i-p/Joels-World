@@ -216,10 +216,66 @@ function update() {
       if (physicsEngine.canMoveTo(possibleOverlaps, player.x + dx, player.y + dy, playerRadius, mapW, mapH)) {
         player.x += dx;
         player.y += dy;
-      } else if (physicsEngine.canMoveTo(possibleOverlaps, player.x + dx, player.y, playerRadius, mapW, mapH)) {
-        player.x += dx;
-      } else if (physicsEngine.canMoveTo(possibleOverlaps, player.x, player.y + dy, playerRadius, mapW, mapH)) {
-        player.y += dy;
+      } else {
+        // Attempt Advanced Sliding Mechanism against Rotated Objects
+        // 1. Identify which object we hit (if any)
+        let hitObj = null;
+        for (let i = 0; i < possibleOverlaps.length; i++) {
+          const obj = possibleOverlaps[i];
+          if (!obj.noclip && obj.clip !== -1 && physicsEngine.checkObjectOverlap(obj, player.x + dx, player.y + dy, playerRadius, obj.clip === undefined ? 10 : obj.clip)) {
+            hitObj = obj;
+            break;
+          }
+        }
+
+        if (hitObj && hitObj.shape === 'rect' && hitObj.rotation) {
+          // Slide along the rotated edge
+          const angle = -hitObj.rotation * (Math.PI / 180);
+          const cosA = Math.cos(angle);
+          const sinA = Math.sin(angle);
+          
+          // Transform intended movement vector into local space of the rotated object
+          const localDx = dx * cosA - dy * sinA;
+          const localDy = dx * sinA + dy * cosA;
+
+          // For axis-aligned local space, sliding means zeroing out the blocked axis and keeping the unblocked axis.
+          // Test local X sliding
+          const testLocalDx = localDx;
+          const testLocalDy = 0;
+          
+          // Transform back to world space
+          let slideWorldDx = testLocalDx * cosA + testLocalDy * sinA;
+          let slideWorldDy = -testLocalDx * sinA + testLocalDy * cosA;
+          
+          if (physicsEngine.canMoveTo(possibleOverlaps, player.x + slideWorldDx, player.y + slideWorldDy, playerRadius, mapW, mapH)) {
+            player.x += slideWorldDx;
+            player.y += slideWorldDy;
+          } else {
+            // Test local Y sliding
+            const testLocalDx2 = 0;
+            const testLocalDy2 = localDy;
+            slideWorldDx = testLocalDx2 * cosA + testLocalDy2 * sinA;
+            slideWorldDy = -testLocalDx2 * sinA + testLocalDy2 * cosA;
+
+            if (physicsEngine.canMoveTo(possibleOverlaps, player.x + slideWorldDx, player.y + slideWorldDy, playerRadius, mapW, mapH)) {
+              player.x += slideWorldDx;
+              player.y += slideWorldDy;
+            } else if (physicsEngine.canMoveTo(possibleOverlaps, player.x + dx, player.y, playerRadius, mapW, mapH)) {
+              // Fallback to pure X
+              player.x += dx;
+            } else if (physicsEngine.canMoveTo(possibleOverlaps, player.x, player.y + dy, playerRadius, mapW, mapH)) {
+              // Fallback to pure Y
+              player.y += dy;
+            }
+          }
+        } else {
+          // Fallback to standard axis-aligned sliding
+          if (physicsEngine.canMoveTo(possibleOverlaps, player.x + dx, player.y, playerRadius, mapW, mapH)) {
+            player.x += dx;
+          } else if (physicsEngine.canMoveTo(possibleOverlaps, player.x, player.y + dy, playerRadius, mapW, mapH)) {
+            player.y += dy;
+          }
+        }
       }
     }
 

@@ -74,11 +74,11 @@
   {
     "id": 20,
     "shape": "rect",
-    "x": 661,
-    "y": 133,
-    "width": 1220,
-    "length": 39,
-    "rotation": 177
+    "x": -957,
+    "y": -1702,
+    "width": 2456,
+    "length": 40,
+    "rotation": -6
   },
   {
     "id": 21,
@@ -132,7 +132,7 @@
     "id": 25,
     "shape": "rect",
     "x": -1050,
-    "y": -1330,
+    "y": -1328,
     "name": "Main School Building",
     "rotation": -4,
     "width": 124,
@@ -331,5 +331,23 @@
     "length": 215,
     "clip": 50,
     "on_enter": 11
+  },
+  {
+    "id": 44,
+    "shape": "rect",
+    "x": 715,
+    "y": -1495,
+    "width": 1157,
+    "length": 60,
+    "rotation": 35
+  },
+  {
+    "id": 45,
+    "shape": "rect",
+    "x": 869,
+    "y": 219,
+    "width": 3436,
+    "length": 61,
+    "rotation": 85
   }
 ]
