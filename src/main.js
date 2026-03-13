@@ -574,7 +574,7 @@ function update() {
         // True time-based network interpolation
         // Standard server tick rate is 100ms
         let t = (Date.now() - c.targetStartTime) / 100;
-        
+
         // Allow up to 20% extrapolation into the future for packet latency jitter!
         // This prevents the character from artificially stopping if the packet is delayed by a few ms.
         if (t > 1.2) t = 1.2;
@@ -583,7 +583,7 @@ function update() {
         const newY = c.startY + (c.targetY - c.startY) * t;
 
         const stepDist = Math.hypot(newX - c.x, newY - c.y);
-        
+
         c.x = newX;
         c.y = newY;
 
@@ -970,212 +970,212 @@ function drawCharacter(c, layerType = 'all') {
     const scaleY = baseScale * heightScale;
     ctx.scale(scaleX, scaleY);
 
-  if (c.emoji) {
-    ctx.font = '60px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
+    if (c.emoji) {
+      ctx.font = '60px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.rotate(-c.rotation * Math.PI / 180); // keep it upright
 
-    let currentEmote = c.emote;
-    let emoteDef = null;
-    if (currentEmote && emotes[currentEmote.name]) {
-      emoteDef = emotes[currentEmote.name];
-      // Note: for emoji objects we ignore duration drops as they are likely permanent configs for NPCs like toilets, 
-      // but if a player managed to become an emoji, it would respect standard emote durations in the other branch.
-      // Simply applying setup here:
-      if (emoteDef.setup) {
-        emoteDef.setup(ctx, currentEmote, c);
-      }
-    }
-
-    ctx.fillText(c.emoji, 0, 0);
-  } else {
-    const isActualNpc = window.init?.npcs && window.init.npcs.some(n => n.id === c.id);
-    const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;
-
-    if (isActualNpc && !hasMovement && !c.emote) {
-      const prCnv = getPrerenderedNpc(c, scaleX, scaleY);
-      // We pass the unscaled width/height because the prerendered canvas already baked the scale in.
-      // But we still need to offset by its raw dimensions.
-      // Reset the main context scale temporarily because the cache already has it applied
-      ctx.save();
-      ctx.scale(1 / scaleX, 1 / scaleY);
-      ctx.drawImage(prCnv, -prCnv.width / 2, -prCnv.height / 2);
-      ctx.restore();
-    } else {
       let currentEmote = c.emote;
       let emoteDef = null;
       if (currentEmote && emotes[currentEmote.name]) {
         emoteDef = emotes[currentEmote.name];
-        if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
-          c.emote = null;
-          currentEmote = null;
-          if (c === player) syncPlayerToJSON();
-          emoteDef = null;
-        } else if (emoteDef.setup) {
+        // Note: for emoji objects we ignore duration drops as they are likely permanent configs for NPCs like toilets, 
+        // but if a player managed to become an emoji, it would respect standard emote durations in the other branch.
+        // Simply applying setup here:
+        if (emoteDef.setup) {
           emoteDef.setup(ctx, currentEmote, c);
         }
       }
 
-      const legSwing = Math.sin(c.legAnimationTime || 0);
-      const legStride = 15;
-      const armStride = 8;
+      ctx.fillText(c.emoji, 0, 0);
+    } else {
+      const isActualNpc = window.init?.npcs && window.init.npcs.some(n => n.id === c.id);
+      const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;
 
-      let limbs = {
-        leftArmX: 4 - legSwing * armStride,
-        leftArmY: -14,
-        rightArmX: 4 + legSwing * armStride,
-        rightArmY: 14,
-        leftLegStartX: -2,
-        leftLegStartY: -6,
-        leftLegEndX: -2 + 10 + legSwing * legStride,
-        leftLegEndY: -6,
-        rightLegStartX: -2,
-        rightLegStartY: 6,
-        rightLegEndX: -2 + 10 - legSwing * legStride,
-        rightLegEndY: 6
-      };
-
-      if (emoteDef && emoteDef.updateLimbs) {
-        emoteDef.updateLimbs(limbs, currentEmote);
-      }
-
-      const drawLine = (ctxObj, sx, sy, ex, ey) => {
-        ctxObj.beginPath();
-        ctxObj.moveTo(sx, sy);
-        ctxObj.lineTo(ex, ey);
-        ctxObj.stroke();
-      };
-
-      // --- LEGS ---
-      ctx.lineWidth = 7;
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = c.pantsColor || '#2c3e50';
-
-      drawLine(ctx, limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY);
-      drawLine(ctx, limbs.rightLegStartX, limbs.rightLegStartY, limbs.rightLegEndX, limbs.rightLegEndY);
-
-      // --- ARMS ---
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = c.armColor || '#3498db';
-
-      drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
-      drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
-
-      // Hands
-      ctx.fillStyle = '#f1c27d'; // Skin tone
-      ctx.beginPath();
-      ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      // --- TORSO ---
-      ctx.fillStyle = c.shirtColor || '#3498db';
-      if (ctx.roundRect) {
-        ctx.beginPath();
-        ctx.roundRect(-8, -12, 16, 24, 6);
-        ctx.fill();
+      if (isActualNpc && !hasMovement && !c.emote) {
+        const prCnv = getPrerenderedNpc(c, scaleX, scaleY);
+        // We pass the unscaled width/height because the prerendered canvas already baked the scale in.
+        // But we still need to offset by its raw dimensions.
+        // Reset the main context scale temporarily because the cache already has it applied
+        ctx.save();
+        ctx.scale(1 / scaleX, 1 / scaleY);
+        ctx.drawImage(prCnv, -prCnv.width / 2, -prCnv.height / 2);
+        ctx.restore();
       } else {
-        ctx.fillRect(-8, -12, 16, 24);
-      }
+        let currentEmote = c.emote;
+        let emoteDef = null;
+        if (currentEmote && emotes[currentEmote.name]) {
+          emoteDef = emotes[currentEmote.name];
+          if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
+            c.emote = null;
+            currentEmote = null;
+            if (c === player) syncPlayerToJSON();
+            emoteDef = null;
+          } else if (emoteDef.setup) {
+            emoteDef.setup(ctx, currentEmote, c);
+          }
+        }
 
-      // --- HEAD ---
-      ctx.beginPath();
-      ctx.arc(2, 0, 8, 0, Math.PI * 2);
-      ctx.fillStyle = '#f1c27d'; // Skin tone
-      ctx.fill();
+        const legSwing = Math.sin(c.legAnimationTime || 0);
+        const legStride = 15;
+        const armStride = 8;
 
-      // If gender modifies appearance
-      if (c.gender === 'female') {
-        ctx.fillStyle = '#e67e22'; // Default hair color example
+        let limbs = {
+          leftArmX: 4 - legSwing * armStride,
+          leftArmY: -14,
+          rightArmX: 4 + legSwing * armStride,
+          rightArmY: 14,
+          leftLegStartX: -2,
+          leftLegStartY: -6,
+          leftLegEndX: -2 + 10 + legSwing * legStride,
+          leftLegEndY: -6,
+          rightLegStartX: -2,
+          rightLegStartY: 6,
+          rightLegEndX: -2 + 10 - legSwing * legStride,
+          rightLegEndY: 6
+        };
+
+        if (emoteDef && emoteDef.updateLimbs) {
+          emoteDef.updateLimbs(limbs, currentEmote);
+        }
+
+        const drawLine = (ctxObj, sx, sy, ex, ey) => {
+          ctxObj.beginPath();
+          ctxObj.moveTo(sx, sy);
+          ctxObj.lineTo(ex, ey);
+          ctxObj.stroke();
+        };
+
+        // --- LEGS ---
+        ctx.lineWidth = 7;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = c.pantsColor || '#2c3e50';
+
+        drawLine(ctx, limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY);
+        drawLine(ctx, limbs.rightLegStartX, limbs.rightLegStartY, limbs.rightLegEndX, limbs.rightLegEndY);
+
+        // --- ARMS ---
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = c.armColor || '#3498db';
+
+        drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
+        drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
+
+        // Hands
+        ctx.fillStyle = '#f1c27d'; // Skin tone
         ctx.beginPath();
-        // Draw simple curved hair
-        ctx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
+        ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, Math.PI * 2);
         ctx.fill();
-      }
 
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-      ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, Math.PI * 2);
+        ctx.fill();
 
-      // Draw X eyes if dead or tears or apply other custom drawing
-      if (emoteDef && emoteDef.draw) {
-        emoteDef.draw(ctx, currentEmote);
-      }
-    } // End of prerender else branch
-  }
+        // --- TORSO ---
+        ctx.fillStyle = c.shirtColor || '#3498db';
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(-8, -12, 16, 24, 6);
+          ctx.fill();
+        } else {
+          ctx.fillRect(-8, -12, 16, 24);
+        }
 
-  ctx.restore();
+        // --- HEAD ---
+        ctx.beginPath();
+        ctx.arc(2, 0, 8, 0, Math.PI * 2);
+        ctx.fillStyle = '#f1c27d'; // Skin tone
+        ctx.fill();
+
+        // If gender modifies appearance
+        if (c.gender === 'female') {
+          ctx.fillStyle = '#e67e22'; // Default hair color example
+          ctx.beginPath();
+          // Draw simple curved hair
+          ctx.arc(1, 0, 7, Math.PI / 2, Math.PI * 1.5, true);
+          ctx.fill();
+        }
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        ctx.stroke();
+
+        // Draw X eyes if dead or tears or apply other custom drawing
+        if (emoteDef && emoteDef.draw) {
+          emoteDef.draw(ctx, currentEmote);
+        }
+      } // End of prerender else branch
+    }
+
+    ctx.restore();
   } // End of base layer check
 
   if (layerType === 'all' || layerType === 'overlay') {
-  // --- NAME TAG ---
-  // Drawn after restore so it does not rotate with the character
-  if (c.name) {
-    ctx.save();
-    ctx.translate(c.x, c.y);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.font = 'bold 12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-    ctx.textAlign = 'center';
+    // --- NAME TAG ---
+    // Drawn after restore so it does not rotate with the character
+    if (c.name) {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.font = 'bold 12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+      ctx.textAlign = 'center';
 
-    // Draw name with a slight shadow for readability
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    ctx.shadowBlur = 3;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 1;
+      // Draw name with a slight shadow for readability
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+      ctx.shadowBlur = 3;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
 
-    const baseScale = window.init?.mapData?.character_scale || 1;
-    const nameYOffset = ((c.height || 40) / 2) * baseScale + 15;
-    // Names should only scale uniformly with baseScale, not with character stretching, to keep text readable
-    ctx.fillText(c.name, 0, nameYOffset);
-    ctx.restore();
-  }
-
-  // --- SPEECH BUBBLE ---
-  if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
-    ctx.save();
-    ctx.translate(c.x, c.y);
-
-    ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-    const textWidth = ctx.measureText(c.chatMessage).width;
-    const bubbleWidth = textWidth + 24;
-    const bubbleHeight = 32;
-    const baseScale = window.init?.mapData?.character_scale || 1;
-    const bubbleY = -(((c.height || 40) / 2) * baseScale + 10);
-
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetY = 3;
-
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight, 8);
-    } else {
-      ctx.rect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight);
+      const baseScale = window.init?.mapData?.character_scale || 1;
+      const nameYOffset = ((c.height || 40) / 2) * baseScale + 15;
+      // Names should only scale uniformly with baseScale, not with character stretching, to keep text readable
+      ctx.fillText(c.name, 0, nameYOffset);
+      ctx.restore();
     }
-    ctx.fill();
 
-    ctx.beginPath();
-    ctx.moveTo(-6, bubbleY);
-    ctx.lineTo(6, bubbleY);
-    ctx.lineTo(0, bubbleY + 8);
-    ctx.fill();
+    // --- SPEECH BUBBLE ---
+    if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
+      ctx.save();
+      ctx.translate(c.x, c.y);
 
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
+      ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+      const textWidth = ctx.measureText(c.chatMessage).width;
+      const bubbleWidth = textWidth + 24;
+      const bubbleHeight = 32;
+      const baseScale = window.init?.mapData?.character_scale || 1;
+      const bubbleY = -(((c.height || 40) / 2) * baseScale + 10);
 
-    ctx.fillStyle = '#2c3e50';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(c.chatMessage, 0, bubbleY - bubbleHeight / 2);
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetY = 3;
 
-    ctx.restore();
-  }
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight, 8);
+      } else {
+        ctx.rect(-bubbleWidth / 2, bubbleY - bubbleHeight, bubbleWidth, bubbleHeight);
+      }
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(-6, bubbleY);
+      ctx.lineTo(6, bubbleY);
+      ctx.lineTo(0, bubbleY + 8);
+      ctx.fill();
+
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+
+      ctx.fillStyle = '#2c3e50';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(c.chatMessage, 0, bubbleY - bubbleHeight / 2);
+
+      ctx.restore();
+    }
   } // End of overlay layer check
 }
 
@@ -1268,19 +1268,24 @@ function handleInitData(data) {
     }
 
     window.mapLayers = [];
+    window.layerPromises = [];
     if (mapMetadata.layers) {
       mapMetadata.layers.forEach((layerGroup, index) => {
         const layers = layerGroup.map(layerData => {
           const img = new Image();
-          img.src = layerData.image;
+          const p = new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = () => {
+              console.warn('Failed to load map background image layer');
+              resolve();
+            };
+            img.src = layerData.image;
+          });
+          window.layerPromises.push(p);
           return { image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
         });
         window.mapLayers[index] = layers;
       });
-    } else if (mapMetadata.background) {
-      const img = new Image();
-      img.src = mapMetadata.background;
-      window.mapLayers[0] = [{ image: img, alpha: 1 }];
     }
 
     // Handle dynamic map audio swapping if already playing
@@ -1299,26 +1304,7 @@ function handleInitData(data) {
     if (window.populateAdminMaps) window.populateAdminMaps();
   }
 
-  const mapPromise = new Promise((resolve) => {
-    let pending = 0;
-    if (!window.mapLayers || window.mapLayers.length === 0) {
-      resolve();
-      return;
-    }
-    window.mapLayers.forEach(layerGroup => {
-      layerGroup.forEach(layer => {
-        if (!layer.image.complete) {
-          pending++;
-          layer.image.onload = () => { pending--; if (pending === 0) resolve(); };
-          layer.image.onerror = () => { 
-            console.warn('Failed to load map background image layer');
-            pending--; if (pending === 0) resolve(); 
-          };
-        }
-      });
-    });
-    if (pending === 0) resolve();
-  });
+  const mapPromise = window.layerPromises ? Promise.all(window.layerPromises) : Promise.resolve();
 
   Promise.all([mapPromise]).then(() => {
     if (startBtn) {
