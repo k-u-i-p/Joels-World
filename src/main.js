@@ -1277,6 +1277,10 @@ function handleInitData(data) {
         });
         window.mapLayers[index] = layers;
       });
+    } else if (mapMetadata.background) {
+      const img = new Image();
+      img.src = mapMetadata.background;
+      window.mapLayers[0] = [{ image: img, alpha: 1 }];
     }
 
     // Handle dynamic map audio swapping if already playing
