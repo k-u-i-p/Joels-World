@@ -175,6 +175,9 @@ body {
 }
 
 #help-button {
+  position: absolute;
+  top: max(20px, env(safe-area-inset-top));
+  right: 20px;
   width: 40px;
   height: 40px;
   flex-shrink: 0;
