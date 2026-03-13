@@ -25,3 +25,6 @@ dist-ssr
 
 # Map chunks
 public/**/chunks/
+
+# Secrets
+gemini_key

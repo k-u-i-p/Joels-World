@@ -3,6 +3,7 @@ import http from 'http';
 import cookieParser from 'cookie-parser';
 import { setupWebSocket } from './websocket.js';
 import { setupStatic } from './static.js';
+import { startAIAgent } from './ai_agent.js';
 import { ensureMapChunks } from '../scripts/slice_maps.js';
 import { processOverlays } from '../scripts/create_overlays.js';
 
@@ -12,7 +13,8 @@ const server = http.createServer(app);
 
 app.use(cookieParser());
 
-setupWebSocket(server);
+const { wss, mapState } = setupWebSocket(server);
+startAIAgent(mapState);
 
 // Generate clip mask overlays locally FIRST
 await processOverlays();

@@ -82,5 +82,93 @@
   {
     "player_id": 256,
     "message": "Admin entered detention"
+  },
+  {
+    "player_id": 258,
+    "message": "Joel entered detention"
+  },
+  {
+    "player_id": 258,
+    "message": "Joel said: \"Hello Mr Hardy\""
+  },
+  {
+    "player_id": 258,
+    "message": "Joel said: \"Joel is farting\""
+  },
+  {
+    "player_id": 258,
+    "message": "Joel emoted [object Object]"
+  },
+  {
+    "player_id": 258,
+    "message": "Joel emoted [object Object]"
+  },
+  {
+    "player_id": 255,
+    "message": "Admin entered detention"
+  },
+  {
+    "player_id": 255,
+    "message": "Admin entered detention"
+  },
+  {
+    "player_id": 255,
+    "message": "Admin said: \"Poop\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin entered detention"
+  },
+  {
+    "player_id": 255,
+    "message": "Admin said: \"poop\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin entered detention"
+  },
+  {
+    "player_id": 255,
+    "message": "Admin said: \"I smell\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin entered detention"
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"Alright, you lot! Still here, are we? I'm not playing games.\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"One question. Get it right, and you can get out of my sight and back to the real world.\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"What is the most famous line from 'Another Brick in the Wall Part 2'?\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin said: \"I am poop\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"IS ANYONE GOING TO ANSWER THE QUESTION, OR ARE WE JUST GOING TO DISCUSS POOP ALL DAY? My patience is wearing thin!\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"I repeat: What is the most famous line from 'Another Brick in the Wall Part 2'? And make it quick, or you'll be here all night!\""
+  },
+  {
+    "player_id": 255,
+    "message": "Admin said: \"Leave them kids alone?\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"FINALLY! Someone with half a brain in this room. Yes, 'Leave them kids alone?' is the correct answer.\""
+  },
+  {
+    "player_id": 1,
+    "message": "Mr Hardy said: \"You. Admin, was it? Get out. And don't let me see you in here again!\""
   }
 ]

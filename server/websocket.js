@@ -33,7 +33,8 @@ export function setupWebSocket(server) {
       objects: [],
       objectsFile: mapDef.objects ? path.resolve(__dirname, 'data', mapDef.objects) : null,
       npcsFile: mapDef.npcs ? path.resolve(__dirname, 'data', mapDef.npcs) : null,
-      logFile: mapDef.logFile ? path.resolve(__dirname, 'data', mapDef.logFile) : null
+      logFile: mapDef.logFile ? path.resolve(__dirname, 'data', mapDef.logFile) : null,
+      agentFile: mapDef.agentFile ? path.resolve(__dirname, 'data', mapDef.agentFile) : null
     };
 
     if (mapDef.npcs) {
@@ -109,6 +110,27 @@ export function setupWebSocket(server) {
   }
 
   const shoeColors = ['#111111', '#5e3a1f', '#7f8c8d']; // Black, Brown, Grey
+
+  function appendToLog(mapData, logEntry) {
+    if (!mapData.logFile) return;
+    let logArr = [];
+    try {
+      if (fs.existsSync(mapData.logFile)) {
+        const raw = fs.readFileSync(mapData.logFile, 'utf8');
+        if (raw.trim()) logArr = JSON.parse(raw);
+      }
+    } catch (e) { console.error('Error reading log array:', e); }
+
+    logArr.push(logEntry);
+    
+    if (logArr.length > 50) {
+        logArr = logArr.slice(logArr.length - 50);
+    }
+
+    try {
+      fs.writeFileSync(mapData.logFile, JSON.stringify(logArr, null, 2), 'utf8');
+    } catch (e) { console.error('Error writing log array:', e); }
+  }
 
   wss.on('connection', (ws, req) => {
     console.log('Client connected');
@@ -220,10 +242,19 @@ export function setupWebSocket(server) {
 
         if (data.type === 'update') {
           const char = data.character;
+
           ws.clientId = char.id;
           mapData.characters[char.id] = char;
           mapData.dirtyCharacters[char.id] = char;
         } else if (data.type === 'chat') {
+          // Log chat
+          const sender = mapData.characters[ws.clientId];
+          const name = sender ? sender.name || ws.clientId : ws.clientId;
+          appendToLog(mapData, {
+             player_id: ws.clientId,
+             message: `${name} said: "${data.message}"`
+          });
+
           const broadcastMsg = JSON.stringify({ type: 'chat', id: ws.clientId, message: data.message });
           mapData.clients.forEach(client => {
             if (client.readyState === 1) {
@@ -303,24 +334,10 @@ export function setupWebSocket(server) {
             }));
           }
         } else if (data.type === 'log') {
-          if (mapData.logFile) {
-            let logArr = [];
-            try {
-              if (fs.existsSync(mapData.logFile)) {
-                const raw = fs.readFileSync(mapData.logFile, 'utf8');
-                if (raw.trim()) logArr = JSON.parse(raw);
-              }
-            } catch (e) { console.error('Error reading log array:', e); }
-
-            logArr.push({
-              player_id: ws.clientId,
-              message: data.message
-            });
-
-            try {
-              fs.writeFileSync(mapData.logFile, JSON.stringify(logArr, null, 2), 'utf8');
-            } catch (e) { console.error('Error writing log array:', e); }
-          }
+          appendToLog(mapData, {
+            player_id: ws.clientId,
+            message: data.message
+          });
         } else {
           handleAdminMessage(ws, data, mapData);
         }
@@ -345,6 +362,6 @@ export function setupWebSocket(server) {
     });
   });
 
-  return wss;
+  return { wss, mapState };
 }
 
