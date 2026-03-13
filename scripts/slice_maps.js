@@ -30,10 +30,38 @@ export async function ensureMapChunks() {
           const parsed = path.parse(sourceRel);
           const chunksDir = path.join(basePath, parsed.dir, 'chunks');
           
+          const metadataPath = path.join(chunksDir, `${parsed.name}_meta.json`);
+          let needsGeneration = false;
+          
           if (!fs.existsSync(chunksDir)) {
-            console.log(`[Chunker] Missing chunks for ${sourceRel}. Generating...`);
-            fs.mkdirSync(chunksDir, { recursive: true });
+            needsGeneration = true;
+          } else if (fs.existsSync(inputPath)) {
+            if (!fs.existsSync(metadataPath)) {
+              needsGeneration = true;
+            } else {
+              const inputStat = fs.statSync(inputPath);
+              try {
+                const meta = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+                // Trigger re-chunk if the file size changed, or if mtime differs. 
+                // Comparing exact match instead of '>' covers files pasted from Finder that have older mtimes.
+                if (meta.size !== inputStat.size || meta.mtime !== inputStat.mtimeMs) {
+                  needsGeneration = true;
+                }
+              } catch (e) {
+                needsGeneration = true;
+              }
+            }
+          }
+
+          if (needsGeneration) {
+            console.log(`[Chunker] Missing or outdated chunks for ${sourceRel}. Generating...`);
+            if (!fs.existsSync(chunksDir)) {
+              fs.mkdirSync(chunksDir, { recursive: true });
+            }
             await processLayer(inputPath, chunksDir, parsed.name, parsed.ext, layer.chunk_size);
+            
+            const inputStat = fs.statSync(inputPath);
+            fs.writeFileSync(metadataPath, JSON.stringify({ size: inputStat.size, mtime: inputStat.mtimeMs }));
           }
         }
       }

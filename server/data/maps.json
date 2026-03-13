@@ -9,11 +9,11 @@
         {
           "alpha": 1,
           "chunked": true,
-          "source_image": "/grounds/background.jpg",
+          "source_image": "/grounds/background.png",
           "chunk_size": 512,
           "grid_w": 8,
           "grid_h": 9,
-          "path_template": "/grounds/chunks/background_{x}_{y}.jpg"
+          "path_template": "/grounds/chunks/background_{x}_{y}.png"
         }
       ],
       [
@@ -50,7 +50,12 @@
       [
         {
           "alpha": 1,
-          "image": "/detention/background.jpg"
+          "chunked": true,
+          "source_image": "/detention/background.png",
+          "chunk_size": 512,
+          "grid_w": 8,
+          "grid_h": 8,
+          "path_template": "/detention/chunks/background_{x}_{y}.png"
         }
       ]
     ],
@@ -80,7 +85,12 @@
       [
         {
           "alpha": 1,
-          "image": "/main_building/background.png"
+          "chunked": true,
+          "source_image": "/main_building/background.png",
+          "chunk_size": 512,
+          "grid_w": 4,
+          "grid_h": 5,
+          "path_template": "/main_building/chunks/background_{x}_{y}.png"
         }
       ]
     ],
@@ -106,7 +116,12 @@
       [
         {
           "alpha": 1,
-          "image": "/pool/background.png"
+          "chunked": true,
+          "source_image": "/pool/background.png",
+          "chunk_size": 512,
+          "grid_w": 6,
+          "grid_h": 3,
+          "path_template": "/pool/chunks/background_{x}_{y}.png"
         }
       ]
     ],
