@@ -1231,100 +1231,108 @@ if (nameInput) {
  * @param {Object} data - The map's initialization data payload structured by the server.
  */
 function handleInitData(data) {
-  window.init = data;
-  if (!window.init.characters) window.init.characters = [];
-  if (!window.init.npcs) window.init.npcs = [];
-  activeNpc = null;
-  if (window.selectedObject) window.selectedObject.set(null);
+  try {
+    window.init = data;
+    if (!window.init.characters) window.init.characters = [];
+    if (!window.init.npcs) window.init.npcs = [];
+    activeNpc = null;
+    if (window.selectedObject) window.selectedObject.set(null);
 
-  const avatarsContainer = UI.avatarsContainer;
-  if (avatarsContainer) {
-    avatarsContainer.innerHTML = '';
-    const actionDialog = document.getElementById('action-dialog');
-    if (actionDialog) actionDialog.classList.remove('avatar-active');
-  }
-
-  const myCharacter = data.myCharacter;
-  const mapMetadata = data.mapData;
-  const mapsList = data.mapsList;
-
-  if (myCharacter) {
-    Object.assign(player, myCharacter);
-  } else {
-    const playerConfig = window.init?.characters?.find(c => c.id === player.id);
-    if (playerConfig) {
-      Object.assign(player, playerConfig);
-    }
-  }
-
-  // Auto-fill if name exists
-  if (player.name && nameInput) {
-    nameInput.value = player.name;
-  }
-
-  if (mapMetadata) {
-    if (mapNameDisplay && mapMetadata.name) {
-      mapNameDisplay.textContent = mapMetadata.name;
+    const avatarsContainer = UI.avatarsContainer;
+    if (avatarsContainer) {
+      avatarsContainer.innerHTML = '';
+      const actionDialog = document.getElementById('action-dialog');
+      if (actionDialog) actionDialog.classList.remove('avatar-active');
     }
 
-    window.mapLayers = [];
-    window.layerPromises = [];
-    if (mapMetadata.layers) {
-      mapMetadata.layers.forEach((layerGroup, index) => {
-        const layers = layerGroup.map(layerData => {
-          const img = new Image();
-          const p = new Promise(resolve => {
-            let handled = false;
-            const complete = () => { if (!handled) { handled = true; resolve(); } };
-            img.onload = complete;
-            img.onerror = () => {
-              console.warn('Failed to load map background image layer');
-              complete();
-            };
-            img.src = layerData.image;
-            if (img.complete) complete();
-            setTimeout(complete, 3000); // Safari event drop safety fallback
-          });
-          window.layerPromises.push(p);
-          return { image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
-        });
-        window.mapLayers[index] = layers;
-      });
-    }
+    const myCharacter = data.myCharacter;
+    const mapMetadata = data.mapData;
+    const mapsList = data.mapsList;
 
-    // Handle dynamic map audio swapping if already playing
-    if (window.gameStarted) {
-      if (mapMetadata.on_enter) {
-        executeEvents(mapMetadata, mapMetadata.on_enter);
-      } else {
-        soundManager.stopBackground();
+    if (myCharacter) {
+      Object.assign(player, myCharacter);
+    } else {
+      const playerConfig = window.init?.characters?.find(c => c.id === player.id);
+      if (playerConfig) {
+        Object.assign(player, playerConfig);
       }
-      setTimeout(checkInitialSpawn, 100);
     }
-  }
 
-  if (mapsList) {
-    window.mapsList = mapsList;
-    if (window.populateAdminMaps) window.populateAdminMaps();
-  }
+    // Auto-fill if name exists
+    if (player.name && nameInput) {
+      nameInput.value = player.name;
+    }
 
-  const mapPromise = window.layerPromises ? Promise.all(window.layerPromises) : Promise.resolve();
+    if (mapMetadata) {
+      if (mapNameDisplay && mapMetadata.name) {
+        mapNameDisplay.textContent = mapMetadata.name;
+      }
 
-  Promise.all([mapPromise]).then(() => {
+      window.mapLayers = [];
+      window.layerPromises = [];
+      if (mapMetadata.layers) {
+        mapMetadata.layers.forEach((layerGroup, index) => {
+          const layers = layerGroup.map(layerData => {
+            const img = new Image();
+            const p = new Promise(resolve => {
+              let handled = false;
+              const complete = () => { if (!handled) { handled = true; resolve(); } };
+              img.onload = complete;
+              img.onerror = () => {
+                console.warn('Failed to load map background image layer');
+                complete();
+              };
+              img.src = layerData.image;
+              if (img.complete) complete();
+              setTimeout(complete, 3000); // Safari event drop safety fallback
+            });
+            window.layerPromises.push(p);
+            return { image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
+          });
+          window.mapLayers[index] = layers;
+        });
+      }
+
+      // Handle dynamic map audio swapping if already playing
+      if (window.gameStarted) {
+        if (mapMetadata.on_enter) {
+          executeEvents(mapMetadata, mapMetadata.on_enter);
+        } else {
+          soundManager.stopBackground();
+        }
+        setTimeout(checkInitialSpawn, 100);
+      }
+    }
+
+    if (mapsList) {
+      window.mapsList = mapsList;
+      if (window.populateAdminMaps) window.populateAdminMaps();
+    }
+
+    const mapPromise = window.layerPromises ? Promise.all(window.layerPromises) : Promise.resolve();
+
+    Promise.all([mapPromise]).then(() => {
+      if (startBtn) {
+        startBtn.textContent = 'Start Game';
+        startBtn.disabled = false;
+      }
+      if (nameInput && nameInput.value.trim() !== '') {
+        nameInput.focus();
+      }
+    }).catch(err => {
+      // Allow trying to start despite errors
+      if (startBtn) {
+        startBtn.textContent = 'Err1: ' + err.message;
+        startBtn.disabled = false;
+      }
+    });
+  } catch (err) {
     if (startBtn) {
-      startBtn.textContent = 'Start Game';
-      startBtn.disabled = false;
+      startBtn.textContent = "Err2: " + err.name + " " + err.message;
+      startBtn.style.color = "red";
     }
-    if (nameInput && nameInput.value.trim() !== '') {
-      nameInput.focus();
-    }
-  }).catch(err => {
-    // Allow trying to start despite errors
-    if (startBtn) {
-      startBtn.textContent = 'Start Game';
-      startBtn.disabled = false;
-    }
-  });
+    console.error(err);
+  }
 }
 
 /**
