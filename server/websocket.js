@@ -226,6 +226,12 @@ export function setupWebSocket(server) {
     // If the session already has an attached character, boot them into the game instantly.
     if (session && session.player) {
       ws.clientId = session.player.id;
+      
+      // Override persistent coordinates with a fresh spawn location dynamically 
+      const { spawnX, spawnY } = generateSpawnCoords(mapData);
+      session.player.x = spawnX;
+      session.player.y = spawnY;
+
       mapData.characters[ws.clientId] = session.player;
       mapData.dirtyCharacters[ws.clientId] = session.player;
       
