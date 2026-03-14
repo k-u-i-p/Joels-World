@@ -8,23 +8,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let ai = null;
 let apiKey = process.env.GEMINI_API_KEY;
 
-if (!apiKey) {
-    const keyPath = path.resolve(__dirname, '../gemini_key');
-    if (fs.existsSync(keyPath)) {
-        apiKey = fs.readFileSync(keyPath, 'utf8').trim();
-        console.log("[AI] API Key loaded from gemini_key file.", apiKey);
-    }
-}
-
-if (apiKey) {
-    ai = new GoogleGenAI({
-        apiKey: apiKey
-    });
-}
-
-const lastProcessed = {};
-
 export function startAIAgent(mapState) {
+    if (!apiKey) {
+        const keyPath = path.resolve(__dirname, '../gemini_key');
+        if (fs.existsSync(keyPath)) {
+            apiKey = fs.readFileSync(keyPath, 'utf8').trim();
+            console.log("[AI] API Key loaded from gemini_key file.", apiKey);
+        }
+    }
+
+    if (apiKey) {
+        ai = new GoogleGenAI({
+            apiKey: apiKey
+        });
+    }
+
     if (!ai) {
         console.warn("[AI] GEMINI_API_KEY env var or gemini_key file is not set. AI Agents will be disabled.");
         return;
