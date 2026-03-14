@@ -99,6 +99,7 @@ export class NetworkClient {
             if (localNpcIndex > -1) {
               const localNpc = window.init.npcs[localNpcIndex];
               if (serverChar.emote !== undefined) localNpc.emote = serverChar.emote;
+              if (serverChar.interaction_radius !== undefined) localNpc.interaction_radius = serverChar.interaction_radius;
               if (serverChar.x !== undefined) {
                 localNpc.x = serverChar.x;
                 localNpc.y = serverChar.y;

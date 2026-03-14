@@ -371,6 +371,7 @@ function handleInitData(data) {
     if (!window.init.npcs) window.init.npcs = [];
     activeNpc = null;
     if (window.selectedObject) window.selectedObject.set(null);
+    if (window.selectedNpc) window.selectedNpc.set(null);
 
     // Bypassing the local UI lobby if a session successfully resumed
     const nameDialog = document.getElementById('name-dialog');

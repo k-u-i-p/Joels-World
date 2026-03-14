@@ -108,15 +108,16 @@ export class PhysicsEngine {
   }
 
   /**
-   * Finds characters from a list that are within a certain radius of coordinates x and y.
+   * Finds characters from a list that are within a specific radius of coordinates x and y.
+   * If overrideRadius is not provided, it falls back to the interaction_radius of the character being checked.
    * @param {Array} charactersList - The list of characters/NPCs to check.
    * @param {number} x - Target X coordinate.
    * @param {number} y - Target Y coordinate.
-   * @param {number} radiusSq - Squared search radius.
-   * @param {string} [ignoreId=null] - Character ID to ignore (usually the player's ID).
+   * @param {string} [ignoreId=null] - Character ID to ignore.
+   * @param {number} [overrideRadius=null] - Fixed radius to check against instead of character's individual radius.
    * @returns {Array} List of characters found within the radius.
    */
-  findCharacters(charactersList, x, y, radiusSq, ignoreId = null) {
+  findCharacters(charactersList, x, y, ignoreId = null, overrideRadius = null) {
     const found = [];
     if (!charactersList) return found;
 
@@ -128,7 +129,14 @@ export class PhysicsEngine {
       const dy = y - c.y;
       const distSq = dx * dx + dy * dy;
 
-      if (distSq <= radiusSq) {
+      let rSq;
+      if (overrideRadius !== null) {
+        rSq = overrideRadius * overrideRadius;
+      } else {
+        rSq = c.interaction_radius ? (c.interaction_radius * c.interaction_radius) : 150 * 150;
+      }
+
+      if (distSq <= rSq) {
         c._distSq = distSq; // Attach for sorting if needed
         found.push(c);
       }
@@ -474,14 +482,12 @@ export class PhysicsEngine {
   processInteractions(player, initData, activeNpcId, uiManager, processEventsFn) {
     if (!initData) return activeNpcId;
 
-    const interactionRadius = 80 * (initData.mapData?.character_scale || 1);
-    const interactionRadiusSq = interactionRadius * interactionRadius;
     let closestNpc = null;
-    let minNpcDistSq = interactionRadiusSq + 1;
+    let minNpcDistSq = Infinity;
 
     const allInRange = [
-      ...this.findCharacters(initData.characters, player.x, player.y, interactionRadiusSq, player.id),
-      ...this.findCharacters(initData.npcs, player.x, player.y, interactionRadiusSq, player.id)
+      ...this.findCharacters(initData.characters, player.x, player.y, player.id),
+      ...this.findCharacters(initData.npcs, player.x, player.y, player.id)
     ];
 
     for (let i = 0; i < allInRange.length; i++) {

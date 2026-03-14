@@ -3,8 +3,10 @@ import path from 'path';
 import { WebSocketServer } from 'ws';
 import { handleAdminMessage } from './admin.js';
 import { fileURLToPath } from 'url';
+import { PhysicsEngine } from '../src/physics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const physicsEngine = new PhysicsEngine();
 
 export function setupWebSocket(server, sessionMiddleware) {
   const wss = new WebSocketServer({ server });
@@ -31,22 +33,28 @@ export function setupWebSocket(server, sessionMiddleware) {
       objects: [],
       objectsFile: mapDef.objects ? path.resolve(__dirname, 'data', mapDef.objects) : null,
       npcsFile: mapDef.npcs ? path.resolve(__dirname, 'data', mapDef.npcs) : null,
-      logFile: mapDef.logFile ? path.resolve(__dirname, 'data', mapDef.logFile) : null,
-      agentFile: mapDef.agentFile ? path.resolve(__dirname, 'data', mapDef.agentFile) : null
+      logFile: mapDef.logFile ? path.resolve(__dirname, 'data', mapDef.logFile) : null
     };
 
-    if (mapObj.logFile) {
-      try {
-        fs.writeFileSync(mapObj.logFile, '', 'utf8');
-      } catch (e) {
-        console.error(`Error clearing log file for map ${mapDef.id}:`, e);
-      }
-    }
 
     if (mapDef.npcs) {
       const npcPath = path.resolve(__dirname, 'data', mapDef.npcs);
       try {
-        if (fs.existsSync(npcPath)) mapObj.npcs = JSON.parse(fs.readFileSync(npcPath, 'utf-8'));
+        if (fs.existsSync(npcPath)) {
+          mapObj.npcs = JSON.parse(fs.readFileSync(npcPath, 'utf-8'));
+          
+          // Initialize/clear log files for agent NPCs
+          mapObj.npcs.forEach(npc => {
+            if (npc.agent && npc.agent.log_file) {
+              const logPath = path.resolve(__dirname, 'data', npc.agent.log_file);
+              try {
+                fs.writeFileSync(logPath, '', 'utf8');
+              } catch (e) {
+                console.error(`Error clearing log file for npc ${npc.id}:`, e);
+              }
+            }
+          });
+        }
       } catch (e) { console.error(`Error loading npcs for map ${mapDef.id}:`, e); }
 
       try {
@@ -117,34 +125,43 @@ export function setupWebSocket(server, sessionMiddleware) {
 
   const shoeColors = ['#111111', '#5e3a1f', '#7f8c8d']; // Black, Brown, Grey
 
-  function appendToLog(mapData, logEntry) {
-    if (!mapData.logFile) return;
-    let logArr = [];
-    try {
-      if (fs.existsSync(mapData.logFile)) {
-        const raw = fs.readFileSync(mapData.logFile, 'utf8');
-        logArr = raw.split('\n').filter(line => line.trim().length > 0);
-      }
-    } catch (e) {
-      console.error('Error reading log array:', e);
-    }
-
-    // Since logEntry is no longer guaranteed to be a string based on old architecture,
-    // gracefully extract its readable message if it's the old JSON object format
+  function appendToLog(mapData, logEntry, x, y) {
+    if (!mapData.npcs) return;
+    
     const logLine = typeof logEntry === 'string' ? logEntry : logEntry.message;
     if (!logLine) return; // Drop empty logs
 
-    logArr.push(logLine);
-
-    if (logArr.length > 50) {
-      logArr = logArr.slice(logArr.length - 50);
+    let targetNpcs = mapData.npcs;
+    if (x !== undefined && y !== undefined) {
+      targetNpcs = physicsEngine.findCharacters(mapData.npcs, x, y);
     }
 
-    try {
-      fs.writeFileSync(mapData.logFile, logArr.join('\n') + '\n', 'utf8');
-    } catch (e) {
-      console.error('Error writing log array:', e);
-    }
+    targetNpcs.forEach(npc => {
+      if (npc.agent && npc.agent.log_file) {
+        const logPath = path.resolve(__dirname, 'data', npc.agent.log_file);
+        let logArr = [];
+        try {
+          if (fs.existsSync(logPath)) {
+            const raw = fs.readFileSync(logPath, 'utf8');
+            logArr = raw.split('\n').filter(line => line.trim().length > 0);
+          }
+        } catch (e) {
+          console.error('Error reading log array:', e);
+        }
+
+        logArr.push(logLine);
+
+        if (logArr.length > 50) {
+          logArr = logArr.slice(logArr.length - 50);
+        }
+
+        try {
+          fs.writeFileSync(logPath, logArr.join('\n') + '\n', 'utf8');
+        } catch (e) {
+          console.error('Error writing log array:', e);
+        }
+      }
+    });
   }
 
   function sendError(ws, message) {
@@ -307,7 +324,8 @@ export function setupWebSocket(server, sessionMiddleware) {
             shirtColor: getRandomColor(),
             pantsColor: getRandomColor(),
             armColor: getRandomColor(),
-            shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)]
+            shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)],
+            interaction_radius: 150
           };
 
           if (session) {
@@ -349,7 +367,11 @@ export function setupWebSocket(server, sessionMiddleware) {
           // Log chat
           const sender = mapData.characters[ws.clientId];
           const name = sender ? sender.name || ws.clientId : ws.clientId;
-          appendToLog(mapData, `${name} (${ws.clientId}) said: "${data.message}"`);
+          if (sender) {
+            appendToLog(mapData, `${name} (${ws.clientId}) said: "${data.message}"`, sender.x, sender.y);
+          } else {
+            appendToLog(mapData, `${name} (${ws.clientId}) said: "${data.message}"`);
+          }
 
           const broadcastMsg = JSON.stringify({ type: 'chat', id: ws.clientId, message: data.message });
           mapData.clients.forEach(client => {

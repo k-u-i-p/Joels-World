@@ -2,8 +2,8 @@
   {
     "id": 1,
     "name": "Mr Hardy",
-    "x": -882,
-    "y": -379,
+    "x": -881,
+    "y": -371,
     "width": 52,
     "height": 52,
     "rotation": 165,
@@ -11,6 +11,7 @@
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "avatar": "avatars/mr_hardy.png",
@@ -41,6 +42,7 @@
     "shirtColor": "#e74c3c",
     "pantsColor": "#2c3e50",
     "armColor": "#e74c3c",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "say": [
@@ -64,6 +66,7 @@
     "shirtColor": "#2ecc71",
     "pantsColor": "#2c3e50",
     "armColor": "#2ecc71",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "say": [
@@ -89,6 +92,7 @@
     "shirtColor": "#f1c40f",
     "pantsColor": "#2c3e50",
     "armColor": "#f1c40f",
+    "interaction_radius": 150,
     "shoeColor": "#5e3a1f"
   },
   {
@@ -103,6 +107,7 @@
     "shirtColor": "#9b59b6",
     "pantsColor": "#2c3e50",
     "armColor": "#9b59b6",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "say": [
@@ -125,6 +130,7 @@
     "shirtColor": "#ffffff",
     "pantsColor": "#ffffff",
     "armColor": "#ffffff",
+    "interaction_radius": 150,
     "emoji": "🚽",
     "emote": {
       "name": "bounce",
@@ -144,6 +150,7 @@
     "shirtColor": "#bdc3c7",
     "pantsColor": "#34495e",
     "armColor": "#bdc3c7",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "avatar": "avatars/mr_savage.png",

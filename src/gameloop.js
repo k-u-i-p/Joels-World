@@ -1,6 +1,7 @@
 export class GameLoop {
   constructor() {
     this.functions = [];
+    this.postFunctions = [];
     this.isActive = false;
     this.lastFrameTime = performance.now();
     this.lastFpsUpdate = performance.now();
@@ -13,10 +14,11 @@ export class GameLoop {
    * Registers a given function to run every update cycle.
    * @param {Function} fn - The function to run.
    */
-  registerFunction(fn) {
+  registerFunction(fn, isPost = false) {
     if (typeof fn !== 'function') return;
-    if (!this.functions.includes(fn)) {
-      this.functions.push(fn);
+    const targetArr = isPost ? this.postFunctions : this.functions;
+    if (!targetArr.includes(fn)) {
+      targetArr.push(fn);
     }
   }
 
@@ -28,6 +30,10 @@ export class GameLoop {
     const idx = this.functions.indexOf(fn);
     if (idx !== -1) {
       this.functions.splice(idx, 1);
+    }
+    const idxPost = this.postFunctions.indexOf(fn);
+    if (idxPost !== -1) {
+      this.postFunctions.splice(idxPost, 1);
     }
   }
 
@@ -82,6 +88,9 @@ export class GameLoop {
       // Execute all registered functions sequentially
       for (let i = 0; i < this.functions.length; i++) {
         this.functions[i]();
+      }
+      for (let i = 0; i < this.postFunctions.length; i++) {
+        this.postFunctions[i]();
       }
     }
   }

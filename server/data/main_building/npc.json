@@ -11,6 +11,7 @@
     "shirtColor": "#e74c3c",
     "pantsColor": "#2c3e50",
     "armColor": "#e74c3c",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "avatar": "avatars/ms_crosbie.png",
@@ -46,6 +47,7 @@
     "shirtColor": "#ff69b4",
     "pantsColor": "#3498db",
     "armColor": "#ff69b4",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "avatar": "avatars/summer.jpg",
@@ -71,6 +73,7 @@
     "shirtColor": "#5C4033",
     "pantsColor": "#5C4033",
     "armColor": "#5C4033",
+    "interaction_radius": 150,
     "emoji": "💩",
     "on_enter": [
       {
@@ -111,6 +114,7 @@
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
+    "interaction_radius": 150,
     "emote": {
       "name": "lunch",
       "startTime": 0
@@ -145,6 +149,7 @@
     "shirtColor": "#f1c40f",
     "pantsColor": "#34495e",
     "armColor": "#f1c40f",
+    "interaction_radius": 150,
     "emote": {
       "name": "lunch",
       "startTime": 0
@@ -179,6 +184,7 @@
     "shirtColor": "#e67e22",
     "pantsColor": "#2c3e50",
     "armColor": "#e67e22",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "say": [
@@ -210,6 +216,7 @@
     "shirtColor": "#0433ff",
     "pantsColor": "#2c3e50",
     "armColor": "#61177c",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "say": [

@@ -36,9 +36,7 @@ window.populateAdminMaps = () => {
 const mapSelect = document.getElementById('admin-map-select');
 if (mapSelect) {
   mapSelect.addEventListener('change', (e) => {
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({ type: 'change_map', mapId: e.target.value }));
-    }
+    networkClient.send({ type: 'change_map', mapId: e.target.value });
     e.target.blur();
     window.selectedObject.set(null);
     updateAdminPanel();
@@ -89,7 +87,7 @@ window.selectedObject = {
   get: function () {
     return (window.init?.objects || []).find(o => o.id === this._id);
   },
-  findObjectAtXY: function(worldX, worldY) {
+  findObjectAtXY: function (worldX, worldY) {
     const objects = window.init?.objects || [];
     for (let i = objects.length - 1; i >= 0; i--) {
       const obj = objects[i];
@@ -114,16 +112,16 @@ window.selectedObject = {
     }
     return null;
   },
-  checkResizeHandleHit: function(worldX, worldY) {
+  checkResizeHandleHit: function (worldX, worldY) {
     const obj = this.get();
     if (!obj) return false;
-    
+
     const bdx = worldX - obj.x;
     const bdy = worldY - obj.y;
     const angle = -(obj.rotation || 0) * Math.PI / 180;
     const localX = bdx * Math.cos(angle) - bdy * Math.sin(angle);
     const localY = bdx * Math.sin(angle) + bdy * Math.cos(angle);
-    
+
     let handleX = 0, handleY = 0;
     if (obj.shape === 'circle') {
       const radius = Math.max(obj.width, obj.length) / 2;
@@ -133,7 +131,7 @@ window.selectedObject = {
       handleX = obj.width / 2;
       handleY = obj.length / 2;
     }
-    
+
     return Math.hypot(localX - handleX, localY - handleY) <= 15 / (camera.zoom || 1);
   }
 };
@@ -146,7 +144,7 @@ window.selectedNpc = {
   get: function () {
     return (window.init?.npcs || []).find(n => n.id === this._id);
   },
-  findNpcAtXY: function(worldX, worldY) {
+  findNpcAtXY: function (worldX, worldY) {
     const npcs = window.init?.npcs || [];
     for (let i = npcs.length - 1; i >= 0; i--) {
       const npc = npcs[i];
@@ -198,7 +196,7 @@ if (adminPanelHandle) {
     const rect = adminPanel.getBoundingClientRect();
     adminPanelOffsetX = e.clientX - rect.left;
     adminPanelOffsetY = e.clientY - rect.top;
-    
+
     adminPanel.style.right = 'auto'; // Disable flex/right alignment
     adminPanel.style.left = `${rect.left}px`;
     adminPanel.style.top = `${rect.top}px`;
@@ -248,9 +246,7 @@ if (nameInput) {
   nameInput.onchange = (e) => {
     if (!window.selectedObject.get()) return;
     window.selectedObject.get().name = e.target.value.trim();
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({ type: 'rename_object', id: window.selectedObject.get().id, name: window.selectedObject.get().name }));
-    }
+    networkClient.send({ type: 'rename_object', id: window.selectedObject.get().id, name: window.selectedObject.get().name });
   };
 }
 
@@ -258,14 +254,14 @@ bindHoldAction('btn-obj-rot-left', () => {
   if (!window.selectedObject.get()) return;
   window.selectedObject.get().rotation = (window.selectedObject.get().rotation || 0) - 1;
 }, () => {
-  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'rotate_object', id: window.selectedObject.get().id, rotation: window.selectedObject.get().rotation }));
+  if (window.selectedObject.get()) networkClient.send({ type: 'rotate_object', id: window.selectedObject.get().id, rotation: window.selectedObject.get().rotation });
 });
 
 bindHoldAction('btn-obj-rot-right', () => {
   if (!window.selectedObject.get()) return;
   window.selectedObject.get().rotation = (window.selectedObject.get().rotation || 0) + 1;
 }, () => {
-  if (window.selectedObject.get() && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'rotate_object', id: window.selectedObject.get().id, rotation: window.selectedObject.get().rotation }));
+  if (window.selectedObject.get()) networkClient.send({ type: 'rotate_object', id: window.selectedObject.get().id, rotation: window.selectedObject.get().rotation });
 });
 
 bindHoldAction('btn-obj-width-dec', () => {
@@ -276,7 +272,7 @@ bindHoldAction('btn-obj-width-dec', () => {
   applyResizeWithTopLeftAnchor(obj, Math.max(5, obj.width - change), obj.length, anchor.tlx, anchor.tly);
 }, () => {
   const obj = window.selectedObject.get();
-  if (obj && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y }));
+  if (obj) networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
 });
 
 bindHoldAction('btn-obj-width-inc', () => {
@@ -287,7 +283,7 @@ bindHoldAction('btn-obj-width-inc', () => {
   applyResizeWithTopLeftAnchor(obj, obj.width + change, obj.length, anchor.tlx, anchor.tly);
 }, () => {
   const obj = window.selectedObject.get();
-  if (obj && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y }));
+  if (obj) networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
 });
 
 bindHoldAction('btn-obj-length-dec', () => {
@@ -298,7 +294,7 @@ bindHoldAction('btn-obj-length-dec', () => {
   applyResizeWithTopLeftAnchor(obj, obj.width, Math.max(5, obj.length - change), anchor.tlx, anchor.tly);
 }, () => {
   const obj = window.selectedObject.get();
-  if (obj && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y }));
+  if (obj) networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
 });
 
 bindHoldAction('btn-obj-length-inc', () => {
@@ -309,7 +305,7 @@ bindHoldAction('btn-obj-length-inc', () => {
   applyResizeWithTopLeftAnchor(obj, obj.width, obj.length + change, anchor.tlx, anchor.tly);
 }, () => {
   const obj = window.selectedObject.get();
-  if (obj && window.ws.readyState === WebSocket.OPEN) window.ws.send(JSON.stringify({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y }));
+  if (obj) networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
 });
 
 const inputObjClip = document.getElementById('input-obj-clip');
@@ -318,9 +314,7 @@ if (inputObjClip) {
     if (!window.selectedObject.get()) return;
     const clipVal = parseInt(e.target.value, 10);
     window.selectedObject.get().clip = isNaN(clipVal) ? 10 : clipVal;
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({ type: 'update_object', id: window.selectedObject.get().id, updates: { clip: window.selectedObject.get().clip } }));
-    }
+    networkClient.send({ type: 'update_object', id: window.selectedObject.get().id, updates: { clip: window.selectedObject.get().clip } });
   });
 }
 
@@ -329,10 +323,18 @@ if (npcNameInput) {
   npcNameInput.onchange = (e) => {
     if (!window.selectedNpc.get()) return;
     window.selectedNpc.get().name = e.target.value.trim();
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { name: window.selectedNpc.get().name } }));
-    }
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { name: window.selectedNpc.get().name } });
   };
+}
+
+const npcRadiusInput = document.getElementById('npc-radius-input');
+if (npcRadiusInput) {
+  npcRadiusInput.addEventListener('change', (e) => {
+    if (!window.selectedNpc.get()) return;
+    const radiusVal = parseInt(e.target.value, 10);
+    window.selectedNpc.get().interaction_radius = isNaN(radiusVal) ? 150 : radiusVal;
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { interaction_radius: window.selectedNpc.get().interaction_radius } });
+  });
 }
 
 ['shirtColor', 'pantsColor', 'armColor'].forEach(part => {
@@ -341,9 +343,7 @@ if (npcNameInput) {
     colInput.onchange = (e) => {
       if (!window.selectedNpc.get()) return;
       window.selectedNpc.get()[part] = e.target.value;
-      if (window.ws.readyState === WebSocket.OPEN) {
-        window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { [part]: e.target.value } }));
-      }
+      networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { [part]: e.target.value } });
     };
   }
 });
@@ -352,8 +352,8 @@ bindHoldAction('btn-npc-rot-left', () => {
   if (!window.selectedNpc.get()) return;
   window.selectedNpc.get().rotation = (window.selectedNpc.get().rotation || 0) - 5;
 }, () => {
-  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { rotation: window.selectedNpc.get().rotation } }));
+  if (window.selectedNpc.get()) {
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { rotation: window.selectedNpc.get().rotation } });
   }
 });
 
@@ -361,8 +361,8 @@ bindHoldAction('btn-npc-rot-right', () => {
   if (!window.selectedNpc.get()) return;
   window.selectedNpc.get().rotation = (window.selectedNpc.get().rotation || 0) + 5;
 }, () => {
-  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { rotation: window.selectedNpc.get().rotation } }));
+  if (window.selectedNpc.get()) {
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { rotation: window.selectedNpc.get().rotation } });
   }
 });
 
@@ -370,8 +370,8 @@ bindHoldAction('btn-npc-width-dec', () => {
   if (!window.selectedNpc.get()) return;
   window.selectedNpc.get().width = Math.max(5, (window.selectedNpc.get().width || 40) - 2);
 }, () => {
-  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { width: window.selectedNpc.get().width } }));
+  if (window.selectedNpc.get()) {
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { width: window.selectedNpc.get().width } });
   }
 });
 
@@ -379,8 +379,8 @@ bindHoldAction('btn-npc-width-inc', () => {
   if (!window.selectedNpc.get()) return;
   window.selectedNpc.get().width = (window.selectedNpc.get().width || 40) + 2;
 }, () => {
-  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { width: window.selectedNpc.get().width } }));
+  if (window.selectedNpc.get()) {
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { width: window.selectedNpc.get().width } });
   }
 });
 
@@ -388,8 +388,8 @@ bindHoldAction('btn-npc-height-dec', () => {
   if (!window.selectedNpc.get()) return;
   window.selectedNpc.get().height = Math.max(5, (window.selectedNpc.get().height || 40) - 2);
 }, () => {
-  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { height: window.selectedNpc.get().height } }));
+  if (window.selectedNpc.get()) {
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { height: window.selectedNpc.get().height } });
   }
 });
 
@@ -397,8 +397,8 @@ bindHoldAction('btn-npc-height-inc', () => {
   if (!window.selectedNpc.get()) return;
   window.selectedNpc.get().height = (window.selectedNpc.get().height || 40) + 2;
 }, () => {
-  if (window.selectedNpc.get() && window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { height: window.selectedNpc.get().height } }));
+  if (window.selectedNpc.get()) {
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { height: window.selectedNpc.get().height } });
   }
 });
 
@@ -408,7 +408,7 @@ const npcOnExitInput = document.getElementById('npc-on-exit-input');
 if (btnSaveNpcDialog && npcOnEnterInput && npcOnExitInput) {
   btnSaveNpcDialog.onclick = () => {
     if (!window.selectedNpc.get()) return;
-    
+
     const onEnterLines = npcOnEnterInput.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     const onExitLines = npcOnExitInput.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
@@ -418,13 +418,11 @@ if (btnSaveNpcDialog && npcOnEnterInput && npcOnExitInput) {
     window.selectedNpc.get().on_enter = on_enter;
     window.selectedNpc.get().on_exit = on_exit;
 
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({ 
-        type: 'update_npc', 
-        id: window.selectedNpc.get().id, 
-        updates: { on_enter, on_exit } 
-      }));
-    }
+    networkClient.send({
+      type: 'update_npc',
+      id: window.selectedNpc.get().id,
+      updates: { on_enter, on_exit }
+    });
     alert('NPC dialog saved!');
   };
 }
@@ -453,16 +451,21 @@ function updateAdminPanel() {
   if (window.selectedNpc.get()) {
     if (editNpcSection) editNpcSection.style.display = 'block';
     const npc = window.selectedNpc.get();
-    
+
     if (npcNameInput) npcNameInput.value = npc.name || '';
-    
+
     if (document.getElementById('npc-shirt-col')) document.getElementById('npc-shirt-col').value = npc.shirtColor || '#3498db';
     if (document.getElementById('npc-pants-col')) document.getElementById('npc-pants-col').value = npc.pantsColor || '#2c3e50';
     if (document.getElementById('npc-arm-col')) document.getElementById('npc-arm-col').value = npc.armColor || '#3498db';
-    
+
+    const npcRadiusInputDisplay = document.getElementById('npc-radius-input');
+    if (npcRadiusInputDisplay) {
+      npcRadiusInputDisplay.value = npc.interaction_radius !== undefined ? npc.interaction_radius : 150;
+    }
+
     const npcOnEnterInput = document.getElementById('npc-on-enter-input');
     const npcOnExitInput = document.getElementById('npc-on-exit-input');
-    
+
     if (npcOnEnterInput) {
       if (npc.on_enter && npc.on_enter[0] && npc.on_enter[0].say) {
         npcOnEnterInput.value = npc.on_enter[0].say.join('\n');
@@ -470,7 +473,7 @@ function updateAdminPanel() {
         npcOnEnterInput.value = '';
       }
     }
-    
+
     if (npcOnExitInput) {
       if (npc.on_exit && npc.on_exit[0] && npc.on_exit[0].say) {
         npcOnExitInput.value = npc.on_exit[0].say.join('\n');
@@ -511,26 +514,35 @@ window.addEventListener('mousedown', (e) => {
     return;
   }
 
+  const previousObjId = window.selectedObject.get() ? window.selectedObject.get().id : null;
+  const previousNpcId = window.selectedNpc.get() ? window.selectedNpc.get().id : null;
+
   window.selectedObject.set(null);
   window.selectedNpc.set(null);
 
   const hitNpc = window.selectedNpc.findNpcAtXY(worldX, worldY);
   if (hitNpc) {
-    console.log(`Dragging npc: ${hitNpc.id}`);
     window.selectedNpc.set(hitNpc.id);
-    isDraggingNpc = true;
-    
-    dragOffsetX = hitNpc.x - worldX;
-    dragOffsetY = hitNpc.y - worldY;
+    if (previousNpcId === hitNpc.id) {
+      console.log(`Dragging npc: ${hitNpc.id}`);
+      isDraggingNpc = true;
+      dragOffsetX = hitNpc.x - worldX;
+      dragOffsetY = hitNpc.y - worldY;
+    } else {
+      console.log(`Selected npc: ${hitNpc.id}`);
+    }
   } else {
     const hitObj = window.selectedObject.findObjectAtXY(worldX, worldY);
     if (hitObj) {
-      console.log(`Dragging object: ${hitObj.id}`);
       window.selectedObject.set(hitObj.id);
-      isDraggingObject = true;
-      
-      dragOffsetX = hitObj.x - worldX;
-      dragOffsetY = hitObj.y - worldY;
+      if (previousObjId === hitObj.id) {
+        console.log(`Dragging object: ${hitObj.id}`);
+        isDraggingObject = true;
+        dragOffsetX = hitObj.x - worldX;
+        dragOffsetY = hitObj.y - worldY;
+      } else {
+        console.log(`Selected object: ${hitObj.id}`);
+      }
     }
   }
 
@@ -569,7 +581,7 @@ window.addEventListener('mousemove', (e) => {
     const dX = worldX - resizeWorldTlx;
     const dY = worldY - resizeWorldTly;
     const angle = -(obj.rotation || 0) * Math.PI / 180;
-    
+
     const localMouseXFromTl = dX * Math.cos(angle) - dY * Math.sin(angle);
     const localMouseYFromTl = dX * Math.sin(angle) + dY * Math.cos(angle);
 
@@ -718,18 +730,18 @@ window.addEventListener('paste', (e) => {
   const worldY = Math.round((mouseY - canvas.height / 2) / camera.zoom + camera.y);
 
   if (adminClipboard.type === 'object') {
-    networkClient.send({ 
-      type: 'create_object', 
-      x: worldX, 
+    networkClient.send({
+      type: 'create_object',
+      x: worldX,
       y: worldY,
-      cloneData: adminClipboard.data 
+      cloneData: adminClipboard.data
     });
   } else if (adminClipboard.type === 'npc') {
-    networkClient.send({ 
-      type: 'create_npc', 
-      x: worldX, 
+    networkClient.send({
+      type: 'create_npc',
+      x: worldX,
       y: worldY,
-      cloneData: adminClipboard.data 
+      cloneData: adminClipboard.data
     });
   }
 });
@@ -787,7 +799,7 @@ function adminDraw() {
       ctx.lineWidth = 2 / camera.zoom;
       ctx.beginPath();
       const s = 10 / camera.zoom;
-      ctx.rect(handleX - s/2, handleY - s/2, s, s);
+      ctx.rect(handleX - s / 2, handleY - s / 2, s, s);
       ctx.fill();
       ctx.stroke();
     }
@@ -800,11 +812,23 @@ function adminDraw() {
     if (window.selectedNpc.get() && window.selectedNpc.get().id === npc.id) {
       ctx.save();
       ctx.translate(npc.x, npc.y);
+
+      // Hitbox
       ctx.beginPath();
       ctx.arc(0, 0, (Math.max(npc.width, npc.height) / 2 || 20) + 5, 0, Math.PI * 2);
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'cyan';
       ctx.stroke();
+
+      // Interaction Radius
+      const r = npc.interaction_radius !== undefined ? npc.interaction_radius : 150;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)';
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+
       ctx.restore();
     }
   });
@@ -812,4 +836,4 @@ function adminDraw() {
   ctx.restore();
 }
 
-gameLoop.registerFunction(adminDraw);
+gameLoop.registerFunction(adminDraw, true);

@@ -11,6 +11,7 @@
     "shirtColor": "#002e7a",
     "pantsColor": "#111111",
     "armColor": "#002e7a",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "avatar": "avatars/mr_maycock.png",

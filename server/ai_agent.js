@@ -2,8 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import { PhysicsEngine } from '../src/physics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const physicsEngine = new PhysicsEngine();
 
 let ai = null;
 let apiKey = process.env.GEMINI_API_KEY;
@@ -33,13 +35,20 @@ export function startAIAgent(mapState) {
     // Initialize lastProcessed hashes to prevent immediate blast
     for (const mapId in mapState) {
         const mapData = mapState[mapId];
-        if (mapData.logFile && fs.existsSync(mapData.logFile)) {
-            try {
-                const raw = fs.readFileSync(mapData.logFile, 'utf8');
-                if (raw.trim()) {
-                    lastProcessed[mapId] = raw.trim();
+        if (mapData.npcs) {
+            for (const npc of mapData.npcs) {
+                if (npc.agent && npc.agent.log_file) {
+                    const logFilePath = path.resolve(__dirname, 'data', npc.agent.log_file);
+                    if (fs.existsSync(logFilePath)) {
+                        try {
+                            const raw = fs.readFileSync(logFilePath, 'utf8');
+                            if (raw.trim()) {
+                                lastProcessed[npc.id] = raw.trim();
+                            }
+                        } catch (e) { }
+                    }
                 }
-            } catch (e) { }
+            }
         }
     }
 
@@ -47,73 +56,69 @@ export function startAIAgent(mapState) {
         for (const mapId in mapState) {
             const mapData = mapState[mapId];
 
-            if (mapData.agentFile && mapData.logFile) {
+            if (mapData.npcs && mapData.npcs.length > 0) {
                 try {
                     // Only process if there are humans on the map to interact with
                     if (mapData.clients.size === 0) {
-                        // console.log(`[AI] Skipping map ${mapId} (${mapData.name}): no players.`);
                         continue;
                     }
 
-                    let logsText = "";
-                    if (fs.existsSync(mapData.logFile)) {
-                        logsText = fs.readFileSync(mapData.logFile, 'utf8').trim();
-                    }
+                    // Check which NPCs are agents
+                    for (const npc of mapData.npcs) {
+                        if (npc.agent && npc.agent.log_file && npc.agent.prompt_file) {
+                            const logFilePath = path.resolve(__dirname, 'data', npc.agent.log_file);
+                            const agentFilePath = path.resolve(__dirname, 'data', npc.agent.prompt_file);
+                            
+                            if (!fs.existsSync(agentFilePath) || !fs.existsSync(logFilePath)) {
+                                continue;
+                            }
 
-                    if (!logsText) {
-                        // console.log(`[AI] Skipping map ${mapId} (${mapData.name}): logs are empty.`);
-                        continue;
-                    }
+                            let logsText = fs.readFileSync(logFilePath, 'utf8').trim();
 
-                    if (lastProcessed[mapId] === logsText) {
-                        // console.log(`[AI] Skipping map ${mapId} (${mapData.name}): no new logs since last check.`);
-                        continue;
-                    }
+                            if (!logsText || lastProcessed[npc.id] === logsText) {
+                                continue;
+                            }
+                            
+                            lastProcessed[npc.id] = logsText;
+                            console.log(`[AI][${mapData.name}] New events detected! Formatting prompt for ${npc.name}...`);
+                            
+                            let agentPrompt = fs.readFileSync(agentFilePath, 'utf8');
+                            const validEmotes = ["dance", "fart", "laugh", "cry", "angry", "surprised"]; 
+                            
+                            agentPrompt = agentPrompt
+                                .replace("{agent_id}", npc.id)
+                                .replace("{emotes}", validEmotes.join(", "));
+                            
+                            // Compile full prompt
+                            const prompt = `${agentPrompt}\n\nRecent Events Log:\n${logsText}\n\nRespond EXACTLY with a valid JSON array representing the actions.`;
 
-                    // We have new logs!
-                    console.log(`[AI][${mapData.name}] New events detected! Formatting prompt...`);
-                    lastProcessed[mapId] = logsText;
+                            console.log(`[AI][${mapData.name}] Sending prompt for ${npc.name} to Gemini...`);
 
-                    let agentPrompt = fs.readFileSync(mapData.agentFile, 'utf8');
+                            // Important: Do not `await` inside the loop here if we want multiple agents to 'think' in parallel,
+                            // but if they share a rate limit, queuing is safer.
+                            ai.models.generateContent({
+                                model: 'gemini-2.5-flash',
+                                contents: prompt,
+                                config: {
+                                    responseMimeType: "application/json",
+                                }
+                            }).then(response => {
+                                let resultText = response.text;
+                                console.log(`[AI][${mapData.name}] Received response for ${npc.name}:`, resultText);
 
-                    // Find the NPC for this prompt (assuming one agent per map for now, or use the first NPC)
-                    const npcTarget = mapData.npcs && mapData.npcs.length > 0 ? mapData.npcs[0] : null;
-                    const npcId = npcTarget ? npcTarget.id : "UNKNOWN";
-
-                    const validEmotes = ["dance", "fart", "laugh", "cry", "angry", "surprised"]; // Add available emotes here
-                    
-                    agentPrompt = agentPrompt
-                        .replace("{agent_id}", npcId)
-                        .replace("{emotes}", validEmotes.join(", "));
-                    
-                    // Compile full prompt
-                    const prompt = `${agentPrompt}\n\nRecent Events Log:\n${logsText}\n\nRespond EXACTLY with a valid JSON array representing the actions.`;
-
-                    console.log(`[AI][${mapData.name}] Sending prompt to Gemini...`);
-
-                    console.log(prompt);
-
-                    const response = await ai.models.generateContent({
-                        model: 'gemini-2.5-flash',
-                        contents: prompt,
-                        config: {
-                            responseMimeType: "application/json",
+                                if (resultText) {
+                                    try {
+                                        const result = JSON.parse(resultText);
+                                        console.log(`[AI][${mapData.name}] Parsed response for ${npc.name} successfully! Applying actions...`);
+                                        handleAgentAction(mapData, result);
+                                    } catch (e) {
+                                        console.error(`[AI][${mapData.name}] Failed to parse agent JSON:`, resultText, e);
+                                    }
+                                }
+                            }).catch(err => {
+                                console.error(`[AI][${mapData.name}] API Error for ${npc.name}:`, err);
+                            });
                         }
-                    });
-
-                    let resultText = response.text;
-                    console.log(`[AI][${mapData.name}] Received response from Gemini:`, resultText);
-
-                    if (resultText) {
-                        try {
-                            const result = JSON.parse(resultText);
-                            console.log(`[AI][${mapData.name}] Parsed response successfully! Applying actions...`);
-                            handleAgentAction(mapData, result);
-                        } catch (e) {
-                            console.error(`[AI][${mapData.name}] Failed to parse agent JSON:`, resultText, e);
-                        }
-                    } else {
-                        console.log(`[AI][${mapData.name}] Gemini returned an empty response.`);
                     }
 
                 } catch (err) {
@@ -145,28 +150,41 @@ async function handleAgentAction(mapData, action) {
         if (act.say) {
             console.log(`[AI][${mapData.name}] NPC '${npcChar.name || npcId}' says:`, act.say);
             const sayArr = Array.isArray(act.say) ? act.say : [act.say];
+            
+            // Find who is close enough to hear this agent
+            const charactersInRange = physicsEngine.findCharacters(Object.values(mapData.characters), npcChar.x, npcChar.y, npcId);
+            const playerIdsInRange = new Set(charactersInRange.map(c => c.id));
+
             for (let i = 0; i < sayArr.length; i++) {
                 const msg = sayArr[i];
                 const broadcastMsg = JSON.stringify({ type: 'chat', id: npcId, message: msg });
 
                 // log it
-                let logArr = [];
-                try {
-                    if (fs.existsSync(mapData.logFile)) {
-                        const raw = fs.readFileSync(mapData.logFile, 'utf8');
-                        logArr = raw.split('\n').filter(line => line.trim().length > 0);
+                const logLine = `${npcChar.name || npcId} (${npcId}) said: "${msg}"`;
+                mapData.npcs.forEach(n => {
+                    if (n.agent && n.agent.log_file) {
+                        const logFilePath = path.resolve(__dirname, 'data', n.agent.log_file);
+                        let logArr = [];
+                        try {
+                            if (fs.existsSync(logFilePath)) {
+                                const raw = fs.readFileSync(logFilePath, 'utf8');
+                                logArr = raw.split('\n').filter(line => line.trim().length > 0);
+                            }
+                        } catch (e) { }
+                        logArr.push(logLine);
+                        if (logArr.length > 50) logArr = logArr.slice(logArr.length - 50);
+                        
+                        const newLogsText = logArr.join('\n') + '\n';
+                        fs.writeFileSync(logFilePath, newLogsText, 'utf8');
+                        
+                        if (n.id === npcId) {
+                            lastProcessed[npcId] = newLogsText.trim();
+                        }
                     }
-                } catch (e) { }
-                logArr.push(`${npcChar.name || npcId} (${npcId}) said: "${msg}"`);
-                if (logArr.length > 50) logArr = logArr.slice(logArr.length - 50);
-                
-                const newLogsText = logArr.join('\n') + '\n';
-                fs.writeFileSync(mapData.logFile, newLogsText, 'utf8');
-
-                lastProcessed[mapData.id] = newLogsText.trim();
+                });
 
                 mapData.clients.forEach(client => {
-                    if (client.readyState === 1) {
+                    if (client.readyState === 1 && playerIdsInRange.has(client.clientId)) {
                         client.send(broadcastMsg);
                     }
                 });

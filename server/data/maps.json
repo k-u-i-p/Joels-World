@@ -75,10 +75,8 @@
     "npcs": "detention/npc.json",
     "clip_mask": "detention/clip_mask.svg",
     "character_scale": 4,
-    "default_zoom": 0.5,
+    "default_zoom": 1.0,
     "objects": "detention/objects.json",
-    "agentFile": "detention/agent.md",
-    "logFile": "detention/log.txt",
     "spawn_area": 18,
     "on_enter": [
       {

@@ -11,9 +11,13 @@
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
+    "interaction_radius": 2000,
+    "agent": {
+      "prompt_file": "detention/agent_mr_hardy.md",
+      "log_file": "detention/mr_hardy_log.txt"
+    },
     "on_enter": [
       {
-        "avatar": "avatars/mr_hardy_grumpy.png",
         "say": [
           "Why are you in detention {name}?",
           "You are in detention {name}!"
@@ -41,6 +45,7 @@
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
+    "interaction_radius": 150,
     "on_enter": [
       {
         "say": [
