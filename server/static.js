@@ -34,15 +34,8 @@ export function setupStatic(app, server, port) {
     // Only serve HTML files for the root or exact paths to prevent catching /api or /ws traffic
     if (req.path === '/' || req.path === '/index.html' || req.path === '/admin.html') {
       try {
-        let index;
-
-        if (session && session.isAdmin) {
-          index = fs.readFileSync(path.resolve(__dirname, '../admin.html'), 'utf-8');
-        } else {
-          index = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf-8');
-        }
-
-        return res.status(200).set({ 'Content-Type': 'text/html' }).end(index);
+        const isAdminSession = session && session.isAdmin;
+        return res.render('index', { isAdmin: isAdminSession });
       } catch (e) {
         return next(e);
       }

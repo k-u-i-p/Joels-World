@@ -7,9 +7,17 @@ import { startAIAgent } from './ai_agent.js';
 import { ensureMapChunks } from '../scripts/slice_maps.js';
 import { processOverlays } from '../scripts/create_overlays.js';
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const port = process.env.PORT || 80;
 const app = express();
 const server = http.createServer(app);
+
+app.set('view engine', 'ejs');
+app.set('views', path.resolve(__dirname, '../views'));
 
 app.use(cookieParser());
 

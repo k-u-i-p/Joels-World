@@ -9,10 +9,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="/src/style.css" />
-  <title>Joels World Admin</title>
+  <title><%= isAdmin ? "Joels World Admin" : "Joels World" %></title>
 </head>
 
 <body>
+
   <!-- Top Center UI Overlay -->
   <div id="top-center-ui" class="overlay">
     <div id="top-center-ui-wrapper">
@@ -47,6 +48,7 @@
     </div>
   </div>
 
+  <!-- Help Dialog Overlay -->
   <div id="help-dialog" class="overlay" style="display: none;">
     <div class="dialog-content glass-panel" style="text-align: left; max-width: 450px; width: 90%;">
       <h2 style="text-align: center; font-size: 24px; margin-bottom: 25px; color: #fff;">Controls & Commands</h2>
@@ -83,6 +85,7 @@
     </div>
   </div>
 
+  <% if (isAdmin) { %>
   <div id="admin-panel" style="display: none;">
       <div id="admin-panel-handle" class="admin-handle">
       Admin Panel
@@ -170,13 +173,18 @@
       <button id="btn-delete-npc" class="admin-full-btn" style="background-color:#e74c3c;">Delete NPC</button>
     </div>
   </div>
-
+  <% } else { %>
+  <button id="help-button">?</button>
+  <% } %>
 
   <div id="joystick-move-container">
     <div id="joystick-move-knob"></div>
   </div>
+  <button id="help-button">?</button>
   <canvas id="gameCanvas"></canvas>
+  <% if (isAdmin) { %>
   <script type="module" src="/src/admin.js"></script>
+  <% } %>
   <script type="module" src="/src/main.js"></script>
 </body>
 

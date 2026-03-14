@@ -10,6 +10,7 @@
   "dependencies": {
     "@google/genai": "^1.45.0",
     "cookie-parser": "^1.4.7",
+    "ejs": "^5.0.1",
     "express": "^5.2.1",
     "sharp": "^0.34.5",
     "ws": "^8.19.0"
