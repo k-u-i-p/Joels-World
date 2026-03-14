@@ -198,5 +198,25 @@
       }
     ],
     "shoeColor": "#bdc3c7"
+  },
+  {
+    "id": 7,
+    "name": "Oliver D",
+    "x": 235,
+    "y": -480,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "shirtColor": "#0433ff",
+    "pantsColor": "#2c3e50",
+    "armColor": "#61177c",
+    "on_enter": [
+      {
+        "say": [
+          "the teachers gave me nothing to eat to punish me"
+        ]
+      }
+    ],
+    "on_exit": []
   }
 ]
