@@ -1,4 +1,5 @@
 import { emotes } from './emotes.js';
+import { uiManager } from './ui.js';
 
 export class NetworkClient {
   constructor() {
