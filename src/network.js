@@ -81,22 +81,27 @@ export class NetworkClient {
           if (window.init?.characters) window.init.characters = window.init.characters.filter(c => c.id !== data.id);
         } else if (data.type === 'chat') {
           const player = window.player;
+          let senderName = `User ${data.id}`;
           // Check human characters first
           let charIndex = (window.init?.characters || []).findIndex(c => c.id === data.id);
           if (charIndex > -1) {
             window.init.characters[charIndex].chatMessage = data.message;
             window.init.characters[charIndex].chatTime = Date.now();
+            senderName = window.init.characters[charIndex].name || senderName;
           } else if (player && player.id === data.id) {
             player.chatMessage = data.message;
             player.chatTime = Date.now();
+            senderName = player.name || senderName;
           } else {
             // Check NPCs
             let npcIndex = (window.init?.npcs || []).findIndex(n => n.id === data.id);
             if (npcIndex > -1) {
               window.init.npcs[npcIndex].chatMessage = data.message;
               window.init.npcs[npcIndex].chatTime = Date.now();
+              senderName = window.init.npcs[npcIndex].name || senderName;
             }
           }
+          console.log(`[Chat] ${senderName}: ${data.message}`);
         } else if (data.type === 'objects_update') {
           if (window.init) {
             window.init.objects = data.objects || [];

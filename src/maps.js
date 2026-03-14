@@ -148,6 +148,7 @@ export class MapManager {
               const src = layer.path_template.replace('{x}', x).replace('{y}', y);
               img.src = src;
 
+              console.log(`[Chunk Loader] Loading new chunk: ${src} at (${x}, ${y})`);
               layer.chunks[chunkIndex] = { img, cx: x, cy: y };
             }
 
