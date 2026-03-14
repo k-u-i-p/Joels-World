@@ -15,8 +15,6 @@ export class MapManager {
     this.mapW = mapMetadata?.width || 0;
     this.mapH = mapMetadata?.height || 0;
 
-    console.log('Map layers: ', mapMetadata.layers);
-
     if (mapMetadata.layers) {
       mapMetadata.layers.forEach((layerGroup, index) => {
         const layersList = [];
