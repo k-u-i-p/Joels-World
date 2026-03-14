@@ -185,131 +185,27 @@ function update() {
 
   let isMoving = false;
   if (dx !== 0 || dy !== 0) {
-    isMoving = true;
+    const result = physicsEngine.processMovement(
+      player, 
+      dx, 
+      dy, 
+      window.init?.objects, 
+      window.init?.mapData, 
+      emoteForcedMove
+    );
 
-    const scale = window.init?.mapData?.character_scale || 1;
-    const playerRadius = 15 * scale; // slightly smaller than half width for smooth collisions
+    isMoving = result.isMoving;
+    player.x = result.newX;
+    player.y = result.newY;
 
-    movementCoords[0].x = player.x + dx;
-    movementCoords[0].y = player.y + dy;
-    movementCoords[1].x = player.x + dx;
-    movementCoords[1].y = player.y;
-    movementCoords[2].x = player.x;
-    movementCoords[2].y = player.y + dy;
-
-    const possibleOverlaps = physicsEngine.findObjectsAt(window.init?.objects, movementCoords, playerRadius);
-
-    const mapW = window.init?.mapData?.width;
-    const mapH = window.init?.mapData?.height;
-
-    // Try moving in both axes, then X only, then Y only (sliding against walls)
-    if (emoteForcedMove) {
-      if (physicsEngine.canMoveTo(possibleOverlaps, player.x + dx, player.y + dy, playerRadius, mapW, mapH)) {
-        player.x += dx;
-        player.y += dy;
-      } else {
-        // Hit something while jumping! Stop the jump and drop to ground immediately
-        player.emote = null;
-        networkClient.syncPlayerToJSON();
-      }
-    } else {
-      if (physicsEngine.canMoveTo(possibleOverlaps, player.x + dx, player.y + dy, playerRadius, mapW, mapH)) {
-        player.x += dx;
-        player.y += dy;
-      } else {
-        // Attempt Advanced Sliding Mechanism against Rotated Objects
-        // 1. Identify which object we hit (if any)
-        let hitObj = null;
-        for (let i = 0; i < possibleOverlaps.length; i++) {
-          const obj = possibleOverlaps[i];
-          if (!obj.noclip && obj.clip !== -1 && physicsEngine.checkObjectOverlap(obj, player.x + dx, player.y + dy, playerRadius, obj.clip === undefined ? 10 : obj.clip)) {
-            hitObj = obj;
-            break;
-          }
-        }
-
-        if (hitObj && hitObj.shape === 'rect' && hitObj.rotation) {
-          // Slide along the rotated edge
-          const angle = -hitObj.rotation * (Math.PI / 180);
-          const cosA = Math.cos(angle);
-          const sinA = Math.sin(angle);
-
-          // Transform intended movement vector into local space of the rotated object
-          const localDx = dx * cosA - dy * sinA;
-          const localDy = dx * sinA + dy * cosA;
-
-          // For axis-aligned local space, sliding means zeroing out the blocked axis and keeping the unblocked axis.
-          // Test local X sliding
-          const testLocalDx = localDx;
-          const testLocalDy = 0;
-
-          // Transform back to world space
-          let slideWorldDx = testLocalDx * cosA + testLocalDy * sinA;
-          let slideWorldDy = -testLocalDx * sinA + testLocalDy * cosA;
-
-          if (physicsEngine.canMoveTo(possibleOverlaps, player.x + slideWorldDx, player.y + slideWorldDy, playerRadius, mapW, mapH)) {
-            player.x += slideWorldDx;
-            player.y += slideWorldDy;
-          } else {
-            // Test local Y sliding
-            const testLocalDx2 = 0;
-            const testLocalDy2 = localDy;
-            slideWorldDx = testLocalDx2 * cosA + testLocalDy2 * sinA;
-            slideWorldDy = -testLocalDx2 * sinA + testLocalDy2 * cosA;
-
-            if (physicsEngine.canMoveTo(possibleOverlaps, player.x + slideWorldDx, player.y + slideWorldDy, playerRadius, mapW, mapH)) {
-              player.x += slideWorldDx;
-              player.y += slideWorldDy;
-            } else if (physicsEngine.canMoveTo(possibleOverlaps, player.x + dx, player.y, playerRadius, mapW, mapH)) {
-              // Fallback to pure X
-              player.x += dx;
-            } else if (physicsEngine.canMoveTo(possibleOverlaps, player.x, player.y + dy, playerRadius, mapW, mapH)) {
-              // Fallback to pure Y
-              player.y += dy;
-            }
-          }
-        } else {
-          // Fallback to standard axis-aligned sliding
-          if (physicsEngine.canMoveTo(possibleOverlaps, player.x + dx, player.y, playerRadius, mapW, mapH)) {
-            player.x += dx;
-          } else if (physicsEngine.canMoveTo(possibleOverlaps, player.x, player.y + dy, playerRadius, mapW, mapH)) {
-            player.y += dy;
-          }
-        }
-      }
+    if (result.emoteCanceled) {
+      player.emote = null;
+      networkClient.syncPlayerToJSON();
     }
 
-    if (possibleOverlaps.length > 0) {
-      exactCoords[0].x = player.x;
-      exactCoords[0].y = player.y;
-      const actuallyInObject = physicsEngine.findObjectsAt(possibleOverlaps, exactCoords, 0);
-      const newBuilding = actuallyInObject.length > 0 ? actuallyInObject[0].id : null;
+    const newBuilding = result.actuallyInObject ? result.actuallyInObject.id : null;
 
-      if (player.activeBuilding !== newBuilding) {
-        if (player.activeBuilding) {
-          const oldObj = window.init?.objects?.find(o => o.id === player.activeBuilding);
-          if (oldObj && oldObj.activeAudio) {
-            oldObj.activeAudio.pause();
-            oldObj.activeAudio.currentTime = 0;
-            oldObj.activeAudio = null;
-          }
-          if (oldObj && oldObj.on_exit && (typeof oldObj.on_exit === 'number' || oldObj.on_exit.length > 0)) {
-            executeEvents(oldObj, oldObj.on_exit, 'on_exit');
-          }
-        }
-        player.activeBuilding = newBuilding;
-        if (newBuilding) {
-          const matchedObj = actuallyInObject[0];
-          if (matchedObj.on_enter && (typeof matchedObj.on_enter === 'number' || matchedObj.on_enter.length > 0)) {
-            executeEvents(matchedObj, matchedObj.on_enter);
-          }
-        } else {
-          // Exited building
-          const dialogOverlay = uiManager.dialogOverlay;
-          if (dialogOverlay) dialogOverlay.style.display = 'none';
-        }
-      }
-    } else {
+    if (player.activeBuilding !== newBuilding) {
       if (player.activeBuilding) {
         const oldObj = window.init?.objects?.find(o => o.id === player.activeBuilding);
         if (oldObj && oldObj.activeAudio) {
@@ -320,10 +216,34 @@ function update() {
         if (oldObj && oldObj.on_exit && (typeof oldObj.on_exit === 'number' || oldObj.on_exit.length > 0)) {
           executeEvents(oldObj, oldObj.on_exit, 'on_exit');
         }
-        player.activeBuilding = null;
+      }
+      player.activeBuilding = newBuilding;
+      if (newBuilding) {
+        const matchedObj = result.actuallyInObject;
+        if (matchedObj.on_enter && (typeof matchedObj.on_enter === 'number' || matchedObj.on_enter.length > 0)) {
+          executeEvents(matchedObj, matchedObj.on_enter);
+        }
+      } else {
+        // Exited building
         const dialogOverlay = uiManager.dialogOverlay;
         if (dialogOverlay) dialogOverlay.style.display = 'none';
       }
+    }
+  } else {
+    // Player is NOT moving
+    if (player.activeBuilding) {
+      const oldObj = window.init?.objects?.find(o => o.id === player.activeBuilding);
+      if (oldObj && oldObj.activeAudio) {
+        oldObj.activeAudio.pause();
+        oldObj.activeAudio.currentTime = 0;
+        oldObj.activeAudio = null;
+      }
+      if (oldObj && oldObj.on_exit && (typeof oldObj.on_exit === 'number' || oldObj.on_exit.length > 0)) {
+        executeEvents(oldObj, oldObj.on_exit, 'on_exit');
+      }
+      player.activeBuilding = null;
+      const dialogOverlay = uiManager.dialogOverlay;
+      if (dialogOverlay) dialogOverlay.style.display = 'none';
     }
   }
 
