@@ -373,34 +373,29 @@ function update() {
         c.x = c.targetX;
         c.y = c.targetY;
         c.rotation = c.targetRotation;
-        c.startX = c.targetX;
-        c.startY = c.targetY;
-      } else if (c.targetStartTime !== undefined && c.startX !== undefined && c.startY !== undefined) {
-        // True time-based network interpolation
-        // Standard server tick rate is 100ms
-        let t = (Date.now() - c.targetStartTime) / 100;
-
-        // Allow up to 20% extrapolation into the future for packet latency jitter!
-        // This prevents the character from artificially stopping if the packet is delayed by a few ms.
-        if (t > 1.2) t = 1.2;
-
-        const newX = c.startX + (c.targetX - c.startX) * t;
-        const newY = c.startY + (c.targetY - c.startY) * t;
-
-        const stepDist = Math.hypot(newX - c.x, newY - c.y);
-
-        c.x = newX;
-        c.y = newY;
-
-        if (stepDist > 0.05 && t < 1.2) {
-          c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
-        } else {
-          c.legAnimationTime = 0; // stop moving legs when we catch up
+      } else if (distSq > 0.1) {
+        // Continuous pursuit velocity based on base speed (with a dynamic catchup boost if far behind)
+        const distance = Math.sqrt(distSq);
+        const baseSpeed = c.moveSpeed || 3;
+        
+        // If distance is large (e.g. > 40px), temporarily boost speed so they catch up seamlessly
+        const catchupMultiplier = distance > 40 ? 1.5 : 1.0;
+        let stepDist = baseSpeed * catchupMultiplier;
+        
+        // Don't overshoot the target
+        if (stepDist > distance) {
+          stepDist = distance;
         }
+
+        const ratio = stepDist / distance;
+        c.x += cdx * ratio;
+        c.y += cdy * ratio;
+        
+        c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
       } else {
         c.x = c.targetX;
         c.y = c.targetY;
-        c.legAnimationTime = 0;
+        c.legAnimationTime = 0; // stop moving legs when we catch up
       }
 
       // Interpolate rotation efficiently via shortest angle (even if not moving XY)

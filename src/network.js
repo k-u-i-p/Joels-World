@@ -37,6 +37,12 @@ export class NetworkClient {
         const data = JSON.parse(event.data);
         if (data.type === 'error') {
           console.error('Server Error:', data.message);
+          if (data.message === 'Session already active in another window.') {
+            document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#222;color:white;font-family:sans-serif;"><h2>${data.message}</h2></div>`;
+            this.ws.onclose = null; // Prevent reconnect loop
+            this.ws.close();
+            return;
+          }
           window.location.reload();
           return;
         } else if (data.type === 'init') {
@@ -64,13 +70,9 @@ export class NetworkClient {
             if (localCharIndex > -1) {
               const localChar = window.init.characters[localCharIndex];
               // Set targets for interpolation
-              localChar.startX = localChar.x !== undefined ? localChar.x : serverChar.x;
-              localChar.startY = localChar.y !== undefined ? localChar.y : serverChar.y;
-              localChar.startRotation = localChar.rotation !== undefined ? localChar.rotation : serverChar.rotation;
               localChar.targetX = serverChar.x;
               localChar.targetY = serverChar.y;
               localChar.targetRotation = serverChar.rotation;
-              localChar.targetStartTime = Date.now();
 
               // Directly sync visual properties
               localChar.name = serverChar.name;
@@ -78,13 +80,9 @@ export class NetworkClient {
               localChar.armColor = serverChar.armColor;
               localChar.emote = serverChar.emote;
             } else {
-              serverChar.startX = serverChar.x;
-              serverChar.startY = serverChar.y;
-              serverChar.startRotation = serverChar.rotation;
               serverChar.targetX = serverChar.x;
               serverChar.targetY = serverChar.y;
               serverChar.targetRotation = serverChar.rotation;
-              serverChar.targetStartTime = Date.now();
               if (!window.init) return;
               if (!window.init.characters) window.init.characters = [];
               window.init.characters.push(serverChar);

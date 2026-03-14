@@ -253,6 +253,19 @@ export function setupWebSocket(server, sessionMiddleware) {
 
     // If the session already has an attached character, boot them into the game instantly.
     if (session && session.player) {
+      let isAlreadyConnected = false;
+      for (const client of wss.clients) {
+        if (client !== ws && client.readyState === 1 && client.clientId === session.player.id) {
+          isAlreadyConnected = true;
+          break;
+        }
+      }
+
+      if (isAlreadyConnected) {
+        sendError(ws, 'Session already active in another window.');
+        return;
+      }
+
       ws.clientId = session.player.id;
 
       // Override persistent coordinates with a fresh spawn location dynamically 

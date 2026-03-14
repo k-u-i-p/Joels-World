@@ -48,7 +48,7 @@
     "on_enter": [
       {
         "play_sound": {
-          "sound": "media/f150.mp3",
+          "sound": "media/tams.mp3",
           "volume": 0.25
         }
       }
