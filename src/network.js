@@ -46,7 +46,6 @@ export class NetworkClient {
 
     this.ws = new WebSocket(wsUrl);
     console.log(`[NetworkClient] 2. WebSocket instantiated. readyState: ${this.ws.readyState}`);
-    window.ws = this.ws;
 
     this.initializeWebSocketListeners(this.ws);
   }
@@ -203,13 +202,21 @@ export class NetworkClient {
   }
 
   /**
+   * Helper utility to safely stringify and dispatch a JSON payload to the server.
+   * @param {Object} payload 
+   */
+  send(payload) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(payload));
+    }
+  }
+
+  /**
    * Send arbitrary chat or command messages upstream.
    * @param {string} msg 
    */
   sendChat(msg) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'chat', message: msg }));
-    }
+    this.send({ type: 'chat', message: msg });
   }
 
   /**
@@ -219,13 +226,13 @@ export class NetworkClient {
   sendCreateCharacter(name) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       console.log(`[NetworkClient] Sending create_character command for name: ${name}`);
-      this.ws.send(JSON.stringify({ type: 'create_character', name: name }));
+      this.send({ type: 'create_character', name: name });
     } else if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
       console.log('[NetworkClient] WebSocket is still connecting. Queuing create_character command until open.');
 
       const onOpenSend = () => {
         console.log(`[NetworkClient] WebSocket resolved! Sending queued create_character command for name: ${name}`);
-        this.ws.send(JSON.stringify({ type: 'create_character', name: name }));
+        this.send({ type: 'create_character', name: name });
         this.ws.removeEventListener('open', onOpenSend);
       };
 
@@ -274,9 +281,7 @@ export class NetworkClient {
       window.init.characters[charIndex].name = player.name; // Keep name synced
       window.init.characters[charIndex].emote = player.emote;
 
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'update', character: window.init.characters[charIndex] }));
-      }
+      this.send({ type: 'update', character: window.init.characters[charIndex] });
     }
   }
 }

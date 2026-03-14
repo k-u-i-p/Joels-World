@@ -1,7 +1,8 @@
 import { gameLoop } from './gameloop.js';
 import { player, camera } from './main.js';
+import { networkClient } from './network.js';
 
-window.isAdmin = true;
+networkClient.isAdmin = true;
 
 console.log('Setting up admin');
 
@@ -205,29 +206,23 @@ if (adminPanelHandle) {
 }
 
 document.getElementById('btn-create-obj-rect').onclick = () => {
-  if (window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'create_object', shape: 'rect', x: Math.round(player.x), y: Math.round(player.y), width: 100, length: 100 }));
-  }
+  networkClient.send({ type: 'create_object', shape: 'rect', x: Math.round(player.x), y: Math.round(player.y), width: 100, length: 100 });
 };
 
 document.getElementById('btn-create-obj-circle').onclick = () => {
-  if (window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'create_object', shape: 'circle', x: Math.round(player.x), y: Math.round(player.y), width: 100, length: 100 }));
-  }
+  networkClient.send({ type: 'create_object', shape: 'circle', x: Math.round(player.x), y: Math.round(player.y), width: 100, length: 100 });
 };
 
 document.getElementById('btn-create-npc').onclick = () => {
-  if (window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'create_npc', x: Math.round(player.x), y: Math.round(player.y) }));
-  }
+  networkClient.send({ type: 'create_npc', x: Math.round(player.x), y: Math.round(player.y) });
 };
 
 document.getElementById('btn-delete-obj').onclick = () => {
   const selected = window.selectedObject.get();
-  if (selected && window.ws.readyState === WebSocket.OPEN) {
+  if (selected) {
     const identifier = selected.name || selected.id;
     if (window.confirm(`Are you sure you want to delete ${identifier}?`)) {
-      window.ws.send(JSON.stringify({ type: 'delete_object', id: selected.id }));
+      networkClient.send({ type: 'delete_object', id: selected.id });
       window.selectedObject.set(null);
 
       updateAdminPanel();
@@ -237,10 +232,10 @@ document.getElementById('btn-delete-obj').onclick = () => {
 
 document.getElementById('btn-delete-npc').onclick = () => {
   const selected = window.selectedNpc.get();
-  if (selected && window.ws.readyState === WebSocket.OPEN) {
+  if (selected) {
     const identifier = selected.name || selected.id;
     if (window.confirm(`Are you sure you want to delete ${identifier}?`)) {
-      window.ws.send(JSON.stringify({ type: 'delete_npc', id: selected.id }));
+      networkClient.send({ type: 'delete_npc', id: selected.id });
       window.selectedNpc.set(null);
 
       updateAdminPanel();
@@ -631,34 +626,28 @@ window.addEventListener('mousemove', (e) => {
 
 window.addEventListener('mouseup', () => {
   if (isResizingObject && window.selectedObject.get()) {
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({
-        type: 'resize_object',
-        id: window.selectedObject.get().id,
-        width: window.selectedObject.get().width,
-        length: window.selectedObject.get().length,
-        x: window.selectedObject.get().x,
-        y: window.selectedObject.get().y
-      }));
-    }
+    networkClient.send({
+      type: 'resize_object',
+      id: window.selectedObject.get().id,
+      width: window.selectedObject.get().width,
+      length: window.selectedObject.get().length,
+      x: window.selectedObject.get().x,
+      y: window.selectedObject.get().y
+    });
   } else if (isDraggingObject && window.selectedObject.get()) {
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({
-        type: 'move_object',
-        id: window.selectedObject.get().id,
-        x: window.selectedObject.get().x,
-        y: window.selectedObject.get().y
-      }));
-    }
+    networkClient.send({
+      type: 'move_object',
+      id: window.selectedObject.get().id,
+      x: window.selectedObject.get().x,
+      y: window.selectedObject.get().y
+    });
   } else if (isDraggingNpc && window.selectedNpc.get()) {
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({
-        type: 'move_npc',
-        id: window.selectedNpc.get().id,
-        x: window.selectedNpc.get().x,
-        y: window.selectedNpc.get().y
-      }));
-    }
+    networkClient.send({
+      type: 'move_npc',
+      id: window.selectedNpc.get().id,
+      x: window.selectedNpc.get().x,
+      y: window.selectedNpc.get().y
+    });
   }
   isDraggingObject = false;
   isResizingObject = false;
@@ -729,23 +718,19 @@ window.addEventListener('paste', (e) => {
   const worldY = Math.round((mouseY - canvas.height / 2) / camera.zoom + camera.y);
 
   if (adminClipboard.type === 'object') {
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({ 
-        type: 'create_object', 
-        x: worldX, 
-        y: worldY,
-        cloneData: adminClipboard.data 
-      }));
-    }
+    networkClient.send({ 
+      type: 'create_object', 
+      x: worldX, 
+      y: worldY,
+      cloneData: adminClipboard.data 
+    });
   } else if (adminClipboard.type === 'npc') {
-    if (window.ws.readyState === WebSocket.OPEN) {
-      window.ws.send(JSON.stringify({ 
-        type: 'create_npc', 
-        x: worldX, 
-        y: worldY,
-        cloneData: adminClipboard.data 
-      }));
-    }
+    networkClient.send({ 
+      type: 'create_npc', 
+      x: worldX, 
+      y: worldY,
+      cloneData: adminClipboard.data 
+    });
   }
 });
 

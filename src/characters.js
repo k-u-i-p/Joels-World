@@ -113,6 +113,93 @@ export class CharacterManager {
   }
 
   /**
+   * Helper method rendering the shared visual anatomy of a human character based on limb positions.
+   * @param {CanvasRenderingContext2D} ctx - The canvas graphics context.
+   * @param {Object} c - The character data including colors and gender.
+   * @param {Object} limbs - Pre-calculated limb position coordinates.
+   */
+  drawHumanoid(ctx, c, limbs) {
+    const shoeColor = c.shoeColor || '#1a252f';
+    this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
+    this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
+
+    // Gradient for arms (cylindrical simulation)
+    const armGradient = ctx.createLinearGradient(0, -11, 0, limbs.leftArmY);
+    armGradient.addColorStop(0, c.armColor || '#3498db');
+    armGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
+
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = armGradient;
+
+    this.drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
+
+    const rightArmGradient = ctx.createLinearGradient(0, 11, 0, limbs.rightArmY);
+    rightArmGradient.addColorStop(0, c.armColor || '#3498db');
+    rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
+    ctx.strokeStyle = rightArmGradient;
+    this.drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
+
+    const leftHandGrad = ctx.createRadialGradient(limbs.leftArmX, limbs.leftArmY - 1, 0.5, limbs.leftArmX, limbs.leftArmY, 3);
+    leftHandGrad.addColorStop(0, '#f5d39e');
+    leftHandGrad.addColorStop(0.6, '#e0ab63');
+    leftHandGrad.addColorStop(1, '#a67232');
+    ctx.fillStyle = leftHandGrad;
+    ctx.beginPath();
+    ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
+    ctx.fill();
+
+    const rightHandGrad = ctx.createRadialGradient(limbs.rightArmX, limbs.rightArmY - 1, 0.5, limbs.rightArmX, limbs.rightArmY, 3);
+    rightHandGrad.addColorStop(0, '#f5d39e');
+    rightHandGrad.addColorStop(0.6, '#e0ab63');
+    rightHandGrad.addColorStop(1, '#a67232');
+    ctx.fillStyle = rightHandGrad;
+    ctx.beginPath();
+    ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
+    ctx.fill();
+
+    // Gradient for the body (torso cylinder)
+    const bodyGradient = ctx.createLinearGradient(-8, 0, 8, 0);
+    bodyGradient.addColorStop(0, c.shirtColor || '#3498db');
+    bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20)); // Highlight
+    bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));  // Core shadow
+    ctx.fillStyle = bodyGradient;
+
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(-8, -12, 16, 24, 6);
+      ctx.fill();
+    } else {
+      ctx.fillRect(-8, -12, 16, 24);
+    }
+
+    ctx.beginPath();
+    ctx.arc(2, 0, 8, 0, PI2);
+    // Spherical radial gradient for the head
+    const headGradient = ctx.createRadialGradient(0, -2, 2, 2, 0, 8);
+    headGradient.addColorStop(0, '#f5d39e'); // Specular highlight
+    headGradient.addColorStop(0.6, '#e0ab63'); // Base skin tone
+    headGradient.addColorStop(1, '#a67232'); // Shadow rim
+    ctx.fillStyle = headGradient;
+    ctx.fill();
+
+    if (c.gender === 'female') {
+      // Hair with gradient shine
+      const hairGradient = ctx.createLinearGradient(-6, -7, 6, 7);
+      hairGradient.addColorStop(0, '#e67e22');
+      hairGradient.addColorStop(0.4, '#f0a35b'); // Shine
+      hairGradient.addColorStop(1, '#a15513'); // Shadow
+      ctx.fillStyle = hairGradient;
+      ctx.beginPath();
+      ctx.arc(1, 0, 7, PI_HALF, PI_ONE_HALF, true);
+      ctx.fill();
+    }
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.stroke();
+  }
+
+  /**
    * Optimizes static NPC rendering by painting them onto an OffscreenCanvas once, 
    * then returning that canvas to be cheaply drawn each frame.
    * @param {Object} c - The character object data.
@@ -147,85 +234,7 @@ export class CharacterManager {
       rightLegEndX: 4, rightLegEndY: 6
     };
 
-    const shoeColor = c.shoeColor || '#1a252f';
-    this.drawShoe(octx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
-    this.drawShoe(octx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
-
-    // Gradient for arms (cylindrical simulation)
-    const armGradient = octx.createLinearGradient(0, -11, 0, limbs.leftArmY);
-    armGradient.addColorStop(0, c.armColor || '#3498db');
-    armGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
-
-    octx.lineWidth = 5;
-    octx.strokeStyle = armGradient;
-
-    this.drawLine(octx, 0, -11, limbs.leftArmX, limbs.leftArmY);
-
-    const rightArmGradient = octx.createLinearGradient(0, 11, 0, limbs.rightArmY);
-    rightArmGradient.addColorStop(0, c.armColor || '#3498db');
-    rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
-    octx.strokeStyle = rightArmGradient;
-
-    this.drawLine(octx, 0, 11, limbs.rightArmX, limbs.rightArmY);
-
-    const leftHandGrad = octx.createRadialGradient(limbs.leftArmX, limbs.leftArmY - 1, 0.5, limbs.leftArmX, limbs.leftArmY, 3);
-    leftHandGrad.addColorStop(0, '#f5d39e');
-    leftHandGrad.addColorStop(0.6, '#e0ab63');
-    leftHandGrad.addColorStop(1, '#a67232');
-    octx.fillStyle = leftHandGrad;
-    octx.beginPath();
-    octx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
-    octx.fill();
-
-    const rightHandGrad = octx.createRadialGradient(limbs.rightArmX, limbs.rightArmY - 1, 0.5, limbs.rightArmX, limbs.rightArmY, 3);
-    rightHandGrad.addColorStop(0, '#f5d39e');
-    rightHandGrad.addColorStop(0.6, '#e0ab63');
-    rightHandGrad.addColorStop(1, '#a67232');
-    octx.fillStyle = rightHandGrad;
-    octx.beginPath();
-    octx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
-    octx.fill();
-
-    // Gradient for the body (torso cylinder)
-    const bodyGradient = octx.createLinearGradient(-8, 0, 8, 0);
-    bodyGradient.addColorStop(0, c.shirtColor || '#3498db');
-    bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20)); // Highlight
-    bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));  // Core shadow
-    octx.fillStyle = bodyGradient;
-
-    if (octx.roundRect) {
-      octx.beginPath();
-      octx.roundRect(-8, -12, 16, 24, 6);
-      octx.fill();
-    } else {
-      octx.fillRect(-8, -12, 16, 24);
-    }
-
-    octx.beginPath();
-    octx.arc(2, 0, 8, 0, PI2);
-    // Spherical radial gradient for the head
-    const headGradient = octx.createRadialGradient(0, -2, 2, 2, 0, 8);
-    headGradient.addColorStop(0, '#f5d39e'); // Specular highlight
-    headGradient.addColorStop(0.6, '#e0ab63'); // Base skin tone
-    headGradient.addColorStop(1, '#a67232'); // Shadow rim
-    octx.fillStyle = headGradient;
-    octx.fill();
-
-    if (c.gender === 'female') {
-      // Hair with gradient shine
-      const hairGradient = octx.createLinearGradient(-6, -7, 6, 7);
-      hairGradient.addColorStop(0, '#e67e22');
-      hairGradient.addColorStop(0.4, '#f0a35b'); // Shine
-      hairGradient.addColorStop(1, '#a15513'); // Shadow
-      octx.fillStyle = hairGradient;
-      octx.beginPath();
-      octx.arc(1, 0, 7, PI_HALF, PI_ONE_HALF, true);
-      octx.fill();
-    }
-
-    octx.lineWidth = 2;
-    octx.strokeStyle = 'rgba(0,0,0,0.4)';
-    octx.stroke();
+    this.drawHumanoid(octx, c, limbs);
 
     c.prerenderedScaleX = scaleX;
     c.prerenderedScaleY = scaleY;
@@ -324,84 +333,7 @@ export class CharacterManager {
             emoteDef.updateLimbs(limbs, currentEmote);
           }
 
-          const legShoeColor = c.shoeColor || '#1a252f';
-          this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, legShoeColor, true);
-          this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, legShoeColor, false);
-
-          // Gradient for arms (cylindrical simulation)
-          const armGradient = ctx.createLinearGradient(0, -11, 0, limbs.leftArmY);
-          armGradient.addColorStop(0, c.armColor || '#3498db');
-          armGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
-
-          ctx.lineWidth = 5;
-          ctx.strokeStyle = armGradient;
-
-          this.drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
-
-          const rightArmGradient = ctx.createLinearGradient(0, 11, 0, limbs.rightArmY);
-          rightArmGradient.addColorStop(0, c.armColor || '#3498db');
-          rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
-          ctx.strokeStyle = rightArmGradient;
-          this.drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
-
-          const leftHandGrad = ctx.createRadialGradient(limbs.leftArmX, limbs.leftArmY - 1, 0.5, limbs.leftArmX, limbs.leftArmY, 3);
-          leftHandGrad.addColorStop(0, '#f5d39e');
-          leftHandGrad.addColorStop(0.6, '#e0ab63');
-          leftHandGrad.addColorStop(1, '#a67232');
-          ctx.fillStyle = leftHandGrad;
-          ctx.beginPath();
-          ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
-          ctx.fill();
-
-          const rightHandGrad = ctx.createRadialGradient(limbs.rightArmX, limbs.rightArmY - 1, 0.5, limbs.rightArmX, limbs.rightArmY, 3);
-          rightHandGrad.addColorStop(0, '#f5d39e');
-          rightHandGrad.addColorStop(0.6, '#e0ab63');
-          rightHandGrad.addColorStop(1, '#a67232');
-          ctx.fillStyle = rightHandGrad;
-          ctx.beginPath();
-          ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
-          ctx.fill();
-
-          // Gradient for the body (torso cylinder)
-          const bodyGradient = ctx.createLinearGradient(-8, 0, 8, 0);
-          bodyGradient.addColorStop(0, c.shirtColor || '#3498db');
-          bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20)); // Highlight
-          bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));  // Core shadow
-          ctx.fillStyle = bodyGradient;
-          if (ctx.roundRect) {
-            ctx.beginPath();
-            ctx.roundRect(-8, -12, 16, 24, 6);
-            ctx.fill();
-          } else {
-            ctx.fillRect(-8, -12, 16, 24);
-          }
-
-          ctx.beginPath();
-          ctx.arc(2, 0, 8, 0, PI2);
-
-          // Spherical radial gradient for the head
-          const headGradient = ctx.createRadialGradient(0, -2, 2, 2, 0, 8);
-          headGradient.addColorStop(0, '#f5d39e'); // Specular highlight
-          headGradient.addColorStop(0.6, '#e0ab63'); // Base skin tone
-          headGradient.addColorStop(1, '#a67232'); // Shadow rim
-          ctx.fillStyle = headGradient;
-          ctx.fill();
-
-          if (c.gender === 'female') {
-            // Hair with gradient shine
-            const hairGradient = ctx.createLinearGradient(-6, -7, 6, 7);
-            hairGradient.addColorStop(0, '#e67e22');
-            hairGradient.addColorStop(0.4, '#f0a35b'); // Shine
-            hairGradient.addColorStop(1, '#a15513'); // Shadow
-            ctx.fillStyle = hairGradient;
-            ctx.beginPath();
-            ctx.arc(1, 0, 7, PI_HALF, PI_ONE_HALF, true);
-            ctx.fill();
-          }
-
-          ctx.lineWidth = 2;
-          ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-          ctx.stroke();
+          this.drawHumanoid(ctx, c, limbs);
 
           if (emoteDef && emoteDef.draw) {
             emoteDef.draw(ctx, currentEmote);

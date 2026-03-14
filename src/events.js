@@ -1,4 +1,5 @@
 import { soundManager } from './sound.js';
+import { networkClient } from './network.js';
 
 export const EventHandlers = {
   avatar: (sourceObj, payload, context) => {
@@ -69,9 +70,7 @@ export const EventHandlers = {
         if (payload.type === 'change_map') {
           const mapId = Number(payload.map);
           if (!isNaN(mapId)) {
-            if (window.ws.readyState === WebSocket.OPEN) {
-              window.ws.send(JSON.stringify({ type: 'change_map', mapId: mapId }));
-            }
+            networkClient.send({ type: 'change_map', mapId: mapId });
           } else {
             console.warn("Invalid map ID provided:", payload.map);
           }
@@ -146,9 +145,7 @@ export const EventHandlers = {
         } else {
           msg = msg.replace(/{name}/g, 'Student');
         }
-        if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-          window.ws.send(JSON.stringify({ type: 'log', message: msg }));
-        }
+        networkClient.send({ type: 'log', message: msg });
       }
     }
   }

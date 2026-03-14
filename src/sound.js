@@ -132,4 +132,3 @@ export function initSound() {
   window.addEventListener('keydown', unlockAudio, { once: true });
 }
 
-window.soundManager = soundManager;
