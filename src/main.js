@@ -11,7 +11,11 @@ import { gameLoop } from './gameloop.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-window.cameraZoom = 1;
+export const camera = {
+  x: 0,
+  y: 0,
+  zoom: 1
+};
 
 // --- WEBSOCKET CLIENT ---
 networkClient.connect((data) => {
@@ -66,7 +70,7 @@ window.addEventListener('chatSubmit', (e) => {
 initSound();
 
 // Player Entity
-let player = {
+export const player = {
   id: 0,
   moveSpeed: 3,
   rotationSpeed: 3,
@@ -82,7 +86,6 @@ let player = {
   height: 40,
   rotation: 0
 };
-window.player = player;
 
 // Initialization Object
 window.init = null;
@@ -261,8 +264,8 @@ function executeEvents(sourceObj, rawActions, eventType = 'on_enter') {
  * draws the map, all visible characters, and user interface elements.
  */
 function draw() {
-  window.cameraX = player.x;
-  window.cameraY = player.y;
+  camera.x = player.x;
+  camera.y = player.y;
 
   let yOffset = window.visualViewport ? window.visualViewport.offsetTop : 0;
   let xOffset = window.visualViewport ? window.visualViewport.offsetLeft : 0;
@@ -270,8 +273,8 @@ function draw() {
   if (window.init?.mapData?.width && window.init?.mapData?.height) {
     const halfMapW = window.init.mapData.width / 2;
     const halfMapH = window.init.mapData.height / 2;
-    const viewHalfW = (viewportWidth / window.cameraZoom) / 2;
-    const viewHalfH = (viewportHeight / window.cameraZoom) / 2;
+    const viewHalfW = (viewportWidth / camera.zoom) / 2;
+    const viewHalfH = (viewportHeight / camera.zoom) / 2;
 
     const minX = -halfMapW + viewHalfW;
     const maxX = halfMapW - viewHalfW;
@@ -279,15 +282,15 @@ function draw() {
     const maxY = halfMapH - viewHalfH;
 
     if (minX <= maxX) {
-      window.cameraX = Math.max(minX, Math.min(maxX, window.cameraX));
+      camera.x = Math.max(minX, Math.min(maxX, camera.x));
     } else {
-      window.cameraX = 0;
+      camera.x = 0;
     }
 
     if (minY <= maxY) {
-      window.cameraY = Math.max(minY, Math.min(maxY, window.cameraY));
+      camera.y = Math.max(minY, Math.min(maxY, camera.y));
     } else {
-      window.cameraY = 0;
+      camera.y = 0;
     }
   }
 
@@ -298,10 +301,10 @@ function draw() {
   // Camera translation (Centers the world on the player)
   ctx.save();
   ctx.translate(viewportWidth / 2 + xOffset, viewportHeight / 2 + yOffset);
-  ctx.scale(window.cameraZoom, window.cameraZoom);
-  ctx.translate(-window.cameraX, -window.cameraY);
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(-camera.x, -camera.y);
 
-  mapManager.drawLayer(0, ctx, canvas, window.cameraX, window.cameraY, window.cameraZoom);
+  mapManager.drawLayer(0, ctx, canvas, camera.x, camera.y, camera.zoom);
 
   // Render global footprints underneath characters
   const now = Date.now();
@@ -331,11 +334,11 @@ function draw() {
     ctx.restore();
   }
 
-  characterManager.drawCharacters('base', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), window.cameraX, window.cameraY, window.cameraZoom);
+  characterManager.drawCharacters('base', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom);
 
-  mapManager.drawLayer(1, ctx, canvas, window.cameraX, window.cameraY, window.cameraZoom);
+  mapManager.drawLayer(1, ctx, canvas, camera.x, camera.y, camera.zoom);
 
-  characterManager.drawCharacters('overlay', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), window.cameraX, window.cameraY, window.cameraZoom);
+  characterManager.drawCharacters('overlay', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom);
 
   // Restore camera translation
   ctx.restore();
@@ -423,7 +426,7 @@ function handleInitData(data) {
         mapNameDisplay.textContent = mapMetadata.name;
       }
 
-      window.cameraZoom = mapMetadata.default_zoom || 1;
+      camera.zoom = mapMetadata.default_zoom || 1;
 
       mapManager.init(mapMetadata);
 

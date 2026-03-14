@@ -1,4 +1,5 @@
 import { gameLoop } from './gameloop.js';
+import { player, camera } from './main.js';
 
 window.isAdmin = true;
 
@@ -132,7 +133,7 @@ window.selectedObject = {
       handleY = obj.length / 2;
     }
     
-    return Math.hypot(localX - handleX, localY - handleY) <= 15 / (window.cameraZoom || 1);
+    return Math.hypot(localX - handleX, localY - handleY) <= 15 / (camera.zoom || 1);
   }
 };
 
@@ -205,19 +206,19 @@ if (adminPanelHandle) {
 
 document.getElementById('btn-create-obj-rect').onclick = () => {
   if (window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'create_object', shape: 'rect', x: Math.round(window.player.x), y: Math.round(window.player.y), width: 100, length: 100 }));
+    window.ws.send(JSON.stringify({ type: 'create_object', shape: 'rect', x: Math.round(player.x), y: Math.round(player.y), width: 100, length: 100 }));
   }
 };
 
 document.getElementById('btn-create-obj-circle').onclick = () => {
   if (window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'create_object', shape: 'circle', x: Math.round(window.player.x), y: Math.round(window.player.y), width: 100, length: 100 }));
+    window.ws.send(JSON.stringify({ type: 'create_object', shape: 'circle', x: Math.round(player.x), y: Math.round(player.y), width: 100, length: 100 }));
   }
 };
 
 document.getElementById('btn-create-npc').onclick = () => {
   if (window.ws.readyState === WebSocket.OPEN) {
-    window.ws.send(JSON.stringify({ type: 'create_npc', x: Math.round(window.player.x), y: Math.round(window.player.y) }));
+    window.ws.send(JSON.stringify({ type: 'create_npc', x: Math.round(player.x), y: Math.round(player.y) }));
   }
 };
 
@@ -499,8 +500,8 @@ window.addEventListener('mousedown', (e) => {
   lastMouseX = e.clientX;
   lastMouseY = e.clientY;
 
-  const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
-  const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
+  const worldX = (mouseX - canvas.width / 2) / camera.zoom + camera.x;
+  const worldY = (mouseY - canvas.height / 2) / camera.zoom + camera.y;
 
   const lastClickedElem = document.getElementById('admin-last-clicked');
   if (lastClickedElem) {
@@ -567,8 +568,8 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
-    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
+    const worldX = (mouseX - canvas.width / 2) / camera.zoom + camera.x;
+    const worldY = (mouseY - canvas.height / 2) / camera.zoom + camera.y;
 
     const dX = worldX - resizeWorldTlx;
     const dY = worldY - resizeWorldTly;
@@ -593,8 +594,8 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
-    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
+    const worldX = (mouseX - canvas.width / 2) / camera.zoom + camera.x;
+    const worldY = (mouseY - canvas.height / 2) / camera.zoom + camera.y;
 
     window.selectedObject.get().x = Math.round(worldX + dragOffsetX);
     window.selectedObject.get().y = Math.round(worldY + dragOffsetY);
@@ -603,8 +604,8 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
-    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
+    const worldX = (mouseX - canvas.width / 2) / camera.zoom + camera.x;
+    const worldY = (mouseY - canvas.height / 2) / camera.zoom + camera.y;
 
     window.selectedNpc.get().x = Math.round(worldX + dragOffsetX);
     window.selectedNpc.get().y = Math.round(worldY + dragOffsetY);
@@ -613,16 +614,16 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x);
-    const worldY = (mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y);
+    const worldX = (mouseX - canvas.width / 2) / camera.zoom + camera.x;
+    const worldY = (mouseY - canvas.height / 2) / camera.zoom + camera.y;
 
     window.adminBackgroundImage._x = Math.round(worldX + bgDragOffsetX);
     window.adminBackgroundImage._y = Math.round(worldY + bgDragOffsetY);
   } else if (isDraggingBackground) {
-    const dx = (lastMouseX - e.clientX) / window.cameraZoom;
-    const dy = (lastMouseY - e.clientY) / window.cameraZoom;
-    window.player.x += dx;
-    window.player.y += dy;
+    const dx = (lastMouseX - e.clientX) / camera.zoom;
+    const dy = (lastMouseY - e.clientY) / camera.zoom;
+    player.x += dx;
+    player.y += dy;
     lastMouseX = e.clientX;
     lastMouseY = e.clientY;
   }
@@ -671,8 +672,8 @@ window.addEventListener('wheel', (e) => {
   if (e.ctrlKey) {
     e.preventDefault();
     const zoomSensitivity = 0.01;
-    window.cameraZoom -= e.deltaY * zoomSensitivity;
-    window.cameraZoom = Math.max(0.1, Math.min(window.cameraZoom, 5));
+    camera.zoom -= e.deltaY * zoomSensitivity;
+    camera.zoom = Math.max(0.1, Math.min(camera.zoom, 5));
   }
 }, { passive: false });
 
@@ -724,8 +725,8 @@ window.addEventListener('paste', (e) => {
   const mouseX = lastMouseX - canvasRect.left;
   const mouseY = lastMouseY - canvasRect.top;
 
-  const worldX = Math.round((mouseX - canvas.width / 2) / window.cameraZoom + window.cameraX);
-  const worldY = Math.round((mouseY - canvas.height / 2) / window.cameraZoom + window.cameraY);
+  const worldX = Math.round((mouseX - canvas.width / 2) / camera.zoom + camera.x);
+  const worldY = Math.round((mouseY - canvas.height / 2) / camera.zoom + camera.y);
 
   if (adminClipboard.type === 'object') {
     if (window.ws.readyState === WebSocket.OPEN) {
@@ -753,8 +754,8 @@ updateAdminPanel();
 function adminDraw() {
   ctx.save();
   ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.scale(window.cameraZoom, window.cameraZoom);
-  ctx.translate(-window.cameraX, -window.cameraY);
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(-camera.x, -camera.y);
 
   if (window.adminBackgroundImage && window.adminBackgroundImage.complete) {
     ctx.drawImage(window.adminBackgroundImage, window.adminBackgroundImage._x || 0, window.adminBackgroundImage._y || 0);
@@ -798,9 +799,9 @@ function adminDraw() {
 
       ctx.fillStyle = 'white';
       ctx.strokeStyle = 'black';
-      ctx.lineWidth = 2 / window.cameraZoom;
+      ctx.lineWidth = 2 / camera.zoom;
       ctx.beginPath();
-      const s = 10 / window.cameraZoom;
+      const s = 10 / camera.zoom;
       ctx.rect(handleX - s/2, handleY - s/2, s, s);
       ctx.fill();
       ctx.stroke();

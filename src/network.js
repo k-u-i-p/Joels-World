@@ -1,5 +1,6 @@
 import { emotes } from './emotes.js';
 import { uiManager } from './ui.js';
+import { player } from './main.js';
 
 export class NetworkClient {
   constructor() {
@@ -60,7 +61,7 @@ export class NetworkClient {
 
       // Delay showing name dialog slightly to see if we already have a session restored which would instantly fire 'init' packet.
       setTimeout(() => {
-        if (!window.init || (!window.init.mapData && !window.player?.id)) {
+        if (!window.init || (!window.init.mapData && !player?.id)) {
           const nd = document.getElementById('name-dialog');
           if (nd) nd.style.display = 'flex';
         }
@@ -90,7 +91,6 @@ export class NetworkClient {
           if (this.onInitDataCallback) this.onInitDataCallback(data);
         } else if (data.type === 'update' || data.type === 'tick') {
           const charactersToUpdate = data.type === 'tick' ? data.characters : [data.character];
-          const player = window.player;
 
           charactersToUpdate.forEach(serverChar => {
             if (player && serverChar.id === player.id) return; // Prevent echoing our own state
@@ -132,7 +132,6 @@ export class NetworkClient {
         } else if (data.type === 'disconnect') {
           if (window.init?.characters) window.init.characters = window.init.characters.filter(c => c.id !== data.id);
         } else if (data.type === 'chat') {
-          const player = window.player;
           let senderName = `User ${data.id}`;
 
           // Check human characters first
@@ -265,7 +264,6 @@ export class NetworkClient {
    * synchronized state towards the server.
    */
   doSyncPlayerToJSON() {
-    const player = window.player;
     if (!player) return;
 
     const charIndex = (window.init?.characters || []).findIndex(c => c.id === player.id);

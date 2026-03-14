@@ -1,3 +1,6 @@
+import { uiManager } from './ui.js';
+import { player } from './main.js';
+
 export class InputManager {
   constructor() {
     this.keys = {
@@ -167,8 +170,8 @@ export class InputManager {
       if (distance > 10) {
         this.keys.TouchMove = true;
         // Direct global override for player targeting rotation immediately
-        if (window.player) {
-           window.player.rotation = angle * 180 / Math.PI;
+        if (player) {
+           player.rotation = angle * 180 / Math.PI;
         }
       }
     };
