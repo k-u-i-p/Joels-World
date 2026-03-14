@@ -16,7 +16,7 @@ export class NetworkClient {
    */
   connect(onInitDataCallback) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}?admin=${this.isAdmin}`;
+    const wsUrl = `${protocol}//${window.location.host}`;
     
     this.ws = new WebSocket(wsUrl);
     window.ws = this.ws;
