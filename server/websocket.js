@@ -362,25 +362,7 @@ export function setupWebSocket(server) {
             });
 
             // Send init to immediately reset the client seamlessly
-            ws.send(JSON.stringify({
-              type: 'init',
-              characters: Object.values(mapData.characters),
-              npcs: mapData.npcs,
-              objects: mapData.objects,
-              myCharacter: oldChar,
-              mapData: {
-                id: mapData.id,
-                name: mapData.name,
-                width: mapData.width,
-                height: mapData.height,
-                layers: mapData.layers,
-                clip_mask: mapData.clip_mask,
-                character_scale: mapData.character_scale || 1,
-                default_zoom: mapData.default_zoom || 1,
-                on_enter: mapData.on_enter
-              },
-              mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
-            }));
+            sendInitPayload(mapData, oldChar);
           }
         } else if (data.type === 'log') {
           appendToLog(mapData, {
