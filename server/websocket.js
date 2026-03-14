@@ -402,6 +402,10 @@ export function setupWebSocket(server, sessionMiddleware) {
             oldChar.y = spawnY;
             oldChar.emote = null;
 
+            if (session && session.player) {
+              session.save();
+            }
+
             mapData.characters[ws.clientId] = oldChar;
             mapData.dirtyCharacters[ws.clientId] = oldChar;
             mapData.clients.add(ws);
