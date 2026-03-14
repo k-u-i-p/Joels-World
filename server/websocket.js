@@ -424,8 +424,8 @@ export function setupWebSocket(server, sessionMiddleware) {
     });
 
     ws.on('close', () => {
-      console.log('Client disconnected', ws.clientId);
       if (ws.clientId) {
+        console.log('Client disconnected', ws.clientId);
         
         let isReconnected = false;
         for (const client of mapData.clients) {
