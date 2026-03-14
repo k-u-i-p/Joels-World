@@ -423,16 +423,29 @@ export function setupWebSocket(server) {
     });
 
     ws.on('close', () => {
-      console.log('Client disconnected');
+      console.log('Client disconnected', ws.clientId);
       if (ws.clientId) {
-        delete mapData.characters[ws.clientId];
-        delete mapData.dirtyCharacters[ws.clientId];
-        const broadcastMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
-        mapData.clients.forEach(client => {
-          if (client.readyState === 1) {
-            client.send(broadcastMsg);
-          }
-        });
+        
+        let isReconnected = false;
+        for (const client of mapData.clients) {
+            if (client !== ws && client.readyState === 1 && client.clientId === ws.clientId) {
+                isReconnected = true;
+                break;
+            }
+        }
+
+        if (!isReconnected) {
+          delete mapData.characters[ws.clientId];
+          delete mapData.dirtyCharacters[ws.clientId];
+          const broadcastMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
+          mapData.clients.forEach(client => {
+            if (client !== ws && client.readyState === 1) {
+              client.send(broadcastMsg);
+            }
+          });
+        } else {
+          console.log(`Client ${ws.clientId} closed, but a new active socket was found. Skipping deletion.`);
+        }
       }
       mapData.clients.delete(ws);
     });
