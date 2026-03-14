@@ -27,6 +27,33 @@
         ]
       }
     ],
-    "shoeColor": "#7f8c8d"
+    "shoeColor": "#7f8c8d",
+    "emote": null
+  },
+  {
+    "id": 2,
+    "name": "Olly",
+    "x": -270,
+    "y": -184,
+    "width": 40,
+    "height": 40,
+    "rotation": -90,
+    "shirtColor": "#3498db",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "on_enter": [
+      {
+        "say": [
+          "when wiill this end"
+        ]
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "the answer is mr hardy is a idiot"
+        ]
+      }
+    ]
   }
 ]
