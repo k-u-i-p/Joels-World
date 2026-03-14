@@ -181,81 +181,108 @@ export function setupWebSocket(server) {
     globalPlayerIdCounter = currentMaxId + 1;
     if (globalPlayerIdCounter < 255) globalPlayerIdCounter = 255;
 
-    const newPlayerId = globalPlayerIdCounter++;
-    ws.clientId = newPlayerId;
+    // Helper functions for character generation
+    const generateSpawnCoords = (currentMapData) => {
+      let spawnX = Math.round(Math.random() * 800 + 100);
+      let spawnY = Math.round(Math.random() * 600 + 100);
 
-    let spawnX = Math.round(Math.random() * 800 + 100);
-    let spawnY = Math.round(Math.random() * 600 + 100);
-
-    if (mapData.spawn_area && mapData.objects) {
-      const spawnObj = mapData.objects.find(o => o.id === mapData.spawn_area);
-      if (spawnObj && spawnObj.shape === 'rect') {
-        const halfW = spawnObj.width / 2;
-        const halfL = spawnObj.length / 2;
-        spawnX = Math.round(spawnObj.x - halfW + Math.random() * spawnObj.width);
-        spawnY = Math.round(spawnObj.y - halfL + Math.random() * spawnObj.length);
+      if (currentMapData.spawn_area && currentMapData.objects) {
+        const spawnObj = currentMapData.objects.find(o => o.id === currentMapData.spawn_area);
+        if (spawnObj && spawnObj.shape === 'rect') {
+          const halfW = spawnObj.width / 2;
+          const halfL = spawnObj.length / 2;
+          spawnX = Math.round(spawnObj.x - halfW + Math.random() * spawnObj.width);
+          spawnY = Math.round(spawnObj.y - halfL + Math.random() * spawnObj.length);
+        }
       }
-    }
-
-    // Retrieve player name from query params (default to Admin if empty and is admin session)
-    let playerName = urlParams.get('name') || '';
-    if (!playerName && ws.isAdmin) {
-      playerName = 'Admin';
-    }
-
-    if (!ws.isAdmin && (!playerName || !/^[a-zA-Z]+$/.test(playerName))) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Invalid Name. Please use only English letters with no spaces or symbols.' }));
-      ws.close();
-      return;
-    }
-
-    const newChar = {
-      id: newPlayerId,
-      name: playerName.substring(0, 15), // Basic clamp
-      x: spawnX,
-      y: spawnY,
-      width: 40,
-      height: 40,
-      rotation: 0,
-      gender: Math.random() > 0.5 ? 'male' : 'female',
-      shirtColor: getRandomColor(),
-      pantsColor: getRandomColor(),
-      armColor: getRandomColor(),
-      shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)]
+      return { spawnX, spawnY };
     };
 
-    mapData.characters[newPlayerId] = newChar;
+    const sendInitPayload = (activeMapData, myChar) => {
+      ws.send(JSON.stringify({
+        type: 'init',
+        characters: Object.values(activeMapData.characters),
+        npcs: activeMapData.npcs,
+        objects: activeMapData.objects,
+        myCharacter: myChar,
+        mapData: {
+          id: activeMapData.id,
+          name: activeMapData.name,
+          width: activeMapData.width,
+          height: activeMapData.height,
+          layers: activeMapData.layers,
+          clip_mask: activeMapData.clip_mask,
+          character_scale: activeMapData.character_scale || 1,
+          default_zoom: activeMapData.default_zoom || 1,
+          on_enter: activeMapData.on_enter
+        },
+        mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
+      }));
+    };
 
-    ws.send(JSON.stringify({
-      type: 'init',
-      characters: Object.values(mapData.characters),
-      npcs: mapData.npcs,
-      objects: mapData.objects,
-      myCharacter: newChar,
-      mapData: {
-        id: mapData.id,
-        name: mapData.name,
-        width: mapData.width,
-        height: mapData.height,
-        layers: mapData.layers,
-        clip_mask: mapData.clip_mask,
-        character_scale: mapData.character_scale || 1,
-        default_zoom: mapData.default_zoom || 1,
-        on_enter: mapData.on_enter
-      },
-      mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
-    }));
-
-    mapData.dirtyCharacters[newPlayerId] = newChar;
-
-    appendToLog(mapData, {
-      player_id: newPlayerId,
-      message: `${newChar.name || 'Student'} entered the map`
-    });
+    // If the session already has an attached character, boot them into the game instantly.
+    if (session && session.player) {
+      ws.clientId = session.player.id;
+      mapData.characters[ws.clientId] = session.player;
+      mapData.dirtyCharacters[ws.clientId] = session.player;
+      
+      console.log(`Resuming session character ${session.player.name} (${ws.clientId})`);
+      sendInitPayload(mapData, session.player);
+    }
 
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message);
+
+        if (data.type === 'create_character') {
+          // If they already have a session char, ignore
+          if (session && session.player) return;
+
+          let playerName = data.name || '';
+          if (!playerName && ws.isAdmin) playerName = 'Admin';
+
+          if (!ws.isAdmin && (!playerName || !/^[a-zA-Z]+$/.test(playerName))) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Invalid Name. Please use only English letters with no spaces or symbols.' }));
+            ws.close();
+            return;
+          }
+
+          const newPlayerId = globalPlayerIdCounter++;
+          ws.clientId = newPlayerId;
+
+          const { spawnX, spawnY } = generateSpawnCoords(mapData);
+
+          const newChar = {
+            id: newPlayerId,
+            name: playerName.substring(0, 15),
+            x: spawnX,
+            y: spawnY,
+            width: 40,
+            height: 40,
+            rotation: 0,
+            gender: Math.random() > 0.5 ? 'male' : 'female',
+            shirtColor: getRandomColor(),
+            pantsColor: getRandomColor(),
+            armColor: getRandomColor(),
+            shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)]
+          };
+
+          if (session) session.player = newChar;
+
+          mapData.characters[newPlayerId] = newChar;
+          mapData.dirtyCharacters[newPlayerId] = newChar;
+          
+          sendInitPayload(mapData, newChar);
+          
+          appendToLog(mapData, {
+            player_id: newPlayerId,
+            message: `${newChar.name || 'Student'} entered the map`
+          });
+          return;
+        }
+
+        // Drop all standard gameplay packets if they don't have a spawned character yet
+        if (!ws.clientId || !mapData.characters[ws.clientId]) return;
 
         if (data.type === 'update') {
           const char = data.character;

@@ -14,11 +14,9 @@ export class NetworkClient {
    * Initializes WebSocket connections and sets up event routers.
    * @param {Function} onInitDataCallback Callback for when the server sends initial map and entity state.
    */
-  connect(onInitDataCallback, playerName = '') {
+  connect(onInitDataCallback) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Append the name as a query parameter
-    const encodedName = encodeURIComponent(playerName);
-    const wsUrl = `${protocol}//${window.location.host}?name=${encodedName}&admin=${this.isAdmin}`;
+    const wsUrl = `${protocol}//${window.location.host}?admin=${this.isAdmin}`;
     
     this.ws = new WebSocket(wsUrl);
     window.ws = this.ws;
@@ -119,6 +117,16 @@ export class NetworkClient {
   sendChat(msg) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'chat', message: msg }));
+    }
+  }
+
+  /**
+   * Initializes a brand new non-admin playing character based on the naming dialog.
+   * @param {string} name 
+   */
+  sendCreateCharacter(name) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'create_character', name: name }));
     }
   }
 

@@ -13,7 +13,9 @@ const ctx = canvas.getContext('2d');
 window.cameraZoom = 1;
 
 // --- WEBSOCKET CLIENT ---
-// Connection is now deferred until the player chooses a name and clicks Start Game.
+networkClient.connect((data) => {
+  handleInitData(data);
+});
 
 let viewportWidth = window.innerWidth;
 let viewportHeight = window.innerHeight;
@@ -626,20 +628,8 @@ window.gameStarted = window.isAdmin || false;
 const { nameDialog, nameInput, startBtn } = uiManager.initLobby((playerName) => {
   if (playerName) {
     player.name = playerName;
+    networkClient.sendCreateCharacter(playerName);
   }
-  
-  // Initiate network connection now that we have a name
-  networkClient.connect((data) => {
-    handleInitData(data);
-    
-    // Now that we have the init payload, setup the game loop
-    window.gameStarted = true;
-    if (window.init.mapData && window.init.mapData.on_enter) {
-      executeEvents(window.init.mapData, window.init.mapData.on_enter);
-    }
-    checkInitialSpawn();
-    requestAnimationFrame(gameLoop); // Kick off the game loop
-  }, player.name);
 });
 
 /**
@@ -655,6 +645,22 @@ function handleInitData(data) {
     if (!window.init.npcs) window.init.npcs = [];
     activeNpc = null;
     if (window.selectedObject) window.selectedObject.set(null);
+
+    // Bypassing the local UI lobby if a session successfully resumed
+    const nameDialog = document.getElementById('name-dialog');
+    if (nameDialog) nameDialog.style.display = 'none';
+      
+    const topUi = document.getElementById('top-center-ui');
+    if (topUi) topUi.style.display = 'flex';
+
+    if (!window.gameStarted) {
+      window.gameStarted = true;
+      if (window.init.mapData && window.init.mapData.on_enter) {
+        executeEvents(window.init.mapData, window.init.mapData.on_enter);
+      }
+      checkInitialSpawn();
+      requestAnimationFrame(gameLoop);
+    }
 
     const avatarsContainer = uiManager.avatarsContainer;
     if (avatarsContainer) {
