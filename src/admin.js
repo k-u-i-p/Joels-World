@@ -724,8 +724,8 @@ window.addEventListener('paste', (e) => {
   const mouseX = lastMouseX - canvasRect.left;
   const mouseY = lastMouseY - canvasRect.top;
 
-  const worldX = Math.round((mouseX - canvas.width / 2) / window.cameraZoom + (window.cameraX ?? window.player.x));
-  const worldY = Math.round((mouseY - canvas.height / 2) / window.cameraZoom + (window.cameraY ?? window.player.y));
+  const worldX = Math.round((mouseX - canvas.width / 2) / window.cameraZoom + window.cameraX);
+  const worldY = Math.round((mouseY - canvas.height / 2) / window.cameraZoom + window.cameraY);
 
   if (adminClipboard.type === 'object') {
     if (window.ws.readyState === WebSocket.OPEN) {

@@ -153,3 +153,22 @@ export const EventHandlers = {
     }
   }
 };
+
+export function processEvents(sourceObj, rawActions, eventType, context) {
+  let actions = rawActions;
+  if (typeof rawActions === 'number') {
+    const parentObj = window.init?.objects?.find(o => o.id === rawActions);
+    if (!parentObj || !parentObj[eventType]) return;
+    actions = parentObj[eventType];
+  }
+
+  if (!actions || !Array.isArray(actions)) return;
+
+  for (const action of actions) {
+    for (const [key, payload] of Object.entries(action)) {
+      if (EventHandlers[key]) {
+        EventHandlers[key](sourceObj, payload, context);
+      }
+    }
+  }
+}

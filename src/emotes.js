@@ -1,3 +1,5 @@
+import { footprints } from './main.js';
+
 export const emotes = {
   bounce: {
     duration: 3600000, // 1 hour duration
@@ -17,7 +19,6 @@ export const emotes = {
     duration: 10000,
     message: "{name} is dripping wet",
     setup: (ctx, emote, c) => {
-      window.footprints = window.footprints || [];
       if (!c._lastFootprintCoords) {
         c._lastFootprintCoords = { x: c.x, y: c.y, leg: 'left' };
       }
@@ -29,7 +30,7 @@ export const emotes = {
       // Drop footprint every 15 pixels of movement
       if (distSq > Math.pow(15, 2)) {
         const isLeft = c._lastFootprintCoords.leg === 'left';
-        window.footprints.push({
+        footprints.push({
           x: c.x,
           y: c.y,
           rot: c.rotation,

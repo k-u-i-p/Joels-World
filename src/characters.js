@@ -31,6 +31,88 @@ function shadeColor(color, percent) {
 
 export class CharacterManager {
   /**
+   * Helper method to stroke a path line between two coordinates.
+   */
+  drawLine(ctxObj, sx, sy, ex, ey) {
+    ctxObj.beginPath();
+    ctxObj.moveTo(sx, sy);
+    ctxObj.lineTo(ex, ey);
+    ctxObj.stroke();
+  }
+
+  /**
+   * Helper method rendering hyper-realistic 3D shoes with lighting gradients.
+   */
+  drawShoe(ctxObj, x, y, color, isLeft) {
+    const dirY = isLeft ? -1 : 1; // Used to mirror asymmetry
+
+    // 1. Draw distinct Sole (Offset slightly down and back)
+    ctxObj.fillStyle = '#7f8c8d'; // Dark grey sole
+    ctxObj.beginPath();
+    ctxObj.moveTo(x - 2, y - 3.5);
+    ctxObj.lineTo(x + 5.5, y - 3.5);
+    // Asymmetric toe point
+    ctxObj.bezierCurveTo(x + 10, y - 3.5 * dirY, x + 10, y + 3.5, x + 5.5, y + 3.5);
+    ctxObj.lineTo(x - 2, y + 3.5);
+    ctxObj.quadraticCurveTo(x - 3.5, y + 3.5, x - 3.5, y - 3.5, x - 2, y - 3.5);
+    ctxObj.fill();
+
+    // 2. Draw Main Shoe Body (Scaled slightly smaller to leave the sole visible)
+    // Main 3D spherical gradient
+    const bodyGrad = ctxObj.createRadialGradient(x + 2, y - 1 * dirY, 0.5, x + 3, y, 6);
+    bodyGrad.addColorStop(0, shadeColor(color, 40));
+    bodyGrad.addColorStop(0.5, color);
+    bodyGrad.addColorStop(1, shadeColor(color, -40));
+    
+    ctxObj.fillStyle = bodyGrad;
+    ctxObj.beginPath();
+    // Body path (slightly inset from sole)
+    ctxObj.moveTo(x - 1.5, y - 3);
+    ctxObj.lineTo(x + 4.5, y - 3);
+    ctxObj.bezierCurveTo(x + 9, y - 3 * dirY, x + 9, y + 3, x + 4.5, y + 3);
+    ctxObj.lineTo(x - 1.5, y + 3);
+    ctxObj.quadraticCurveTo(x - 2.5, y + 3, x - 2.5, y - 3, x - 1.5, y - 3);
+    ctxObj.fill();
+
+    // 3. Draw Contrasting Toe Cap
+    ctxObj.fillStyle = '#34495e'; // Dark slate grey toe
+    ctxObj.beginPath();
+    ctxObj.moveTo(x + 5, y - 2.5);
+    ctxObj.bezierCurveTo(x + 9, y - 2.5 * dirY, x + 9, y + 2.5, x + 5, y + 2.5);
+    ctxObj.quadraticCurveTo(x + 3.5, y, x + 5, y - 2.5);
+    ctxObj.fill();
+
+    // 4. Draw Tongue
+    ctxObj.fillStyle = shadeColor(color, -20); // Darker shade of main color
+    ctxObj.beginPath();
+    ctxObj.moveTo(x - 1, y - 2);
+    ctxObj.lineTo(x + 3, y - 2.5); // Slopes up/forward
+    ctxObj.lineTo(x + 3, y + 2.5);
+    ctxObj.lineTo(x - 1, y + 2);
+    ctxObj.fill();
+
+    // 5. Draw Laces (Crossing over the tongue)
+    ctxObj.lineWidth = 1;
+    ctxObj.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctxObj.beginPath();
+    // X pattern 1
+    ctxObj.moveTo(x + 0.5, y - 2); ctxObj.lineTo(x + 2, y + 2);
+    ctxObj.moveTo(x + 2, y - 2); ctxObj.lineTo(x + 0.5, y + 2);
+    // X pattern 2 (further forward)
+    ctxObj.moveTo(x + 1.5, y - 2); ctxObj.lineTo(x + 3, y + 2);
+    ctxObj.moveTo(x + 3, y - 2); ctxObj.lineTo(x + 1.5, y + 2);
+    ctxObj.stroke();
+
+    // 6. Specular Highlight (Rim lighting on top edge)
+    ctxObj.lineWidth = 0.5;
+    ctxObj.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctxObj.beginPath();
+    ctxObj.moveTo(x - 1, y - 2.5);
+    ctxObj.quadraticCurveTo(x + 3, y - 2.5 * dirY, x + 4.5, y - 2.5);
+    ctxObj.stroke();
+  }
+
+  /**
    * Optimizes static NPC rendering by painting them onto an OffscreenCanvas once, 
    * then returning that canvas to be cheaply drawn each frame.
    * @param {Object} c - The character object data.
@@ -65,86 +147,9 @@ export class CharacterManager {
       rightLegEndX: 4, rightLegEndY: 6
     };
 
-    const drawLine = (ctxObj, sx, sy, ex, ey) => {
-      ctxObj.beginPath();
-      ctxObj.moveTo(sx, sy);
-      ctxObj.lineTo(ex, ey);
-      ctxObj.stroke();
-    };
-
-    // Hyper-realistic shoe drawing
-    const drawShoe = (ctxObj, x, y, color, isLeft) => {
-      const dirY = isLeft ? -1 : 1; // Used to mirror asymmetry
-
-      // 1. Draw distinct Sole (Offset slightly down and back)
-      ctxObj.fillStyle = '#7f8c8d'; // Dark grey sole
-      ctxObj.beginPath();
-      ctxObj.moveTo(x - 2, y - 3.5);
-      ctxObj.lineTo(x + 5.5, y - 3.5);
-      // Asymmetric toe point
-      ctxObj.bezierCurveTo(x + 10, y - 3.5 * dirY, x + 10, y + 3.5, x + 5.5, y + 3.5);
-      ctxObj.lineTo(x - 2, y + 3.5);
-      ctxObj.quadraticCurveTo(x - 3.5, y + 3.5, x - 3.5, y - 3.5, x - 2, y - 3.5);
-      ctxObj.fill();
-
-      // 2. Draw Main Shoe Body (Scaled slightly smaller to leave the sole visible)
-      // Main 3D spherical gradient
-      const bodyGrad = ctxObj.createRadialGradient(x + 2, y - 1 * dirY, 0.5, x + 3, y, 6);
-      bodyGrad.addColorStop(0, shadeColor(color, 40));
-      bodyGrad.addColorStop(0.5, color);
-      bodyGrad.addColorStop(1, shadeColor(color, -40));
-      
-      ctxObj.fillStyle = bodyGrad;
-      ctxObj.beginPath();
-      // Body path (slightly inset from sole)
-      ctxObj.moveTo(x - 1.5, y - 3);
-      ctxObj.lineTo(x + 4.5, y - 3);
-      ctxObj.bezierCurveTo(x + 9, y - 3 * dirY, x + 9, y + 3, x + 4.5, y + 3);
-      ctxObj.lineTo(x - 1.5, y + 3);
-      ctxObj.quadraticCurveTo(x - 2.5, y + 3, x - 2.5, y - 3, x - 1.5, y - 3);
-      ctxObj.fill();
-
-      // 3. Draw Contrasting Toe Cap
-      ctxObj.fillStyle = '#34495e'; // Dark slate grey toe
-      ctxObj.beginPath();
-      ctxObj.moveTo(x + 5, y - 2.5);
-      ctxObj.bezierCurveTo(x + 9, y - 2.5 * dirY, x + 9, y + 2.5, x + 5, y + 2.5);
-      ctxObj.quadraticCurveTo(x + 3.5, y, x + 5, y - 2.5);
-      ctxObj.fill();
-
-      // 4. Draw Tongue
-      ctxObj.fillStyle = shadeColor(color, -20); // Darker shade of main color
-      ctxObj.beginPath();
-      ctxObj.moveTo(x - 1, y - 2);
-      ctxObj.lineTo(x + 3, y - 2.5); // Slopes up/forward
-      ctxObj.lineTo(x + 3, y + 2.5);
-      ctxObj.lineTo(x - 1, y + 2);
-      ctxObj.fill();
-
-      // 5. Draw Laces (Crossing over the tongue)
-      ctxObj.lineWidth = 1;
-      ctxObj.strokeStyle = 'rgba(255,255,255,0.4)';
-      ctxObj.beginPath();
-      // X pattern 1
-      ctxObj.moveTo(x + 0.5, y - 2); ctxObj.lineTo(x + 2, y + 2);
-      ctxObj.moveTo(x + 2, y - 2); ctxObj.lineTo(x + 0.5, y + 2);
-      // X pattern 2 (further forward)
-      ctxObj.moveTo(x + 1.5, y - 2); ctxObj.lineTo(x + 3, y + 2);
-      ctxObj.moveTo(x + 3, y - 2); ctxObj.lineTo(x + 1.5, y + 2);
-      ctxObj.stroke();
-
-      // 6. Specular Highlight (Rim lighting on top edge)
-      ctxObj.lineWidth = 0.5;
-      ctxObj.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctxObj.beginPath();
-      ctxObj.moveTo(x - 1, y - 2.5);
-      ctxObj.quadraticCurveTo(x + 3, y - 2.5 * dirY, x + 4.5, y - 2.5);
-      ctxObj.stroke();
-    };
-
     const shoeColor = c.shoeColor || '#1a252f';
-    drawShoe(octx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
-    drawShoe(octx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
+    this.drawShoe(octx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
+    this.drawShoe(octx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
 
     // Gradient for arms (cylindrical simulation)
     const armGradient = octx.createLinearGradient(0, -11, 0, limbs.leftArmY);
@@ -154,14 +159,14 @@ export class CharacterManager {
     octx.lineWidth = 5;
     octx.strokeStyle = armGradient;
 
-    drawLine(octx, 0, -11, limbs.leftArmX, limbs.leftArmY);
+    this.drawLine(octx, 0, -11, limbs.leftArmX, limbs.leftArmY);
 
     const rightArmGradient = octx.createLinearGradient(0, 11, 0, limbs.rightArmY);
     rightArmGradient.addColorStop(0, c.armColor || '#3498db');
     rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
     octx.strokeStyle = rightArmGradient;
 
-    drawLine(octx, 0, 11, limbs.rightArmX, limbs.rightArmY);
+    this.drawLine(octx, 0, 11, limbs.rightArmX, limbs.rightArmY);
 
     const leftHandGrad = octx.createRadialGradient(limbs.leftArmX, limbs.leftArmY - 1, 0.5, limbs.leftArmX, limbs.leftArmY, 3);
     leftHandGrad.addColorStop(0, '#f5d39e');
@@ -319,86 +324,9 @@ export class CharacterManager {
             emoteDef.updateLimbs(limbs, currentEmote);
           }
 
-          const drawLine = (ctxObj, sx, sy, ex, ey) => {
-            ctxObj.beginPath();
-            ctxObj.moveTo(sx, sy);
-            ctxObj.lineTo(ex, ey);
-            ctxObj.stroke();
-          };
-
-          // Hyper-realistic shoe drawing
-          const drawShoe = (ctxObj, x, y, color, isLeft) => {
-            const dirY = isLeft ? -1 : 1; // Used to mirror asymmetry
-
-            // 1. Draw distinct Sole (Offset slightly down and back)
-            ctxObj.fillStyle = '#7f8c8d'; // Dark grey sole
-            ctxObj.beginPath();
-            ctxObj.moveTo(x - 2, y - 3.5);
-            ctxObj.lineTo(x + 5.5, y - 3.5);
-            // Asymmetric toe point
-            ctxObj.bezierCurveTo(x + 10, y - 3.5 * dirY, x + 10, y + 3.5, x + 5.5, y + 3.5);
-            ctxObj.lineTo(x - 2, y + 3.5);
-            ctxObj.quadraticCurveTo(x - 3.5, y + 3.5, x - 3.5, y - 3.5, x - 2, y - 3.5);
-            ctxObj.fill();
-
-            // 2. Draw Main Shoe Body (Scaled slightly smaller to leave the sole visible)
-            // Main 3D spherical gradient
-            const bodyGrad = ctxObj.createRadialGradient(x + 2, y - 1 * dirY, 0.5, x + 3, y, 6);
-            bodyGrad.addColorStop(0, shadeColor(color, 40));
-            bodyGrad.addColorStop(0.5, color);
-            bodyGrad.addColorStop(1, shadeColor(color, -40));
-            
-            ctxObj.fillStyle = bodyGrad;
-            ctxObj.beginPath();
-            // Body path (slightly inset from sole)
-            ctxObj.moveTo(x - 1.5, y - 3);
-            ctxObj.lineTo(x + 4.5, y - 3);
-            ctxObj.bezierCurveTo(x + 9, y - 3 * dirY, x + 9, y + 3, x + 4.5, y + 3);
-            ctxObj.lineTo(x - 1.5, y + 3);
-            ctxObj.quadraticCurveTo(x - 2.5, y + 3, x - 2.5, y - 3, x - 1.5, y - 3);
-            ctxObj.fill();
-
-            // 3. Draw Contrasting Toe Cap
-            ctxObj.fillStyle = '#34495e'; // Dark slate grey toe
-            ctxObj.beginPath();
-            ctxObj.moveTo(x + 5, y - 2.5);
-            ctxObj.bezierCurveTo(x + 9, y - 2.5 * dirY, x + 9, y + 2.5, x + 5, y + 2.5);
-            ctxObj.quadraticCurveTo(x + 3.5, y, x + 5, y - 2.5);
-            ctxObj.fill();
-
-            // 4. Draw Tongue
-            ctxObj.fillStyle = shadeColor(color, -20); // Darker shade of main color
-            ctxObj.beginPath();
-            ctxObj.moveTo(x - 1, y - 2);
-            ctxObj.lineTo(x + 3, y - 2.5); // Slopes up/forward
-            ctxObj.lineTo(x + 3, y + 2.5);
-            ctxObj.lineTo(x - 1, y + 2);
-            ctxObj.fill();
-
-            // 5. Draw Laces (Crossing over the tongue)
-            ctxObj.lineWidth = 1;
-            ctxObj.strokeStyle = 'rgba(255,255,255,0.4)';
-            ctxObj.beginPath();
-            // X pattern 1
-            ctxObj.moveTo(x + 0.5, y - 2); ctxObj.lineTo(x + 2, y + 2);
-            ctxObj.moveTo(x + 2, y - 2); ctxObj.lineTo(x + 0.5, y + 2);
-            // X pattern 2 (further forward)
-            ctxObj.moveTo(x + 1.5, y - 2); ctxObj.lineTo(x + 3, y + 2);
-            ctxObj.moveTo(x + 3, y - 2); ctxObj.lineTo(x + 1.5, y + 2);
-            ctxObj.stroke();
-
-            // 6. Specular Highlight (Rim lighting on top edge)
-            ctxObj.lineWidth = 0.5;
-            ctxObj.strokeStyle = 'rgba(255,255,255,0.3)';
-            ctxObj.beginPath();
-            ctxObj.moveTo(x - 1, y - 2.5);
-            ctxObj.quadraticCurveTo(x + 3, y - 2.5 * dirY, x + 4.5, y - 2.5);
-            ctxObj.stroke();
-          };
-
           const legShoeColor = c.shoeColor || '#1a252f';
-          drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, legShoeColor, true);
-          drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, legShoeColor, false);
+          this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, legShoeColor, true);
+          this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, legShoeColor, false);
 
           // Gradient for arms (cylindrical simulation)
           const armGradient = ctx.createLinearGradient(0, -11, 0, limbs.leftArmY);
@@ -408,13 +336,13 @@ export class CharacterManager {
           ctx.lineWidth = 5;
           ctx.strokeStyle = armGradient;
 
-          drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
+          this.drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
 
           const rightArmGradient = ctx.createLinearGradient(0, 11, 0, limbs.rightArmY);
           rightArmGradient.addColorStop(0, c.armColor || '#3498db');
           rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
           ctx.strokeStyle = rightArmGradient;
-          drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
+          this.drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
 
           const leftHandGrad = ctx.createRadialGradient(limbs.leftArmX, limbs.leftArmY - 1, 0.5, limbs.leftArmX, limbs.leftArmY, 3);
           leftHandGrad.addColorStop(0, '#f5d39e');

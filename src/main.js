@@ -1,6 +1,6 @@
 import { initSound, soundManager } from './sound.js';
 import { emotes } from './emotes.js';
-import { EventHandlers } from './events.js';
+import { processEvents } from './events.js';
 import { mapManager } from './maps.js';
 import { characterManager } from './characters.js';
 import { physicsEngine } from './physics.js';
@@ -89,11 +89,7 @@ window.init = null;
 let lastSyncTime = 0;
 let activeNpc = null;
 
-window.mapLayers = [];
-
-
-
-// Game Loop
+export const footprints = [];
 /**
  * Global gameLoop system is now handled by our GameLoop class in gameloop.js.
  * We register our main update and draw callbacks natively once init executes.
@@ -235,62 +231,7 @@ function update() {
   }
 
   // Check NPC radius interactions
-  const interactionRadius = 80 * (window.init?.mapData?.character_scale || 1);
-  const interactionRadiusSq = interactionRadius * interactionRadius;
-  let closestNpc = null;
-  let minNpcDistSq = interactionRadiusSq + 1;
-
-  const allInRange = [
-    ...physicsEngine.findCharacters(window.init?.characters, player.x, player.y, interactionRadiusSq, player.id),
-    ...physicsEngine.findCharacters(window.init?.npcs, player.x, player.y, interactionRadiusSq, player.id)
-  ];
-
-  for (let i = 0; i < allInRange.length; i++) {
-    const c = allInRange[i];
-    if (!c.isNpc && (c.on_enter === undefined && c.on_exit === undefined)) continue;
-
-    if (c._distSq < minNpcDistSq) {
-      minNpcDistSq = c._distSq;
-      closestNpc = c;
-    }
-  }
-
-  if (activeNpc && (!closestNpc || activeNpc !== closestNpc.id)) {
-    const prevNpc = [...(window.init?.characters || []), ...(window.init?.npcs || [])].find(c => c.id === activeNpc);
-    if (prevNpc) {
-      if (prevNpc.activeAudio) {
-        prevNpc.activeAudio.pause();
-        prevNpc.activeAudio.currentTime = 0;
-        prevNpc.activeAudio = null;
-      }
-      if (prevNpc && prevNpc.on_exit && (typeof prevNpc.on_exit === 'number' || prevNpc.on_exit.length > 0)) {
-        executeEvents(prevNpc, prevNpc.on_exit, 'on_exit');
-      }
-      // Auto-clear avatar when walking away from an NPC
-      const container = uiManager.avatarsContainer;
-      if (container) {
-        const el = container.querySelector(`[data-npc-id="${prevNpc.id}"]`);
-        if (el) el.remove();
-        if (container.children.length === 0) {
-          const actionDialog = document.getElementById('top-center-ui');
-          if (actionDialog) actionDialog.classList.remove('avatar-active');
-          const mapNameDisplay = uiManager.mapNameDisplay;
-          if (mapNameDisplay && mapNameDisplay.dataset.originalName) {
-            mapNameDisplay.textContent = mapNameDisplay.dataset.originalName;
-            delete mapNameDisplay.dataset.originalName;
-          }
-        }
-      }
-    }
-    activeNpc = null;
-  }
-
-  if (closestNpc && activeNpc !== closestNpc.id) {
-    activeNpc = closestNpc.id;
-    if (closestNpc.on_enter && (typeof closestNpc.on_enter === 'number' || closestNpc.on_enter.length > 0)) {
-      executeEvents(closestNpc, closestNpc.on_enter);
-    }
-  }
+  activeNpc = physicsEngine.processInteractions(player, window.init, activeNpc, uiManager, executeEvents);
 
   // Sync back via websocket 10 times a second if moved
   const now = Date.now();
@@ -308,28 +249,11 @@ function update() {
 }
 
 function executeEvents(sourceObj, rawActions, eventType = 'on_enter') {
-  let actions = rawActions;
-  if (typeof rawActions === 'number') {
-    const parentObj = window.init?.objects?.find(o => o.id === rawActions);
-    if (!parentObj || !parentObj[eventType]) return;
-    actions = parentObj[eventType];
-  }
-
-  if (!actions || !Array.isArray(actions)) return;
-
-  const context = {
+  processEvents(sourceObj, rawActions, eventType, {
     UI: uiManager,
     player,
     syncPlayerToJSON: () => networkClient.syncPlayerToJSON()
-  };
-
-  for (const action of actions) {
-    for (const [key, payload] of Object.entries(action)) {
-      if (EventHandlers[key]) {
-        EventHandlers[key](sourceObj, payload, context);
-      }
-    }
-  }
+  });
 }
 
 /**
@@ -380,33 +304,31 @@ function draw() {
   mapManager.drawLayer(0, ctx, canvas, window.cameraX, window.cameraY, window.cameraZoom);
 
   // Render global footprints underneath characters
-  if (window.footprints) {
-    const now = Date.now();
-    for (let i = window.footprints.length - 1; i >= 0; i--) {
-      const f = window.footprints[i];
-      const age = now - f.time;
-      if (age > 10000) {
-        window.footprints.splice(i, 1);
-        continue;
-      }
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, 0.6 * (1 - age / 10000));
-      ctx.translate(f.x, f.y);
-      ctx.rotate(f.rot * Math.PI / 180);
-
-      ctx.fillStyle = '#74b9ff'; // wet footprint color
-
-      const offsetX = f.isLeft ? -5 : 5;
-
-      ctx.beginPath();
-      if (ctx.ellipse) {
-        ctx.ellipse(offsetX, -4, 2.5, 4.5, 0, 0, Math.PI * 2);
-      } else {
-        ctx.arc(offsetX, -4, 3, 0, Math.PI * 2);
-      }
-      ctx.fill();
-      ctx.restore();
+  const now = Date.now();
+  for (let i = footprints.length - 1; i >= 0; i--) {
+    const f = footprints[i];
+    const age = now - f.time;
+    if (age > 10000) {
+      footprints.splice(i, 1);
+      continue;
     }
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 0.6 * (1 - age / 10000));
+    ctx.translate(f.x, f.y);
+    ctx.rotate(f.rot * Math.PI / 180);
+
+    ctx.fillStyle = '#74b9ff'; // wet footprint color
+
+    const offsetX = f.isLeft ? -5 : 5;
+
+    ctx.beginPath();
+    if (ctx.ellipse) {
+      ctx.ellipse(offsetX, -4, 2.5, 4.5, 0, 0, Math.PI * 2);
+    } else {
+      ctx.arc(offsetX, -4, 3, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.restore();
   }
 
   characterManager.drawCharacters('base', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), window.cameraX, window.cameraY, window.cameraZoom);
