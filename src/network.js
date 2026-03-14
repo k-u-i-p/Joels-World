@@ -13,6 +13,21 @@ export class NetworkClient {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.baseReconnectDelay = 1000;
+
+    window.addEventListener("pagehide", () => {
+      if (this.ws) {
+        console.log("CLOSING");
+        this.ws.close();
+        this.ws = null;
+      }
+    });
+
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) {
+        console.log("RECONNECTING");
+        this.connect(this.onInitDataCallback);
+      }
+    });
   }
 
   /**
@@ -20,6 +35,9 @@ export class NetworkClient {
    * @param {Function} onInitDataCallback Callback for when the server sends initial map and entity state.
    */
   connect(onInitDataCallback) {
+    if (onInitDataCallback) {
+      this.onInitDataCallback = onInitDataCallback;
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const state = window.init ? 'running' : 'new';
     const wsUrl = `${protocol}//${window.location.host}?state=${state}`;
@@ -29,13 +47,17 @@ export class NetworkClient {
     console.log(`[NetworkClient] 2. WebSocket instantiated. readyState: ${this.ws.readyState}`);
     window.ws = this.ws;
 
-    this.ws.onopen = () => {
-      console.log(`[NetworkClient] 3. Connection OPENED successfully! readyState: ${this.ws.readyState}`);
+    this.initializeWebSocketListeners(this.ws);
+  }
+
+  initializeWebSocketListeners(ws) {
+    ws.addEventListener('open', () => {
+      console.log(`[NetworkClient] 3. Connection OPENED successfully! readyState: ${ws.readyState}`);
       this.reconnectAttempts = 0;
-      
+
       const ld = document.getElementById('loading-dialog');
       if (ld) ld.style.display = 'none';
-      
+
       // Delay showing name dialog slightly to see if we already have a session restored which would instantly fire 'init' packet.
       setTimeout(() => {
         if (!window.init || (!window.init.mapData && !window.player?.id)) {
@@ -43,9 +65,9 @@ export class NetworkClient {
           if (nd) nd.style.display = 'flex';
         }
       }, 150);
-    };
+    });
 
-    this.ws.onmessage = (event) => {
+    ws.addEventListener('message', (event) => {
       try {
         const data = JSON.parse(event.data);
         console.log(`[NetworkClient] Received packet of type: ${data.type}`);
@@ -53,14 +75,19 @@ export class NetworkClient {
           console.error('Server Error:', data.message);
           if (data.message === 'Session already active in another window.') {
             document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#222;color:white;font-family:sans-serif;"><h2>${data.message}</h2></div>`;
-            this.ws.onclose = null; // Prevent reconnect loop
-            this.ws.close();
+            
+            // Prevent reconnect loop by removing the close event listener
+            if (ws._closeHandler) {
+              ws.removeEventListener('close', ws._closeHandler);
+            }
+            
+            ws.close();
             return;
           }
           window.location.reload();
           return;
         } else if (data.type === 'init') {
-          if (onInitDataCallback) onInitDataCallback(data);
+          if (this.onInitDataCallback) this.onInitDataCallback(data);
         } else if (data.type === 'update' || data.type === 'tick') {
           const charactersToUpdate = data.type === 'tick' ? data.characters : [data.character];
           const player = window.player;
@@ -145,12 +172,15 @@ export class NetworkClient {
       } catch (e) {
         console.error(e);
       }
-    };
+    });
 
-    this.ws.onclose = () => {
+    const closeHandler = () => {
       console.warn('Disconnected from WebSocket server');
-      this.attemptReconnect(onInitDataCallback);
+      this.attemptReconnect(this.onInitDataCallback);
     };
+    
+    ws._closeHandler = closeHandler;
+    ws.addEventListener('close', closeHandler);
   }
 
   /**
