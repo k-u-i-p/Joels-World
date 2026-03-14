@@ -144,7 +144,10 @@ export function setupWebSocket(server) {
     ws.isAdmin = session ? session.isAdmin : false;
 
     const mapIdParam = urlParams.get('mapId');
-    const requestedMapId = mapIdParam !== null ? parseInt(mapIdParam, 10) : 0;
+    let requestedMapId = mapIdParam !== null ? parseInt(mapIdParam, 10) : 0;
+    if (session && session.player && session.player.mapId !== undefined) {
+      requestedMapId = session.player.mapId;
+    }
     const mapKeys = Object.keys(mapState);
     const mapId = mapState[requestedMapId] ? requestedMapId : (mapState[0] ? 0 : (mapKeys.length > 0 ? mapKeys[0] : null));
     ws.mapId = mapId;
@@ -267,7 +270,10 @@ export function setupWebSocket(server) {
             shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)]
           };
 
-          if (session) session.player = newChar;
+          if (session) {
+            newChar.mapId = ws.mapId;
+            session.player = newChar;
+          }
 
           mapData.characters[newPlayerId] = newChar;
           mapData.dirtyCharacters[newPlayerId] = newChar;
@@ -333,6 +339,10 @@ export function setupWebSocket(server) {
             // Update client reference
             ws.mapId = requestedMapId;
             mapData = newMapData;
+
+            if (session && session.player) {
+              session.player.mapId = requestedMapId;
+            }
 
             // Reset position safely using spawn_area if available
             let spawnX = Math.round(Math.random() * 800 + 100);
