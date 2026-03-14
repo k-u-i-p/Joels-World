@@ -428,25 +428,19 @@ function update() {
   let closestNpc = null;
   let minNpcDistSq = interactionRadiusSq + 1;
 
-  const processProximity = (c) => {
-    if (c.id === player.id) return;
-    if (!c.isNpc && (c.on_enter === undefined && c.on_exit === undefined)) return;
+  const allInRange = [
+    ...physicsEngine.findCharacters(window.init?.characters, player.x, player.y, interactionRadiusSq, player.id),
+    ...physicsEngine.findCharacters(window.init?.npcs, player.x, player.y, interactionRadiusSq, player.id)
+  ];
 
-    const dx = player.x - c.x;
-    const dy = player.y - c.y;
-    const distSq = dx * dx + dy * dy;
+  for (let i = 0; i < allInRange.length; i++) {
+    const c = allInRange[i];
+    if (!c.isNpc && (c.on_enter === undefined && c.on_exit === undefined)) continue;
 
-    if (distSq <= interactionRadiusSq && distSq < minNpcDistSq) {
-      minNpcDistSq = distSq;
+    if (c._distSq < minNpcDistSq) {
+      minNpcDistSq = c._distSq;
       closestNpc = c;
     }
-  };
-
-  if (window.init?.characters) {
-    for (let i = 0; i < window.init.characters.length; i++) processProximity(window.init.characters[i]);
-  }
-  if (window.init?.npcs) {
-    for (let i = 0; i < window.init.npcs.length; i++) processProximity(window.init.npcs[i]);
   }
 
   if (activeNpc && (!closestNpc || activeNpc !== closestNpc.id)) {

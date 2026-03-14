@@ -8,6 +8,10 @@ export class PhysicsEngine {
     this.clipMaskScale = 0.1;
     this.mapW = 0;
     this.mapH = 0;
+    
+    // Memory recycled arrays to avoid GC pauses during physics loops
+    this._movementCoords = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
+    this._exactCoords = [{ x: 0, y: 0 }];
   }
 
   /**
@@ -101,6 +105,35 @@ export class PhysicsEngine {
       }
     }
     return foundObjects;
+  }
+
+  /**
+   * Finds characters from a list that are within a certain radius of coordinates x and y.
+   * @param {Array} charactersList - The list of characters/NPCs to check.
+   * @param {number} x - Target X coordinate.
+   * @param {number} y - Target Y coordinate.
+   * @param {number} radiusSq - Squared search radius.
+   * @param {string} [ignoreId=null] - Character ID to ignore (usually the player's ID).
+   * @returns {Array} List of characters found within the radius.
+   */
+  findCharacters(charactersList, x, y, radiusSq, ignoreId = null) {
+    const found = [];
+    if (!charactersList) return found;
+
+    for (let i = 0, len = charactersList.length; i < len; i++) {
+      const c = charactersList[i];
+      if (ignoreId && c.id === ignoreId) continue;
+
+      const dx = x - c.x;
+      const dy = y - c.y;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq <= radiusSq) {
+        c._distSq = distSq; // Attach for sorting if needed
+        found.push(c);
+      }
+    }
+    return found;
   }
 
   /**
@@ -240,6 +273,131 @@ export class PhysicsEngine {
     }
 
     return true;
+  }
+
+  /**
+   * Processes requested movement vectors for a given entity constraint, testing clipping masks
+   * and objects, allowing sliding alongside hitboxes automatically.
+   * 
+   * @param {Object} entity - The character object trying to move (expects x, y, rotation properties)
+   * @param {number} dx - The requested X step delta
+   * @param {number} dy - The requested Y step delta
+   * @param {Array} objectsList - Application state objects list 
+   * @param {Object} mapData - Application state map data
+   * @param {boolean} isEmoteForced - True if movement is forced by an emote (disables sliding)
+   * @returns {Object} Data about the completed movement and collisions { newX, newY, actuallyInObject, isMoving, emoteCanceled }
+   */
+  processMovement(entity, dx, dy, objectsList, mapData, isEmoteForced = false) {
+    let result = {
+      newX: entity.x,
+      newY: entity.y,
+      actuallyInObject: null,
+      isMoving: false,
+      emoteCanceled: false
+    };
+
+    if (dx === 0 && dy === 0) return result;
+    
+    result.isMoving = true;
+
+    const scale = mapData?.character_scale || 1;
+    const playerRadius = 15 * scale; // slightly smaller than half width
+
+    this._movementCoords[0].x = entity.x + dx;
+    this._movementCoords[0].y = entity.y + dy;
+    this._movementCoords[1].x = entity.x + dx;
+    this._movementCoords[1].y = entity.y;
+    this._movementCoords[2].x = entity.x;
+    this._movementCoords[2].y = entity.y + dy;
+
+    const possibleOverlaps = this.findObjectsAt(objectsList, this._movementCoords, playerRadius);
+
+    const mapW = mapData?.width;
+    const mapH = mapData?.height;
+
+    // Try moving in both axes, then X only, then Y only (sliding against walls)
+    if (isEmoteForced) {
+      if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y + dy, playerRadius, mapW, mapH)) {
+        result.newX += dx;
+        result.newY += dy;
+      } else {
+        result.emoteCanceled = true; // Hit something while jumping!
+      }
+    } else {
+      if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y + dy, playerRadius, mapW, mapH)) {
+        result.newX += dx;
+        result.newY += dy;
+      } else {
+        // Attempt Advanced Sliding Mechanism against Rotated Objects
+        let hitObj = null;
+        for (let i = 0; i < possibleOverlaps.length; i++) {
+          const obj = possibleOverlaps[i];
+          if (!obj.noclip && obj.clip !== -1 && this.checkObjectOverlap(obj, entity.x + dx, entity.y + dy, playerRadius, obj.clip === undefined ? 10 : obj.clip)) {
+            hitObj = obj;
+            break;
+          }
+        }
+
+        if (hitObj && hitObj.shape === 'rect' && hitObj.rotation) {
+          // Slide along the rotated edge
+          const angle = -hitObj.rotation * (Math.PI / 180);
+          const cosA = Math.cos(angle);
+          const sinA = Math.sin(angle);
+
+          // Transform intended movement vector into local space of the rotated object
+          const localDx = dx * cosA - dy * sinA;
+          const localDy = dx * sinA + dy * cosA;
+
+          // Test local X sliding
+          const testLocalDx = localDx;
+          const testLocalDy = 0;
+
+          // Transform back to world space
+          let slideWorldDx = testLocalDx * cosA + testLocalDy * sinA;
+          let slideWorldDy = -testLocalDx * sinA + testLocalDy * cosA;
+
+          if (this.canMoveTo(possibleOverlaps, entity.x + slideWorldDx, entity.y + slideWorldDy, playerRadius, mapW, mapH)) {
+            result.newX += slideWorldDx;
+            result.newY += slideWorldDy;
+          } else {
+            // Test local Y sliding
+            const testLocalDx2 = 0;
+            const testLocalDy2 = localDy;
+            slideWorldDx = testLocalDx2 * cosA + testLocalDy2 * sinA;
+            slideWorldDy = -testLocalDx2 * sinA + testLocalDy2 * cosA;
+
+            if (this.canMoveTo(possibleOverlaps, entity.x + slideWorldDx, entity.y + slideWorldDy, playerRadius, mapW, mapH)) {
+              result.newX += slideWorldDx;
+              result.newY += slideWorldDy;
+            } else if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y, playerRadius, mapW, mapH)) {
+              // Fallback to pure X
+              result.newX += dx;
+            } else if (this.canMoveTo(possibleOverlaps, entity.x, entity.y + dy, playerRadius, mapW, mapH)) {
+              // Fallback to pure Y
+              result.newY += dy;
+            }
+          }
+        } else {
+          // Fallback to standard axis-aligned sliding
+          if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y, playerRadius, mapW, mapH)) {
+            result.newX += dx;
+          } else if (this.canMoveTo(possibleOverlaps, entity.x, entity.y + dy, playerRadius, mapW, mapH)) {
+            result.newY += dy;
+          }
+        }
+      }
+    }
+
+    if (possibleOverlaps.length > 0) {
+      this._exactCoords[0].x = result.newX;
+      this._exactCoords[0].y = result.newY;
+      const matchedArray = this.findObjectsAt(possibleOverlaps, this._exactCoords, 0);
+      if (matchedArray.length > 0) {
+        result.actuallyInObject = matchedArray[0];
+      }
+    }
+
+    return result;
   }
 }
 
