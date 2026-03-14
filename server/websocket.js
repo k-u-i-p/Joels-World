@@ -149,6 +149,13 @@ export function setupWebSocket(server) {
     }
   }
 
+  function sendError(ws, message) {
+    if (ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'error', message }));
+    }
+    ws.close();
+  }
+
   wss.on('connection', (ws, req) => {
     console.log('Client connected');
 
@@ -157,6 +164,11 @@ export function setupWebSocket(server) {
     const urlParams = new URLSearchParams(req.url.split('?')[1] || "");
     const parsedCookies = req.cookies || {};
     const session = getSession(parsedCookies.SSID);
+
+    if (parsedCookies.SSID && !session) {
+      sendError(ws, 'Invalid session');
+      return;
+    }
 
     ws.isAdmin = session ? session.isAdmin : false;
 
@@ -268,8 +280,7 @@ export function setupWebSocket(server) {
           if (!playerName && ws.isAdmin) playerName = 'Admin';
 
           if (!ws.isAdmin && (!playerName || !/^[a-zA-Z]+$/.test(playerName))) {
-            ws.send(JSON.stringify({ type: 'error', message: 'Invalid Name. Please use only English letters with no spaces or symbols.' }));
-            ws.close();
+            sendError(ws, 'Invalid Name. Please use only English letters with no spaces or symbols.');
             return;
           }
 
