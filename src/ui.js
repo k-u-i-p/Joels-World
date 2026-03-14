@@ -20,27 +20,33 @@ export class UIManager {
     const nameInput = document.getElementById('player-name-input');
     const startBtn = document.getElementById('start-game-btn');
 
-    const attemptStart = () => {
+    const attemptStart = (e) => {
+      if (e) e.preventDefault();
+      console.log('[UI] attemptStart triggered via:', e ? e.type : 'manual');
       let playerName = null;
       if (nameInput && nameInput.value.trim() !== '') {
         playerName = nameInput.value.trim();
       }
       if (nameDialog) nameDialog.style.display = 'none';
-      
+
       const topUi = document.getElementById('top-center-ui');
       if (topUi) topUi.style.display = 'flex';
 
       if (onStartGame) {
+        console.log('[UI] Calling onStartGame with playerName: ' + playerName);
         onStartGame(playerName);
+      } else {
+        console.log('[UI] ERROR: no onStartGame callback attached!');
       }
     };
 
     if (startBtn) {
       startBtn.addEventListener('click', attemptStart);
+      startBtn.addEventListener('touchend', attemptStart);
     }
     if (nameInput) {
       nameInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') attemptStart();
+        if (e.key === 'Enter') attemptStart(e);
       });
     }
 

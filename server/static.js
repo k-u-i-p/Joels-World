@@ -6,6 +6,13 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function setupStatic(app, server, port) {
+  // Allow CORS specifically for media/assets so the iOS client can fetch audio without Access Control checks failing.
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+  });
+
   // Serve static assets natively
   app.use('/src', express.static(path.resolve(__dirname, '../src')));
   app.use('/public', express.static(path.resolve(__dirname, '../public')));

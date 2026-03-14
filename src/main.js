@@ -377,11 +377,11 @@ function update() {
         // Continuous pursuit velocity based on base speed (with a dynamic catchup boost if far behind)
         const distance = Math.sqrt(distSq);
         const baseSpeed = c.moveSpeed || 3;
-        
+
         // If distance is large (e.g. > 40px), temporarily boost speed so they catch up seamlessly
         const catchupMultiplier = distance > 40 ? 1.5 : 1.0;
         let stepDist = baseSpeed * catchupMultiplier;
-        
+
         // Don't overshoot the target
         if (stepDist > distance) {
           stepDist = distance;
@@ -390,7 +390,7 @@ function update() {
         const ratio = stepDist / distance;
         c.x += cdx * ratio;
         c.y += cdy * ratio;
-        
+
         c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
       } else {
         c.x = c.targetX;
@@ -542,7 +542,7 @@ function draw() {
     const halfMapH = window.init.mapData.height / 2;
     const viewHalfW = (viewportWidth / window.cameraZoom) / 2;
     const viewHalfH = (viewportHeight / window.cameraZoom) / 2;
-  
+
     const minX = -halfMapW + viewHalfW;
     const maxX = halfMapW - viewHalfW;
     const minY = -halfMapH + viewHalfH;
@@ -621,6 +621,7 @@ function draw() {
 window.gameStarted = window.isAdmin || false;
 
 const { nameDialog, nameInput, startBtn } = uiManager.initLobby((playerName) => {
+  console.log('[Main] onStartGame callback received playerName:', playerName);
   if (playerName) {
     player.name = playerName;
     networkClient.sendCreateCharacter(playerName);
@@ -634,6 +635,7 @@ const { nameDialog, nameInput, startBtn } = uiManager.initLobby((playerName) => 
  * @param {Object} data - The map's initialization data payload structured by the server.
  */
 function handleInitData(data) {
+  console.log(`[Main] handleInitData triggered. Loaded Map: ${data?.mapData?.name}`);
   try {
     window.init = data;
     if (!window.init.characters) window.init.characters = [];
@@ -644,7 +646,7 @@ function handleInitData(data) {
     // Bypassing the local UI lobby if a session successfully resumed
     const nameDialog = document.getElementById('name-dialog');
     if (nameDialog) nameDialog.style.display = 'none';
-      
+
     const topUi = document.getElementById('top-center-ui');
     if (topUi) topUi.style.display = 'flex';
 
@@ -654,6 +656,7 @@ function handleInitData(data) {
         executeEvents(window.init.mapData, window.init.mapData.on_enter);
       }
       checkInitialSpawn();
+      console.log('[Main] Game loop rendering started for the first time.');
       requestAnimationFrame(gameLoop);
     }
 

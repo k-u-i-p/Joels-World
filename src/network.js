@@ -23,18 +23,32 @@ export class NetworkClient {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const state = window.init ? 'running' : 'new';
     const wsUrl = `${protocol}//${window.location.host}?state=${state}`;
+    console.log(`[NetworkClient] 1. Initiating WebSocket connection to ${wsUrl}`);
 
     this.ws = new WebSocket(wsUrl);
+    console.log(`[NetworkClient] 2. WebSocket instantiated. readyState: ${this.ws.readyState}`);
     window.ws = this.ws;
 
     this.ws.onopen = () => {
-      console.log('Connected to WebSocket server');
+      console.log(`[NetworkClient] 3. Connection OPENED successfully! readyState: ${this.ws.readyState}`);
       this.reconnectAttempts = 0;
+      
+      const ld = document.getElementById('loading-dialog');
+      if (ld) ld.style.display = 'none';
+      
+      // Delay showing name dialog slightly to see if we already have a session restored which would instantly fire 'init' packet.
+      setTimeout(() => {
+        if (!window.init || (!window.init.mapData && !window.player?.id)) {
+          const nd = document.getElementById('name-dialog');
+          if (nd) nd.style.display = 'flex';
+        }
+      }, 150);
     };
 
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log(`[NetworkClient] Received packet of type: ${data.type}`);
         if (data.type === 'error') {
           console.error('Server Error:', data.message);
           if (data.message === 'Session already active in another window.') {
@@ -175,7 +189,20 @@ export class NetworkClient {
    */
   sendCreateCharacter(name) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      console.log(`[NetworkClient] Sending create_character command for name: ${name}`);
       this.ws.send(JSON.stringify({ type: 'create_character', name: name }));
+    } else if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+      console.log('[NetworkClient] WebSocket is still connecting. Queuing create_character command until open.');
+
+      const onOpenSend = () => {
+        console.log(`[NetworkClient] WebSocket resolved! Sending queued create_character command for name: ${name}`);
+        this.ws.send(JSON.stringify({ type: 'create_character', name: name }));
+        this.ws.removeEventListener('open', onOpenSend);
+      };
+
+      this.ws.addEventListener('open', onOpenSend);
+    } else {
+      console.error('[NetworkClient] WebSocket is closed or in an invalid state. Cannot send create_character.');
     }
   }
 

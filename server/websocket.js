@@ -253,17 +253,11 @@ export function setupWebSocket(server, sessionMiddleware) {
 
     // If the session already has an attached character, boot them into the game instantly.
     if (session && session.player) {
-      let isAlreadyConnected = false;
+      // Find any existing ghost connection or other window for this session and terminate it
       for (const client of wss.clients) {
         if (client !== ws && client.readyState === 1 && client.clientId === session.player.id) {
-          isAlreadyConnected = true;
-          break;
+          sendError(client, 'Session already active in another window.');
         }
-      }
-
-      if (isAlreadyConnected) {
-        sendError(ws, 'Session already active in another window.');
-        return;
       }
 
       ws.clientId = session.player.id;
