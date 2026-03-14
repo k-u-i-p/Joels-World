@@ -152,7 +152,7 @@ async function handleAgentAction(mapData, action) {
             const sayArr = Array.isArray(act.say) ? act.say : [act.say];
             
             // Find who is close enough to hear this agent
-            const charactersInRange = physicsEngine.findCharacters(Object.values(mapData.characters), npcChar.x, npcChar.y, npcId);
+            const charactersInRange = physicsEngine.findCharacters(Object.values(mapData.characters), npcChar.x, npcChar.y, npcId, npcChar.interaction_radius || 150);
             const playerIdsInRange = new Set(charactersInRange.map(c => c.id));
 
             for (let i = 0; i < sayArr.length; i++) {
