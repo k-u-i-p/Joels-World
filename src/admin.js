@@ -1,3 +1,5 @@
+import { gameLoop } from './gameloop.js';
+
 window.isAdmin = true;
 
 console.log('Setting up admin');
@@ -748,7 +750,7 @@ window.addEventListener('paste', (e) => {
 
 updateAdminPanel();
 
-window.adminDraw = function () {
+function adminDraw() {
   ctx.save();
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.scale(window.cameraZoom, window.cameraZoom);
@@ -822,11 +824,6 @@ window.adminDraw = function () {
   });
 
   ctx.restore();
-};
+}
 
-
-window.addEventListener('load', function () {
-  if (window.gameLoop) {
-    requestAnimationFrame(window.gameLoop);
-  }
-});
+gameLoop.registerFunction(adminDraw);

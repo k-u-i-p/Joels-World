@@ -7,6 +7,7 @@ import { physicsEngine } from './physics.js';
 import { inputManager } from './input.js';
 import { networkClient } from './network.js';
 import { uiManager } from './ui.js';
+import { gameLoop } from './gameloop.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -94,40 +95,9 @@ window.mapLayers = [];
 
 // Game Loop
 /**
- * The main render and update loop handling user movement inputs, drawing operations,
- * and next frame scheduling.
+ * Global gameLoop system is now handled by our GameLoop class in gameloop.js.
+ * We register our main update and draw callbacks natively once init executes.
  */
-let framesThisSecond = 0;
-let lastFpsUpdate = performance.now();
-let lastFrameTime = performance.now();
-const fpsInterval = 1000 / 60; // Target 60 FPS cap
-
-function gameLoop() {
-  requestAnimationFrame(gameLoop);
-
-  const now = performance.now();
-  const elapsed = now - lastFrameTime;
-
-  if (elapsed > fpsInterval) {
-    lastFrameTime = now - (elapsed % fpsInterval);
-
-    framesThisSecond++;
-    if (now - lastFpsUpdate >= 1000) {
-      if (window.isAdmin && window.updateAdminFps) {
-        window.updateAdminFps(framesThisSecond);
-      }
-      framesThisSecond = 0;
-      lastFpsUpdate = now;
-    }
-
-    update();
-    draw();
-    if (window.isAdmin && window.adminDraw) {
-      window.adminDraw();
-    }
-  }
-}
-window.gameLoop = gameLoop;
 
 
 
@@ -217,22 +187,6 @@ function update() {
         const dialogOverlay = uiManager.dialogOverlay;
         if (dialogOverlay) dialogOverlay.style.display = 'none';
       }
-    }
-  } else {
-    // Player is NOT moving
-    if (player.activeBuilding) {
-      const oldObj = window.init?.objects?.find(o => o.id === player.activeBuilding);
-      if (oldObj && oldObj.activeAudio) {
-        oldObj.activeAudio.pause();
-        oldObj.activeAudio.currentTime = 0;
-        oldObj.activeAudio = null;
-      }
-      if (oldObj && oldObj.on_exit && (typeof oldObj.on_exit === 'number' || oldObj.on_exit.length > 0)) {
-        executeEvents(oldObj, oldObj.on_exit, 'on_exit');
-      }
-      player.activeBuilding = null;
-      const dialogOverlay = uiManager.dialogOverlay;
-      if (dialogOverlay) dialogOverlay.style.display = 'none';
     }
   }
 
@@ -509,7 +463,9 @@ function handleInitData(data) {
       }
       checkInitialSpawn();
       console.log('[Main] Game loop rendering started for the first time.');
-      requestAnimationFrame(gameLoop);
+      gameLoop.registerFunction(update);
+      gameLoop.registerFunction(draw);
+      gameLoop.start();
     }
 
     const avatarsContainer = uiManager.avatarsContainer;
