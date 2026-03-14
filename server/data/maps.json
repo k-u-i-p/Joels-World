@@ -78,7 +78,7 @@
     "default_zoom": 0.5,
     "objects": "detention/objects.json",
     "agentFile": "detention/agent.md",
-    "logFile": "detention/log.json",
+    "logFile": "detention/log.txt",
     "spawn_area": 18,
     "on_enter": [
       {

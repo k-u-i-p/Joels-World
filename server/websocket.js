@@ -117,19 +117,28 @@ export function setupWebSocket(server) {
     try {
       if (fs.existsSync(mapData.logFile)) {
         const raw = fs.readFileSync(mapData.logFile, 'utf8');
-        if (raw.trim()) logArr = JSON.parse(raw);
+        logArr = raw.split('\n').filter(line => line.trim().length > 0);
       }
-    } catch (e) { console.error('Error reading log array:', e); }
+    } catch (e) {
+      console.error('Error reading log array:', e);
+    }
 
-    logArr.push(logEntry);
+    // Since logEntry is no longer guaranteed to be a string based on old architecture,
+    // gracefully extract its readable message if it's the old JSON object format
+    const logLine = typeof logEntry === 'string' ? logEntry : logEntry.message;
+    if (!logLine) return; // Drop empty logs
+    
+    logArr.push(logLine);
     
     if (logArr.length > 50) {
-        logArr = logArr.slice(logArr.length - 50);
+      logArr = logArr.slice(logArr.length - 50);
     }
 
     try {
-      fs.writeFileSync(mapData.logFile, JSON.stringify(logArr, null, 2), 'utf8');
-    } catch (e) { console.error('Error writing log array:', e); }
+      fs.writeFileSync(mapData.logFile, logArr.join('\n') + '\n', 'utf8');
+    } catch (e) {
+      console.error('Error writing log array:', e);
+    }
   }
 
   wss.on('connection', (ws, req) => {
@@ -286,10 +295,7 @@ export function setupWebSocket(server) {
           
           sendInitPayload(mapData, newChar);
           
-          appendToLog(mapData, {
-            player_id: newPlayerId,
-            message: `${newChar.name || 'Student'} entered the map`
-          });
+          appendToLog(mapData, `${newChar.name || 'Student'} (${newPlayerId}) entered the map`);
           return;
         }
 
@@ -306,10 +312,7 @@ export function setupWebSocket(server) {
           // Log chat
           const sender = mapData.characters[ws.clientId];
           const name = sender ? sender.name || ws.clientId : ws.clientId;
-          appendToLog(mapData, {
-             player_id: ws.clientId,
-             message: `${name} said: "${data.message}"`
-          });
+          appendToLog(mapData, `${name} (${ws.clientId}) said: "${data.message}"`);
 
           const broadcastMsg = JSON.stringify({ type: 'chat', id: ws.clientId, message: data.message });
           mapData.clients.forEach(client => {
@@ -372,19 +375,12 @@ export function setupWebSocket(server) {
             mapData.dirtyCharacters[ws.clientId] = oldChar;
             mapData.clients.add(ws);
 
-            appendToLog(mapData, {
-               player_id: ws.clientId,
-               message: `${oldChar.name || 'Student'} entered the map`
-            });
+            appendToLog(mapData, `${oldChar.name || 'Student'} (${ws.clientId}) entered the map`);
 
             // Send init to immediately reset the client seamlessly
             sendInitPayload(mapData, oldChar);
           }
-        } else if (data.type === 'log') {
-          appendToLog(mapData, {
-            player_id: ws.clientId,
-            message: data.message
-          });
+          appendToLog(mapData, `System Event: ${data.message} (${ws.clientId} executed)`);
         } else {
           handleAdminMessage(ws, data, mapData);
         }

@@ -38,7 +38,7 @@ export function startAIAgent(mapState) {
             try {
                 const raw = fs.readFileSync(mapData.logFile, 'utf8');
                 if (raw.trim()) {
-                    lastProcessed[mapId] = JSON.stringify(JSON.parse(raw));
+                    lastProcessed[mapId] = raw.trim();
                 }
             } catch (e) { }
         }
@@ -56,26 +56,24 @@ export function startAIAgent(mapState) {
                         continue;
                     }
 
-                    let logs = [];
+                    let logsText = "";
                     if (fs.existsSync(mapData.logFile)) {
-                        const raw = fs.readFileSync(mapData.logFile, 'utf8');
-                        if (raw.trim()) logs = JSON.parse(raw);
+                        logsText = fs.readFileSync(mapData.logFile, 'utf8').trim();
                     }
 
-                    if (logs.length === 0) {
+                    if (!logsText) {
                         // console.log(`[AI] Skipping map ${mapId} (${mapData.name}): logs are empty.`);
                         continue;
                     }
 
-                    const currentLogsStr = JSON.stringify(logs);
-                    if (lastProcessed[mapId] === currentLogsStr) {
+                    if (lastProcessed[mapId] === logsText) {
                         // console.log(`[AI] Skipping map ${mapId} (${mapData.name}): no new logs since last check.`);
                         continue;
                     }
 
                     // We have new logs!
                     console.log(`[AI][${mapData.name}] New events detected! Formatting prompt...`);
-                    lastProcessed[mapId] = currentLogsStr;
+                    lastProcessed[mapId] = logsText;
 
                     let agentPrompt = fs.readFileSync(mapData.agentFile, 'utf8');
 
@@ -90,7 +88,7 @@ export function startAIAgent(mapState) {
                         .replace("{emotes}", validEmotes.join(", "));
                     
                     // Compile full prompt
-                    const prompt = `${agentPrompt}\n\nRecent Events Log:\n${JSON.stringify(logs, null, 2)}\n\nRespond EXACTLY with a valid JSON array representing the actions.`;
+                    const prompt = `${agentPrompt}\n\nRecent Events Log:\n${logsText}\n\nRespond EXACTLY with a valid JSON array representing the actions.`;
 
                     console.log(`[AI][${mapData.name}] Sending prompt to Gemini...`);
 
@@ -157,14 +155,16 @@ async function handleAgentAction(mapData, action) {
                 try {
                     if (fs.existsSync(mapData.logFile)) {
                         const raw = fs.readFileSync(mapData.logFile, 'utf8');
-                        if (raw.trim()) logArr = JSON.parse(raw);
+                        logArr = raw.split('\n').filter(line => line.trim().length > 0);
                     }
                 } catch (e) { }
-                logArr.push({ player_id: npcId, message: `${npcChar.name || npcId} said: "${msg}"` });
+                logArr.push(`${npcChar.name || npcId} (${npcId}) said: "${msg}"`);
                 if (logArr.length > 50) logArr = logArr.slice(logArr.length - 50);
-                fs.writeFileSync(mapData.logFile, JSON.stringify(logArr, null, 2), 'utf8');
+                
+                const newLogsText = logArr.join('\n') + '\n';
+                fs.writeFileSync(mapData.logFile, newLogsText, 'utf8');
 
-                lastProcessed[mapData.id] = JSON.stringify(logArr);
+                lastProcessed[mapData.id] = newLogsText.trim();
 
                 mapData.clients.forEach(client => {
                     if (client.readyState === 1) {

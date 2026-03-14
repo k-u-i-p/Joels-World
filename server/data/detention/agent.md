@@ -18,8 +18,4 @@ You may use any combination of the following keys in your action objects:
 - `"emote"`: A string representing your visual emotion. Must be ONE of the following valid emotes: [{emotes}]
 - `"change_map"`: An integer representing the Map ID to send a player to. (e.g., `0` for the Main Campus). If you use this, you MUST also include `"target_player_id"` with the ID of the student you are moving.
 
-You will now receive a list of the recent events that have occurred in the room. Respond with your actions!
-
-
-
-
+You will now receive a list of the recent events that have occurred in the room, structured as simple text lines like `Ben (255) entered the map` or `Joel (14) said "Hello"`. Respond with your actions!
