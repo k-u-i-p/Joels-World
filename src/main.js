@@ -424,8 +424,6 @@ function draw() {
 
 
 // Start By Fetching Data
-window.gameStarted = window.isAdmin || false;
-
 const { nameDialog, nameInput, startBtn } = uiManager.initLobby((playerName) => {
   console.log('[Main] onStartGame callback received playerName:', playerName);
   if (playerName) {
@@ -456,8 +454,9 @@ function handleInitData(data) {
     const topUi = document.getElementById('top-center-ui');
     if (topUi) topUi.style.display = 'flex';
 
-    if (!window.gameStarted) {
-      window.gameStarted = true;
+    const wasRunning = gameLoop.isRunning();
+
+    if (!wasRunning) {
       if (window.init.mapData && window.init.mapData.on_enter) {
         executeEvents(window.init.mapData, window.init.mapData.on_enter);
       }
@@ -510,7 +509,7 @@ function handleInitData(data) {
       physicsEngine.loadClipMask(mapMetadata.clip_mask, mapMetadata.width, mapMetadata.height);
 
       // Handle dynamic map audio swapping if already playing
-      if (window.gameStarted) {
+      if (wasRunning) {
         if (mapMetadata.on_enter) {
           executeEvents(mapMetadata, mapMetadata.on_enter);
         } else {
@@ -544,7 +543,7 @@ function handleInitData(data) {
  * initiates any actions on their entries if so.
  */
 function checkInitialSpawn() {
-  if (!window.gameStarted || !window.init) return;
+  if (!gameLoop.isRunning() || !window.init) return;
   const playerRadius = 15;
   const possibleOverlaps = window.init.objects ? window.init.objects.filter(o =>
     Math.hypot(player.x - o.x, player.y - o.y) < Math.max(o.width, o.length) + playerRadius
