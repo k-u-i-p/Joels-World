@@ -9,7 +9,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="/src/style.css" />
-  <title><%= isAdmin ? "Joels World Admin" : "Joels World" %></title>
+  <title>
+    <%= isAdmin ? "Joels World Admin" : "Joels World" %>
+  </title>
 </head>
 
 <body>
@@ -22,11 +24,13 @@
         <div id="top-center-ui-header-right">
           <div id="map-name-display"></div>
           <div id="chat-container">
-            <input type="text" id="chat-input" class="glass-input" placeholder="Click to chat..." autocomplete="off" maxlength="80" />
+            <input type="text" id="chat-input" class="glass-input" placeholder="Click to chat..." autocomplete="off"
+              maxlength="80" />
           </div>
-          <div id="server-chat-stack"></div>
         </div>
       </div>
+
+      <div id="server-chat-stack"></div>
 
       <div id="action-dialog" class="dialog-content" style="display: none;">
         <h2 id="action-dialog-text"></h2>
@@ -41,9 +45,11 @@
   <!-- Naming Dialog Overlay -->
   <div id="name-dialog" class="overlay">
     <div class="dialog-content">
-      <img src="media/logo_128_128.png" alt="Joel's World Logo" style="display: block; margin: 0 auto 15px auto; width: 128px; height: 128px;" />
+      <img src="media/logo_128_128.png" alt="Joel's World Logo"
+        style="display: block; margin: 0 auto 15px auto; width: 128px; height: 128px;" />
       <h2>Welcome to Joel's World</h2>
-      <input type="text" id="player-name-input" class="glass-input" placeholder="Enter your name..." maxlength="15" autocomplete="off" />
+      <input type="text" id="player-name-input" class="glass-input" placeholder="Enter your name..." maxlength="15"
+        autocomplete="off" />
       <br>
       <button id="start-game-btn" class="btn btn-success">Start Game</button>
     </div>
@@ -87,106 +93,111 @@
   </div>
 
   <% if (isAdmin) { %>
-  <div id="admin-panel" style="display: none;">
+    <div id="admin-panel" style="display: none;">
       <div id="admin-panel-handle" class="admin-handle">
-      Admin Panel
+        Admin Panel
+      </div>
+      <div style="margin-bottom: 10px; text-align: center;">
+        <select id="admin-map-select" class="admin-select">
+          <option value="">Select Map...</option>
+        </select>
+        <button id="btn-create-obj-rect" class="admin-full-btn" style="background-color: #e67e22;">+ Collision
+          Box</button>
+        <button id="btn-create-obj-circle" class="admin-full-btn" style="background-color: #f1c40f;">+ Collision
+          Circle</button>
+        <button id="btn-create-npc" class="admin-full-btn" style="background-color: #9b59b6;">+ NPC</button>
+      </div>
+      <div id="admin-last-clicked"
+        style="font-size: 12px; font-family: monospace; color: #bdc3c7; text-align: center; margin-bottom: 5px;">
+        Last Click: x: -, y: -
+      </div>
+      <div id="admin-fps"
+        style="font-size: 12px; font-family: monospace; color: #bdc3c7; text-align: center; margin-bottom: 10px;">
+        FPS: --
+      </div>
+      <div id="edit-obj-section" style="display: none;">
+        <h3>Edit Object</h3>
+        <div style="text-align:center; margin-bottom:10px;">
+          <input type="text" id="obj-name-input" class="admin-input" placeholder="Object Name (Optional)" />
+        </div>
+        <div class="admin-control-row">
+          <span>Rotate:</span>
+          <button id="btn-obj-rot-left" class="admin-btn">↺</button>
+          <button id="btn-obj-rot-right" class="admin-btn">↻</button>
+        </div>
+        <div class="admin-control-row">
+          <span>Width:</span>
+          <button id="btn-obj-width-dec" class="admin-btn">-</button>
+          <button id="btn-obj-width-inc" class="admin-btn">+</button>
+        </div>
+        <div class="admin-control-row">
+          <span>Length:</span>
+          <button id="btn-obj-length-dec" class="admin-btn">-</button>
+          <button id="btn-obj-length-inc" class="admin-btn">+</button>
+        </div>
+        <div class="admin-control-row" style="margin-top: 5px;">
+          <span>Clip:</span>
+          <input type="number" id="input-obj-clip"
+            style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
+        </div>
+        <button id="btn-delete-obj" class="admin-full-btn" style="background-color:#e74c3c; margin-top:10px;">Delete
+          Object</button>
+      </div>
+      <div id="edit-npc-section" style="display: none; margin-top: 15px;">
+        <h3>Edit NPC</h3>
+        <div style="text-align:center; margin-bottom:5px;">
+          <input type="text" id="npc-name-input" class="admin-input" placeholder="NPC Name" />
+        </div>
+        <div class="admin-control-row" style="margin-bottom:5px;">
+          <span>Rotate:</span>
+          <button id="btn-npc-rot-left" class="admin-btn">↺</button>
+          <button id="btn-npc-rot-right" class="admin-btn">↻</button>
+        </div>
+        <div class="admin-control-row" style="margin-bottom:5px;">
+          <span>Width:</span>
+          <button id="btn-npc-width-dec" class="admin-btn">-</button>
+          <button id="btn-npc-width-inc" class="admin-btn">+</button>
+        </div>
+        <div class="admin-control-row" style="margin-bottom:5px;">
+          <span>Height:</span>
+          <button id="btn-npc-height-dec" class="admin-btn">-</button>
+          <button id="btn-npc-height-inc" class="admin-btn">+</button>
+        </div>
+        <div style="margin-bottom:5px;">
+          <span>Shirt: </span><input type="color" id="npc-shirt-col" class="admin-color-picker" />
+        </div>
+        <div style="margin-bottom:5px;">
+          <span>Pants: </span><input type="color" id="npc-pants-col" class="admin-color-picker" />
+        </div>
+        <div style="margin-bottom:5px;">
+          <span>Arms: </span><input type="color" id="npc-arm-col" class="admin-color-picker" />
+        </div>
+        <div style="margin-bottom: 5px;">
+          <div style="font-size: 12px; margin-bottom: 2px;">On Enter Dialog (1 message per line):</div>
+          <textarea id="npc-on-enter-input" class="admin-textarea"></textarea>
+        </div>
+        <div style="margin-bottom: 5px;">
+          <div style="font-size: 12px; margin-bottom: 2px;">On Exit Dialog (1 message per line):</div>
+          <textarea id="npc-on-exit-input" class="admin-textarea"></textarea>
+        </div>
+        <button id="btn-save-npc-dialog" class="admin-full-btn"
+          style="background-color:#3498db; margin-bottom: 5px;">Save Dialog</button>
+        <button id="btn-delete-npc" class="admin-full-btn" style="background-color:#e74c3c;">Delete NPC</button>
+      </div>
     </div>
-    <div style="margin-bottom: 10px; text-align: center;">
-      <select id="admin-map-select" class="admin-select">
-        <option value="">Select Map...</option>
-      </select>
-      <button id="btn-create-obj-rect" class="admin-full-btn" style="background-color: #e67e22;">+ Collision Box</button>
-      <button id="btn-create-obj-circle" class="admin-full-btn" style="background-color: #f1c40f;">+ Collision Circle</button>
-      <button id="btn-create-npc" class="admin-full-btn" style="background-color: #9b59b6;">+ NPC</button>
-    </div>
-    <div id="admin-last-clicked"
-      style="font-size: 12px; font-family: monospace; color: #bdc3c7; text-align: center; margin-bottom: 5px;">
-      Last Click: x: -, y: -
-    </div>
-    <div id="admin-fps"
-      style="font-size: 12px; font-family: monospace; color: #bdc3c7; text-align: center; margin-bottom: 10px;">
-      FPS: --
-    </div>
-    <div id="edit-obj-section" style="display: none;">
-      <h3>Edit Object</h3>
-      <div style="text-align:center; margin-bottom:10px;">
-        <input type="text" id="obj-name-input" class="admin-input" placeholder="Object Name (Optional)" />
-      </div>
-      <div class="admin-control-row">
-        <span>Rotate:</span>
-        <button id="btn-obj-rot-left" class="admin-btn">↺</button>
-        <button id="btn-obj-rot-right" class="admin-btn">↻</button>
-      </div>
-      <div class="admin-control-row">
-        <span>Width:</span>
-        <button id="btn-obj-width-dec" class="admin-btn">-</button>
-        <button id="btn-obj-width-inc" class="admin-btn">+</button>
-      </div>
-      <div class="admin-control-row">
-        <span>Length:</span>
-        <button id="btn-obj-length-dec" class="admin-btn">-</button>
-        <button id="btn-obj-length-inc" class="admin-btn">+</button>
-      </div>
-      <div class="admin-control-row" style="margin-top: 5px;">
-        <span>Clip:</span>
-        <input type="number" id="input-obj-clip" style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
-      </div>
-      <button id="btn-delete-obj" class="admin-full-btn" style="background-color:#e74c3c; margin-top:10px;">Delete Object</button>
-    </div>
-    <div id="edit-npc-section" style="display: none; margin-top: 15px;">
-      <h3>Edit NPC</h3>
-      <div style="text-align:center; margin-bottom:5px;">
-        <input type="text" id="npc-name-input" class="admin-input" placeholder="NPC Name" />
-      </div>
-      <div class="admin-control-row" style="margin-bottom:5px;">
-        <span>Rotate:</span>
-        <button id="btn-npc-rot-left" class="admin-btn">↺</button>
-        <button id="btn-npc-rot-right" class="admin-btn">↻</button>
-      </div>
-      <div class="admin-control-row" style="margin-bottom:5px;">
-        <span>Width:</span>
-        <button id="btn-npc-width-dec" class="admin-btn">-</button>
-        <button id="btn-npc-width-inc" class="admin-btn">+</button>
-      </div>
-      <div class="admin-control-row" style="margin-bottom:5px;">
-        <span>Height:</span>
-        <button id="btn-npc-height-dec" class="admin-btn">-</button>
-        <button id="btn-npc-height-inc" class="admin-btn">+</button>
-      </div>
-      <div style="margin-bottom:5px;">
-        <span>Shirt: </span><input type="color" id="npc-shirt-col" class="admin-color-picker" />
-      </div>
-      <div style="margin-bottom:5px;">
-        <span>Pants: </span><input type="color" id="npc-pants-col" class="admin-color-picker" />
-      </div>
-      <div style="margin-bottom:5px;">
-        <span>Arms: </span><input type="color" id="npc-arm-col" class="admin-color-picker" />
-      </div>
-      <div style="margin-bottom: 5px;">
-        <div style="font-size: 12px; margin-bottom: 2px;">On Enter Dialog (1 message per line):</div>
-        <textarea id="npc-on-enter-input" class="admin-textarea"></textarea>
-      </div>
-      <div style="margin-bottom: 5px;">
-        <div style="font-size: 12px; margin-bottom: 2px;">On Exit Dialog (1 message per line):</div>
-        <textarea id="npc-on-exit-input" class="admin-textarea"></textarea>
-      </div>
-      <button id="btn-save-npc-dialog" class="admin-full-btn" style="background-color:#3498db; margin-bottom: 5px;">Save Dialog</button>
-      <button id="btn-delete-npc" class="admin-full-btn" style="background-color:#e74c3c;">Delete NPC</button>
-    </div>
-  </div>
-  <% } else { %>
-  <button id="help-button">?</button>
-  <% } %>
+    <% } else { %>
+      <button id="help-button">?</button>
+      <% } %>
 
-  <div id="joystick-move-container">
-    <div id="joystick-move-knob"></div>
-  </div>
-  <button id="help-button">?</button>
-  <canvas id="gameCanvas"></canvas>
-  <% if (isAdmin) { %>
-  <script type="module" src="/src/admin.js"></script>
-  <% } %>
-  <script type="module" src="/src/main.js"></script>
+        <div id="joystick-move-container">
+          <div id="joystick-move-knob"></div>
+        </div>
+        <button id="help-button">?</button>
+        <canvas id="gameCanvas"></canvas>
+        <% if (isAdmin) { %>
+          <script type="module" src="/src/admin.js"></script>
+          <% } %>
+            <script type="module" src="/src/main.js"></script>
 </body>
 
 </html>

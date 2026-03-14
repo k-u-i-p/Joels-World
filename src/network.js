@@ -48,6 +48,18 @@ export class NetworkClient {
           charactersToUpdate.forEach(serverChar => {
             if (player && serverChar.id === player.id) return; // Prevent echoing our own state
 
+            // Check if this update belongs to an NPC
+            const localNpcIndex = (window.init?.npcs || []).findIndex(n => n.id === serverChar.id);
+            if (localNpcIndex > -1) {
+              const localNpc = window.init.npcs[localNpcIndex];
+              if (serverChar.emote !== undefined) localNpc.emote = serverChar.emote;
+              if (serverChar.x !== undefined) {
+                 localNpc.x = serverChar.x;
+                 localNpc.y = serverChar.y;
+              }
+              return; // Processed. Do not let it cascade into human character lists.
+            }
+
             const localCharIndex = (window.init?.characters || []).findIndex(c => c.id === serverChar.id);
             if (localCharIndex > -1) {
               const localChar = window.init.characters[localCharIndex];
@@ -107,7 +119,7 @@ export class NetworkClient {
           if (isServerMessage) {
             uiManager.addServerChatMessage(senderName, data.message);
           }
-          
+
           console.log(`[Chat] ${senderName}: ${data.message}`);
         } else if (data.type === 'objects_update') {
           if (window.init) {
