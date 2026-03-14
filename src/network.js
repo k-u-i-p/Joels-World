@@ -75,12 +75,12 @@ export class NetworkClient {
           console.error('Server Error:', data.message);
           if (data.message === 'Session already active in another window.') {
             document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#222;color:white;font-family:sans-serif;"><h2>${data.message}</h2></div>`;
-            
+
             // Prevent reconnect loop by removing the close event listener
             if (ws._closeHandler) {
               ws.removeEventListener('close', ws._closeHandler);
             }
-            
+
             ws.close();
             return;
           }
@@ -178,7 +178,7 @@ export class NetworkClient {
       console.warn('Disconnected from WebSocket server');
       this.attemptReconnect(this.onInitDataCallback);
     };
-    
+
     ws._closeHandler = closeHandler;
     ws.addEventListener('close', closeHandler);
   }
