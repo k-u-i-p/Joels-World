@@ -34,8 +34,15 @@ export class NetworkClient {
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'error') {
-          alert(data.message || 'Server Error');
-          window.location.reload();
+          console.error('Server Error:', data.message);
+          if (window.gameStarted) {
+            window.gameStarted = false;
+            window.init = null;
+            const nameDialog = document.getElementById('name-dialog');
+            if (nameDialog) nameDialog.style.display = 'flex';
+            const topUi = document.getElementById('top-center-ui');
+            if (topUi) topUi.style.display = 'none';
+          }
           return;
         } else if (data.type === 'init') {
           if (onInitDataCallback) onInitDataCallback(data);
