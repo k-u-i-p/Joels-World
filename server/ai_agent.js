@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { PhysicsEngine } from '../src/physics.js';
+import { appendToLog } from './websocket.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const physicsEngine = new PhysicsEngine();
@@ -152,36 +153,32 @@ async function handleAgentAction(mapData, action) {
             const sayArr = Array.isArray(act.say) ? act.say : [act.say];
             
             // Find who is close enough to hear this agent
-            const charactersInRange = physicsEngine.findCharacters(Object.values(mapData.characters), npcChar.x, npcChar.y, npcId, npcChar.interaction_radius || 150);
-            const playerIdsInRange = new Set(charactersInRange.map(c => c.id));
+            const playerIdsInRange = new Set();
+            if (mapData.characters) {
+                Object.values(mapData.characters).forEach(player => {
+                    const npcsNearPlayer = physicsEngine.findCharacters([npcChar], player.x, player.y);
+                    if (npcsNearPlayer.length > 0) {
+                        playerIdsInRange.add(player.id);
+                    }
+                });
+            }
 
             for (let i = 0; i < sayArr.length; i++) {
                 const msg = sayArr[i];
                 const broadcastMsg = JSON.stringify({ type: 'chat', id: npcId, message: msg });
-
-                // log it
+                
+                // append to log to write to file
                 const logLine = `${npcChar.name || npcId} (${npcId}) said: "${msg}"`;
-                mapData.npcs.forEach(n => {
-                    if (n.agent && n.agent.log_file) {
-                        const logFilePath = path.resolve(__dirname, 'data', n.agent.log_file);
-                        let logArr = [];
-                        try {
-                            if (fs.existsSync(logFilePath)) {
-                                const raw = fs.readFileSync(logFilePath, 'utf8');
-                                logArr = raw.split('\n').filter(line => line.trim().length > 0);
-                            }
-                        } catch (e) { }
-                        logArr.push(logLine);
-                        if (logArr.length > 50) logArr = logArr.slice(logArr.length - 50);
-                        
-                        const newLogsText = logArr.join('\n') + '\n';
-                        fs.writeFileSync(logFilePath, newLogsText, 'utf8');
-                        
-                        if (n.id === npcId) {
-                            lastProcessed[npcId] = newLogsText.trim();
+                appendToLog(mapData, logLine);
+
+                if (npcChar.agent && npcChar.agent.log_file) {
+                    const logFilePath = path.resolve(__dirname, 'data', npcChar.agent.log_file);
+                    try {
+                        if (fs.existsSync(logFilePath)) {
+                            lastProcessed[npcId] = fs.readFileSync(logFilePath, 'utf8').trim();
                         }
-                    }
-                });
+                    } catch (e) {}
+                }
 
                 mapData.clients.forEach(client => {
                     if (client.readyState === 1 && playerIdsInRange.has(client.clientId)) {

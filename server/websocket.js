@@ -6,7 +6,50 @@ import { fileURLToPath } from 'url';
 import { PhysicsEngine } from '../src/physics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const physicsEngine = new PhysicsEngine();
+export const physicsEngine = new PhysicsEngine();
+
+export function appendToLog(mapData, logEntry) {
+  if (!mapData.npcs) return;
+
+  const logLine = typeof logEntry === 'string' ? logEntry : logEntry.message;
+  if (!logLine) return; // Drop empty logs
+
+  const targetNpcs = new Set();
+  
+  if (mapData.characters) {
+    Object.values(mapData.characters).forEach(player => {
+      const npcs = physicsEngine.findCharacters(mapData.npcs, player.x, player.y);
+      npcs.forEach(n => targetNpcs.add(n));
+    });
+  }
+
+  targetNpcs.forEach(npc => {
+    if (npc.agent && npc.agent.log_file) {
+      const logPath = path.resolve(__dirname, 'data', npc.agent.log_file);
+      let logArr = [];
+      try {
+        if (fs.existsSync(logPath)) {
+          const raw = fs.readFileSync(logPath, 'utf8');
+          logArr = raw.split('\n').filter(line => line.trim().length > 0);
+        }
+      } catch (e) {
+        console.error('Error reading log array:', e);
+      }
+
+      logArr.push(logLine);
+
+      if (logArr.length > 50) {
+        logArr = logArr.slice(logArr.length - 50);
+      }
+
+      try {
+        fs.writeFileSync(logPath, logArr.join('\n') + '\n', 'utf8');
+      } catch (e) {
+        console.error('Error writing log array:', e);
+      }
+    }
+  });
+}
 
 export function setupWebSocket(server, sessionMiddleware) {
   const wss = new WebSocketServer({ server });
@@ -124,45 +167,6 @@ export function setupWebSocket(server, sessionMiddleware) {
   }
 
   const shoeColors = ['#111111', '#5e3a1f', '#7f8c8d']; // Black, Brown, Grey
-
-  function appendToLog(mapData, logEntry, x, y) {
-    if (!mapData.npcs) return;
-    
-    const logLine = typeof logEntry === 'string' ? logEntry : logEntry.message;
-    if (!logLine) return; // Drop empty logs
-
-    let targetNpcs = mapData.npcs;
-    if (x !== undefined && y !== undefined) {
-      targetNpcs = physicsEngine.findCharacters(mapData.npcs, x, y);
-    }
-
-    targetNpcs.forEach(npc => {
-      if (npc.agent && npc.agent.log_file) {
-        const logPath = path.resolve(__dirname, 'data', npc.agent.log_file);
-        let logArr = [];
-        try {
-          if (fs.existsSync(logPath)) {
-            const raw = fs.readFileSync(logPath, 'utf8');
-            logArr = raw.split('\n').filter(line => line.trim().length > 0);
-          }
-        } catch (e) {
-          console.error('Error reading log array:', e);
-        }
-
-        logArr.push(logLine);
-
-        if (logArr.length > 50) {
-          logArr = logArr.slice(logArr.length - 50);
-        }
-
-        try {
-          fs.writeFileSync(logPath, logArr.join('\n') + '\n', 'utf8');
-        } catch (e) {
-          console.error('Error writing log array:', e);
-        }
-      }
-    });
-  }
 
   function sendError(ws, message) {
     if (ws.readyState === 1) {
@@ -368,7 +372,7 @@ export function setupWebSocket(server, sessionMiddleware) {
           const sender = mapData.characters[ws.clientId];
           const name = sender ? sender.name || ws.clientId : ws.clientId;
           if (sender) {
-            appendToLog(mapData, `${name} (${ws.clientId}) said: "${data.message}"`, sender.x, sender.y);
+            appendToLog(mapData, `${name} (${ws.clientId}) said: "${data.message}"`);
           } else {
             appendToLog(mapData, `${name} (${ws.clientId}) said: "${data.message}"`);
           }

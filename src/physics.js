@@ -108,16 +108,14 @@ export class PhysicsEngine {
   }
 
   /**
-   * Finds characters from a list that are within a specific radius of coordinates x and y.
-   * If overrideRadius is not provided, it falls back to the interaction_radius of the character being checked.
+   * Finds characters from a list that are within their interaction_radius of coordinates x and y.
    * @param {Array} charactersList - The list of characters/NPCs to check.
    * @param {number} x - Target X coordinate.
    * @param {number} y - Target Y coordinate.
-   * @param {string} [ignoreId=null] - Character ID to ignore.
-   * @param {number} [overrideRadius=null] - Fixed radius to check against instead of character's individual radius.
+   * @param {string} [ignoreId=null] - Character ID to ignore (usually the player's ID).
    * @returns {Array} List of characters found within the radius.
    */
-  findCharacters(charactersList, x, y, ignoreId = null, overrideRadius = null) {
+  findCharacters(charactersList, x, y, ignoreId = null) {
     const found = [];
     if (!charactersList) return found;
 
@@ -129,12 +127,7 @@ export class PhysicsEngine {
       const dy = y - c.y;
       const distSq = dx * dx + dy * dy;
 
-      let rSq;
-      if (overrideRadius !== null) {
-        rSq = overrideRadius * overrideRadius;
-      } else {
-        rSq = c.interaction_radius ? (c.interaction_radius * c.interaction_radius) : 150 * 150;
-      }
+      const rSq = c.interaction_radius ? (c.interaction_radius * c.interaction_radius) : 150 * 150;
 
       if (distSq <= rSq) {
         c._distSq = distSq; // Attach for sorting if needed
