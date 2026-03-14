@@ -8,6 +8,10 @@ export class NetworkClient {
     this.syncTimeout = null;
     this.lastSyncCallTime = 0;
     this.SYNC_THROTTLE_MS = 50;
+
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 10;
+    this.baseReconnectDelay = 1000;
   }
 
   /**
@@ -23,6 +27,7 @@ export class NetworkClient {
 
     this.ws.onopen = () => {
       console.log('Connected to WebSocket server');
+      this.reconnectAttempts = 0;
     };
 
     this.ws.onmessage = (event) => {
@@ -108,6 +113,30 @@ export class NetworkClient {
         console.error(e);
       }
     };
+
+    this.ws.onclose = () => {
+      console.warn('Disconnected from WebSocket server');
+      this.attemptReconnect(onInitDataCallback);
+    };
+  }
+
+  /**
+   * Attempts to reconnect to the WebSocket server with exponential backoff.
+   * @param {Function} onInitDataCallback 
+   */
+  attemptReconnect(onInitDataCallback) {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('Max reconnect attempts reached. Please refresh the page manually.');
+      return;
+    }
+
+    const delay = this.baseReconnectDelay * Math.pow(1.5, this.reconnectAttempts);
+    console.log(`Attempting to reconnect in ${Math.round(delay)}ms... (Attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+
+    setTimeout(() => {
+      this.reconnectAttempts++;
+      this.connect(onInitDataCallback);
+    }, delay);
   }
 
   /**
