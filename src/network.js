@@ -82,6 +82,8 @@ export class NetworkClient {
         } else if (data.type === 'chat') {
           const player = window.player;
           let senderName = `User ${data.id}`;
+          let isServerMessage = false;
+
           // Check human characters first
           let charIndex = (window.init?.characters || []).findIndex(c => c.id === data.id);
           if (charIndex > -1) {
@@ -96,11 +98,15 @@ export class NetworkClient {
             // Check NPCs
             let npcIndex = (window.init?.npcs || []).findIndex(n => n.id === data.id);
             if (npcIndex > -1) {
-              window.init.npcs[npcIndex].chatMessage = data.message;
-              window.init.npcs[npcIndex].chatTime = Date.now();
               senderName = window.init.npcs[npcIndex].name || senderName;
+              isServerMessage = true;
             }
           }
+
+          if (isServerMessage) {
+            uiManager.addServerChatMessage(senderName, data.message);
+          }
+          
           console.log(`[Chat] ${senderName}: ${data.message}`);
         } else if (data.type === 'objects_update') {
           if (window.init) {

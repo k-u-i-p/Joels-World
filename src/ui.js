@@ -13,6 +13,7 @@ export class UIManager {
   get btnYes() { return this._by || (this._by = document.getElementById('action-dialog-yes')); }
   get btnNo() { return this._bn || (this._bn = document.getElementById('action-dialog-no')); }
   get mapNameDisplay() { return this._mnd || (this._mnd = document.getElementById('map-name-display')); }
+  get serverChatStack() { return this._scs || (this._scs = document.getElementById('server-chat-stack')); }
 
   initLobby(onStartGame) {
     const nameDialog = document.getElementById('name-dialog');
@@ -67,6 +68,32 @@ export class UIManager {
         }
       });
     }
+  }
+
+  addServerChatMessage(senderName, message) {
+    if (!this.serverChatStack) return;
+
+    const msgElement = document.createElement('div');
+    msgElement.className = 'server-chat-message';
+    msgElement.innerHTML = `<strong>${senderName}:</strong> ${message}`;
+
+    // LIFO Stack Append - prepends to push older messages down
+    this.serverChatStack.prepend(msgElement);
+
+    // Culling mechanism (max 5 active elements)
+    while (this.serverChatStack.children.length > 5) {
+      this.serverChatStack.removeChild(this.serverChatStack.lastChild);
+    }
+
+    // Decay sequence (30 seconds)
+    setTimeout(() => {
+      msgElement.classList.add('fade-out');
+      setTimeout(() => {
+        if (msgElement.parentNode === this.serverChatStack) {
+          this.serverChatStack.removeChild(msgElement);
+        }
+      }, 500); // 500ms aligns with CSS transition timeframe
+    }, 30000);
   }
 }
 
