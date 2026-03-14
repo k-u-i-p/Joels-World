@@ -10,7 +10,7 @@ export class NetworkClient {
     this.SYNC_THROTTLE_MS = 50;
 
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 10;
+    this.maxReconnectAttempts = 5;
     this.baseReconnectDelay = 1000;
   }
 
@@ -126,7 +126,8 @@ export class NetworkClient {
    */
   attemptReconnect(onInitDataCallback) {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnect attempts reached. Please refresh the page manually.');
+      console.error('Max reconnect attempts reached. Reloading the page...');
+      window.location.reload();
       return;
     }
 
