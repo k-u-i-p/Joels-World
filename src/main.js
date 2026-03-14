@@ -167,30 +167,19 @@ function update() {
   }
 
   if (!emoteForcedMove) {
-    if (inputManager.isPressed('TouchMove')) {
-      dx += Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
-      dy += Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
-    } else {
-      // Keyboard tank controls
-      if (inputManager.isPressed('ArrowUp')) {
-        dx += Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
-        dy += Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
-      }
-      if (inputManager.isPressed('ArrowDown')) {
-        dx -= Math.cos(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
-        dy -= Math.sin(player.rotation * Math.PI / 180) * (player.moveSpeed || 3);
-      }
-    }
+    const intent = inputManager.getDemandedMovementVector(player.moveSpeed || 3, player.rotation);
+    dx += intent.dx;
+    dy += intent.dy;
   }
 
   let isMoving = false;
   if (dx !== 0 || dy !== 0) {
     const result = physicsEngine.processMovement(
-      player, 
-      dx, 
-      dy, 
-      window.init?.objects, 
-      window.init?.mapData, 
+      player,
+      dx,
+      dy,
+      window.init?.objects,
+      window.init?.mapData,
       emoteForcedMove
     );
 
@@ -280,66 +269,15 @@ function update() {
   }
 
   // Smoothly interpolate other characters to their server positions
-  const processInterp = (c) => {
-    if (c.id === player.id) return;
-
-    if (c.targetX !== undefined && c.targetY !== undefined) {
-      const cdx = c.targetX - c.x;
-      const cdy = c.targetY - c.y;
-      const distSq = cdx * cdx + cdy * cdy;
-
-      // Snap if teleported really far (100^2 = 10000)
-      if (distSq > 10000) {
-        c.x = c.targetX;
-        c.y = c.targetY;
-        c.rotation = c.targetRotation;
-      } else if (distSq > 0.1) {
-        // Continuous pursuit velocity based on base speed (with a dynamic catchup boost if far behind)
-        const distance = Math.sqrt(distSq);
-        const baseSpeed = c.moveSpeed || 3;
-
-        // If distance is large (e.g. > 40px), temporarily boost speed so they catch up seamlessly
-        const catchupMultiplier = distance > 40 ? 1.5 : 1.0;
-        let stepDist = baseSpeed * catchupMultiplier;
-
-        // Don't overshoot the target
-        if (stepDist > distance) {
-          stepDist = distance;
-        }
-
-        const ratio = stepDist / distance;
-        c.x += cdx * ratio;
-        c.y += cdy * ratio;
-
-        c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
-      } else {
-        c.x = c.targetX;
-        c.y = c.targetY;
-        c.legAnimationTime = 0; // stop moving legs when we catch up
-      }
-
-      // Interpolate rotation efficiently via shortest angle (even if not moving XY)
-      if (c.targetRotation !== undefined) {
-        let rotDiff = c.targetRotation - (c.rotation || 0);
-        while (rotDiff > 180) rotDiff -= 360;
-        while (rotDiff < -180) rotDiff += 360;
-
-        if (Math.abs(rotDiff) > 1) {
-          const rotSpeed = c.rotationSpeed || 5;
-          const rotStep = Math.min(Math.abs(rotDiff), rotSpeed);
-          c.rotation = (c.rotation || 0) + Math.sign(rotDiff) * rotStep;
-        } else {
-          c.rotation = c.targetRotation;
-        }
-      }
-    }
-  };
-
   if (window.init?.characters) {
-    for (let i = 0; i < window.init.characters.length; i++) processInterp(window.init.characters[i]);
+    for (let i = 0; i < window.init.characters.length; i++) {
+      physicsEngine.processInterpolation(window.init.characters[i], player.id);
+    }
   }
   if (window.init?.npcs) {
-    for (let i = 0; i < window.init.npcs.length; i++) processInterp(window.init.npcs[i]);
+    for (let i = 0; i < window.init.npcs.length; i++) {
+      physicsEngine.processInterpolation(window.init.npcs[i], player.id);
+    }
   }
 
   // Check NPC radius interactions
@@ -400,9 +338,9 @@ function update() {
     }
   }
 
-  // Sync back via websocket 20 times a second if moved
+  // Sync back via websocket 10 times a second if moved
   const now = Date.now();
-  if (now - lastSyncTime > 50) {
+  if (now - lastSyncTime > 100) {
     const currentEmoteStr = player.emote ? JSON.stringify(player.emote) : null;
     if (player.x !== player._lastSentX || player.y !== player._lastSentY || player.rotation !== player._lastSentRotation || currentEmoteStr !== player._lastSentEmoteString) {
       player._lastSentEmoteString = currentEmoteStr;

@@ -17,6 +17,38 @@ export class InputManager {
     return this.keys[key] || false;
   }
 
+  /**
+   * Translates the current active key presses (tank controls or joystick) into
+   * an intended X/Y delta movement vector.
+   * @param {number} entitySpeed - Base movement speed of the character.
+   * @param {number} currentRotation - The character's current rotation in degrees.
+   * @returns {Object} An object { dx, dy } representing the movement intent.
+   */
+  getDemandedMovementVector(entitySpeed, currentRotation) {
+    let dx = 0;
+    let dy = 0;
+
+    const angleRad = currentRotation * (Math.PI / 180);
+    const speed = entitySpeed || 3;
+
+    if (this.keys['TouchMove']) {
+      dx += Math.cos(angleRad) * speed;
+      dy += Math.sin(angleRad) * speed;
+    } else {
+      // Keyboard tank controls
+      if (this.keys['ArrowUp']) {
+        dx += Math.cos(angleRad) * speed;
+        dy += Math.sin(angleRad) * speed;
+      }
+      if (this.keys['ArrowDown']) {
+        dx -= Math.cos(angleRad) * speed;
+        dy -= Math.sin(angleRad) * speed;
+      }
+    }
+
+    return { dx, dy };
+  }
+
   initKeyboard() {
     const chatInput = document.getElementById('chat-input');
     if (chatInput) {

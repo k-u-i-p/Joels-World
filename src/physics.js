@@ -399,6 +399,67 @@ export class PhysicsEngine {
 
     return result;
   }
+
+  /**
+   * Smoothly interpolates an entity's local position and rotation towards its target coordinates dictated by the server.
+   * Handles dynamic catchup speed boosting and shortest-angle rotation.
+   * @param {Object} c - The character/entity object to interpolate. Expects x,y,rotation and target equivalents.
+   * @param {string} [ignoreId=null] - Character ID to prevent processing (usually local player).
+   */
+  processInterpolation(c, ignoreId = null) {
+    if (ignoreId && c.id === ignoreId) return;
+
+    if (c.targetX !== undefined && c.targetY !== undefined) {
+      const cdx = c.targetX - c.x;
+      const cdy = c.targetY - c.y;
+      const distSq = cdx * cdx + cdy * cdy;
+
+      // Snap if teleported really far (100^2 = 10000)
+      if (distSq > 10000) {
+        c.x = c.targetX;
+        c.y = c.targetY;
+        c.rotation = c.targetRotation;
+      } else if (distSq > 0.1) {
+        // Continuous pursuit velocity based on base speed (with a dynamic catchup boost if far behind)
+        const distance = Math.sqrt(distSq);
+        const baseSpeed = c.moveSpeed || 3;
+
+        // If distance is large (e.g. > 40px), temporarily boost speed so they catch up seamlessly
+        const catchupMultiplier = distance > 40 ? 1.5 : 1.0;
+        let stepDist = baseSpeed * catchupMultiplier;
+
+        // Don't overshoot the target
+        if (stepDist > distance) {
+          stepDist = distance;
+        }
+
+        const ratio = stepDist / distance;
+        c.x += cdx * ratio;
+        c.y += cdy * ratio;
+
+        c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
+      } else {
+        c.x = c.targetX;
+        c.y = c.targetY;
+        c.legAnimationTime = 0; // stop moving legs when we catch up
+      }
+
+      // Interpolate rotation efficiently via shortest angle (even if not moving XY)
+      if (c.targetRotation !== undefined) {
+        let rotDiff = c.targetRotation - (c.rotation || 0);
+        while (rotDiff > 180) rotDiff -= 360;
+        while (rotDiff < -180) rotDiff += 360;
+
+        if (Math.abs(rotDiff) > 1) {
+          const rotSpeed = c.rotationSpeed || 5;
+          const rotStep = Math.min(Math.abs(rotDiff), rotSpeed);
+          c.rotation = (c.rotation || 0) + Math.sign(rotDiff) * rotStep;
+        } else {
+          c.rotation = c.targetRotation;
+        }
+      }
+    }
+  }
 }
 
 export const physicsEngine = new PhysicsEngine();
