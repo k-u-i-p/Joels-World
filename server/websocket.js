@@ -37,6 +37,14 @@ export function setupWebSocket(server) {
       agentFile: mapDef.agentFile ? path.resolve(__dirname, 'data', mapDef.agentFile) : null
     };
 
+    if (mapObj.logFile) {
+      try {
+        fs.writeFileSync(mapObj.logFile, '', 'utf8');
+      } catch (e) {
+        console.error(`Error clearing log file for map ${mapDef.id}:`, e);
+      }
+    }
+
     if (mapDef.npcs) {
       const npcPath = path.resolve(__dirname, 'data', mapDef.npcs);
       try {
@@ -127,9 +135,9 @@ export function setupWebSocket(server) {
     // gracefully extract its readable message if it's the old JSON object format
     const logLine = typeof logEntry === 'string' ? logEntry : logEntry.message;
     if (!logLine) return; // Drop empty logs
-    
+
     logArr.push(logLine);
-    
+
     if (logArr.length > 50) {
       logArr = logArr.slice(logArr.length - 50);
     }
@@ -235,7 +243,7 @@ export function setupWebSocket(server) {
     // If the session already has an attached character, boot them into the game instantly.
     if (session && session.player) {
       ws.clientId = session.player.id;
-      
+
       // Override persistent coordinates with a fresh spawn location dynamically 
       const { spawnX, spawnY } = generateSpawnCoords(mapData);
       session.player.x = spawnX;
@@ -243,7 +251,7 @@ export function setupWebSocket(server) {
 
       mapData.characters[ws.clientId] = session.player;
       mapData.dirtyCharacters[ws.clientId] = session.player;
-      
+
       console.log(`Resuming session character ${session.player.name} (${ws.clientId})`);
       sendInitPayload(mapData, session.player);
     }
@@ -292,9 +300,9 @@ export function setupWebSocket(server) {
 
           mapData.characters[newPlayerId] = newChar;
           mapData.dirtyCharacters[newPlayerId] = newChar;
-          
+
           sendInitPayload(mapData, newChar);
-          
+
           appendToLog(mapData, `${newChar.name || 'Student'} (${newPlayerId}) entered the map`);
           return;
         }
@@ -310,7 +318,7 @@ export function setupWebSocket(server) {
           mapData.dirtyCharacters[char.id] = char;
         } else if (data.type === 'chat') {
           if (typeof data.message !== 'string') return;
-          
+
           data.message = data.message.trim();
           if (!data.message || data.message.length > 200) return;
 
@@ -340,6 +348,7 @@ export function setupWebSocket(server) {
               client.send(broadcastMsg);
             }
           });
+          appendToLog(mapData, `${name} (${ws.clientId}) left the map`);
         } else if (data.type === 'change_map') {
           const requestedMapId = Number(data.mapId);
           const newMapData = mapState[requestedMapId];
@@ -390,7 +399,6 @@ export function setupWebSocket(server) {
             // Send init to immediately reset the client seamlessly
             sendInitPayload(mapData, oldChar);
           }
-          appendToLog(mapData, `System Event: ${data.message} (${ws.clientId} executed)`);
         } else {
           handleAdminMessage(ws, data, mapData);
         }
