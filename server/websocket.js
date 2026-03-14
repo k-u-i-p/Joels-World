@@ -309,6 +309,16 @@ export function setupWebSocket(server) {
           mapData.characters[char.id] = char;
           mapData.dirtyCharacters[char.id] = char;
         } else if (data.type === 'chat') {
+          if (typeof data.message !== 'string') return;
+          
+          data.message = data.message.trim();
+          if (!data.message || data.message.length > 200) return;
+
+          // Discard if it contains newlines, tabs, escape backslashes, or HTML brackets.
+          if (/[\r\n\t\\<>]/.test(data.message)) {
+            return;
+          }
+
           // Log chat
           const sender = mapData.characters[ws.clientId];
           const name = sender ? sender.name || ws.clientId : ws.clientId;
