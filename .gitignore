@@ -28,3 +28,6 @@ public/**/chunks/
 
 # Secrets
 gemini_key
+
+# AI Agent Logs
+log.txt

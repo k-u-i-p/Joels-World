@@ -54,8 +54,8 @@ export class NetworkClient {
               const localNpc = window.init.npcs[localNpcIndex];
               if (serverChar.emote !== undefined) localNpc.emote = serverChar.emote;
               if (serverChar.x !== undefined) {
-                 localNpc.x = serverChar.x;
-                 localNpc.y = serverChar.y;
+                localNpc.x = serverChar.x;
+                localNpc.y = serverChar.y;
               }
               return; // Processed. Do not let it cascade into human character lists.
             }
@@ -95,7 +95,6 @@ export class NetworkClient {
         } else if (data.type === 'chat') {
           const player = window.player;
           let senderName = `User ${data.id}`;
-          let isServerMessage = false;
 
           // Check human characters first
           let charIndex = (window.init?.characters || []).findIndex(c => c.id === data.id);
@@ -112,13 +111,10 @@ export class NetworkClient {
             let npcIndex = (window.init?.npcs || []).findIndex(n => n.id === data.id);
             if (npcIndex > -1) {
               senderName = window.init.npcs[npcIndex].name || senderName;
-              isServerMessage = true;
             }
           }
 
-          if (isServerMessage) {
-            uiManager.addServerChatMessage(senderName, data.message);
-          }
+          uiManager.addServerChatMessage(senderName, data.message);
 
           console.log(`[Chat] ${senderName}: ${data.message}`);
         } else if (data.type === 'objects_update') {
