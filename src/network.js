@@ -20,8 +20,9 @@ export class NetworkClient {
    */
   connect(onInitDataCallback) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
-    
+    const state = window.init ? 'running' : 'new';
+    const wsUrl = `${protocol}//${window.location.host}?state=${state}`;
+
     this.ws = new WebSocket(wsUrl);
     window.ws = this.ws;
 
@@ -35,14 +36,7 @@ export class NetworkClient {
         const data = JSON.parse(event.data);
         if (data.type === 'error') {
           console.error('Server Error:', data.message);
-          if (window.gameStarted) {
-            window.gameStarted = false;
-            window.init = null;
-            const nameDialog = document.getElementById('name-dialog');
-            if (nameDialog) nameDialog.style.display = 'flex';
-            const topUi = document.getElementById('top-center-ui');
-            if (topUi) topUi.style.display = 'none';
-          }
+          window.location.reload();
           return;
         } else if (data.type === 'init') {
           if (onInitDataCallback) onInitDataCallback(data);

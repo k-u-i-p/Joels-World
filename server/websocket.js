@@ -162,12 +162,15 @@ export function setupWebSocket(server) {
     cookieParser()(req, {}, () => { });
 
     const urlParams = new URLSearchParams(req.url.split('?')[1] || "");
+    const stateParam = urlParams.get('state') || 'new';
     const parsedCookies = req.cookies || {};
     const session = getSession(parsedCookies.SSID);
 
-    if (parsedCookies.SSID && !session) {
-      sendError(ws, 'Invalid session');
+    if (stateParam === 'running' && parsedCookies.SSID && (!session || !session.player)) {
+      sendError(ws, 'No player session');
       return;
+    } else if (session && session.player) {
+      console.log(session.player.name + ' has resumed game with valid session');
     }
 
     ws.isAdmin = session ? session.isAdmin : false;
@@ -335,6 +338,7 @@ export function setupWebSocket(server) {
 
           // Discard if it contains newlines, tabs, escape backslashes, or HTML brackets.
           if (/[\r\n\t\\<>]/.test(data.message)) {
+            sendError(ws, 'Invalid message. Please use only English letters with no spaces or symbols.');
             return;
           }
 
