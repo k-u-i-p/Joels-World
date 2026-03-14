@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import cookieParser from 'cookie-parser';
+import session from 'express-session';
 import { setupWebSocket } from './websocket.js';
 import { setupStatic } from './static.js';
 import { startAIAgent } from './ai_agent.js';
@@ -21,7 +22,14 @@ app.set('views', path.resolve(__dirname, '../views'));
 
 app.use(cookieParser());
 
-const { wss, mapState } = setupWebSocket(server);
+const sessionMiddleware = session({
+  secret: 'joels-world-secret',
+  resave: false,
+  saveUninitialized: true
+});
+app.use(sessionMiddleware);
+
+const { wss, mapState } = setupWebSocket(server, sessionMiddleware);
 startAIAgent(mapState);
 
 // Generate clip mask overlays locally FIRST

@@ -3,12 +3,10 @@ import path from 'path';
 import { WebSocketServer } from 'ws';
 import { handleAdminMessage } from './admin.js';
 import { fileURLToPath } from 'url';
-import { getSession } from './session.js';
-import cookieParser from 'cookie-parser';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export function setupWebSocket(server) {
+export function setupWebSocket(server, sessionMiddleware) {
   const wss = new WebSocketServer({ server });
 
   const mapState = {};
@@ -159,19 +157,17 @@ export function setupWebSocket(server) {
   wss.on('connection', (ws, req) => {
     console.log('Client connected');
 
-    cookieParser()(req, {}, () => { });
+    sessionMiddleware(req, {}, () => {
+      const urlParams = new URLSearchParams(req.url.split('?')[1] || "");
+      const stateParam = urlParams.get('state') || 'new';
+      const session = req.session;
 
-    const urlParams = new URLSearchParams(req.url.split('?')[1] || "");
-    const stateParam = urlParams.get('state') || 'new';
-    const parsedCookies = req.cookies || {};
-    const session = getSession(parsedCookies.SSID);
-
-    if (stateParam === 'running' && parsedCookies.SSID && (!session || !session.player)) {
-      sendError(ws, 'No player session');
-      return;
-    } else if (session && session.player) {
-      console.log(session.player.name + ' has resumed game with valid session');
-    }
+      if (stateParam === 'running' && req.headers.cookie && req.headers.cookie.includes('connect.sid') && (!session || !session.player)) {
+        sendError(ws, 'No player session');
+        return;
+      } else if (session && session.player) {
+        console.log(session.player.name + ' has resumed game with valid session');
+      }
 
     ws.isAdmin = session ? session.isAdmin : false;
 
@@ -310,6 +306,7 @@ export function setupWebSocket(server) {
           if (session) {
             newChar.mapId = ws.mapId;
             session.player = newChar;
+            session.save();
           }
 
           mapData.characters[newPlayerId] = newChar;
@@ -448,6 +445,7 @@ export function setupWebSocket(server) {
         }
       }
       mapData.clients.delete(ws);
+    });
     });
   });
 
