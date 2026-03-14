@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let ai = null;
 let apiKey = process.env.GEMINI_API_KEY;
+let lastProcessed = {};
 
 export function startAIAgent(mapState) {
     if (!apiKey) {
