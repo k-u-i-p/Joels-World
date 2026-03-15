@@ -368,6 +368,10 @@ export function setupWebSocket(server, sessionMiddleware) {
             mapData.characters[char.id] = char;
             mapData.dirtyCharacters[char.id] = char;
           } else if (data.type === 'log') {
+            const now = Date.now();
+            if (ws.lastLogTime && now - ws.lastLogTime < 2000) return;
+            ws.lastLogTime = now;
+
             console.log("LOG EVENT: ", data);
             if (typeof data.message !== 'string') return;
 
@@ -382,6 +386,10 @@ export function setupWebSocket(server, sessionMiddleware) {
 
             appendToLog(mapData, logMsg, data.npc_id);
           } else if (data.type === 'chat') {
+            const now = Date.now();
+            if (ws.lastChatTime && now - ws.lastChatTime < 2000) return;
+            ws.lastChatTime = now;
+
             if (typeof data.message !== 'string') return;
 
             data.message = data.message.trim();
