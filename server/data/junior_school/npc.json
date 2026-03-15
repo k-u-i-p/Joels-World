@@ -28,7 +28,9 @@
         ]
       }
     ],
-    "shoeColor": "#7f8c8d"
+    "shoeColor": "#7f8c8d",
+    "hairStyle": "long",
+    "hairColor": "#d35400"
   },
   {
     "id": 2,
@@ -52,7 +54,9 @@
         ]
       }
     ],
-    "shoeColor": "#5e3a1f"
+    "shoeColor": "#5e3a1f",
+    "hairStyle": "short",
+    "hairColor": "#e74c3c"
   },
   {
     "id": 3,
@@ -78,7 +82,9 @@
       }
     ],
     "on_exit": [],
-    "shoeColor": "#111111"
+    "shoeColor": "#111111",
+    "hairStyle": "short",
+    "hairColor": "#e67e22"
   },
   {
     "id": 4,
@@ -93,7 +99,9 @@
     "pantsColor": "#2c3e50",
     "armColor": "#f1c40f",
     "interaction_radius": 150,
-    "shoeColor": "#5e3a1f"
+    "shoeColor": "#5e3a1f",
+    "hairStyle": "messy",
+    "hairColor": "#ecf0f1"
   },
   {
     "id": 5,
@@ -116,7 +124,9 @@
       }
     ],
     "on_exit": [],
-    "shoeColor": "#111111"
+    "shoeColor": "#111111",
+    "hairStyle": "bald",
+    "hairColor": "#5c3a21"
   },
   {
     "id": 7,
@@ -136,7 +146,9 @@
       "name": "bounce",
       "startTime": 0
     },
-    "shoeColor": "#111111"
+    "shoeColor": "#111111",
+    "hairStyle": "long",
+    "hairColor": "#9b59b6"
   },
   {
     "id": 8,
@@ -167,7 +179,9 @@
       "name": "rugby",
       "startTime": 0
     },
-    "shoeColor": "#111111"
+    "shoeColor": "#111111",
+    "hairStyle": "short",
+    "hairColor": "#9b59b6"
   },
   {
     "id": 9,
@@ -192,6 +206,8 @@
       }
     ],
     "on_exit": [],
-    "interaction_radius": 800
+    "interaction_radius": 800,
+    "hairStyle": "messy",
+    "hairColor": "#000000"
   }
 ]

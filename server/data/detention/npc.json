@@ -32,7 +32,9 @@
       }
     ],
     "shoeColor": "#7f8c8d",
-    "emote": null
+    "emote": null,
+    "hairStyle": "ponytail",
+    "hairColor": "#2c3e50"
   },
   {
     "id": 2,
@@ -59,6 +61,8 @@
           "the answer is mr hardy is a idiot"
         ]
       }
-    ]
+    ],
+    "hairStyle": "ponytail",
+    "hairColor": "#5c3a21"
   }
 ]
