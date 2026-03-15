@@ -38,5 +38,82 @@
     "shoeColor": "#111111",
     "hairStyle": "bald",
     "hairColor": "#000000"
+  },
+  {
+    "id": 2,
+    "name": "Xander",
+    "x": 1120,
+    "y": -99,
+    "width": 58,
+    "height": 40,
+    "rotation": 175,
+    "shirtColor": "#3498db",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "on_enter": [
+      {
+        "say": [
+          "la da da da da da da de doo do"
+        ]
+      }
+    ],
+    "on_exit": [],
+    "gender": "male",
+    "hairStyle": "bald",
+    "hairColor": "#000000"
+  },
+  {
+    "id": 3,
+    "name": "Archie",
+    "x": -647,
+    "y": -208,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "shirtColor": "#77bb41",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "emote": {
+      "name": "swim",
+      "startTime": 0
+    },
+    "on_enter": [
+      {
+        "say": [
+          "hey {name} wats sup"
+        ]
+      }
+    ],
+    "on_exit": [],
+    "gender": "male",
+    "hairStyle": "bald",
+    "hairColor": "#000000"
+  },
+  {
+    "id": 4,
+    "name": "ben",
+    "x": -440,
+    "y": -198,
+    "width": 40,
+    "height": 40,
+    "rotation": 175,
+    "shirtColor": "#ff4013",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "emote": {
+      "name": "swim",
+      "startTime": 0
+    },
+    "on_enter": [
+      {
+        "say": [
+          "hi {name} were plying catch with our beachball"
+        ]
+      }
+    ],
+    "on_exit": [],
+    "gender": "male",
+    "hairStyle": "bald",
+    "hairColor": "#000000"
   }
 ]

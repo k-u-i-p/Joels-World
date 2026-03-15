@@ -64,5 +64,32 @@
     ],
     "hairStyle": "bald",
     "hairColor": "#000000"
+  },
+  {
+    "id": 3,
+    "name": "Dancing Guy",
+    "x": 200,
+    "y": -200,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "shirtColor": "#e74c3c",
+    "pantsColor": "#f1c40f",
+    "armColor": "#e74c3c",
+    "emote": {
+      "name": "dance",
+      "startTime": 0
+    },
+    "on_enter": [
+      {
+        "say": [
+          "detention is the best yeahhhhh"
+        ]
+      }
+    ],
+    "on_exit": [],
+    "gender": "male",
+    "hairStyle": "bald",
+    "hairColor": "#000000"
   }
 ]
