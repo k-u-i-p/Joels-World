@@ -8,9 +8,9 @@
     "height": 52,
     "rotation": 90,
     "gender": "male",
-    "shirtColor": "#3498db",
+    "shirtColor": "#000080",
     "pantsColor": "#2c3e50",
-    "armColor": "#3498db",
+    "armColor": "#000080",
     "interaction_radius": 500,
     "agent": {
       "prompt_file": "detention/agent_mr_hardy.md",
