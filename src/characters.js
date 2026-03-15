@@ -5,7 +5,12 @@ const PI2 = Math.PI * 2;
 const PI_HALF = Math.PI / 2;
 const PI_ONE_HALF = Math.PI * 1.5;
 
+const colorCache = {};
+
 function shadeColor(color, percent) {
+  const cacheKey = color + percent;
+  if (colorCache[cacheKey]) return colorCache[cacheKey];
+
   let R = parseInt(color.substring(1, 3), 16);
   let G = parseInt(color.substring(3, 5), 16);
   let B = parseInt(color.substring(5, 7), 16);
@@ -26,7 +31,8 @@ function shadeColor(color, percent) {
   let GG = ((G.toString(16).length == 1) ? "0" + G.toString(16) : G.toString(16));
   let BB = ((B.toString(16).length == 1) ? "0" + B.toString(16) : B.toString(16));
 
-  return "#" + RR + GG + BB;
+  colorCache[cacheKey] = "#" + RR + GG + BB;
+  return colorCache[cacheKey];
 }
 
 export class CharacterManager {
@@ -63,7 +69,7 @@ export class CharacterManager {
     bodyGrad.addColorStop(0, shadeColor(color, 40));
     bodyGrad.addColorStop(0.5, color);
     bodyGrad.addColorStop(1, shadeColor(color, -40));
-    
+
     ctxObj.fillStyle = bodyGrad;
     ctxObj.beginPath();
     // Body path (slightly inset from sole)
@@ -115,7 +121,7 @@ export class CharacterManager {
   /**
    * Helper method rendering the shared visual anatomy of a human character based on limb positions.
    * @param {CanvasRenderingContext2D} ctx - The canvas graphics context.
-   * @param {Object} c - The character data including colors and gender.
+   * @param {Object} c - The character data including colors and gender.  
    * @param {Object} limbs - Pre-calculated limb position coordinates.
    */
   drawHumanoid(ctx, c, limbs) {
@@ -412,17 +418,17 @@ export class CharacterManager {
         ctx.font = 'bold 12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
         ctx.textAlign = 'center';
 
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = 3;
-        ctx.shadowOffsetX = 1;
-        ctx.shadowOffsetY = 1;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.lineJoin = 'round';
 
         const baseScale = window.init?.mapData?.character_scale || 1;
         const nameYOffsetScreen = (((c.height || 40) / 2) * baseScale) * cameraZoom + 15;
 
-        // draw at local 0 with scaled Y offset
+        // Draw an optimized hardware stroke instead of expensive gaussian shadow blurring
+        ctx.strokeText(c.name, 0, nameYOffsetScreen);
         ctx.fillText(c.name, 0, nameYOffsetScreen);
-        
+
         ctx.restore();
       }
 
@@ -470,7 +476,7 @@ export class CharacterManager {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(c.chatMessage, 0, bYScreen + bubbleHeight / 2);
-        
+
         ctx.restore();
       }
     }
