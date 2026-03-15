@@ -211,14 +211,14 @@ export class CharacterManager {
         ctx.arc(1, 0, 7.5, PI_HALF + 0.3, PI_ONE_HALF - 0.3, false);
         ctx.fill();
       } else if (style === 'spiky') {
-        ctx.arc(1, 0, 7.5, PI_HALF + 0.2, PI_ONE_HALF - 0.2, false);
-        ctx.lineTo(-5, -7);
+        ctx.arc(3, 0, 7.5, PI_HALF + 0.1, PI_ONE_HALF - 0.1, false);
+        ctx.lineTo(-4, -7);
         ctx.lineTo(-12, -4);
-        ctx.lineTo(-7, -2);
+        ctx.lineTo(-6, -2);
         ctx.lineTo(-14, 1);
-        ctx.lineTo(-6, 3);
+        ctx.lineTo(-5, 3);
         ctx.lineTo(-11, 6);
-        ctx.lineTo(-5, 7);
+        ctx.lineTo(-4, 7);
         ctx.fill();
       } else if (style === 'ponytail') {
         ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
