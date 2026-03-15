@@ -58,20 +58,29 @@ window.addEventListener('chatSubmit', (e) => {
         let targetName = null;
         let minDistSq = 150 * 150; // Interaction threshold distance
 
-        // Find nearest entity (NPC or other player)
+        // Find nearest entity (NPC or other player) using physicsEngine
         if (window.init && emoteObj.message_when_near) {
-          const checkTarget = (ent) => {
-            if (ent.id === player.id && ent.name === player.name) return; // Ignore self
-            const dx = ent.x - player.x;
-            const dy = ent.y - player.y;
-            const distSq = dx * dx + dy * dy;
-            if (distSq < minDistSq) {
-              minDistSq = distSq;
-              targetName = ent.name;
+          const chars = physicsEngine.findCharacters(window.init.characters, player.x, player.y, player.id);
+          const npcs = physicsEngine.findCharacters(window.init.npcs, player.x, player.y, player.id);
+          
+          let nearest = null;
+          let minD = Infinity;
+
+          const check = (list) => {
+            for (const c of list) {
+              if (c._distSq < minD) {
+                minD = c._distSq;
+                nearest = c;
+              }
             }
           };
-          if (window.init.characters) window.init.characters.forEach(checkTarget);
-          if (window.init.npcs) window.init.npcs.forEach(checkTarget);
+
+          check(chars);
+          check(npcs);
+          
+          if (nearest) {
+            targetName = nearest.name;
+          }
         }
 
         if (targetName && emoteObj.message_when_near) {
