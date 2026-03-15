@@ -138,9 +138,21 @@ export const EventHandlers = {
   log: (sourceObj, payload, context) => {
     console.log("LOG EVENT: ", payload);
     const { player } = context;
-    if (payload) {
-      let msg = typeof payload === 'string' ? payload : payload.message;
-      if (msg) {
+    if (!payload || !sourceObj) return;
+
+    let msg = typeof payload === 'string' ? payload : payload.message;
+    let rateLimitSec = typeof payload === 'object' && payload.rate_limit ? payload.rate_limit : 0;
+
+    if (msg) {
+      if (rateLimitSec > 0) {
+        if (!sourceObj._lastLogTimes) sourceObj._lastLogTimes = {};
+        const now = Date.now();
+        const lastTime = sourceObj._lastLogTimes[msg] || 0;
+        if (now - lastTime < rateLimitSec * 1000) {
+          return; // Rate limited, skip sending
+        }
+        sourceObj._lastLogTimes[msg] = now;
+      }
         if (player && player.name) {
           msg = msg.replace(/{name}/g, player.name);
         } else {
@@ -153,7 +165,6 @@ export const EventHandlers = {
         }
         networkClient.send({ type: 'log', message: msg, npc_id: sourceObj ? sourceObj.id : null });
       }
-    }
   }
 };
 
