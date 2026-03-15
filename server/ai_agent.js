@@ -234,7 +234,8 @@ async function handleAgentAction(mapData, action) {
                 console.log(`[AI][${mapData.name}] Forcing target ${act.target_player_id} to map ${act.change_map}`);
                 const simMessage = Buffer.from(JSON.stringify({
                     type: "change_map",
-                    mapId: act.change_map
+                    mapId: act.change_map,
+                    force: true
                 }));
                 targetWs.emit('message', simMessage);
             } else {

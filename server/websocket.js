@@ -397,6 +397,13 @@ export function setupWebSocket(server, sessionMiddleware) {
           } else if (data.type === 'change_map') {
             const requestedMapId = Number(data.mapId);
             const newMapData = mapState[requestedMapId];
+
+            if (mapData.can_leave === false && data.force !== true) {
+              const charName = mapData.characters[ws.clientId]?.name || newChar.name || 'Student';
+              appendToLog(mapData, `${charName} (${ws.clientId}) tried to leave ${mapData.name}`);
+              return;
+            }
+
             if (newMapData && ws.mapId !== requestedMapId) {
               const oldChar = mapData.characters[ws.clientId] || newChar;
               delete mapData.characters[ws.clientId];
@@ -443,7 +450,7 @@ export function setupWebSocket(server, sessionMiddleware) {
               mapData.dirtyCharacters[ws.clientId] = oldChar;
               mapData.clients.add(ws);
 
-              appendToLog(mapData, `${oldChar.name || 'Student'} (${ws.clientId}) entered the map`);
+              appendToLog(mapData, `${oldChar.name || 'Student'} (${ws.clientId}) entered ${mapData.name}`);
 
               // Send init to immediately reset the client seamlessly
               sendInitPayload(mapData, oldChar);
