@@ -45,6 +45,7 @@
     "default_zoom": 1,
     "objects": "junior_school/objects.json",
     "spawn_area": 19,
+    "can_leave": true,
     "on_enter": [
       {
         "play_sound": {
@@ -78,6 +79,7 @@
     "default_zoom": 1,
     "objects": "detention/objects.json",
     "spawn_area": 18,
+    "can_leave": false,
     "on_enter": [
       {
         "play_sound": {
@@ -92,6 +94,7 @@
     "name": "Main Building",
     "width": 5584,
     "height": 3072,
+    "can_leave": true,
     "layers": [
       [
         {
@@ -137,6 +140,7 @@
     "name": "Pool",
     "width": 2752,
     "height": 1536,
+    "can_leave": true,
     "layers": [
       [
         {
