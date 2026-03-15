@@ -58,10 +58,17 @@ class SoundManager {
     const result = {
       source: null,
       stopped: false,
+      rate: 1,
       pause: function() {
         this.stopped = true;
         if (this.source) {
           try { this.source.stop(); } catch(e){}
+        }
+      },
+      setRate: function(rate) {
+        this.rate = rate;
+        if (this.source) {
+          this.source.playbackRate.value = rate;
         }
       }
     };
@@ -71,6 +78,7 @@ class SoundManager {
       const source = this.audioCtx.createBufferSource();
       source.buffer = buffer;
       source.loop = loop;
+      source.playbackRate.value = result.rate;
       const gainNode = this.audioCtx.createGain();
       gainNode.gain.value = Math.max(0, volume);
       source.connect(gainNode);

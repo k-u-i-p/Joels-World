@@ -197,9 +197,33 @@ function update() {
   }
 
   if (!emoteForcedMove) {
-    const intent = inputManager.getDemandedMovementVector(player.moveSpeed || 3, player.rotation);
+    const rawIntent = inputManager.getDemandedMovementVector(1, player.rotation);
+    if (rawIntent.dx !== 0 || rawIntent.dy !== 0) {
+      const currentAngle = Math.atan2(rawIntent.dy, rawIntent.dx);
+      if (player.runDirectionTimer) {
+        let diff = Math.abs(currentAngle - player.runDirectionAngle);
+        if (diff > Math.PI) diff = Math.PI * 2 - diff;
+        if (diff > 0.1) {
+          player.runDirectionTimer = Date.now();
+          player.runDirectionAngle = currentAngle;
+        }
+      } else {
+        player.runDirectionTimer = Date.now();
+        player.runDirectionAngle = currentAngle;
+      }
+    } else {
+      player.runDirectionTimer = null;
+    }
+
+    player.isRunning = player.runDirectionTimer && (Date.now() - player.runDirectionTimer >= 5000);
+    const currentSpeed = player.isRunning ? (player.moveSpeed || 3) * 1.3 : (player.moveSpeed || 3);
+    const intent = inputManager.getDemandedMovementVector(currentSpeed, player.rotation);
+    
     dx += intent.dx;
     dy += intent.dy;
+  } else {
+    player.runDirectionTimer = null;
+    player.isRunning = false;
   }
 
   let isMoving = false;
@@ -256,11 +280,14 @@ function update() {
 
   // Animation
   if (isMoving) {
-    player.legAnimationTime += 0.2;
+    player.legAnimationTime += player.isRunning ? 0.26 : 0.2;
     
     if (!emoteForcedMove) {
       if (!player.walkingAudio) {
         player.walkingAudio = soundManager.playPooled('/media/walking.mp3', 1, true);
+      }
+      if (player.walkingAudio && player.walkingAudio.setRate) {
+        player.walkingAudio.setRate(player.isRunning ? 1.3 : 1.0);
       }
     } else {
       if (player.walkingAudio) {
