@@ -100,7 +100,7 @@ window.addEventListener('chatSubmit', (e) => {
           player.chatTime = Date.now();
         }
       }
-      
+
       if (emoteObj.sound) {
         player.activeEmoteAudio = soundManager.playPooled(emoteObj.sound, 1);
       }
@@ -206,10 +206,10 @@ function update() {
       player.runDirectionTimer = null;
     }
 
-    player.isRunning = player.runDirectionTimer && (Date.now() - player.runDirectionTimer >= 5000);
-    const currentSpeed = player.isRunning ? (player.moveSpeed || 3) * 1.3 : (player.moveSpeed || 3);
+    player.isRunning = player.runDirectionTimer && (Date.now() - player.runDirectionTimer >= 2500);
+    const currentSpeed = player.isRunning ? (player.moveSpeed || 3) * 1.2 : (player.moveSpeed || 3);
     const intent = inputManager.getDemandedMovementVector(currentSpeed, player.rotation);
-    
+
     dx += intent.dx;
     dy += intent.dy;
   } else {
@@ -225,7 +225,8 @@ function update() {
       dy,
       window.init?.objects,
       window.init?.mapData,
-      emoteForcedMove
+      emoteForcedMove,
+      window.init?.npcs
     );
 
     isMoving = result.isMoving;
@@ -272,7 +273,7 @@ function update() {
   // Animation
   if (isMoving) {
     player.legAnimationTime += player.isRunning ? 0.26 : 0.2;
-    
+
     if (!emoteForcedMove) {
       if (!player.walkingAudio) {
         player.walkingAudio = soundManager.playPooled('/media/walking.mp3', 1, true);
@@ -318,7 +319,7 @@ function update() {
   } else {
     // Smoother stop: reset animation to neutral when stopped
     player.legAnimationTime = 0;
-    
+
     if (player.walkingAudio) {
       player.walkingAudio.pause();
       player.walkingAudio = null;

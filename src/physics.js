@@ -231,12 +231,13 @@ export class PhysicsEngine {
    * @param {Array} objectsList - List of map objects to test clipping against.
    * @param {number} newX - The target X coordinate.
    * @param {number} newY - The target Y coordinate.
-   * @param {number} playerRadius - The collision radius of the moving entity.
    * @param {number} mapW - The total map width.
    * @param {number} mapH - The total map height.
+   * @param {Array} npcList - Optional list of NPCs to check collision against
+   * @param {string|number} entityId - The ID of the moving entity (to avoid self-collision)
    * @returns {boolean} True if the entity can move to the new coordinates, otherwise false.
    */
-  canMoveTo(objectsList, newX, newY, playerRadius, mapW, mapH) {
+  canMoveTo(objectsList, newX, newY, playerRadius, mapW, mapH, npcList = null, entityId = null) {
     // Check map boundaries efficiently
     if (mapW && mapH) {
       const halfMapW = mapW * 0.5;
@@ -252,6 +253,20 @@ export class PhysicsEngine {
     // Check SVG clip mask
     if (!this.checkClipMask(newX, newY, playerRadius)) {
       return false;
+    }
+
+    if (npcList) {
+      // Entities are treated as circles for simplistic collision
+      const collideDistSq = (playerRadius * 2) * (playerRadius * 2);
+      for (let i = 0, len = npcList.length; i < len; i++) {
+        const npc = npcList[i];
+        if (entityId && npc.id === entityId) continue;
+        const dx = newX - npc.x;
+        const dy = newY - npc.y;
+        if (dx * dx + dy * dy < collideDistSq) {
+          return false;
+        }
+      }
     }
 
     if (!objectsList) return true;
@@ -286,9 +301,10 @@ export class PhysicsEngine {
    * @param {Array} objectsList - Application state objects list 
    * @param {Object} mapData - Application state map data
    * @param {boolean} isEmoteForced - True if movement is forced by an emote (disables sliding)
+   * @param {Array} npcList - Application state npcs list
    * @returns {Object} Data about the completed movement and collisions { newX, newY, actuallyInObject, isMoving, emoteCanceled }
    */
-  processMovement(entity, dx, dy, objectsList, mapData, isEmoteForced = false) {
+  processMovement(entity, dx, dy, objectsList, mapData, isEmoteForced = false, npcList = null) {
     let result = {
       newX: entity.x,
       newY: entity.y,
@@ -318,14 +334,14 @@ export class PhysicsEngine {
 
     // Try moving in both axes, then X only, then Y only (sliding against walls)
     if (isEmoteForced) {
-      if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y + dy, playerRadius, mapW, mapH)) {
+      if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id)) {
         result.newX += dx;
         result.newY += dy;
       } else {
         result.emoteCanceled = true; // Hit something while jumping!
       }
     } else {
-      if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y + dy, playerRadius, mapW, mapH)) {
+      if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id)) {
         result.newX += dx;
         result.newY += dy;
       } else {
@@ -357,7 +373,7 @@ export class PhysicsEngine {
           let slideWorldDx = testLocalDx * cosA + testLocalDy * sinA;
           let slideWorldDy = -testLocalDx * sinA + testLocalDy * cosA;
 
-          if (this.canMoveTo(possibleOverlaps, entity.x + slideWorldDx, entity.y + slideWorldDy, playerRadius, mapW, mapH)) {
+          if (this.canMoveTo(possibleOverlaps, entity.x + slideWorldDx, entity.y + slideWorldDy, playerRadius, mapW, mapH, npcList, entity.id)) {
             result.newX += slideWorldDx;
             result.newY += slideWorldDy;
           } else {
@@ -367,22 +383,22 @@ export class PhysicsEngine {
             slideWorldDx = testLocalDx2 * cosA + testLocalDy2 * sinA;
             slideWorldDy = -testLocalDx2 * sinA + testLocalDy2 * cosA;
 
-            if (this.canMoveTo(possibleOverlaps, entity.x + slideWorldDx, entity.y + slideWorldDy, playerRadius, mapW, mapH)) {
+            if (this.canMoveTo(possibleOverlaps, entity.x + slideWorldDx, entity.y + slideWorldDy, playerRadius, mapW, mapH, npcList, entity.id)) {
               result.newX += slideWorldDx;
               result.newY += slideWorldDy;
-            } else if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y, playerRadius, mapW, mapH)) {
+            } else if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y, playerRadius, mapW, mapH, npcList, entity.id)) {
               // Fallback to pure X
               result.newX += dx;
-            } else if (this.canMoveTo(possibleOverlaps, entity.x, entity.y + dy, playerRadius, mapW, mapH)) {
+            } else if (this.canMoveTo(possibleOverlaps, entity.x, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id)) {
               // Fallback to pure Y
               result.newY += dy;
             }
           }
         } else {
           // Fallback to standard axis-aligned sliding
-          if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y, playerRadius, mapW, mapH)) {
+          if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y, playerRadius, mapW, mapH, npcList, entity.id)) {
             result.newX += dx;
-          } else if (this.canMoveTo(possibleOverlaps, entity.x, entity.y + dy, playerRadius, mapW, mapH)) {
+          } else if (this.canMoveTo(possibleOverlaps, entity.x, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id)) {
             result.newY += dy;
           }
         }
