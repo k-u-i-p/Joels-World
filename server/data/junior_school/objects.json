@@ -63,12 +63,12 @@
   {
     "id": 36,
     "shape": "rect",
-    "x": 454,
-    "y": -1271,
+    "x": 563,
+    "y": -1253,
     "name": "Main School Building",
     "rotation": -3,
-    "width": 411,
-    "length": 359,
+    "width": 293,
+    "length": 317,
     "clip": -1,
     "on_enter": [
       {
@@ -107,6 +107,46 @@
     "rotation": -3,
     "width": 306,
     "length": 269,
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 2,
+          "description": "Do you want to enter the Main Building?"
+        }
+      }
+    ]
+  },
+  {
+    "id": 47,
+    "shape": "rect",
+    "x": 197,
+    "y": -533,
+    "name": "Main School Building",
+    "rotation": -3,
+    "width": 316,
+    "length": 145,
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 2,
+          "description": "Do you want to enter the Main Building?"
+        }
+      }
+    ]
+  },
+  {
+    "id": 48,
+    "shape": "rect",
+    "x": 1362,
+    "y": -901,
+    "name": "Main School Building",
+    "rotation": -3,
+    "width": 340,
+    "length": 157,
     "clip": -1,
     "on_enter": [
       {

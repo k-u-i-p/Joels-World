@@ -14,9 +14,8 @@
     "interaction_radius": 150,
     "on_enter": [
       {
-        "avatar": "avatars/ms_crosbie.png",
         "say": [
-          "I don't think much of the new classrooms!",
+          "Look at this new classroom!",
           "Have you ever been trials riding?",
           "Want to make a volcano {name}?",
           "If you're not offering me pasta or a heated blanket, keep walking.",
