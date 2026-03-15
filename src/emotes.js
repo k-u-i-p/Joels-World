@@ -875,7 +875,7 @@ export const emotes = {
 
         const size = 6 + progress * 8;
         ctx.font = `${size}px sans-serif`;
-        ctx.fillStyle = '#bdc3c7'; // Light gray/sleepy color
+        ctx.fillStyle = '#2ecc71'; // Green sleepy color
         ctx.fillText('Z', zX, zY);
       }
       ctx.restore();
