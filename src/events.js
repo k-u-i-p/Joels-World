@@ -136,7 +136,6 @@ export const EventHandlers = {
   },
 
   log: (sourceObj, payload, context) => {
-    console.log("LOG EVENT: ", payload);
     const { player } = context;
     if (!payload || !sourceObj) return;
 
@@ -153,18 +152,18 @@ export const EventHandlers = {
         }
         sourceObj._lastLogTimes[msg] = now;
       }
-        if (player && player.name) {
-          msg = msg.replace(/{name}/g, player.name);
-        } else {
-          msg = msg.replace(/{name}/g, 'Student');
-        }
-        if (sourceObj && sourceObj.name) {
-          msg = msg.replace(/{npc_name}/g, sourceObj.name);
-        } else {
-          msg = msg.replace(/{npc_name}/g, 'NPC');
-        }
-        networkClient.send({ type: 'log', message: msg, npc_id: sourceObj ? sourceObj.id : null });
+      if (player && player.name) {
+        msg = msg.replace(/{name}/g, player.name);
+      } else {
+        msg = msg.replace(/{name}/g, 'Student');
       }
+      if (sourceObj && sourceObj.name) {
+        msg = msg.replace(/{npc_name}/g, sourceObj.name);
+      } else {
+        msg = msg.replace(/{npc_name}/g, 'NPC');
+      }
+      networkClient.send({ type: 'log', message: msg, npc_id: sourceObj ? sourceObj.id : null });
+    }
   }
 };
 

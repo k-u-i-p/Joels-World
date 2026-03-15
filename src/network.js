@@ -70,7 +70,6 @@ export class NetworkClient {
     ws.addEventListener('message', (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log(`[NetworkClient] Received packet of type: ${data.type}`);
         if (data.type === 'error') {
           console.error('Server Error:', data.message);
           if (data.message === 'Session already active in another window.') {

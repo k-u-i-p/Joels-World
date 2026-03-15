@@ -222,18 +222,15 @@ export class PhysicsEngine {
     // An absolutely solid black pixel parses as 0xFF000000
     // Walkable areas on our clip mask are solid white: 0xFFFFFFFF
     // Solid green walkable areas: 0xFF00FF00
-
-    // To perform extreme optimization, we evaluate the bits.
-    // If the alpha channel (top 8 bits) is solid (0xFF000000), and all the R/G/B color channels are near-zero (black)
-    // we block the player. The exact threshold integer can be adjusted if the SVG has slight anti-alias grey borders.
     
-    // Mask out the Alpha channel for pure RGB testing
-    const rgbOnly = pixel32 & 0x00FFFFFF; 
+    // Extract individual color channels mathematically using bit-shifting
+    const r = pixel32 & 0xFF;
+    const g = (pixel32 >> 8) & 0xFF;
+    const b = (pixel32 >> 16) & 0xFF;
 
     // The user's maps also use pure green `rgb(0, 255, 0)` as walkable areas.
-    // In 32-bit little-endian Hex, pure green is 0x0000FF00. 
-    // We check if it's both dark AND not green.
-    if (pixel32 > 0 && rgbOnly < 0x000F0F0F) {
+    // We check if it's dark (RGB values < 15 out of 255).
+    if (pixel32 > 0 && r < 15 && g < 15 && b < 15) {
       // It's solid black/dark collision boundary
       return false;
     }

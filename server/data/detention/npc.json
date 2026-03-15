@@ -11,7 +11,7 @@
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
-    "interaction_radius": 2000,
+    "interaction_radius": 500,
     "agent": {
       "prompt_file": "detention/agent_mr_hardy.md",
       "log_file": "detention/mr_hardy_log.txt"
@@ -21,7 +21,11 @@
         "say": [
           "Why are you in detention {name}?",
           "You are in detention {name}!"
-        ]
+        ],
+        "log": {
+          "message": "{name} approached {npc_name}'s desk",
+          "rate_limit": 60
+        }
       }
     ],
     "on_exit": [
@@ -51,44 +55,17 @@
     "on_enter": [
       {
         "say": [
-          "when wiill this end"
+          "When will this end?"
         ]
       }
     ],
     "on_exit": [
       {
         "say": [
-          "the answer is mr hardy is a idiot"
+          "The answer is Mr Hardy is a idiot!"
         ]
       }
     ],
-    "hairStyle": "bald",
-    "hairColor": "#000000"
-  },
-  {
-    "id": 3,
-    "name": "Dancing Guy",
-    "x": 200,
-    "y": -200,
-    "width": 40,
-    "height": 40,
-    "rotation": 0,
-    "shirtColor": "#e74c3c",
-    "pantsColor": "#f1c40f",
-    "armColor": "#e74c3c",
-    "emote": {
-      "name": "dance",
-      "startTime": 0
-    },
-    "on_enter": [
-      {
-        "say": [
-          "Detention is the best, yeahhhhh!"
-        ]
-      }
-    ],
-    "on_exit": [],
-    "gender": "male",
     "hairStyle": "bald",
     "hairColor": "#000000"
   }

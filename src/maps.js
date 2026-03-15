@@ -163,7 +163,28 @@ export class MapManager {
           }
         }
 
+        // --- Memory Cleanup: Unload out-of-frame chunks ---
+        if (!layer.gcTick) layer.gcTick = 0;
+        layer.gcTick++;
 
+        // Only run garbage collection sweep once per 600 frames (approx every 10 seconds)
+        if (layer.gcTick > 600) {
+          layer.gcTick = 0;
+          const gcBuffer = 2; // Unload chunks that are 2 chunks away from view bounds
+          for (let i = 0; i < layer.chunks.length; i++) {
+            const chunkData = layer.chunks[i];
+            if (!chunkData) continue;
+            if (chunkData.cx < startCol - gcBuffer || chunkData.cx > endCol + gcBuffer ||
+              chunkData.cy < startRow - gcBuffer || chunkData.cy > endRow + gcBuffer) {
+              // Nullify handlers before changing src to prevent false positive onerror logs
+              chunkData.img.onload = null;
+              chunkData.img.onerror = null;
+              // Nullify image source to free memory, then delete from cache
+              chunkData.img.src = '';
+              layer.chunks[i] = null;
+            }
+          }
+        }
       } else {
         // --- Standard Legacy Image Rendering ---
         if (layer.image.complete && layer.image.naturalWidth > 0) {
