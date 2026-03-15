@@ -157,17 +157,25 @@ export function setupWebSocket(server, sessionMiddleware) {
     mapState[mapDef.id] = mapObj;
   });
 
+  const updatesBuffer = [];
+
   setInterval(() => {
-    Object.values(mapState).forEach(mapObj => {
-      const updates = Object.values(mapObj.dirtyCharacters);
-      if (updates.length > 0) {
-        const broadcastMsg = JSON.stringify({ type: 'tick', characters: updates });
+    for (const mapId in mapState) {
+      const mapObj = mapState[mapId];
+      
+      updatesBuffer.length = 0;
+      for (const charId in mapObj.dirtyCharacters) {
+        updatesBuffer.push(mapObj.dirtyCharacters[charId]);
+      }
+
+      if (updatesBuffer.length > 0) {
+        const broadcastMsg = JSON.stringify({ type: 'tick', characters: updatesBuffer });
         mapObj.clients.forEach(client => {
           if (client.readyState === 1) client.send(broadcastMsg);
         });
         mapObj.dirtyCharacters = {};
       }
-    });
+    }
   }, 100);
 
   const colors = ['#e74c3c', '#8e44ad', '#3498db', '#1abc9c', '#2ecc71', '#f1c40f', '#e67e22', '#34495e'];
