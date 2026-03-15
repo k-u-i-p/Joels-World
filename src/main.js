@@ -28,7 +28,7 @@ let viewportHeight = window.innerHeight;
 function resize() {
   viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
   viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-  
+
   const dpr = window.devicePixelRatio || 1;
   canvas.width = window.innerWidth * dpr;
   canvas.height = window.innerHeight * dpr;
@@ -56,13 +56,12 @@ window.addEventListener('chatSubmit', (e) => {
       if (emoteObj.message || emoteObj.message_when_near) {
         let msgText = '';
         let targetName = null;
-        let minDistSq = 150 * 150; // Interaction threshold distance
 
         // Find nearest entity (NPC or other player) using physicsEngine
         if (window.init && emoteObj.message_when_near) {
           const chars = physicsEngine.findCharacters(window.init.characters, player.x, player.y, player.id);
           const npcs = physicsEngine.findCharacters(window.init.npcs, player.x, player.y, player.id);
-          
+
           let nearest = null;
           let minD = Infinity;
 
@@ -77,7 +76,7 @@ window.addEventListener('chatSubmit', (e) => {
 
           check(chars);
           check(npcs);
-          
+
           if (nearest) {
             targetName = nearest.name;
           }
@@ -96,6 +95,10 @@ window.addEventListener('chatSubmit', (e) => {
           player.chatMessage = msgText;
           player.chatTime = Date.now();
         }
+      }
+      
+      if (emoteObj.sound) {
+        soundManager.playPooled(emoteObj.sound, 1);
       }
       networkClient.syncPlayerToJSON();
     }

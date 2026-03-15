@@ -65,6 +65,7 @@ export const emotes = {
     duration: 3600000, // 1 hour duration
     message: "{name} is bouncing",
     message_when_near: "{name} is bouncing with {target_name}",
+    sound: "/media/jump.mp3",
     setup: (ctx, emote, c) => {
       const danceTime = (Date.now() - emote.startTime) / 150;
       const bounce = Math.abs(Math.sin(danceTime)) * -15;
@@ -80,6 +81,7 @@ export const emotes = {
     duration: 10000,
     message: "{name} is dripping wet",
     message_when_near: "{name} dripped water all over {target_name}",
+    sound: "/media/wet_footprints.mp3",
     setup: (ctx, emote, c) => {
       if (!c._lastFootprintCoords) {
         c._lastFootprintCoords = { x: c.x, y: c.y, leg: 'left' };
@@ -125,6 +127,7 @@ export const emotes = {
     duration: 5000,
     message: "{name} is eating an apple",
     message_when_near: "{name} is eating an apple in front of {target_name}",
+    sound: "/media/chewing.mp3",
     setup: (ctx, emote, c) => {
       const eatTime = (Date.now() - emote.startTime) / 150;
     },
@@ -188,6 +191,7 @@ export const emotes = {
     duration: 3600000, // 1 hour duration or until moved
     message: "{name} is having lunch",
     message_when_near: "{name} is having lunch with {target_name}",
+    sound: "/media/chewing.mp3",
     setup: (ctx, emote, c) => {
       // Translate slightly to look lower to the ground like sitting
       ctx.translate(-2, 0);
@@ -290,6 +294,7 @@ export const emotes = {
     duration: 800,
     message: "{name} leaps forward",
     message_when_near: "{name} leaped over {target_name}!",
+    sound: "/media/jump.mp3",
     setup: (ctx, emote, c) => {
       const age = Date.now() - emote.startTime;
       if (age < 800) {
@@ -445,6 +450,7 @@ export const emotes = {
     duration: 2000,
     message: "{name} is farting",
     message_when_near: "{name} farted on {target_name}",
+    sound: "/media/fart.mp3",
     setup: (ctx, emote, c) => { },
     updateLimbs: (limbs, emote) => { },
     draw: (ctx, emote) => {
@@ -501,6 +507,7 @@ export const emotes = {
     duration: 5000,
     message: "{name} is crying",
     message_when_near: "{name} cried on {target_name}",
+    sound: "/media/violin.mp3",
     setup: (ctx, emote, c) => { },
     updateLimbs: (limbs, emote) => { },
     draw: (ctx, emote) => {
@@ -760,6 +767,7 @@ export const emotes = {
     duration: 3600000, // 1 hour duration or until moved/canceled
     message: "{name} is swimming",
     message_when_near: "{name} splashed {target_name}!",
+    sound: "/media/splash.mp3",
     setup: (ctx, emote, c) => {
       const swimTime = (Date.now() - emote.startTime) / 200;
       const bob = Math.sin(swimTime) * 3;
@@ -820,6 +828,7 @@ export const emotes = {
     duration: 3600000, // 1 hour duration or until moved
     message: "{name} fell asleep",
     message_when_near: "{name} fell asleep next to {target_name}",
+    sound: "/media/snoring.mp3",
     setup: (ctx, emote, c) => {
       // Rotate 90 degrees to lay on the ground
       ctx.rotate(Math.PI / 2);
