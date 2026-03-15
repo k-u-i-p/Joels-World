@@ -71,6 +71,9 @@ export class GameLoop {
     requestAnimationFrame(this._loopBind);
 
     const now = performance.now();
+    let dt = (now - this.lastFrameTime) / 1000;
+    if (dt > 0.1) dt = 0.1; // Cap at 100ms to prevent huge jumps
+    this.lastFrameTime = now;
 
     this.framesThisSecond++;
     if (now - this.lastFpsUpdate >= 1000) {
@@ -83,10 +86,10 @@ export class GameLoop {
 
     // Execute all registered functions sequentially
     for (let i = 0; i < this.functions.length; i++) {
-      this.functions[i]();
+      this.functions[i](dt);
     }
     for (let i = 0; i < this.postFunctions.length; i++) {
-      this.postFunctions[i]();
+      this.postFunctions[i](dt);
     }
   }
 }

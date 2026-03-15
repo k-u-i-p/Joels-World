@@ -157,13 +157,15 @@ uiManager.initHelpDialog();
  * Processes all user inputs, updates the player coordinates, evaluates collisions,
  * triggers object entry/exit logics, and interpolates remote entity positions.
  */
-function update() {
+function update(dt = 0.016) {
+  const timeScale = (dt * 60) || 1;
+
   // Rotation (tank controls)
   if (inputManager.isPressed('ArrowLeft')) {
-    player.rotation -= player.rotationSpeed;
+    player.rotation -= player.rotationSpeed * timeScale;
   }
   if (inputManager.isPressed('ArrowRight')) {
-    player.rotation += player.rotationSpeed;
+    player.rotation += player.rotationSpeed * timeScale;
   }
 
   // Trigger jump via spacebar
@@ -208,7 +210,8 @@ function update() {
 
     player.isRunning = player.runDirectionTimer && (Date.now() - player.runDirectionTimer >= 2500);
     const currentSpeed = player.isRunning ? (player.moveSpeed || 3) * 1.2 : (player.moveSpeed || 3);
-    const intent = inputManager.getDemandedMovementVector(currentSpeed, player.rotation);
+    const scaledSpeed = currentSpeed * timeScale;
+    const intent = inputManager.getDemandedMovementVector(scaledSpeed, player.rotation);
 
     dx += intent.dx;
     dy += intent.dy;
@@ -272,7 +275,8 @@ function update() {
 
   // Animation
   if (isMoving) {
-    player.legAnimationTime += player.isRunning ? 0.26 : 0.2;
+    const legRate = player.isRunning ? 0.26 : 0.2;
+    player.legAnimationTime += legRate * timeScale;
 
     if (!emoteForcedMove) {
       if (!player.walkingAudio) {
@@ -329,12 +333,12 @@ function update() {
   // Smoothly interpolate other characters to their server positions
   if (window.init?.characters) {
     for (let i = 0; i < window.init.characters.length; i++) {
-      physicsEngine.processInterpolation(window.init.characters[i], player.id);
+      physicsEngine.processInterpolation(window.init.characters[i], player.id, timeScale);
     }
   }
   if (window.init?.npcs) {
     for (let i = 0; i < window.init.npcs.length; i++) {
-      physicsEngine.processInterpolation(window.init.npcs[i], player.id);
+      physicsEngine.processInterpolation(window.init.npcs[i], player.id, timeScale);
     }
   }
 

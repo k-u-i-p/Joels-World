@@ -423,7 +423,7 @@ export class PhysicsEngine {
    * @param {Object} c - The character/entity object to interpolate. Expects x,y,rotation and target equivalents.
    * @param {string} [ignoreId=null] - Character ID to prevent processing (usually local player).
    */
-  processInterpolation(c, ignoreId = null) {
+  processInterpolation(c, ignoreId = null, timeScale = 1) {
     if (ignoreId && c.id === ignoreId) return;
 
     if (c.targetX !== undefined && c.targetY !== undefined) {
@@ -443,7 +443,7 @@ export class PhysicsEngine {
 
         // If distance is large (e.g. > 40px), temporarily boost speed so they catch up seamlessly
         const catchupMultiplier = distance > 40 ? 1.5 : 1.0;
-        let stepDist = baseSpeed * catchupMultiplier;
+        let stepDist = baseSpeed * catchupMultiplier * timeScale;
 
         // Don't overshoot the target
         if (stepDist > distance) {
@@ -454,7 +454,7 @@ export class PhysicsEngine {
         c.x += cdx * ratio;
         c.y += cdy * ratio;
 
-        c.legAnimationTime = (c.legAnimationTime || 0) + 0.2;
+        c.legAnimationTime = (c.legAnimationTime || 0) + 0.2 * timeScale;
       } else {
         c.x = c.targetX;
         c.y = c.targetY;
@@ -469,7 +469,7 @@ export class PhysicsEngine {
 
         if (Math.abs(rotDiff) > 1) {
           const rotSpeed = c.rotationSpeed || 5;
-          const rotStep = Math.min(Math.abs(rotDiff), rotSpeed);
+          const rotStep = Math.min(Math.abs(rotDiff), rotSpeed * timeScale);
           c.rotation = (c.rotation || 0) + Math.sign(rotDiff) * rotStep;
         } else {
           c.rotation = c.targetRotation;
