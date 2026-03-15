@@ -12,10 +12,7 @@
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
     "interaction_radius": 500,
-    "emote": {
-      "name": "sit",
-      "startTime": 0
-    },
+    "emote": null,
     "agent": {
       "prompt_file": "detention/agent_mr_hardy.md",
       "log_file": "detention/mr_hardy_log.txt"
@@ -41,20 +38,21 @@
     ],
     "shoeColor": "#7f8c8d",
     "hairStyle": "bald",
-    "hairColor": "#000000"
+    "hairColor": "#000000",
+    "_distSq": 113399.74297718376
   },
   {
     "id": 3,
     "name": "Jack",
     "x": 196,
-    "y": -174,
+    "y": -187,
     "width": 40,
     "height": 40,
     "rotation": -90,
     "shirtColor": "#e74c3c",
     "pantsColor": "#bdc3c7",
     "armColor": "#e74c3c",
-    "interaction_radius": 150,
+    "interaction_radius": 200,
     "emote": {
       "name": "sit",
       "startTime": 0
@@ -88,7 +86,7 @@
     "pantsColor": "#2c3e50",
     "armColor": "#9b59b6",
     "gender": "female",
-    "interaction_radius": 150,
+    "interaction_radius": 200,
     "emote": {
       "name": "write",
       "startTime": 0
@@ -114,15 +112,15 @@
   {
     "id": 5,
     "name": "Noah",
-    "x": -258,
-    "y": 121,
+    "x": -260,
+    "y": 104,
     "width": 40,
     "height": 40,
     "rotation": -90,
     "shirtColor": "#f1c40f",
     "pantsColor": "#34495e",
     "armColor": "#f1c40f",
-    "interaction_radius": 150,
+    "interaction_radius": 200,
     "emote": {
       "name": "sit",
       "startTime": 0
@@ -157,7 +155,7 @@
     "pantsColor": "#e74c3c",
     "armColor": "#2ecc71",
     "gender": "female",
-    "interaction_radius": 150,
+    "interaction_radius": 200,
     "emote": {
       "name": "write",
       "startTime": 0
@@ -191,7 +189,7 @@
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
-    "interaction_radius": 150,
+    "interaction_radius": 200,
     "emote": {
       "name": "write",
       "startTime": 0

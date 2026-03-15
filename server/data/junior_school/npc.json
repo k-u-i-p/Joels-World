@@ -20,7 +20,7 @@
       {
         "avatar": "avatars/mr_hardy.png",
         "log": {
-          "message": "{name} approached {npc_name}",
+          "message": "{name} ({player_id}) approached {npc_name} ({npc_id})",
           "rate_limit": 60
         },
         "say": [
@@ -221,7 +221,11 @@
       {
         "say": [
           "Go away! I'm on Duty here!"
-        ]
+        ],
+        "log": {
+          "message": "{name} ({player_id}) entered the playground",
+          "rate_limit": 60
+        }
       }
     ],
     "on_exit": [],

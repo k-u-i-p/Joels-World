@@ -269,8 +269,9 @@ export class PhysicsEngine {
     }
 
     if (npcList) {
-      // Entities are treated as circles for simplistic collision
-      const collideDistSq = (playerRadius * 2) * (playerRadius * 2);
+      // Entities are treated as circles for simplistic collision. 
+      // Reduced collision radius to 1.2x to allow players to get closer to desks/NPCs
+      const collideDistSq = (playerRadius * 1.2) * (playerRadius * 1.2);
       for (let i = 0, len = npcList.length; i < len; i++) {
         const npc = npcList[i];
         if (entityId && npc.id === entityId) continue;
