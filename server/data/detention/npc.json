@@ -33,8 +33,8 @@
     ],
     "shoeColor": "#7f8c8d",
     "emote": null,
-    "hairStyle": "ponytail",
-    "hairColor": "#2c3e50"
+    "hairStyle": "bald",
+    "hairColor": "#000000"
   },
   {
     "id": 2,
@@ -62,7 +62,7 @@
         ]
       }
     ],
-    "hairStyle": "ponytail",
-    "hairColor": "#5c3a21"
+    "hairStyle": "bald",
+    "hairColor": "#000000"
   }
 ]

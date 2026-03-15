@@ -34,8 +34,8 @@
       }
     ],
     "shoeColor": "#7f8c8d",
-    "hairStyle": "bald",
-    "hairColor": "#ecf0f1"
+    "hairStyle": "messy",
+    "hairColor": "#f1c40f"
   },
   {
     "id": 2,
@@ -62,8 +62,8 @@
     ],
     "on_exit": [],
     "shoeColor": "#111111",
-    "hairStyle": "long",
-    "hairColor": "#e74c3c"
+    "hairStyle": "ponytail",
+    "hairColor": "#f1c40f"
   },
   {
     "id": 3,
@@ -106,7 +106,7 @@
     ],
     "shoeColor": "#111111",
     "hairStyle": "bald",
-    "hairColor": "#ecf0f1"
+    "hairColor": "#000000"
   },
   {
     "id": 4,
@@ -142,8 +142,8 @@
     ],
     "on_exit": [],
     "shoeColor": "#111111",
-    "hairStyle": "spiky",
-    "hairColor": "#f1c40f"
+    "hairStyle": "bald",
+    "hairColor": "#000000"
   },
   {
     "id": 5,
@@ -179,8 +179,8 @@
     ],
     "on_exit": [],
     "shoeColor": "#7f8c8d",
-    "hairStyle": "long",
-    "hairColor": "#ecf0f1"
+    "hairStyle": "messy",
+    "hairColor": "#f1c40f"
   },
   {
     "id": 6,
@@ -214,8 +214,8 @@
       }
     ],
     "shoeColor": "#bdc3c7",
-    "hairStyle": "long",
-    "hairColor": "#ecf0f1"
+    "hairStyle": "bald",
+    "hairColor": "#000000"
   },
   {
     "id": 7,
@@ -238,6 +238,6 @@
     ],
     "on_exit": [],
     "hairStyle": "bald",
-    "hairColor": "#f1c40f"
+    "hairColor": "#000000"
   }
 ]
