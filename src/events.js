@@ -157,10 +157,21 @@ export const EventHandlers = {
       } else {
         msg = msg.replace(/{name}/g, 'Student');
       }
+      if (player && player.id !== undefined) {
+        msg = msg.replace(/{player_id}/g, player.id);
+      } else {
+        msg = msg.replace(/{player_id}/g, 'Unknown');
+      }
+      
       if (sourceObj && sourceObj.name) {
         msg = msg.replace(/{npc_name}/g, sourceObj.name);
       } else {
         msg = msg.replace(/{npc_name}/g, 'NPC');
+      }
+      if (sourceObj && sourceObj.id !== undefined) {
+        msg = msg.replace(/{npc_id}/g, sourceObj.id);
+      } else {
+        msg = msg.replace(/{npc_id}/g, 'Unknown');
       }
       networkClient.send({ type: 'log', message: msg, npc_id: sourceObj ? sourceObj.id : null });
     }
