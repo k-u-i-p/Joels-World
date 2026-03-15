@@ -22,7 +22,7 @@ export const EventHandlers = {
       } else {
         el.src = avatarSrc;
       }
-      
+
       const actionDialog = document.getElementById('top-center-ui');
       if (actionDialog) actionDialog.classList.add('avatar-active');
 
@@ -136,6 +136,7 @@ export const EventHandlers = {
   },
 
   log: (sourceObj, payload, context) => {
+    console.log("LOG EVENT: ", payload);
     const { player } = context;
     if (payload) {
       let msg = typeof payload === 'string' ? payload : payload.message;
@@ -150,7 +151,7 @@ export const EventHandlers = {
         } else {
           msg = msg.replace(/{npc_name}/g, 'NPC');
         }
-        networkClient.send({ type: 'log', message: msg });
+        networkClient.send({ type: 'log', message: msg, npc_id: sourceObj ? sourceObj.id : null });
       }
     }
   }

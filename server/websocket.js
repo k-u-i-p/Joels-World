@@ -9,7 +9,7 @@ import { pulseAgent } from './ai_agent.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const physicsEngine = new PhysicsEngine();
 
-export function appendToLog(mapData, logEntry) {
+export function appendToLog(mapData, logEntry, specificNpcId = null) {
   if (!mapData.npcs) return;
 
   const logLine = typeof logEntry === 'string' ? logEntry : logEntry.message;
@@ -17,11 +17,17 @@ export function appendToLog(mapData, logEntry) {
 
   const targetNpcs = new Set();
 
-  if (mapData.characters) {
-    Object.values(mapData.characters).forEach(player => {
-      const npcs = physicsEngine.findCharacters(mapData.npcs, player.x, player.y);
-      npcs.forEach(n => targetNpcs.add(n));
-    });
+  if (specificNpcId) {
+    const npc = mapData.npcs.find(n => n.id === specificNpcId);
+    if (npc) targetNpcs.add(npc);
+  } else {
+    // Proximity scan for all nearby NPCs
+    if (mapData.characters) {
+      Object.values(mapData.characters).forEach(player => {
+        const npcs = physicsEngine.findCharacters(mapData.npcs, player.x, player.y);
+        npcs.forEach(n => targetNpcs.add(n));
+      });
+    }
   }
 
   targetNpcs.forEach(npc => {
@@ -362,8 +368,9 @@ export function setupWebSocket(server, sessionMiddleware) {
             mapData.characters[char.id] = char;
             mapData.dirtyCharacters[char.id] = char;
           } else if (data.type === 'log') {
+            console.log("LOG EVENT: ", data);
             if (typeof data.message !== 'string') return;
-            
+
             const logMsg = data.message.trim();
             if (!logMsg || logMsg.length > 300) return;
 
@@ -373,7 +380,7 @@ export function setupWebSocket(server, sessionMiddleware) {
               return;
             }
 
-            appendToLog(mapData, logMsg);
+            appendToLog(mapData, logMsg, data.npc_id);
           } else if (data.type === 'chat') {
             if (typeof data.message !== 'string') return;
 
