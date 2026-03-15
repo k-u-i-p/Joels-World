@@ -398,9 +398,10 @@ export function setupWebSocket(server, sessionMiddleware) {
             const requestedMapId = Number(data.mapId);
             const newMapData = mapState[requestedMapId];
 
-            if (mapData.can_leave === false && data.force !== true) {
-              const charName = mapData.characters[ws.clientId]?.name || newChar.name || 'Student';
+            if (mapData.can_leave === false && data.force !== true && !ws.isAdmin) {
+              const charName = (mapData.characters[ws.clientId] && mapData.characters[ws.clientId].name) || (typeof newChar !== 'undefined' ? newChar.name : '') || 'Student';
               appendToLog(mapData, `${charName} (${ws.clientId}) tried to leave ${mapData.name}`);
+              ws.send(JSON.stringify({ type: 'map_change_rejected' }));
               return;
             }
 

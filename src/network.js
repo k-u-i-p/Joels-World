@@ -88,6 +88,10 @@ export class NetworkClient {
           return;
         } else if (data.type === 'init') {
           if (this.onInitDataCallback) this.onInitDataCallback(data);
+        } else if (data.type === 'map_change_rejected') {
+          if (typeof uiManager !== 'undefined') {
+            uiManager.showMapChangeRejected();
+          }
         } else if (data.type === 'update' || data.type === 'tick') {
           const charactersToUpdate = data.type === 'tick' ? data.characters : [data.character];
 

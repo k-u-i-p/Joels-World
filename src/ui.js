@@ -101,6 +101,36 @@ export class UIManager {
       }, 500); // 500ms aligns with CSS transition timeframe
     }, 30000);
   }
+
+  showMapChangeRejected() {
+    let overlay = document.getElementById('map-change-rejected-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'map-change-rejected-overlay';
+      overlay.innerHTML = '❌';
+      overlay.style.position = 'fixed';
+      overlay.style.top = '50%';
+      overlay.style.left = '50%';
+      overlay.style.transform = 'translate(-50%, -50%)';
+      overlay.style.fontSize = '200px';
+      overlay.style.color = 'red';
+      overlay.style.zIndex = '9999';
+      overlay.style.pointerEvents = 'none';
+      overlay.style.textShadow = '0 0 20px black';
+      overlay.style.opacity = '0';
+      overlay.style.transition = 'opacity 0.2s ease-in-out';
+      document.body.appendChild(overlay);
+    }
+    
+    // Force reflow if immediately triggering again
+    void overlay.offsetWidth;
+    overlay.style.opacity = '1';
+    
+    if (this._rejectTimeout) clearTimeout(this._rejectTimeout);
+    this._rejectTimeout = setTimeout(() => {
+      overlay.style.opacity = '0';
+    }, 2000);
+  }
 }
 
 export const uiManager = new UIManager();
