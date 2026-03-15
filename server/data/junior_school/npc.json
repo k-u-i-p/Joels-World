@@ -101,7 +101,15 @@
     "interaction_radius": 150,
     "shoeColor": "#5e3a1f",
     "hairStyle": "bald",
-    "hairColor": "#000000"
+    "hairColor": "#000000",
+    "on_enter": [
+      {
+        "say": [
+          "Stop singing the song!"
+        ]
+      }
+    ],
+    "on_exit": []
   },
   {
     "id": 5,
@@ -209,5 +217,124 @@
     "interaction_radius": 800,
     "hairStyle": "bald",
     "hairColor": "#000000"
+  },
+  {
+    "id": 10,
+    "name": "Frank",
+    "x": -983,
+    "y": -18,
+    "width": 40,
+    "height": 40,
+    "rotation": -130,
+    "gender": "male",
+    "shirtColor": "#e67e22",
+    "pantsColor": "#2c3e50",
+    "armColor": "#e67e22",
+    "on_enter": [
+      {
+        "say": [
+          "I've got more detentions than anyone else here!",
+          "Detention is basically my second home.",
+          "They say I'm a legend in the detention room."
+        ]
+      }
+    ],
+    "shoeColor": "#5e3a1f",
+    "hairStyle": "bald",
+    "hairColor": "#000000"
+  },
+  {
+    "id": 11,
+    "name": "George",
+    "x": -1583,
+    "y": -107,
+    "width": 40,
+    "height": 40,
+    "rotation": -280,
+    "shirtColor": "#3498db",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "on_enter": [
+      {
+        "say": [
+          "pudding is yum yum"
+        ]
+      }
+    ],
+    "on_exit": [],
+    "gender": "male",
+    "hairStyle": "bald",
+    "hairColor": "#000000"
+  },
+  {
+    "id": 12,
+    "name": "digby",
+    "x": -517,
+    "y": 745,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "shirtColor": "#ff6251",
+    "pantsColor": "#2c3e50",
+    "armColor": "#669c35",
+    "on_enter": [
+      {
+        "say": [
+          "your a rubbish teacher {name} join in"
+        ]
+      }
+    ],
+    "on_exit": [],
+    "gender": "male",
+    "hairStyle": "bald",
+    "hairColor": "#000000"
+  },
+  {
+    "id": 13,
+    "name": "mrs cook",
+    "x": -391,
+    "y": 756,
+    "width": 66,
+    "height": 70,
+    "rotation": 190,
+    "shirtColor": "#3498db",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "on_enter": [
+      {
+        "say": [
+          "no I am not"
+        ]
+      }
+    ],
+    "on_exit": [],
+    "gender": "female",
+    "hairStyle": "long",
+    "hairColor": "#f1c40f"
+  },
+  {
+    "id": 14,
+    "name": "Farting Snake",
+    "x": 450,
+    "y": 529,
+    "width": 30,
+    "height": 30,
+    "rotation": 0,
+    "emoji": "🐍",
+    "on_enter": [
+      {
+        "say": [
+          "Sssss... excuse me!",
+          "That was a spicy mouse I ate.",
+          "Ssss... silent but deadly.",
+          "ssssssssshart!"
+        ],
+        "play_sound": {
+          "sound": "media/fart.mp3",
+          "volume": 1
+        }
+      }
+    ],
+    "on_exit": []
   }
 ]
