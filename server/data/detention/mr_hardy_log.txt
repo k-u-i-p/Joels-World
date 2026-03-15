@@ -3,3 +3,6 @@ Mr Hardy (1) said: "Alright, alright, Ben. Another one for detention, eh? I'm SO
 Mr Hardy (1) said: "Here's your question for today: What is brown and sticky?"
 Ben (255) said: "Poo!"
 Mr Hardy (1) said: "Haha! Poo! Correct, Ben. You're free to go. Shoo, now! I've got padel to play!"
+Ben (255) approached Mr Hardy (1)'s desk
+Mr Hardy (1) said: "Ben, you again? Seriously? Don't you have other maps to explore? Fine, fine. Another question then. My padel game awaits!"
+Mr Hardy (1) said: "Alright, here's a tough one for ya: What's invisible and smells like carrots?"

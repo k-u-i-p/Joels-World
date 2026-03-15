@@ -270,9 +270,6 @@ export class PhysicsEngine {
 
     if (npcList) {
       // Entities are treated as ovals (wider shoulders, thinner chest) to better reflect humanoid shape.
-      const chestRadiusSq = (playerRadius * 1.5) * (playerRadius * 1.5);
-      const shoulderRadiusSq = (playerRadius * 2.0) * (playerRadius * 2.0);
-
       for (let i = 0, len = npcList.length; i < len; i++) {
         const npc = npcList[i];
         if (entityId && npc.id === entityId) continue;
@@ -286,6 +283,17 @@ export class PhysicsEngine {
 
         const localDx = dx * cosA - dy * sinA;
         const localDy = dx * sinA + dy * cosA;
+
+        // Expand the ellipse's radii by the player's radius to create Minkowski sum for collision testing
+        // Base width and height default to 40. Depth (chest/back) is slightly thinner than pure height.
+        const npcWidthHalf = (npc.width || 40) / 2;
+        const npcHeightHalf = (npc.height || 40) / 2;
+        
+        const rx = (npcHeightHalf * 0.8) + playerRadius; // depth along X
+        const ry = (npcWidthHalf * 1.0) + playerRadius;  // width along Y
+        
+        const chestRadiusSq = rx * rx;
+        const shoulderRadiusSq = ry * ry;
 
         // Ellipse collision equation: (x^2 / a^2) + (y^2 / b^2) < 1
         // Depth is along X (chest), width is along Y (shoulder)
