@@ -7,3 +7,4 @@ README.md
 Dockerfile
 .dockerignore
 test-clip-mask.mjs
+original_images/
