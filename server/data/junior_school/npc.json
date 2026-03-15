@@ -168,5 +168,30 @@
       "startTime": 0
     },
     "shoeColor": "#111111"
+  },
+  {
+    "id": 9,
+    "name": "Mr Ferguson",
+    "x": 1509,
+    "y": -180,
+    "width": 40,
+    "height": 40,
+    "rotation": 110,
+    "shirtColor": "#3498db",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "agent": {
+      "prompt_file": "junior_school/agent_mr_ferguson.md",
+      "log_file": "junior_school/mr_ferguson_log.txt"
+    },
+    "on_enter": [
+      {
+        "say": [
+          "Go away! I'm on Duty here!"
+        ]
+      }
+    ],
+    "on_exit": [],
+    "interaction_radius": 800
   }
 ]
