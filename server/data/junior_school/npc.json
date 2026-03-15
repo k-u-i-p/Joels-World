@@ -8,9 +8,9 @@
     "height": 58,
     "rotation": 165,
     "gender": "male",
-    "shirtColor": "#000080",
+    "shirtColor": "#1c2833",
     "pantsColor": "#2c3e50",
-    "armColor": "#000080",
+    "armColor": "#1c2833",
     "interaction_radius": 150,
     "agent": {
       "log_file": "junior_school/agent_mr_hardy_logs.txt",
