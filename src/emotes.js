@@ -571,6 +571,7 @@ export const emotes = {
     duration: 5000,
     message: "{name} is rolling on the floor laughing",
     message_when_near: "{name} laughed at {target_name}",
+    sound: "/media/laugh.mp3",
     setup: (ctx, emote, c) => {
       const laughTime = (Date.now() - emote.startTime) / 150;
       const rock = Math.sin(laughTime) * 0.2;
@@ -626,6 +627,7 @@ export const emotes = {
   love: {
     duration: 5000,
     message: "{name} is in love",
+    sound: "/media/romance.mp3",
     message_when_near: "{name} blew a kiss to {target_name}",
     setup: (ctx, emote, c) => {
       const hover = Math.sin((Date.now() - emote.startTime) / 150) * 2;
@@ -646,6 +648,7 @@ export const emotes = {
     },
     draw: (ctx, emote) => {
       ctx.save();
+      ctx.fillStyle = '#ff69b4'; // ensure hearts are pink, overriding inherited hair color
 
       // Heart eyes
       ctx.font = '8px sans-serif';
