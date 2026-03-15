@@ -27,7 +27,7 @@
           "You are in detention {name}!"
         ],
         "log": {
-          "message": "{name} approached {npc_name}'s desk",
+          "message": "{name} ({player_id}) approached {npc_name} ({npc_id})'s desk",
           "rate_limit": 60
         }
       }
@@ -41,6 +41,143 @@
     ],
     "shoeColor": "#7f8c8d",
     "hairStyle": "bald",
+    "hairColor": "#000000"
+  },
+  {
+    "id": 3,
+    "name": "Jack",
+    "x": 196,
+    "y": -174,
+    "width": 40,
+    "height": 40,
+    "rotation": -90,
+    "shirtColor": "#e74c3c",
+    "pantsColor": "#bdc3c7",
+    "armColor": "#e74c3c",
+    "interaction_radius": 150,
+    "emote": {
+      "name": "sit",
+      "startTime": 0
+    },
+    "on_enter": [
+      {
+        "say": [
+          "I didn't even do anything wrong..."
+        ]
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "He's the worst teacher ever."
+        ]
+      }
+    ],
+    "hairStyle": "messy",
+    "hairColor": "#5c3a21"
+  },
+  {
+    "id": 4,
+    "name": "Lily",
+    "x": -661,
+    "y": -172,
+    "width": 40,
+    "height": 40,
+    "rotation": -90,
+    "shirtColor": "#9b59b6",
+    "pantsColor": "#2c3e50",
+    "armColor": "#9b59b6",
+    "gender": "female",
+    "interaction_radius": 150,
+    "emote": {
+      "name": "write",
+      "startTime": 0
+    },
+    "on_enter": [
+      {
+        "say": [
+          "I have to write an essay on silence...",
+          "I'm so bored!"
+        ]
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "My hand hurts..."
+        ]
+      }
+    ],
+    "hairStyle": "ponytail",
+    "hairColor": "#f1c40f"
+  },
+  {
+    "id": 5,
+    "name": "Noah",
+    "x": -258,
+    "y": 121,
+    "width": 40,
+    "height": 40,
+    "rotation": -90,
+    "shirtColor": "#f1c40f",
+    "pantsColor": "#34495e",
+    "armColor": "#f1c40f",
+    "interaction_radius": 150,
+    "emote": {
+      "name": "sit",
+      "startTime": 0
+    },
+    "on_enter": [
+      {
+        "say": [
+          "Time is going so slowly.",
+          "Are we allowed to talk?"
+        ]
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "Shh! He's looking!"
+        ]
+      }
+    ],
+    "hairStyle": "spiky",
+    "hairColor": "#2c3e50"
+  },
+  {
+    "id": 6,
+    "name": "Mia",
+    "x": 195,
+    "y": 120,
+    "width": 40,
+    "height": 40,
+    "rotation": -90,
+    "shirtColor": "#2ecc71",
+    "pantsColor": "#e74c3c",
+    "armColor": "#2ecc71",
+    "gender": "female",
+    "interaction_radius": 150,
+    "emote": {
+      "name": "write",
+      "startTime": 0
+    },
+    "on_enter": [
+      {
+        "say": [
+          "I can't believe I got caught.",
+          "I just want to go home."
+        ]
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "Sigh..."
+        ]
+      }
+    ],
+    "hairStyle": "long",
     "hairColor": "#000000"
   },
   {
@@ -73,7 +210,7 @@
         ]
       }
     ],
-    "hairStyle": "bald",
+    "hairStyle": "short",
     "hairColor": "#000000"
   }
 ]
