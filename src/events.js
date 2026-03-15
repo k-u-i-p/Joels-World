@@ -145,6 +145,11 @@ export const EventHandlers = {
         } else {
           msg = msg.replace(/{name}/g, 'Student');
         }
+        if (sourceObj && sourceObj.name) {
+          msg = msg.replace(/{npc_name}/g, sourceObj.name);
+        } else {
+          msg = msg.replace(/{npc_name}/g, 'NPC');
+        }
         networkClient.send({ type: 'log', message: msg });
       }
     }

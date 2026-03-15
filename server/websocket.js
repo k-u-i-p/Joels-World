@@ -48,7 +48,7 @@ export function appendToLog(mapData, logEntry) {
       } catch (e) {
         console.error('Error writing log array:', e);
       }
-      
+
       pulseAgent(mapData.id, npc.id);
     }
   });
@@ -333,7 +333,7 @@ export function setupWebSocket(server, sessionMiddleware) {
               armColor: getRandomColor(),
               shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)],
               hairStyle: ['short', 'long', 'ponytail', 'spiky', 'messy', 'bald'][Math.floor(Math.random() * 6)],
-              hairColor: ['#f1c40f', '#e67e22', '#d35400', '#5c3a21', '#2c3e50', '#000000', '#ecf0f1', '#e74c3c', '#9b59b6'][Math.floor(Math.random() * 9)],
+              hairColor: ['#f1c40f', '#5c3a21', '#2c3e50', '#000000'][Math.floor(Math.random() * 4)],
               interaction_radius: 150
             };
 
@@ -361,6 +361,12 @@ export function setupWebSocket(server, sessionMiddleware) {
             ws.clientId = char.id;
             mapData.characters[char.id] = char;
             mapData.dirtyCharacters[char.id] = char;
+          } else if (data.type === 'log') {
+            if (typeof data.message !== 'string') return;
+            const logMsg = data.message.trim();
+            if (logMsg && logMsg.length <= 200) {
+              appendToLog(mapData, logMsg);
+            }
           } else if (data.type === 'chat') {
             if (typeof data.message !== 'string') return;
 
