@@ -182,6 +182,11 @@ export class CharacterManager {
     ctx.fillStyle = headGradient;
     ctx.fill();
 
+    // Outline the head
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.stroke();
+
     let hairColor = c.hairColor;
     if (!hairColor && c.gender === 'female') hairColor = '#e67e22'; // legacy fallback
 
@@ -238,10 +243,6 @@ export class CharacterManager {
         ctx.fill();
       }
     }
-
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-    ctx.stroke();
   }
 
   /**
