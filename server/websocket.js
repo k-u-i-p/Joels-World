@@ -4,6 +4,7 @@ import { WebSocketServer } from 'ws';
 import { handleAdminMessage } from './admin.js';
 import { fileURLToPath } from 'url';
 import { PhysicsEngine } from '../src/physics.js';
+import { pulseAgent } from './ai_agent.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const physicsEngine = new PhysicsEngine();
@@ -47,6 +48,8 @@ export function appendToLog(mapData, logEntry) {
       } catch (e) {
         console.error('Error writing log array:', e);
       }
+      
+      pulseAgent(mapData.id, npc.id);
     }
   });
 }

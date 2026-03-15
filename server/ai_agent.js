@@ -11,6 +11,8 @@ const physicsEngine = new PhysicsEngine();
 let ai = null;
 let apiKey = process.env.GEMINI_API_KEY;
 let lastProcessed = {};
+let _globalMapState = null;
+const agentLastPulseTime = {};
 
 export function startAIAgent(mapState) {
     if (!apiKey) {
@@ -31,7 +33,9 @@ export function startAIAgent(mapState) {
         console.warn("[AI] GEMINI_API_KEY env var or gemini_key file is not set. AI Agents will be disabled.");
         return;
     }
-    console.log("[AI] Starting background agent loop...");
+    console.log("[AI] Starting background agent system...");
+
+    _globalMapState = mapState;
 
     // Initialize lastProcessed hashes to prevent immediate blast
     for (const mapId in mapState) {
@@ -52,82 +56,81 @@ export function startAIAgent(mapState) {
             }
         }
     }
+    // Setup complete. Listeners will trigger pulses.
+}
 
-    setInterval(async () => {
-        for (const mapId in mapState) {
-            const mapData = mapState[mapId];
+export function pulseAgent(mapId, npcId) {
+    if (!ai || !_globalMapState) return;
 
-            if (mapData.npcs && mapData.npcs.length > 0) {
+    const mapData = _globalMapState[mapId];
+    if (!mapData || !mapData.npcs) return;
+
+    const npc = mapData.npcs.find(n => n.id === npcId);
+    if (!npc || !npc.agent || !npc.agent.log_file || !npc.agent.prompt_file) return;
+
+    // Throttle to 5 seconds per Agent
+    const now = Date.now();
+    if (agentLastPulseTime[npcId] && now - agentLastPulseTime[npcId] < 5000) {
+        return;
+    }
+    agentLastPulseTime[npcId] = now;
+
+    try {
+        if (mapData.clients.size === 0) return;
+
+        const logFilePath = path.resolve(__dirname, 'data', npc.agent.log_file);
+        const agentFilePath = path.resolve(__dirname, 'data', npc.agent.prompt_file);
+
+        if (!fs.existsSync(agentFilePath) || !fs.existsSync(logFilePath)) {
+            return;
+        }
+
+        let logsText = fs.readFileSync(logFilePath, 'utf8').trim();
+
+        if (!logsText || lastProcessed[npc.id] === logsText) {
+            return;
+        }
+
+        lastProcessed[npc.id] = logsText;
+        console.log(`[AI][${mapData.name}] New events detected! Formatting prompt for ${npc.name}...`);
+
+        let agentPrompt = fs.readFileSync(agentFilePath, 'utf8');
+        const validEmotes = ["dance", "fart", "laugh", "cry", "angry", "surprised"];
+
+        agentPrompt = agentPrompt
+            .replace("{agent_id}", npc.id)
+            .replace("{emotes}", validEmotes.join(", "));
+
+        const prompt = `${agentPrompt}\n\nRecent Events Log:\n${logsText}\n\nRespond EXACTLY with a valid JSON array representing the actions.`;
+
+        console.log(`[AI][${mapData.name}] Sending prompt for ${npc.name} to Gemini...`);
+
+        ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+            }
+        }).then(response => {
+            let resultText = response.text;
+            console.log(`[AI][${mapData.name}] Received response for ${npc.name}:`, resultText);
+
+            if (resultText) {
                 try {
-                    // Only process if there are humans on the map to interact with
-                    if (mapData.clients.size === 0) {
-                        continue;
-                    }
-
-                    // Check which NPCs are agents
-                    for (const npc of mapData.npcs) {
-                        if (npc.agent && npc.agent.log_file && npc.agent.prompt_file) {
-                            const logFilePath = path.resolve(__dirname, 'data', npc.agent.log_file);
-                            const agentFilePath = path.resolve(__dirname, 'data', npc.agent.prompt_file);
-                            
-                            if (!fs.existsSync(agentFilePath) || !fs.existsSync(logFilePath)) {
-                                continue;
-                            }
-
-                            let logsText = fs.readFileSync(logFilePath, 'utf8').trim();
-
-                            if (!logsText || lastProcessed[npc.id] === logsText) {
-                                continue;
-                            }
-                            
-                            lastProcessed[npc.id] = logsText;
-                            console.log(`[AI][${mapData.name}] New events detected! Formatting prompt for ${npc.name}...`);
-                            
-                            let agentPrompt = fs.readFileSync(agentFilePath, 'utf8');
-                            const validEmotes = ["dance", "fart", "laugh", "cry", "angry", "surprised"]; 
-                            
-                            agentPrompt = agentPrompt
-                                .replace("{agent_id}", npc.id)
-                                .replace("{emotes}", validEmotes.join(", "));
-                            
-                            // Compile full prompt
-                            const prompt = `${agentPrompt}\n\nRecent Events Log:\n${logsText}\n\nRespond EXACTLY with a valid JSON array representing the actions.`;
-
-                            console.log(`[AI][${mapData.name}] Sending prompt for ${npc.name} to Gemini...`);
-
-                            // Important: Do not `await` inside the loop here if we want multiple agents to 'think' in parallel,
-                            // but if they share a rate limit, queuing is safer.
-                            ai.models.generateContent({
-                                model: 'gemini-2.5-flash',
-                                contents: prompt,
-                                config: {
-                                    responseMimeType: "application/json",
-                                }
-                            }).then(response => {
-                                let resultText = response.text;
-                                console.log(`[AI][${mapData.name}] Received response for ${npc.name}:`, resultText);
-
-                                if (resultText) {
-                                    try {
-                                        const result = JSON.parse(resultText);
-                                        console.log(`[AI][${mapData.name}] Parsed response for ${npc.name} successfully! Applying actions...`);
-                                        handleAgentAction(mapData, result);
-                                    } catch (e) {
-                                        console.error(`[AI][${mapData.name}] Failed to parse agent JSON:`, resultText, e);
-                                    }
-                                }
-                            }).catch(err => {
-                                console.error(`[AI][${mapData.name}] API Error for ${npc.name}:`, err);
-                            });
-                        }
-                    }
-
-                } catch (err) {
-                    console.error(`[AI][${mapData.name}] Error in loop for map`, mapId, err);
+                    const result = JSON.parse(resultText);
+                    console.log(`[AI][${mapData.name}] Parsed response for ${npc.name} successfully! Applying actions...`);
+                    handleAgentAction(mapData, result);
+                } catch (e) {
+                    console.error(`[AI][${mapData.name}] Failed to parse agent JSON:`, resultText, e);
                 }
             }
-        }
-    }, 5000); // Check every 5 seconds
+        }).catch(err => {
+            console.error(`[AI][${mapData.name}] API Error for ${npc.name}:`, err);
+        });
+
+    } catch (err) {
+        console.error(`[AI][${mapData.name}] Error pulsing agent ${npcId}`, err);
+    }
 }
 
 async function handleAgentAction(mapData, action) {
