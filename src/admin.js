@@ -439,6 +439,11 @@ function updateAdminPanel() {
       nameInput.value = window.selectedObject.get().name || '';
     }
 
+    const idDisplay = document.getElementById('obj-id-display');
+    if (idDisplay) {
+      idDisplay.textContent = `ID: ${window.selectedObject.get().id || '-'}`;
+    }
+
     const clipInputDisplay = document.getElementById('input-obj-clip');
     if (clipInputDisplay) {
       clipInputDisplay.value = window.selectedObject.get().clip !== undefined ? window.selectedObject.get().clip : 10;
