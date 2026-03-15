@@ -40,9 +40,9 @@
       }
     ],
     "shoeColor": "#7f8c8d",
-    "hairStyle": "bald",
-    "hairColor": "#000000",
-    "_distSq": 2335.9484524185405,
+    "hairStyle": "messy",
+    "hairColor": "#5c3a21",
+    "_distSq": 3316.7421191327585,
     "emote": null
   },
   {
@@ -180,8 +180,8 @@
     "x": -1957,
     "y": -384,
     "width": 46,
-    "height": 46,
-    "rotation": 90,
+    "height": 54,
+    "rotation": 70,
     "gender": "male",
     "shirtColor": "#bdc3c7",
     "pantsColor": "#34495e",
@@ -263,7 +263,7 @@
     "shoeColor": "#5e3a1f",
     "hairStyle": "bald",
     "hairColor": "#000000",
-    "_distSq": 1977.4836048729398
+    "_distSq": 3627.071008469347
   },
   {
     "id": 11,
@@ -310,7 +310,8 @@
     "on_exit": [],
     "gender": "male",
     "hairStyle": "bald",
-    "hairColor": "#000000"
+    "hairColor": "#000000",
+    "_distSq": 7631.030316511217
   },
   {
     "id": 13,
