@@ -391,13 +391,13 @@ function draw() {
     const maxY = halfMapH - viewHalfH;
 
     if (minX <= maxX) {
-      camera.x = Math.max(minX, Math.min(maxX, camera.x));
+      camera.x = Math.max(minX, Math.min(maxX, camera.x)) | 0;
     } else {
       camera.x = 0;
     }
 
     if (minY <= maxY) {
-      camera.y = Math.max(minY, Math.min(maxY, camera.y));
+      camera.y = Math.max(minY, Math.min(maxY, camera.y)) | 0;
     } else {
       camera.y = 0;
     }
@@ -412,9 +412,10 @@ function draw() {
   // Camera translation (Centers the world on the player)
   ctx.save();
   ctx.scale(dpr, dpr);
-  ctx.translate(viewportWidth / 2 + xOffset, viewportHeight / 2 + yOffset);
+  // Truncate translation to integer coordinates to avoid GPU bilinear soft-blur
+  ctx.translate(((viewportWidth / 2) + xOffset) | 0, ((viewportHeight / 2) + yOffset) | 0);
   ctx.scale(camera.zoom, camera.zoom);
-  ctx.translate(-camera.x, -camera.y);
+  ctx.translate(-(camera.x | 0), -(camera.y | 0));
 
   mapManager.drawLayer(0, ctx, canvas, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 

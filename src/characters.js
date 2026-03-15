@@ -479,14 +479,14 @@ export class CharacterManager {
    * within the camera bounds.
    */
   drawCharacters(layerType = 'all', ctx, canvas, player, syncPlayerToJSON, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight) {
-    const viewHalfW = (viewportWidth / cameraZoom) / 2;
-    const viewHalfH = (viewportHeight / cameraZoom) / 2;
+    const viewHalfW = ((viewportWidth / cameraZoom) / 2) | 0;
+    const viewHalfH = ((viewportHeight / cameraZoom) / 2) | 0;
 
     const margin = 100;
-    const minX = cameraX - viewHalfW - margin;
-    const maxX = cameraX + viewHalfW + margin;
-    const minY = cameraY - viewHalfH - margin;
-    const maxY = cameraY + viewHalfH + margin;
+    const minX = (cameraX - viewHalfW - margin) | 0;
+    const maxX = (cameraX + viewHalfW + margin) | 0;
+    const minY = (cameraY - viewHalfH - margin) | 0;
+    const maxY = (cameraY + viewHalfH + margin) | 0;
 
     const processDraw = (char, isNpc) => {
       const c = (char.id === player.id) ? player : char;
