@@ -2,10 +2,10 @@
   {
     "id": 9,
     "shape": "rect",
-    "x": -407,
-    "y": -730,
-    "width": 327,
-    "length": 240,
+    "x": -1313,
+    "y": -529,
+    "width": 280,
+    "length": 426,
     "name": "Spawn Area",
     "clip": -1,
     "on_enter": [
@@ -20,11 +20,11 @@
   {
     "id": 10,
     "shape": "rect",
-    "x": -518,
-    "y": -950,
-    "width": 127,
-    "length": 145,
-    "clip": -1,
+    "x": -1099,
+    "y": -519,
+    "width": 132,
+    "length": 254,
+    "clip": 50,
     "name": "Exit",
     "on_enter": [
       {
@@ -39,10 +39,10 @@
   {
     "id": 11,
     "shape": "rect",
-    "x": -710,
-    "y": 801,
-    "width": 408,
-    "length": 491,
+    "x": -2178,
+    "y": 702,
+    "width": 691,
+    "length": 613,
     "clip": -1,
     "name": "Ms Crosbie's Classroom",
     "on_enter": [
@@ -57,10 +57,10 @@
   {
     "id": 12,
     "shape": "rect",
-    "x": -498,
-    "y": 118,
-    "width": 148,
-    "length": 108,
+    "x": 271,
+    "y": -406,
+    "width": 294,
+    "length": 183,
     "name": "Toilets",
     "clip": -1,
     "on_enter": [
@@ -83,27 +83,72 @@
     ]
   },
   {
-    "id": 13,
+    "id": 14,
     "shape": "rect",
-    "x": -662,
-    "y": 121,
-    "width": 148,
-    "length": 108,
+    "x": -79,
+    "y": -404,
+    "width": 281,
+    "length": 174,
     "name": "Toilets",
     "clip": -1,
     "on_enter": 12,
     "on_exit": 12
   },
   {
-    "id": 14,
+    "id": 15,
     "shape": "rect",
-    "x": -496,
-    "y": -127,
-    "width": 143,
-    "length": 124,
-    "name": "Toilets",
-    "clip": -1,
-    "on_enter": 12,
-    "on_exit": 12
+    "x": 112,
+    "y": 330,
+    "width": 260,
+    "length": 139,
+    "clip": 50,
+    "name": "Exit",
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 0,
+          "description": "Do you want to exit the main building?"
+        }
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "shape": "rect",
+    "x": -1396,
+    "y": 1081,
+    "width": 260,
+    "length": 139,
+    "clip": 50,
+    "name": "Exit",
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 0,
+          "description": "Do you want to exit the main building?"
+        }
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "shape": "rect",
+    "x": 2626,
+    "y": -120,
+    "width": 167,
+    "length": 227,
+    "clip": 50,
+    "name": "Exit",
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 0,
+          "description": "Do you want to exit the main building?"
+        }
+      }
+    ]
   }
 ]

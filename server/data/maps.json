@@ -75,7 +75,7 @@
     "npcs": "detention/npc.json",
     "clip_mask": "detention/clip_mask.svg",
     "character_scale": 4,
-    "default_zoom": 1.0,
+    "default_zoom": 1,
     "objects": "detention/objects.json",
     "spawn_area": 18,
     "on_enter": [
@@ -90,8 +90,8 @@
   {
     "id": 2,
     "name": "Main Building",
-    "width": 1952,
-    "height": 2146,
+    "width": 5584,
+    "height": 3072,
     "layers": [
       [
         {
@@ -99,8 +99,8 @@
           "chunked": true,
           "source_image": "/main_building/background.png",
           "chunk_size": 512,
-          "grid_w": 4,
-          "grid_h": 5,
+          "grid_w": 11,
+          "grid_h": 6,
           "path_template": "/main_building/chunks/background_{x}_{y}.png"
         }
       ],
@@ -111,16 +111,16 @@
           "chunked": true,
           "source_image": "/main_building/background_overlay.png",
           "chunk_size": 512,
-          "grid_w": 4,
-          "grid_h": 5,
+          "grid_w": 11,
+          "grid_h": 6,
           "path_template": "/main_building/chunks/background_overlay_{x}_{y}.png"
         }
       ]
     ],
     "npcs": "main_building/npc.json",
     "clip_mask": "main_building/clip_mask.png",
-    "character_scale": 2.0,
-    "default_zoom": 1,
+    "character_scale": 2.5,
+    "default_zoom": 0.5,
     "objects": "main_building/objects.json",
     "spawn_area": 9,
     "on_enter": [
