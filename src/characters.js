@@ -272,13 +272,17 @@ export class CharacterManager {
    * @returns {HTMLCanvasElement|OffscreenCanvas} Prerendered graphics context instance.
    */
   getPrerenderedNpc(c, scaleX = 1, scaleY = 1) {
-    if (c.prerenderedCanvas && c.prerenderedScaleX === scaleX && c.prerenderedScaleY === scaleY) {
+    const dpr = window.devicePixelRatio || 1;
+    if (c.prerenderedCanvas && c.prerenderedScaleX === scaleX && c.prerenderedScaleY === scaleY && c.prerenderedDpr === dpr) {
       return c.prerenderedCanvas;
     }
 
     const baseSize = 100;
-    const width = baseSize * scaleX;
-    const height = baseSize * scaleY;
+    const logicalWidth = baseSize * scaleX;
+    const logicalHeight = baseSize * scaleY;
+    const width = Math.ceil(logicalWidth * dpr);
+    const height = Math.ceil(logicalHeight * dpr);
+
     const canvas = window.OffscreenCanvas ? new OffscreenCanvas(width, height) : document.createElement('canvas');
     if (!window.OffscreenCanvas) {
       canvas.width = width;
@@ -286,7 +290,8 @@ export class CharacterManager {
     }
     const octx = canvas.getContext('2d');
 
-    octx.translate(width / 2, height / 2);
+    octx.scale(dpr, dpr);
+    octx.translate(logicalWidth / 2, logicalHeight / 2);
     octx.scale(scaleX, scaleY);
 
     const limbs = {
@@ -302,6 +307,7 @@ export class CharacterManager {
 
     c.prerenderedScaleX = scaleX;
     c.prerenderedScaleY = scaleY;
+    c.prerenderedDpr = dpr;
     c.prerenderedCanvas = canvas;
     return canvas;
   }
@@ -358,7 +364,10 @@ export class CharacterManager {
           const prCnv = this.getPrerenderedNpc(c, scaleX, scaleY);
           ctx.save();
           ctx.scale(1 / scaleX, 1 / scaleY);
-          ctx.drawImage(prCnv, -prCnv.width / 2, -prCnv.height / 2);
+          const dpr = window.devicePixelRatio || 1;
+          const drawW = prCnv.width / dpr;
+          const drawH = prCnv.height / dpr;
+          ctx.drawImage(prCnv, -drawW / 2, -drawH / 2, drawW, drawH);
           ctx.restore();
         } else {
           let currentEmote = c.emote;
