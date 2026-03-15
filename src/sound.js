@@ -51,7 +51,7 @@ class SoundManager {
     }
   }
 
-  playPooled(src, volume = 1) {
+  playPooled(src, volume = 1, loop = false) {
     if (!this.audioCtx) return { pause: () => {} };
     if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
 
@@ -70,6 +70,7 @@ class SoundManager {
       if (!buffer || result.stopped) return;
       const source = this.audioCtx.createBufferSource();
       source.buffer = buffer;
+      source.loop = loop;
       const gainNode = this.audioCtx.createGain();
       gainNode.gain.value = Math.max(0, volume);
       source.connect(gainNode);

@@ -244,6 +244,18 @@ function update() {
   // Animation
   if (isMoving) {
     player.legAnimationTime += 0.2;
+    
+    if (!emoteForcedMove) {
+      if (!player.walkingAudio) {
+        player.walkingAudio = soundManager.playPooled('/media/walking.mp3', 1, true);
+      }
+    } else {
+      if (player.walkingAudio) {
+        player.walkingAudio.pause();
+        player.walkingAudio = null;
+      }
+    }
+
     if (player.emote) {
       let shouldCancel = true;
       if (player.emote.name === 'jump' || player.emote.name === 'wet') {
@@ -275,6 +287,11 @@ function update() {
   } else {
     // Smoother stop: reset animation to neutral when stopped
     player.legAnimationTime = 0;
+    
+    if (player.walkingAudio) {
+      player.walkingAudio.pause();
+      player.walkingAudio = null;
+    }
   }
 
   // Smoothly interpolate other characters to their server positions
