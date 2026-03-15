@@ -164,7 +164,10 @@ async function handleAgentAction(mapData, action) {
             }
 
             for (let i = 0; i < sayArr.length; i++) {
-                const msg = sayArr[i];
+                let msg = sayArr[i];
+                // Strip out (username) or (PlayerID) logic from the string output
+                msg = msg.replace(/\s*\([^)]*\)/g, '');
+                
                 const broadcastMsg = JSON.stringify({ type: 'chat', id: npcId, message: msg });
                 
                 // append to log to write to file
