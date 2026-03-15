@@ -22,8 +22,8 @@ networkClient.connect((data) => {
   handleInitData(data);
 });
 
-let viewportWidth = window.innerWidth;
-let viewportHeight = window.innerHeight;
+let viewportWidth = 0;
+let viewportHeight = 0;
 
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
