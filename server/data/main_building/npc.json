@@ -232,7 +232,7 @@
     "on_enter": [
       {
         "say": [
-          "the teachers gave me nothing to eat to punish me"
+          "The teachers gave me nothing to eat to punish me."
         ]
       }
     ],
@@ -243,8 +243,8 @@
   {
     "id": 8,
     "name": "Cook",
-    "x": 809,
-    "y": -617,
+    "x": 2027,
+    "y": -664,
     "width": 40,
     "height": 40,
     "rotation": -175,
@@ -254,7 +254,7 @@
     "on_enter": [
       {
         "say": [
-          "Special meal today carpet flavoured chips"
+          "Special meal today... carpet-flavoured chips!"
         ]
       }
     ],

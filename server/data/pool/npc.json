@@ -53,7 +53,7 @@
     "on_enter": [
       {
         "say": [
-          "la da da da da da da de doo do"
+          "La da da da da da da de doo do!"
         ]
       }
     ],
@@ -80,7 +80,7 @@
     "on_enter": [
       {
         "say": [
-          "hey {name} wats sup"
+          "Hey {name}! What's up?"
         ]
       }
     ],
@@ -107,7 +107,7 @@
     "on_enter": [
       {
         "say": [
-          "hi {name} were plying catch with our beachball"
+          "Hi {name}! We're playing catch with our beachball."
         ]
       }
     ],

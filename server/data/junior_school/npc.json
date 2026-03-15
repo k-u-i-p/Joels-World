@@ -257,7 +257,7 @@
     "on_enter": [
       {
         "say": [
-          "pudding is yum yum"
+          "Pudding is yum yum!"
         ]
       }
     ],
@@ -280,7 +280,7 @@
     "on_enter": [
       {
         "say": [
-          "your a rubbish teacher {name} join in"
+          "You're a rubbish teacher, {name}! Join in!"
         ]
       }
     ],
@@ -303,7 +303,7 @@
     "on_enter": [
       {
         "say": [
-          "no I am not"
+          "No, I am not!"
         ]
       }
     ],
@@ -327,7 +327,7 @@
           "Sssss... excuse me!",
           "That was a spicy mouse I ate.",
           "Ssss... silent but deadly.",
-          "ssssssssshart!"
+          "Ssssssssshart!"
         ],
         "play_sound": {
           "sound": "media/fart.mp3",
