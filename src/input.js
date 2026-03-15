@@ -75,6 +75,9 @@ export class InputManager {
           }
           if (chatInput) chatInput.blur();
         } else {
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            return; // Let the input/textarea handle the enter key naturally
+          }
           if (chatInput) {
             chatInput.focus();
             e.preventDefault();
