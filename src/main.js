@@ -25,23 +25,39 @@ networkClient.connect((data) => {
 let viewportWidth = window.innerWidth;
 let viewportHeight = window.innerHeight;
 
-function resize() {
-  viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-  viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-
+function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = window.innerWidth * dpr;
-  canvas.height = window.innerHeight * dpr;
-  canvas.style.width = window.innerWidth + 'px';
-  canvas.style.height = window.innerHeight + 'px';
+  const targetW = window.innerWidth;
+  const targetH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+
+  if (viewportWidth !== targetW || viewportHeight !== targetH) {
+    viewportWidth = targetW;
+    viewportHeight = targetH;
+    canvas.width = viewportWidth * dpr;
+    canvas.height = viewportHeight * dpr;
+    canvas.style.width = viewportWidth + 'px';
+    canvas.style.height = viewportHeight + 'px';
+  }
 }
-window.addEventListener('resize', resize);
-window.addEventListener('orientationchange', resize);
+
+// Create layout cache variables
+let cachedViewportOffsetX = 0;
+let cachedViewportOffsetY = 0;
+
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', resize);
-  window.visualViewport.addEventListener('scroll', resize);
+  window.visualViewport.addEventListener('resize', resizeCanvas);
+  window.visualViewport.addEventListener('scroll', () => {
+    cachedViewportOffsetX = window.visualViewport.offsetLeft;
+    cachedViewportOffsetY = window.visualViewport.offsetTop;
+  });
+  // Initial fill
+  cachedViewportOffsetX = window.visualViewport.offsetLeft;
+  cachedViewportOffsetY = window.visualViewport.offsetTop;
+} else {
+  window.addEventListener('resize', resizeCanvas);
 }
-resize();
+window.addEventListener('orientationchange', resizeCanvas); // Use the new resizeCanvas function
+resizeCanvas(); // Initial call to set up canvas dimensions
 
 const chatInput = document.getElementById('chat-input');
 const mapNameDisplay = document.getElementById('map-name-display');
@@ -376,8 +392,9 @@ function draw() {
   camera.x = player.x;
   camera.y = player.y;
 
-  let yOffset = window.visualViewport ? window.visualViewport.offsetTop : 0;
-  let xOffset = window.visualViewport ? window.visualViewport.offsetLeft : 0;
+  // Read from cached globals instead of forcing aggressive DOM reflow every frame
+  let yOffset = window.visualViewport ? cachedViewportOffsetY : 0;
+  let xOffset = window.visualViewport ? cachedViewportOffsetX : 0;
 
   if (window.init?.mapData?.width && window.init?.mapData?.height) {
     const halfMapW = window.init.mapData.width / 2;
