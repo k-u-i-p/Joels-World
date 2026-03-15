@@ -345,14 +345,10 @@ export class CharacterManager {
     }
 
     if (layerType === 'all' || layerType === 'overlay') {
-      if (c.name) {
-        const prevFillStyle = ctx.fillStyle;
-        const prevFont = ctx.font;
-        const prevTextAlign = ctx.textAlign;
-        const prevShadowColor = ctx.shadowColor;
-        const prevShadowBlur = ctx.shadowBlur;
-        const prevShadowOffsetX = ctx.shadowOffsetX;
-        const prevShadowOffsetY = ctx.shadowOffsetY;
+      if (layerType === 'overlay' && c.name && !c.hideName) {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.scale(1 / cameraZoom, 1 / cameraZoom);
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         ctx.font = 'bold 12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
@@ -364,28 +360,18 @@ export class CharacterManager {
         ctx.shadowOffsetY = 1;
 
         const baseScale = window.init?.mapData?.character_scale || 1;
-        const nameYOffset = ((c.height || 40) / 2) * baseScale + 15;
+        const nameYOffsetScreen = (((c.height || 40) / 2) * baseScale) * cameraZoom + 15;
 
-        // draw raw instead of translating matrix
-        ctx.fillText(c.name, c.x, c.y + nameYOffset);
-
-        ctx.fillStyle = prevFillStyle;
-        ctx.font = prevFont;
-        ctx.textAlign = prevTextAlign;
-        ctx.shadowColor = prevShadowColor;
-        ctx.shadowBlur = prevShadowBlur;
-        ctx.shadowOffsetX = prevShadowOffsetX;
-        ctx.shadowOffsetY = prevShadowOffsetY;
+        // draw at local 0 with scaled Y offset
+        ctx.fillText(c.name, 0, nameYOffsetScreen);
+        
+        ctx.restore();
       }
 
       if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
-        const prevFillStyle = ctx.fillStyle;
-        const prevFont = ctx.font;
-        const prevTextAlign = ctx.textAlign;
-        const prevTextBaseline = ctx.textBaseline;
-        const prevShadowColor = ctx.shadowColor;
-        const prevShadowBlur = ctx.shadowBlur;
-        const prevShadowOffsetY = ctx.shadowOffsetY;
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.scale(1 / cameraZoom, 1 / cameraZoom);
 
         ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
         const textWidth = ctx.measureText(c.chatMessage).width;
@@ -394,8 +380,8 @@ export class CharacterManager {
         const baseScale = window.init?.mapData?.character_scale || 1;
 
         // compute offset coordinates physically
-        const bX = c.x - bubbleWidth / 2;
-        const bY = c.y - (((c.height || 40) / 2) * baseScale + 10) - bubbleHeight;
+        const bXScreen = -bubbleWidth / 2;
+        const bYScreen = -((((c.height || 40) / 2) * baseScale) * cameraZoom + 10) - bubbleHeight;
 
         ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
         ctx.shadowBlur = 6;
@@ -404,19 +390,18 @@ export class CharacterManager {
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         if (ctx.roundRect) {
-          ctx.roundRect(bX, bY, bubbleWidth, bubbleHeight, 8);
+          ctx.roundRect(bXScreen, bYScreen, bubbleWidth, bubbleHeight, 8);
         } else {
-          ctx.rect(bX, bY, bubbleWidth, bubbleHeight);
+          ctx.rect(bXScreen, bYScreen, bubbleWidth, bubbleHeight);
         }
         ctx.fill();
 
         ctx.beginPath();
         // The little arrow tooltip at bottom middle
-        const arrowCenterX = c.x;
-        const arrowTopY = bY + bubbleHeight;
-        ctx.moveTo(arrowCenterX - 6, arrowTopY);
-        ctx.lineTo(arrowCenterX + 6, arrowTopY);
-        ctx.lineTo(arrowCenterX, arrowTopY + 8);
+        const arrowTopY = bYScreen + bubbleHeight;
+        ctx.moveTo(-6, arrowTopY);
+        ctx.lineTo(6, arrowTopY);
+        ctx.lineTo(0, arrowTopY + 8);
         ctx.fill();
 
         ctx.shadowColor = 'transparent';
@@ -426,15 +411,9 @@ export class CharacterManager {
         ctx.fillStyle = '#2c3e50';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(c.chatMessage, c.x, bY + bubbleHeight / 2);
-
-        ctx.fillStyle = prevFillStyle;
-        ctx.font = prevFont;
-        ctx.textAlign = prevTextAlign;
-        ctx.textBaseline = prevTextBaseline;
-        ctx.shadowColor = prevShadowColor;
-        ctx.shadowBlur = prevShadowBlur;
-        ctx.shadowOffsetY = prevShadowOffsetY;
+        ctx.fillText(c.chatMessage, 0, bYScreen + bubbleHeight / 2);
+        
+        ctx.restore();
       }
     }
   }
