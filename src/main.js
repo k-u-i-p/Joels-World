@@ -166,6 +166,21 @@ function update() {
     player.rotation += player.rotationSpeed;
   }
 
+  // Trigger jump via spacebar
+  if (inputManager.isPressed('Space')) {
+    if (!player.emote || player.emote.name !== 'jump') {
+      player.emote = { name: 'jump', startTime: Date.now() };
+      if (player.activeEmoteAudio) {
+        player.activeEmoteAudio.pause();
+        player.activeEmoteAudio = null;
+      }
+      if (emotes['jump'].sound) {
+        player.activeEmoteAudio = soundManager.playPooled(emotes['jump'].sound, 1);
+      }
+      networkClient.syncPlayerToJSON();
+    }
+  }
+
   // Movement
   let dx = 0;
   let dy = 0;
@@ -175,11 +190,9 @@ function update() {
     const jumpAge = Date.now() - player.emote.startTime;
     if (jumpAge < 800) {
       emoteForcedMove = true;
-      const progress = jumpAge / 800;
-      // Burst of speed tapering down as they hit the ground
-      const jumpVel = (player.moveSpeed || 3) * 1.0 * (1 - progress);
-      dx += Math.cos(player.rotation * Math.PI / 180) * jumpVel;
-      dy += Math.sin(player.rotation * Math.PI / 180) * jumpVel;
+      // Stop moving while jumping
+      dx = 0;
+      dy = 0;
     }
   }
 

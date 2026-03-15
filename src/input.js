@@ -8,6 +8,7 @@ export class InputManager {
       ArrowDown: false,
       ArrowLeft: false,
       ArrowRight: false,
+      Space: false,
       TouchMove: false
     };
 
@@ -83,6 +84,8 @@ export class InputManager {
       }
 
       if (this.isChatFocused || e.target.tagName === 'INPUT') return;
+
+      if (e.code === 'Space') e.preventDefault();
 
       if (this.keys.hasOwnProperty(e.code)) {
         this.keys[e.code] = true;
