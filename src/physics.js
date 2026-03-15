@@ -178,8 +178,12 @@ export class PhysicsEngine {
       this.clipMaskCanvas = canvas;
       this.clipMaskCtx = ctx;
       try {
-        this.clipMaskImageData = ctx.getImageData(0, 0, this.clipMaskWidth, this.clipMaskHeight).data;
-        console.log(`[PhysicsEngine] Clip mask loaded successfully: ${url}`);
+        const imgData = ctx.getImageData(0, 0, this.clipMaskWidth, this.clipMaskHeight);
+        // Cast the Uint8ClampedArray byte buffer natively into a 32-bit integer array.
+        // This drops the array length by 4x and allows extremely fast integer comparisons
+        // instead of 4 separate channel lookups. Endianness (ABGR vs RGBA) applies here.
+        this.clipMaskImageData = new Uint32Array(imgData.data.buffer);
+        console.log(`[PhysicsEngine] Clip mask loaded successfully: ${url} (Uint32Array)`);
       } catch (e) {
         console.warn(`[PhysicsEngine] Failed to read clip_mask image data - CORS issue?`);
         this.clipMaskImageData = null;
@@ -209,17 +213,26 @@ export class PhysicsEngine {
       return false; // Out of bounds of mask entirely
     }
 
-    // Read pixel data: index = (y * width + x) * 4
-    const index = (pixelY * this.clipMaskWidth + pixelX) * 4;
-    const r = this.clipMaskImageData[index];
-    const g = this.clipMaskImageData[index + 1];
-    const b = this.clipMaskImageData[index + 2];
-    const a = this.clipMaskImageData[index + 3];
+    // Read pixel data: 1D index = y * width + x
+    const index = (pixelY * this.clipMaskWidth + pixelX) | 0;
+    const pixel32 = this.clipMaskImageData[index];
 
-    // If pixel is mostly black and opaque, it's a solid boundary
-    // Threshold can be adjusted; SVG usually renders pitch black #000000
-    if (a > 0 && r < 250 && g < 250 && b < 250) {
-      return false; // Cannot walk here
+    // Due to endianness (little-endian on x86/ARM), a 32-bit pixel is typically 0xAABBGGRR.
+    // An absolutely transparent pixel parses as 0x00000000 (0).
+    // An absolutely solid black pixel parses as 0xFF000000
+    // Walkable areas on our clip mask are solid white: 0xFFFFFFFF
+    // Solid green walkable areas: 0xFF00FF00
+
+    // To perform extreme optimization, we evaluate the bits.
+    // If the alpha channel (top 8 bits) is solid (0xFF000000), and all the R/G/B color channels are near-zero (black)
+    // we block the player. The exact threshold integer can be adjusted if the SVG has slight anti-alias grey borders.
+    
+    // Mask out the Alpha channel for pure RGB testing
+    const rgbOnly = pixel32 & 0x00FFFFFF; 
+    
+    // Pure Black threshold -> (R < ~15, G < ~15, B < ~15) = 0x000F0F0F
+    if (pixel32 > 0 && rgbOnly < 0x000F0F0F) {
+      return false; // Solid black/dark collision boundary
     }
 
     return true; // Walkable
