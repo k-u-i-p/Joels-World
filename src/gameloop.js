@@ -71,27 +71,22 @@ export class GameLoop {
     requestAnimationFrame(this._loopBind);
 
     const now = performance.now();
-    const elapsed = now - this.lastFrameTime;
 
-    if (elapsed > this.fpsInterval) {
-      this.lastFrameTime = now - (elapsed % this.fpsInterval);
+    this.framesThisSecond++;
+    if (now - this.lastFpsUpdate >= 1000) {
+      if (window.isAdmin && window.updateAdminFps) {
+        window.updateAdminFps(this.framesThisSecond);
+      }
+      this.framesThisSecond = 0;
+      this.lastFpsUpdate = now;
+    }
 
-      this.framesThisSecond++;
-      if (now - this.lastFpsUpdate >= 1000) {
-        if (window.isAdmin && window.updateAdminFps) {
-          window.updateAdminFps(this.framesThisSecond);
-        }
-        this.framesThisSecond = 0;
-        this.lastFpsUpdate = now;
-      }
-
-      // Execute all registered functions sequentially
-      for (let i = 0; i < this.functions.length; i++) {
-        this.functions[i]();
-      }
-      for (let i = 0; i < this.postFunctions.length; i++) {
-        this.postFunctions[i]();
-      }
+    // Execute all registered functions sequentially
+    for (let i = 0; i < this.functions.length; i++) {
+      this.functions[i]();
+    }
+    for (let i = 0; i < this.postFunctions.length; i++) {
+      this.postFunctions[i]();
     }
   }
 }
