@@ -1,6 +1,65 @@
 import { footprints } from './main.js';
 
 export const emotes = {
+  "laser": {
+    duration: 5000,
+    message: "{name} is firing backwards lasers!",
+    setup: (ctx, emote, c) => {
+      // Float up slightly
+      const hover = Math.sin((Date.now() - emote.startTime) / 100) * 3;
+      ctx.translate(0, hover - 10); 
+    },
+    updateLimbs: (limbs, emote) => {
+      // Arms out to the sides
+      limbs.leftArmX = 5; limbs.leftArmY = -20;
+      limbs.rightArmX = 5; limbs.rightArmY = 20;
+      
+      // Legs dangling down
+      limbs.leftLegStartX = -2; limbs.leftLegStartY = -4;
+      limbs.leftLegEndX = -8; limbs.leftLegEndY = -4;
+      
+      limbs.rightLegStartX = -2; limbs.rightLegStartY = 4;
+      limbs.rightLegEndX = -8; limbs.rightLegEndY = 4;
+    },
+    draw: (ctx, emote) => {
+      ctx.save();
+      const timeActive = Date.now() - emote.startTime;
+      
+      // Draw glowing eyes
+      ctx.fillStyle = '#ff0000';
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(6, -3, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(6, 3, 2.5, 0, Math.PI * 2); ctx.fill();
+      
+      // Draw lazer beams with a pulsing effect
+      const alpha = 0.7 + Math.sin(timeActive / 50) * 0.3;
+      ctx.globalAlpha = alpha;
+      
+      // Outer red beam
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#ff0000';
+      ctx.beginPath();
+      // Beam from left eye
+      ctx.moveTo(6, -3);
+      ctx.lineTo(2000, -3);
+      // Beam from right eye
+      ctx.moveTo(6, 3);
+      ctx.lineTo(2000, 3);
+      ctx.stroke();
+      
+      // Inner white core
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.moveTo(6, -3); ctx.lineTo(2000, -3);
+      ctx.moveTo(6, 3); ctx.lineTo(2000, 3);
+      ctx.stroke();
+      
+      ctx.restore();
+    }
+  },
   bounce: {
     duration: 3600000, // 1 hour duration
     message: "{name} is bouncing",
