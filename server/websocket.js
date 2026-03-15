@@ -363,10 +363,17 @@ export function setupWebSocket(server, sessionMiddleware) {
             mapData.dirtyCharacters[char.id] = char;
           } else if (data.type === 'log') {
             if (typeof data.message !== 'string') return;
+            
             const logMsg = data.message.trim();
-            if (logMsg && logMsg.length <= 200) {
-              appendToLog(mapData, logMsg);
+            if (!logMsg || logMsg.length > 300) return;
+
+            // Maintain LLM context security against newline injections or HTML markup
+            if (/[\r\n\t\\<>]/.test(logMsg)) {
+              console.warn(`[Security] Rejected malformed log message from ${ws.clientId}`);
+              return;
             }
+
+            appendToLog(mapData, logMsg);
           } else if (data.type === 'chat') {
             if (typeof data.message !== 'string') return;
 
