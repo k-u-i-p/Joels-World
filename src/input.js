@@ -83,7 +83,7 @@ export class InputManager {
         return;
       }
 
-      if (this.isChatFocused || e.target.tagName === 'INPUT') return;
+      if (this.isChatFocused || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
       if (e.code === 'Space') e.preventDefault();
 
@@ -93,7 +93,7 @@ export class InputManager {
     });
 
     window.addEventListener('keyup', (e) => {
-      if (e.target.tagName === 'INPUT') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (this.keys.hasOwnProperty(e.code)) {
         this.keys[e.code] = false;
       }

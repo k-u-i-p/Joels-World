@@ -270,20 +270,20 @@ export class PhysicsEngine {
 
     if (npcList) {
       // Entities are treated as ovals (wider shoulders, thinner chest) to better reflect humanoid shape.
-      const chestRadiusSq = (playerRadius * 0.8) * (playerRadius * 0.8);
-      const shoulderRadiusSq = (playerRadius * 1.6) * (playerRadius * 1.6);
+      const chestRadiusSq = (playerRadius * 1.5) * (playerRadius * 1.5);
+      const shoulderRadiusSq = (playerRadius * 2.0) * (playerRadius * 2.0);
 
       for (let i = 0, len = npcList.length; i < len; i++) {
         const npc = npcList[i];
         if (entityId && npc.id === entityId) continue;
         const dx = newX - npc.x;
         const dy = newY - npc.y;
-        
+
         // Transform the relative distance vector into the NPC's local rotated space
         const angle = -(npc.rotation || 0) * (Math.PI / 180);
         const cosA = Math.cos(angle);
         const sinA = Math.sin(angle);
-        
+
         const localDx = dx * cosA - dy * sinA;
         const localDy = dx * sinA + dy * cosA;
 
