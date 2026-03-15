@@ -123,21 +123,25 @@ export class CharacterManager {
     this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
     this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
 
+    const bodyWidth = c.gender === 'female' ? 16 : 20;
+    const bodyHalfWidth = bodyWidth / 2;
+    const armOffset = bodyHalfWidth - 1; // dynamically adapt shoulders to thinner body
+
     // Gradient for arms (cylindrical simulation)
-    const armGradient = ctx.createLinearGradient(0, -11, 0, limbs.leftArmY);
+    const armGradient = ctx.createLinearGradient(0, -armOffset, 0, limbs.leftArmY);
     armGradient.addColorStop(0, c.armColor || '#3498db');
     armGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
 
     ctx.lineWidth = 5;
     ctx.strokeStyle = armGradient;
 
-    this.drawLine(ctx, 0, -11, limbs.leftArmX, limbs.leftArmY);
+    this.drawLine(ctx, 0, -armOffset, limbs.leftArmX, limbs.leftArmY);
 
-    const rightArmGradient = ctx.createLinearGradient(0, 11, 0, limbs.rightArmY);
+    const rightArmGradient = ctx.createLinearGradient(0, armOffset, 0, limbs.rightArmY);
     rightArmGradient.addColorStop(0, c.armColor || '#3498db');
     rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
     ctx.strokeStyle = rightArmGradient;
-    this.drawLine(ctx, 0, 11, limbs.rightArmX, limbs.rightArmY);
+    this.drawLine(ctx, 0, armOffset, limbs.rightArmX, limbs.rightArmY);
 
     const leftHandGrad = ctx.createRadialGradient(limbs.leftArmX, limbs.leftArmY - 1, 0.5, limbs.leftArmX, limbs.leftArmY, 3);
     leftHandGrad.addColorStop(0, '#f5d39e');
@@ -166,10 +170,10 @@ export class CharacterManager {
 
     if (ctx.roundRect) {
       ctx.beginPath();
-      ctx.roundRect(-8, -12, 16, 24, 6);
+      ctx.roundRect(-8, -bodyHalfWidth, 16, bodyWidth, 6);
       ctx.fill();
     } else {
-      ctx.fillRect(-8, -12, 16, 24);
+      ctx.fillRect(-8, -bodyHalfWidth, 16, bodyWidth);
     }
 
     ctx.beginPath();
