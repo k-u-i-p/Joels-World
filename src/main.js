@@ -28,8 +28,10 @@ let viewportHeight = window.innerHeight;
 function resize() {
   viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
   viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
   canvas.style.width = window.innerWidth + 'px';
   canvas.style.height = window.innerHeight + 'px';
 }
@@ -294,17 +296,20 @@ function draw() {
     }
   }
 
-  // Clear screen (fixed to screen coordinates)
+  const dpr = window.devicePixelRatio || 1;
+
+  // Clear screen (fixed to physical coordinates)
   ctx.fillStyle = '#7bed9f'; // Grass green color
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Camera translation (Centers the world on the player)
   ctx.save();
+  ctx.scale(dpr, dpr);
   ctx.translate(viewportWidth / 2 + xOffset, viewportHeight / 2 + yOffset);
   ctx.scale(camera.zoom, camera.zoom);
   ctx.translate(-camera.x, -camera.y);
 
-  mapManager.drawLayer(0, ctx, canvas, camera.x, camera.y, camera.zoom);
+  mapManager.drawLayer(0, ctx, canvas, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
   // Render global footprints underneath characters
   const now = Date.now();

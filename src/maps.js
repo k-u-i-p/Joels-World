@@ -64,7 +64,7 @@ export class MapManager {
    * @param {number} cameraY - player camera Y
    * @param {number} cameraZoom - player camera Zoom
    */
-  drawLayer(layerIndex, ctx, canvas, cameraX, cameraY, cameraZoom) {
+  drawLayer(layerIndex, ctx, canvas, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight) {
     if (!this.layers || !this.layers[layerIndex]) return;
 
     if (this.mapW === 0 || this.mapH === 0) {
@@ -88,8 +88,8 @@ export class MapManager {
     const halfMapH = this.mapH / 2;
 
     // Calculate active camera boundaries (in map coordinates) once
-    const viewHalfW = (canvas.width / cameraZoom) / 2;
-    const viewHalfH = (canvas.height / cameraZoom) / 2;
+    const viewHalfW = (viewportWidth / cameraZoom) / 2;
+    const viewHalfH = (viewportHeight / cameraZoom) / 2;
     const cameraLeft = cameraX - viewHalfW;
     const cameraRight = cameraX + viewHalfW;
     const cameraTop = cameraY - viewHalfH;

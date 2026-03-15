@@ -498,8 +498,8 @@ window.addEventListener('mousedown', (e) => {
   lastMouseX = e.clientX;
   lastMouseY = e.clientY;
 
-  const worldX = (mouseX - canvas.width / 2) / camera.zoom + camera.x;
-  const worldY = (mouseY - canvas.height / 2) / camera.zoom + camera.y;
+  const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
+  const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
 
   const lastClickedElem = document.getElementById('admin-last-clicked');
   if (lastClickedElem) {
@@ -575,8 +575,8 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.width / 2) / camera.zoom + camera.x;
-    const worldY = (mouseY - canvas.height / 2) / camera.zoom + camera.y;
+    const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
+    const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
 
     const dX = worldX - resizeWorldTlx;
     const dY = worldY - resizeWorldTly;
@@ -601,8 +601,8 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.width / 2) / camera.zoom + camera.x;
-    const worldY = (mouseY - canvas.height / 2) / camera.zoom + camera.y;
+    const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
+    const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
 
     window.selectedObject.get().x = Math.round(worldX + dragOffsetX);
     window.selectedObject.get().y = Math.round(worldY + dragOffsetY);
@@ -611,8 +611,8 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.width / 2) / camera.zoom + camera.x;
-    const worldY = (mouseY - canvas.height / 2) / camera.zoom + camera.y;
+    const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
+    const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
 
     window.selectedNpc.get().x = Math.round(worldX + dragOffsetX);
     window.selectedNpc.get().y = Math.round(worldY + dragOffsetY);
@@ -621,8 +621,8 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.width / 2) / camera.zoom + camera.x;
-    const worldY = (mouseY - canvas.height / 2) / camera.zoom + camera.y;
+    const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
+    const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
 
     window.adminBackgroundImage._x = Math.round(worldX + bgDragOffsetX);
     window.adminBackgroundImage._y = Math.round(worldY + bgDragOffsetY);
@@ -726,8 +726,8 @@ window.addEventListener('paste', (e) => {
   const mouseX = lastMouseX - canvasRect.left;
   const mouseY = lastMouseY - canvasRect.top;
 
-  const worldX = Math.round((mouseX - canvas.width / 2) / camera.zoom + camera.x);
-  const worldY = Math.round((mouseY - canvas.height / 2) / camera.zoom + camera.y);
+  const worldX = Math.round((mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x);
+  const worldY = Math.round((mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y);
 
   if (adminClipboard.type === 'object') {
     networkClient.send({
@@ -749,8 +749,10 @@ window.addEventListener('paste', (e) => {
 updateAdminPanel();
 
 function adminDraw() {
+  const dpr = window.devicePixelRatio || 1;
   ctx.save();
-  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.scale(dpr, dpr);
+  ctx.translate(canvas.clientWidth / 2, canvas.clientHeight / 2);
   ctx.scale(camera.zoom, camera.zoom);
   ctx.translate(-camera.x, -camera.y);
 
