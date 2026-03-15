@@ -211,7 +211,10 @@ export class CharacterManager {
         ctx.arc(1, 0, 7.5, PI_HALF + 0.3, PI_ONE_HALF - 0.3, false);
         ctx.fill();
       } else if (style === 'spiky') {
-        ctx.arc(3, 0, 7.5, PI_HALF + 0.1, PI_ONE_HALF - 0.1, false);
+        ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(1, -7.5);
         ctx.lineTo(-4, -7);
         ctx.lineTo(-12, -4);
         ctx.lineTo(-6, -2);
@@ -219,6 +222,7 @@ export class CharacterManager {
         ctx.lineTo(-5, 3);
         ctx.lineTo(-11, 6);
         ctx.lineTo(-4, 7);
+        ctx.lineTo(1, 7.5);
         ctx.fill();
       } else if (style === 'ponytail') {
         ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
