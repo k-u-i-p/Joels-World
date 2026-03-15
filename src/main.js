@@ -199,17 +199,8 @@ function update() {
   if (!emoteForcedMove) {
     const rawIntent = inputManager.getDemandedMovementVector(1, player.rotation);
     if (rawIntent.dx !== 0 || rawIntent.dy !== 0) {
-      const currentAngle = Math.atan2(rawIntent.dy, rawIntent.dx);
-      if (player.runDirectionTimer) {
-        let diff = Math.abs(currentAngle - player.runDirectionAngle);
-        if (diff > Math.PI) diff = Math.PI * 2 - diff;
-        if (diff > 0.1) {
-          player.runDirectionTimer = Date.now();
-          player.runDirectionAngle = currentAngle;
-        }
-      } else {
+      if (!player.runDirectionTimer) {
         player.runDirectionTimer = Date.now();
-        player.runDirectionAngle = currentAngle;
       }
     } else {
       player.runDirectionTimer = null;
