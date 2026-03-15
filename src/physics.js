@@ -8,7 +8,7 @@ export class PhysicsEngine {
     this.clipMaskScale = 0.1;
     this.mapW = 0;
     this.mapH = 0;
-    
+
     // Memory recycled arrays to avoid GC pauses during physics loops
     this._movementCoords = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
     this._exactCoords = [{ x: 0, y: 0 }];
@@ -222,7 +222,7 @@ export class PhysicsEngine {
     // An absolutely solid black pixel parses as 0xFF000000
     // Walkable areas on our clip mask are solid white: 0xFFFFFFFF
     // Solid green walkable areas: 0xFF00FF00
-    
+
     // Extract individual color channels mathematically using bit-shifting
     const r = pixel32 & 0xFF;
     const g = (pixel32 >> 8) & 0xFF;
@@ -269,15 +269,27 @@ export class PhysicsEngine {
     }
 
     if (npcList) {
-      // Entities are treated as circles for simplistic collision. 
-      // Reduced collision radius to 1.2x to allow players to get closer to desks/NPCs
-      const collideDistSq = (playerRadius * 1.2) * (playerRadius * 1.2);
+      // Entities are treated as ovals (wider shoulders, thinner chest) to better reflect humanoid shape.
+      const chestRadiusSq = (playerRadius * 0.8) * (playerRadius * 0.8);
+      const shoulderRadiusSq = (playerRadius * 1.6) * (playerRadius * 1.6);
+
       for (let i = 0, len = npcList.length; i < len; i++) {
         const npc = npcList[i];
         if (entityId && npc.id === entityId) continue;
         const dx = newX - npc.x;
         const dy = newY - npc.y;
-        if (dx * dx + dy * dy < collideDistSq) {
+        
+        // Transform the relative distance vector into the NPC's local rotated space
+        const angle = -(npc.rotation || 0) * (Math.PI / 180);
+        const cosA = Math.cos(angle);
+        const sinA = Math.sin(angle);
+        
+        const localDx = dx * cosA - dy * sinA;
+        const localDy = dx * sinA + dy * cosA;
+
+        // Ellipse collision equation: (x^2 / a^2) + (y^2 / b^2) < 1
+        // Depth is along X (chest), width is along Y (shoulder)
+        if ((localDx * localDx) / chestRadiusSq + (localDy * localDy) / shoulderRadiusSq < 1) {
           return false;
         }
       }
@@ -328,7 +340,7 @@ export class PhysicsEngine {
     };
 
     if (dx === 0 && dy === 0) return result;
-    
+
     result.isMoving = true;
 
     const scale = mapData?.character_scale || 1;

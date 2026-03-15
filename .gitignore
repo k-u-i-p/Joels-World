@@ -33,3 +33,6 @@ gemini_key
 log.txt
 *_logs.txt
 *_log.txt
+
+#Large images
+original_images/*
