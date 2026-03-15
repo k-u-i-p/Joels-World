@@ -52,11 +52,41 @@ window.addEventListener('chatSubmit', (e) => {
     const command = msg.toLowerCase().substring(1);
     if (emotes[command]) {
       player.emote = { name: command, startTime: Date.now() };
-      if (emotes[command].message) {
-        const msgText = emotes[command].message.replace('{name}', player.name || 'Someone');
-        networkClient.sendChat(msgText);
-        player.chatMessage = msgText;
-        player.chatTime = Date.now();
+      const emoteObj = emotes[command];
+      if (emoteObj.message || emoteObj.message_when_near) {
+        let msgText = '';
+        let targetName = null;
+        let minDistSq = 150 * 150; // Interaction threshold distance
+
+        // Find nearest entity (NPC or other player)
+        if (window.init && emoteObj.message_when_near) {
+          const checkTarget = (ent) => {
+            if (ent.id === player.id && ent.name === player.name) return; // Ignore self
+            const dx = ent.x - player.x;
+            const dy = ent.y - player.y;
+            const distSq = dx * dx + dy * dy;
+            if (distSq < minDistSq) {
+              minDistSq = distSq;
+              targetName = ent.name;
+            }
+          };
+          if (window.init.characters) window.init.characters.forEach(checkTarget);
+          if (window.init.npcs) window.init.npcs.forEach(checkTarget);
+        }
+
+        if (targetName && emoteObj.message_when_near) {
+          msgText = emoteObj.message_when_near
+            .replace('{name}', player.name || 'Someone')
+            .replace('{target_name}', targetName);
+        } else if (emoteObj.message) {
+          msgText = emoteObj.message.replace('{name}', player.name || 'Someone');
+        }
+
+        if (msgText) {
+          networkClient.sendChat(msgText);
+          player.chatMessage = msgText;
+          player.chatTime = Date.now();
+        }
       }
       networkClient.syncPlayerToJSON();
     }

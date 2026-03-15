@@ -1,41 +1,42 @@
 import { footprints } from './main.js';
 
 export const emotes = {
-  "laser": {
+  laser: {
     duration: 5000,
     message: "{name} is firing backwards lasers!",
+    message_when_near: "{name} shot a laser at {target_name}!",
     setup: (ctx, emote, c) => {
       // Float up slightly
       const hover = Math.sin((Date.now() - emote.startTime) / 100) * 3;
-      ctx.translate(0, hover - 10); 
+      ctx.translate(0, hover - 10);
     },
     updateLimbs: (limbs, emote) => {
       // Arms out to the sides
       limbs.leftArmX = 5; limbs.leftArmY = -20;
       limbs.rightArmX = 5; limbs.rightArmY = 20;
-      
+
       // Legs dangling down
       limbs.leftLegStartX = -2; limbs.leftLegStartY = -4;
       limbs.leftLegEndX = -8; limbs.leftLegEndY = -4;
-      
+
       limbs.rightLegStartX = -2; limbs.rightLegStartY = 4;
       limbs.rightLegEndX = -8; limbs.rightLegEndY = 4;
     },
     draw: (ctx, emote) => {
       ctx.save();
       const timeActive = Date.now() - emote.startTime;
-      
+
       // Draw glowing eyes
       ctx.fillStyle = '#ff0000';
       ctx.shadowColor = '#ff0000';
       ctx.shadowBlur = 10;
       ctx.beginPath(); ctx.arc(6, -3, 2.5, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(6, 3, 2.5, 0, Math.PI * 2); ctx.fill();
-      
+
       // Draw lazer beams with a pulsing effect
       const alpha = 0.7 + Math.sin(timeActive / 50) * 0.3;
       ctx.globalAlpha = alpha;
-      
+
       // Outer red beam
       ctx.lineWidth = 6;
       ctx.strokeStyle = '#ff0000';
@@ -47,7 +48,7 @@ export const emotes = {
       ctx.moveTo(6, 3);
       ctx.lineTo(2000, 3);
       ctx.stroke();
-      
+
       // Inner white core
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#ffffff';
@@ -56,13 +57,14 @@ export const emotes = {
       ctx.moveTo(6, -3); ctx.lineTo(2000, -3);
       ctx.moveTo(6, 3); ctx.lineTo(2000, 3);
       ctx.stroke();
-      
+
       ctx.restore();
     }
   },
   bounce: {
     duration: 3600000, // 1 hour duration
     message: "{name} is bouncing",
+    message_when_near: "{name} is bouncing with {target_name}",
     setup: (ctx, emote, c) => {
       const danceTime = (Date.now() - emote.startTime) / 150;
       const bounce = Math.abs(Math.sin(danceTime)) * -15;
@@ -77,6 +79,7 @@ export const emotes = {
   wet: {
     duration: 10000,
     message: "{name} is dripping wet",
+    message_when_near: "{name} dripped water all over {target_name}",
     setup: (ctx, emote, c) => {
       if (!c._lastFootprintCoords) {
         c._lastFootprintCoords = { x: c.x, y: c.y, leg: 'left' };
@@ -121,6 +124,7 @@ export const emotes = {
   eat: {
     duration: 5000,
     message: "{name} is eating an apple",
+    message_when_near: "{name} is eating an apple in front of {target_name}",
     setup: (ctx, emote, c) => {
       const eatTime = (Date.now() - emote.startTime) / 150;
     },
@@ -140,19 +144,19 @@ export const emotes = {
       ctx.save();
       const eatTime = (Date.now() - emote.startTime) / 150;
       const bringToMouth = Math.max(0, Math.sin(eatTime));
-      
+
       // Calculate hand coordinates (same as updateLimbs)
       const handX = 4 + bringToMouth * 3;
       const handY = 14 - bringToMouth * 12;
 
       ctx.translate(handX, handY);
-      
+
       // Draw an apple
       ctx.fillStyle = '#e74c3c'; // red
       ctx.beginPath();
       ctx.arc(4, 0, 3, 0, Math.PI * 2);
       ctx.fill();
-      
+
       // Draw leaf/stem
       ctx.strokeStyle = '#27ae60';
       ctx.lineWidth = 1;
@@ -160,7 +164,7 @@ export const emotes = {
       ctx.moveTo(4, -3);
       ctx.lineTo(6, -5);
       ctx.stroke();
-      
+
       ctx.restore();
 
       // Crumbs / apple pieces flying from face
@@ -183,6 +187,7 @@ export const emotes = {
   lunch: {
     duration: 3600000, // 1 hour duration or until moved
     message: "{name} is having lunch",
+    message_when_near: "{name} is having lunch with {target_name}",
     setup: (ctx, emote, c) => {
       // Translate slightly to look lower to the ground like sitting
       ctx.translate(-2, 0);
@@ -212,7 +217,7 @@ export const emotes = {
     draw: (ctx, emote) => {
       const eatTime = (Date.now() - emote.startTime) / 200;
       const armMove = Math.sin(eatTime);
-      
+
       ctx.save();
       // Draw Plate in front
       ctx.fillStyle = '#ecf0f1'; // white
@@ -284,6 +289,7 @@ export const emotes = {
   jump: {
     duration: 800,
     message: "{name} leaps forward",
+    message_when_near: "{name} leaped over {target_name}!",
     setup: (ctx, emote, c) => {
       const age = Date.now() - emote.startTime;
       if (age < 800) {
@@ -381,6 +387,7 @@ export const emotes = {
   dance: {
     duration: 8000,
     message: "{name} is busting a move",
+    message_when_near: "{name} is dancing with {target_name}",
     setup: (ctx, emote, c) => {
       const danceTime = (Date.now() - emote.startTime) / 150;
       const bob = Math.abs(Math.sin(danceTime * 2)) * -4; // bounce up and down
@@ -437,6 +444,7 @@ export const emotes = {
   fart: {
     duration: 2000,
     message: "{name} is farting",
+    message_when_near: "{name} farted on {target_name}",
     setup: (ctx, emote, c) => { },
     updateLimbs: (limbs, emote) => { },
     draw: (ctx, emote) => {
@@ -464,6 +472,7 @@ export const emotes = {
   dead: {
     duration: 10000,
     message: "{name} is dead",
+    message_when_near: "{name} died in front of {target_name}",
     setup: (ctx, emote, c) => {
       ctx.globalAlpha = 0.5;
     },
@@ -491,6 +500,7 @@ export const emotes = {
   cry: {
     duration: 5000,
     message: "{name} is crying",
+    message_when_near: "{name} cried on {target_name}",
     setup: (ctx, emote, c) => { },
     updateLimbs: (limbs, emote) => { },
     draw: (ctx, emote) => {
@@ -525,6 +535,7 @@ export const emotes = {
   gritty: {
     duration: 5000,
     message: "{name} is doing the gritty",
+    message_when_near: "{name} hit the gritty on {target_name}!",
     setup: (ctx, emote, c) => {
       const danceTime = (Date.now() - emote.startTime) / 150;
       const fastSwing = Math.sin(danceTime * 2);
@@ -552,6 +563,7 @@ export const emotes = {
   laugh: {
     duration: 5000,
     message: "{name} is rolling on the floor laughing",
+    message_when_near: "{name} laughed at {target_name}",
     setup: (ctx, emote, c) => {
       const laughTime = (Date.now() - emote.startTime) / 150;
       const rock = Math.sin(laughTime) * 0.2;
@@ -607,6 +619,7 @@ export const emotes = {
   love: {
     duration: 5000,
     message: "{name} is in love",
+    message_when_near: "{name} blew a kiss to {target_name}",
     setup: (ctx, emote, c) => {
       const hover = Math.sin((Date.now() - emote.startTime) / 150) * 2;
       ctx.translate(hover, 0); // slight rhythmic bobbing
@@ -664,6 +677,7 @@ export const emotes = {
   rugby: {
     duration: 3600000, // Lasts for 1 hour, or until player moves
     message: "{name} is holding a rugby ball",
+    message_when_near: "{name} passed the ball to {target_name}!",
     setup: (ctx, emote, c) => { },
     updateLimbs: (limbs, emote) => {
       // Hold ball under right arm
@@ -723,6 +737,7 @@ export const emotes = {
   sit: {
     duration: 3600000, // Lasts for 1 hour, or until player moves
     message: "{name} sat down",
+    message_when_near: "{name} sat next to {target_name}",
     setup: (ctx, emote, c) => {
       // Translate slightly to look lower to the ground
       ctx.translate(-2, 0);
@@ -744,6 +759,7 @@ export const emotes = {
   swim: {
     duration: 3600000, // 1 hour duration or until moved/canceled
     message: "{name} is swimming",
+    message_when_near: "{name} splashed {target_name}!",
     setup: (ctx, emote, c) => {
       const swimTime = (Date.now() - emote.startTime) / 200;
       const bob = Math.sin(swimTime) * 3;
