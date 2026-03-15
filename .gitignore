@@ -31,3 +31,5 @@ gemini_key
 
 # AI Agent Logs
 log.txt
+*_logs.txt
+*_log.txt
