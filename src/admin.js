@@ -412,15 +412,36 @@ if (btnSaveNpcDialog && npcOnEnterInput && npcOnExitInput) {
     const onEnterLines = npcOnEnterInput.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     const onExitLines = npcOnExitInput.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-    const on_enter = onEnterLines.length > 0 ? [{ say: onEnterLines }] : [];
-    const on_exit = onExitLines.length > 0 ? [{ say: onExitLines }] : [];
+    const npc = window.selectedNpc.get();
+    let on_enter = npc.on_enter ? [...npc.on_enter] : [];
+    let on_exit = npc.on_exit ? [...npc.on_exit] : [];
 
-    window.selectedNpc.get().on_enter = on_enter;
-    window.selectedNpc.get().on_exit = on_exit;
+    if (onEnterLines.length > 0) {
+      if (on_enter.length > 0) {
+        on_enter[0] = { ...on_enter[0], say: onEnterLines };
+      } else {
+        on_enter.push({ say: onEnterLines });
+      }
+    } else if (on_enter.length > 0) {
+      delete on_enter[0].say;
+    }
+
+    if (onExitLines.length > 0) {
+      if (on_exit.length > 0) {
+        on_exit[0] = { ...on_exit[0], say: onExitLines };
+      } else {
+        on_exit.push({ say: onExitLines });
+      }
+    } else if (on_exit.length > 0) {
+      delete on_exit[0].say;
+    }
+
+    npc.on_enter = on_enter;
+    npc.on_exit = on_exit;
 
     networkClient.send({
       type: 'update_npc',
-      id: window.selectedNpc.get().id,
+      id: npc.id,
       updates: { on_enter, on_exit }
     });
     alert('NPC dialog saved!');
