@@ -316,7 +316,6 @@ export function setupWebSocket(server, sessionMiddleware) {
 
             const { spawnX, spawnY } = generateSpawnCoords(mapData);
 
-            const newGender = Math.random() > 0.5 ? 'male' : 'female';
             const newChar = {
               id: newPlayerId,
               name: playerName.substring(0, 15),
@@ -325,13 +324,13 @@ export function setupWebSocket(server, sessionMiddleware) {
               width: 40,
               height: 40,
               rotation: 0,
-              gender: newGender,
+              gender: Math.random() > 0.5 ? 'male' : 'female',
               shirtColor: getRandomColor(),
               pantsColor: getRandomColor(),
               armColor: getRandomColor(),
               shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)],
-              hairStyle: newGender === 'female' ? ['short', 'long', 'ponytail', 'spiky', 'messy'][Math.floor(Math.random() * 5)] : 'bald',
-              hairColor: newGender === 'female' ? '#f1c40f' : '#000000',
+              hairStyle: ['short', 'long', 'ponytail', 'spiky', 'messy', 'bald'][Math.floor(Math.random() * 6)],
+              hairColor: ['#f1c40f', '#e67e22', '#d35400', '#5c3a21', '#2c3e50', '#000000', '#ecf0f1', '#e74c3c', '#9b59b6'][Math.floor(Math.random() * 9)],
               interaction_radius: 150
             };
 
