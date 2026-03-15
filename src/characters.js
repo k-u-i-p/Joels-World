@@ -203,10 +203,10 @@ export class CharacterManager {
       const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
 
       if (style === 'short') {
-        ctx.arc(1, 0, 7.5, PI_HALF + 0.3, PI_ONE_HALF - 0.3, true);
+        ctx.arc(1, 0, 7.5, PI_HALF + 0.3, PI_ONE_HALF - 0.3, false);
         ctx.fill();
       } else if (style === 'spiky') {
-        ctx.arc(1, 0, 7, PI_HALF + 0.3, PI_ONE_HALF - 0.3, true);
+        ctx.arc(1, 0, 7, PI_HALF + 0.3, PI_ONE_HALF - 0.3, false);
         ctx.lineTo(-10, -5);
         ctx.lineTo(-7, -2);
         ctx.lineTo(-11, 0);
@@ -214,7 +214,7 @@ export class CharacterManager {
         ctx.lineTo(-10, 5);
         ctx.fill();
       } else if (style === 'ponytail') {
-        ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, true);
+        ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
         ctx.fill();
         ctx.beginPath();
         if (ctx.ellipse) {
@@ -224,7 +224,7 @@ export class CharacterManager {
         }
         ctx.fill();
       } else if (style === 'messy') {
-        ctx.arc(1, 0, 7.5, PI_HALF + 0.1, PI_ONE_HALF - 0.1, true);
+        ctx.arc(1, 0, 7.5, PI_HALF + 0.1, PI_ONE_HALF - 0.1, false);
         ctx.lineTo(-8, -6);
         ctx.lineTo(-6, -3);
         ctx.lineTo(-9, -1);
@@ -232,7 +232,7 @@ export class CharacterManager {
         ctx.lineTo(-8, 5);
         ctx.fill();
       } else { // 'long'
-        ctx.arc(1, 0, 7.5, PI_HALF - 0.2, PI_ONE_HALF + 0.2, true);
+        ctx.arc(1, 0, 7.5, PI_HALF - 0.2, PI_ONE_HALF + 0.2, false);
         ctx.fill();
       }
     }
