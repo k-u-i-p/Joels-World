@@ -224,6 +224,7 @@
     },
     "on_enter": [
       {
+        "avatar": "avatars/mr_ferguson.png",
         "say": [
           "Go away! I'm on Duty here!"
         ],
@@ -234,7 +235,6 @@
       }
     ],
     "on_exit": [],
-    "avatar": "avatars/mr_ferguson.png",
     "interaction_radius": 800,
     "hairStyle": "bald",
     "hairColor": "#000000"

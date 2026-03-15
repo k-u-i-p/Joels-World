@@ -249,12 +249,16 @@ export class CharacterManager {
         }
         ctx.fill();
       } else if (style === 'messy') {
-        ctx.arc(1, 0, 7.5, PI_HALF + 0.1, PI_ONE_HALF - 0.1, false);
+        ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(1, -7.5);
         ctx.lineTo(-8, -6);
         ctx.lineTo(-6, -3);
         ctx.lineTo(-9, -1);
         ctx.lineTo(-6, 2);
         ctx.lineTo(-8, 5);
+        ctx.lineTo(1, 7.5);
         ctx.fill();
       } else { // 'long'
         ctx.arc(1, 0, 7.5, PI_HALF - 0.2, PI_ONE_HALF + 0.2, false);

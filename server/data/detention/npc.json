@@ -12,13 +12,13 @@
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
     "interaction_radius": 500,
-    "emote": null,
     "agent": {
       "prompt_file": "detention/agent_mr_hardy.md",
       "log_file": "detention/mr_hardy_log.txt"
     },
     "on_enter": [
       {
+        "avatar": "avatars/mr_hardy_grumpy.png",
         "say": [
           "Why are you in detention {name}?",
           "You are in detention {name}!"
@@ -36,6 +36,10 @@
         ]
       }
     ],
+    "emote": {
+      "name": "sit",
+      "startTime": 0
+    },
     "shoeColor": "#7f8c8d",
     "hairStyle": "messy",
     "hairColor": "#5c3a21",
