@@ -119,7 +119,7 @@ export class CharacterManager {
    * @param {Object} limbs - Pre-calculated limb position coordinates.
    */
   drawHumanoid(ctx, c, limbs) {
-    if (!c.emote || (c.emote.name !== 'sit' && c.emote.name !== 'lunch')) {
+    if (!c.emote || (c.emote.name !== 'sit' && c.emote.name !== 'lunch' && c.emote.name !== 'write')) {
       const shoeColor = c.shoeColor || '#1a252f';
       this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
       this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);

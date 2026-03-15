@@ -96,7 +96,7 @@
       {
         "play_sound": {
           "sound": "media/ticking_clock.mp3",
-          "volume": 1
+          "volume": 0.5
         }
       }
     ]

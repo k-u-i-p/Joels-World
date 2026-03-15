@@ -291,6 +291,71 @@ export const emotes = {
       ctx.restore();
     }
   },
+  write: {
+    duration: 3600000, // 1 hour duration or until moved
+    message: "{name} is writing",
+    message_when_near: "{name} is writing with {target_name}",
+    setup: (ctx, emote, c) => {
+      // Translate slightly to look lower to the ground like sitting
+      ctx.translate(-2, 0);
+    },
+    updateLimbs: (limbs, emote) => {
+      // Sit legs
+      limbs.leftLegStartX = 0; limbs.leftLegStartY = -6;
+      limbs.leftLegEndX = 14; limbs.leftLegEndY = -6;
+      limbs.rightLegStartX = 0; limbs.rightLegStartY = 6;
+      limbs.rightLegEndX = 14; limbs.rightLegEndY = 6;
+
+      const writeTime = (Date.now() - emote.startTime) / 50;
+      const armMoveX = Math.sin(writeTime) * 3;
+      const armMoveY = Math.cos(writeTime * 1.3) * 2;
+
+      // Right arm moving to write
+      limbs.rightArmX = 14 + armMoveX;
+      limbs.rightArmY = 6 + armMoveY;
+      
+      // Left arm resting
+      limbs.leftArmX = 12; 
+      limbs.leftArmY = -8;
+    },
+    draw: (ctx, emote) => {
+      const writeTime = (Date.now() - emote.startTime) / 50;
+      const armMoveX = Math.sin(writeTime) * 3;
+      const armMoveY = Math.cos(writeTime * 1.3) * 2;
+
+      ctx.save();
+      // Draw Paper in front
+      ctx.fillStyle = '#ecf0f1'; // white
+      ctx.translate(16, 0);
+      ctx.rotate(0.2);
+      ctx.fillRect(-5, -7, 10, 14);
+
+      // Inner paper lines
+      ctx.strokeStyle = '#bdc3c7';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      for (let i = -4; i <= 4; i += 2) {
+        ctx.moveTo(-4, i);
+        ctx.lineTo(4, i);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Pen in right hand
+      ctx.save();
+      ctx.translate(14 + armMoveX, 6 + armMoveY);
+      ctx.rotate(-Math.PI / 4);
+      // Pen body
+      ctx.fillStyle = '#34495e';
+      ctx.fillRect(-1, -1, 6, 2);
+      // Pen tip
+      ctx.fillStyle = '#3498db'; // blue ink
+      ctx.beginPath();
+      ctx.arc(6, 0, 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  },
   jump: {
     duration: 800,
     message: "{name} leaps forward",
