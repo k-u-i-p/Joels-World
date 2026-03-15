@@ -182,16 +182,59 @@ export class CharacterManager {
     ctx.fillStyle = headGradient;
     ctx.fill();
 
-    if (c.gender === 'female') {
-      // Hair with gradient shine
+    let hairColor = c.hairColor;
+    if (!hairColor && c.gender === 'female') hairColor = '#e67e22'; // legacy fallback
+
+    if (hairColor && hairColor !== 'none' && hairColor !== 'bald' && c.hairStyle !== 'bald') {
+      let shineColor = hairColor;
+      let shadowColor = hairColor;
+      try {
+        shineColor = shadeColor(hairColor, 30);
+        shadowColor = shadeColor(hairColor, -40);
+      } catch (e) { }
+
       const hairGradient = ctx.createLinearGradient(-6, -7, 6, 7);
-      hairGradient.addColorStop(0, '#e67e22');
-      hairGradient.addColorStop(0.4, '#f0a35b'); // Shine
-      hairGradient.addColorStop(1, '#a15513'); // Shadow
+      hairGradient.addColorStop(0, hairColor);
+      hairGradient.addColorStop(0.4, shineColor);
+      hairGradient.addColorStop(1, shadowColor);
       ctx.fillStyle = hairGradient;
       ctx.beginPath();
-      ctx.arc(1, 0, 7, PI_HALF, PI_ONE_HALF, true);
-      ctx.fill();
+
+      const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
+
+      if (style === 'short') {
+        ctx.arc(1, 0, 7.5, PI_HALF + 0.3, PI_ONE_HALF - 0.3, true);
+        ctx.fill();
+      } else if (style === 'spiky') {
+        ctx.arc(1, 0, 7, PI_HALF + 0.3, PI_ONE_HALF - 0.3, true);
+        ctx.lineTo(-10, -5);
+        ctx.lineTo(-7, -2);
+        ctx.lineTo(-11, 0);
+        ctx.lineTo(-7, 2);
+        ctx.lineTo(-10, 5);
+        ctx.fill();
+      } else if (style === 'ponytail') {
+        ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, true);
+        ctx.fill();
+        ctx.beginPath();
+        if (ctx.ellipse) {
+          ctx.ellipse(-9, 0, 4, 3, 0, 0, PI2);
+        } else {
+          ctx.arc(-9, 0, 3.5, 0, PI2);
+        }
+        ctx.fill();
+      } else if (style === 'messy') {
+        ctx.arc(1, 0, 7.5, PI_HALF + 0.1, PI_ONE_HALF - 0.1, true);
+        ctx.lineTo(-8, -6);
+        ctx.lineTo(-6, -3);
+        ctx.lineTo(-9, -1);
+        ctx.lineTo(-6, 2);
+        ctx.lineTo(-8, 5);
+        ctx.fill();
+      } else { // 'long'
+        ctx.arc(1, 0, 7.5, PI_HALF - 0.2, PI_ONE_HALF + 0.2, true);
+        ctx.fill();
+      }
     }
 
     ctx.lineWidth = 2;

@@ -329,6 +329,8 @@ export function setupWebSocket(server, sessionMiddleware) {
               pantsColor: getRandomColor(),
               armColor: getRandomColor(),
               shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)],
+              hairStyle: ['short', 'long', 'ponytail', 'spiky', 'messy', 'bald'][Math.floor(Math.random() * 6)],
+              hairColor: ['#f1c40f', '#e67e22', '#d35400', '#5c3a21', '#2c3e50', '#000000', '#ecf0f1', '#e74c3c', '#9b59b6'][Math.floor(Math.random() * 9)],
               interaction_radius: 150
             };
 
