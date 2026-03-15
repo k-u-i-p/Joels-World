@@ -229,10 +229,13 @@ export class PhysicsEngine {
     
     // Mask out the Alpha channel for pure RGB testing
     const rgbOnly = pixel32 & 0x00FFFFFF; 
-    
-    // Pure Black threshold -> (R < ~15, G < ~15, B < ~15) = 0x000F0F0F
+
+    // The user's maps also use pure green `rgb(0, 255, 0)` as walkable areas.
+    // In 32-bit little-endian Hex, pure green is 0x0000FF00. 
+    // We check if it's both dark AND not green.
     if (pixel32 > 0 && rgbOnly < 0x000F0F0F) {
-      return false; // Solid black/dark collision boundary
+      // It's solid black/dark collision boundary
+      return false;
     }
 
     return true; // Walkable
