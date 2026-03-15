@@ -51,6 +51,10 @@ window.addEventListener('chatSubmit', (e) => {
   if (msg[0] === '/') {
     const command = msg.toLowerCase().substring(1);
     if (emotes[command]) {
+      if (player.activeEmoteAudio) {
+        player.activeEmoteAudio.pause();
+        player.activeEmoteAudio = null;
+      }
       player.emote = { name: command, startTime: Date.now() };
       const emoteObj = emotes[command];
       if (emoteObj.message || emoteObj.message_when_near) {
@@ -98,7 +102,7 @@ window.addEventListener('chatSubmit', (e) => {
       }
       
       if (emoteObj.sound) {
-        soundManager.playPooled(emoteObj.sound, 1);
+        player.activeEmoteAudio = soundManager.playPooled(emoteObj.sound, 1);
       }
       networkClient.syncPlayerToJSON();
     }
@@ -201,6 +205,10 @@ function update() {
     player.y = result.newY;
 
     if (result.emoteCanceled) {
+      if (player.activeEmoteAudio) {
+        player.activeEmoteAudio.pause();
+        player.activeEmoteAudio = null;
+      }
       player.emote = null;
       networkClient.syncPlayerToJSON();
     }
@@ -256,6 +264,10 @@ function update() {
         }
       }
       if (shouldCancel) {
+        if (player.activeEmoteAudio) {
+          player.activeEmoteAudio.pause();
+          player.activeEmoteAudio = null;
+        }
         player.emote = null;
         networkClient.syncPlayerToJSON();
       }
