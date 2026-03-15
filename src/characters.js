@@ -443,9 +443,9 @@ export class CharacterManager {
    * Iterates through all players and NPCs and renders the ones currently visible
    * within the camera bounds.
    */
-  drawCharacters(layerType = 'all', ctx, canvas, player, syncPlayerToJSON, cameraX, cameraY, cameraZoom) {
-    const viewHalfW = (canvas.width / cameraZoom) / 2;
-    const viewHalfH = (canvas.height / cameraZoom) / 2;
+  drawCharacters(layerType = 'all', ctx, canvas, player, syncPlayerToJSON, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight) {
+    const viewHalfW = (viewportWidth / cameraZoom) / 2;
+    const viewHalfH = (viewportHeight / cameraZoom) / 2;
 
     const margin = 100;
     const minX = cameraX - viewHalfW - margin;

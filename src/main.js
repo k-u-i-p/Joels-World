@@ -339,11 +339,11 @@ function draw() {
     ctx.restore();
   }
 
-  characterManager.drawCharacters('base', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom);
+  characterManager.drawCharacters('base', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
-  mapManager.drawLayer(1, ctx, canvas, camera.x, camera.y, camera.zoom);
+  mapManager.drawLayer(1, ctx, canvas, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
-  characterManager.drawCharacters('overlay', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom);
+  characterManager.drawCharacters('overlay', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
   // Restore camera translation
   ctx.restore();
