@@ -79,10 +79,10 @@
   {
     "id": 18,
     "shape": "rect",
-    "x": 477,
-    "y": 564,
-    "width": 375,
-    "length": 241,
+    "x": 469,
+    "y": 551,
+    "width": 357,
+    "length": 213,
     "clip": -1,
     "name": "Spawn Area"
   },

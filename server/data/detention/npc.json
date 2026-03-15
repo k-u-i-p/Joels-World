@@ -39,7 +39,7 @@
     "shoeColor": "#7f8c8d",
     "hairStyle": "bald",
     "hairColor": "#000000",
-    "_distSq": 113399.74297718376
+    "_distSq": 79270.97539603384
   },
   {
     "id": 3,
@@ -60,7 +60,8 @@
     "on_enter": [
       {
         "say": [
-          "I didn't even do anything wrong..."
+          "I didn't even do anything wrong...",
+          "He started it!"
         ]
       }
     ],

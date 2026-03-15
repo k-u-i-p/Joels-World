@@ -6,3 +6,11 @@ Mr Hardy (1) said: "Haha! Poo! Correct, Ben. You're free to go. Shoo, now! I've 
 Ben (255) approached Mr Hardy (1)'s desk
 Mr Hardy (1) said: "Ben, you again? Seriously? Don't you have other maps to explore? Fine, fine. Another question then. My padel game awaits!"
 Mr Hardy (1) said: "Alright, here's a tough one for ya: What's invisible and smells like carrots?"
+Ben (255) approached Mr Hardy (1)'s desk
+Ben (255) approached Mr Hardy (1)'s desk
+Mr Hardy (1) said: "Well, Ben? Still thinking about that carrot question? My padel racket is calling my name, you know!"
+Ben (255) said: "What was the question?"
+Mr Hardy (1) said: "Seriously, Ben? You weren't listening? My padel game is going to start without me! Fine, I'll repeat it, but this is the LAST time."
+Mr Hardy (1) said: "Listen carefully: What's invisible and smells like carrots?"
+Ben (255) said: "Farts"
+Mr Hardy (1) said: "Hah! Farts! Yes, Ben, a good, stinky fart is definitely invisible and could smell like anything, even carrots if you've been eating them! Brilliant!"

@@ -313,7 +313,8 @@ export class CharacterManager {
   drawCharacter(c, isNpc, layerType, ctx, player, syncPlayerToJSON, cameraZoom = 1) {
     if (layerType === 'all' || layerType === 'base') {
       ctx.save();
-      ctx.translate(c.x, c.y);
+      // Fast bitwise truncation to prevent sub-pixel antialiasing blurring
+      ctx.translate(c.x | 0, c.y | 0);
 
       const baseScale = window.init?.mapData?.character_scale || 1;
       const widthScale = (c.width || 40) / 40;
@@ -411,7 +412,7 @@ export class CharacterManager {
     if (layerType === 'all' || layerType === 'overlay') {
       if (layerType === 'overlay' && c.name && !c.hideName) {
         ctx.save();
-        ctx.translate(c.x, c.y);
+        ctx.translate(c.x | 0, c.y | 0);
         ctx.scale(1 / cameraZoom, 1 / cameraZoom);
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -434,7 +435,7 @@ export class CharacterManager {
 
       if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
         ctx.save();
-        ctx.translate(c.x, c.y);
+        ctx.translate(c.x | 0, c.y | 0);
         ctx.scale(1 / cameraZoom, 1 / cameraZoom);
 
         ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
