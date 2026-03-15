@@ -123,9 +123,8 @@ export class CharacterManager {
     this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
     this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
 
-    const bodyWidth = c.gender === 'female' ? 16 : 20;
-    const bodyHalfWidth = bodyWidth / 2;
-    const armOffset = bodyHalfWidth - 1; // dynamically adapt shoulders to thinner body
+
+    const armOffset = 11; // Restore normal wide shoulder anchors
 
     // Gradient for arms (cylindrical simulation)
     const armGradient = ctx.createLinearGradient(0, -armOffset, 0, limbs.leftArmY);
@@ -168,12 +167,15 @@ export class CharacterManager {
     bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));  // Core shadow
     ctx.fillStyle = bodyGradient;
 
+    const bodyDepth = c.gender === 'female' ? 10 : 12;
+    const bodyDepthOffset = -(bodyDepth / 2);
+
     if (ctx.roundRect) {
       ctx.beginPath();
-      ctx.roundRect(-8, -bodyHalfWidth, 16, bodyWidth, 6);
+      ctx.roundRect(bodyDepthOffset, -12, bodyDepth, 24, 6);
       ctx.fill();
     } else {
-      ctx.fillRect(-8, -bodyHalfWidth, 16, bodyWidth);
+      ctx.fillRect(bodyDepthOffset, -12, bodyDepth, 24);
     }
 
     ctx.beginPath();
