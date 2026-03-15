@@ -43,8 +43,8 @@
   {
     "id": 2,
     "name": "Olly",
-    "x": -270,
-    "y": -184,
+    "x": -259,
+    "y": -179,
     "width": 40,
     "height": 40,
     "rotation": -90,
@@ -52,6 +52,10 @@
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
     "interaction_radius": 150,
+    "emote": {
+      "name": "sit",
+      "startTime": 0
+    },
     "on_enter": [
       {
         "say": [

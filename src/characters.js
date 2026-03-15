@@ -119,9 +119,11 @@ export class CharacterManager {
    * @param {Object} limbs - Pre-calculated limb position coordinates.
    */
   drawHumanoid(ctx, c, limbs) {
-    const shoeColor = c.shoeColor || '#1a252f';
-    this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
-    this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
+    if (!c.emote || c.emote.name !== 'sit') {
+      const shoeColor = c.shoeColor || '#1a252f';
+      this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
+      this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
+    }
 
 
     const armOffset = 11; // Restore normal wide shoulder anchors
