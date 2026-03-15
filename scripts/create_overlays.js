@@ -83,7 +83,8 @@ export async function processOverlays() {
             const maskA = maskBuffer[i + 3];
 
             // If pixel is mostly black and opaque... keep it! Else, transparent.
-            if (maskA == 255 && maskR == 0 && maskG == 0 && maskB == 0) {
+            // Also keep pure green (0, 255, 0) which players can walk behind.
+            if (maskA == 255 && maskR == 0 && maskB == 0 && (maskG == 0 || maskG == 255)) {
               // Do nothing, leave source pixel as is regarding alpha.
             } else {
               // Pixel is NOT part of the clipping path, make it fully transparent in the new image
