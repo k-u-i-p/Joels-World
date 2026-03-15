@@ -13,6 +13,7 @@ let apiKey = process.env.GEMINI_API_KEY;
 let lastProcessed = {};
 let _globalMapState = null;
 const agentLastPulseTime = {};
+const agentPendingPulse = {};
 
 export function startAIAgent(mapState) {
     if (!apiKey) {
@@ -70,10 +71,24 @@ export function pulseAgent(mapId, npcId) {
 
     // Throttle to 5 seconds per Agent
     const now = Date.now();
-    if (agentLastPulseTime[npcId] && now - agentLastPulseTime[npcId] < 5000) {
+    const timeSinceLastPulse = now - (agentLastPulseTime[npcId] || 0);
+
+    if (timeSinceLastPulse < 5000) {
+        if (!agentPendingPulse[npcId]) {
+            const delay = 5000 - timeSinceLastPulse;
+            agentPendingPulse[npcId] = setTimeout(() => {
+                agentPendingPulse[npcId] = null;
+                pulseAgent(mapId, npcId);
+            }, delay);
+        }
         return;
     }
+
     agentLastPulseTime[npcId] = now;
+    if (agentPendingPulse[npcId]) {
+        clearTimeout(agentPendingPulse[npcId]);
+        agentPendingPulse[npcId] = null;
+    }
 
     try {
         if (mapData.clients.size === 0) return;
