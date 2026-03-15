@@ -815,5 +815,58 @@ export const emotes = {
       }
       ctx.restore();
     }
+  },
+  sleep: {
+    duration: 3600000, // 1 hour duration or until moved
+    message: "{name} fell asleep",
+    message_when_near: "{name} fell asleep next to {target_name}",
+    setup: (ctx, emote, c) => {
+      // Rotate 90 degrees to lay on the ground
+      ctx.rotate(Math.PI / 2);
+      ctx.translate(0, 10);
+    },
+    updateLimbs: (limbs, emote) => {
+      // Relaxed limbs
+      limbs.leftArmX = 4; limbs.leftArmY = -12;
+      limbs.rightArmX = 4; limbs.rightArmY = 12;
+
+      limbs.leftLegStartX = -6; limbs.leftLegStartY = -4;
+      limbs.leftLegEndX = -16; limbs.leftLegEndY = -4;
+
+      limbs.rightLegStartX = -6; limbs.rightLegStartY = 4;
+      limbs.rightLegEndX = -16; limbs.rightLegEndY = 4;
+    },
+    draw: (ctx, emote) => {
+      ctx.save();
+      const timeActive = Date.now() - emote.startTime;
+
+      // Draw closed sleeping eyes (- -)
+      ctx.beginPath();
+      ctx.moveTo(4, -3); ctx.lineTo(6, -3);
+      ctx.moveTo(4, 3); ctx.lineTo(6, 3);
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Floating Zzzs
+      for (let i = 0; i < 3; i++) {
+        const offset = i * 800;
+        const zAge = (timeActive + offset) % 2400;
+        const progress = zAge / 2400;
+
+        ctx.globalAlpha = 1 - Math.pow(progress, 2);
+
+        // Due to Math.PI/2 rotation, "up" on screen is local -X
+        const zX = -5 - progress * 30;
+        // Drift on screen is local Y
+        const zY = -5 + Math.sin(progress * Math.PI * 4 + i * 2) * 5;
+
+        const size = 6 + progress * 8;
+        ctx.font = `${size}px sans-serif`;
+        ctx.fillStyle = '#bdc3c7'; // Light gray/sleepy color
+        ctx.fillText('Z', zX, zY);
+      }
+      ctx.restore();
+    }
   }
 };
