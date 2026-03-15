@@ -5,6 +5,7 @@ export const emotes = {
     duration: 5000,
     message: "{name} is firing backwards lasers!",
     message_when_near: "{name} shot a laser at {target_name}!",
+    sound: "/media/laser.mp3",
     setup: (ctx, emote, c) => {
       // Float up slightly
       const hover = Math.sin((Date.now() - emote.startTime) / 100) * 3;
@@ -301,7 +302,7 @@ export const emotes = {
         // Parabolic jump arc: max height at 400ms
         const progress = age / 800;
         // y = -x * (x - 1) * 4 * height
-        const height = progress * (1 - progress) * 4 * 50; // 50 pixels high
+        const height = progress * (1 - progress) * 4 * 20; // 20 pixels high
 
         // Draw shadow on the ground before translating up
         ctx.save();
