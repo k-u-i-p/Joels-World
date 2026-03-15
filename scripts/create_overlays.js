@@ -99,7 +99,11 @@ export async function processOverlays() {
               channels: 4
             }
           })
-            .png()
+            .png({
+              compressionLevel: 9,
+              adaptiveFiltering: true,
+              effort: 10
+            })
             .toFile(outPath);
 
           console.log(`     [Success] Saved overlay: ${path.join(parsedSource.dir, outName)}`);
