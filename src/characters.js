@@ -246,7 +246,7 @@ export class CharacterManager {
    * Master rendering component for an individual character.
    * @param {Object} c - The character data including positions, colors, and roles.
    */
-  drawCharacter(c, isNpc, layerType, ctx, player, syncPlayerToJSON) {
+  drawCharacter(c, isNpc, layerType, ctx, player, syncPlayerToJSON, cameraZoom = 1) {
     if (layerType === 'all' || layerType === 'base') {
       ctx.save();
       ctx.translate(c.x, c.y);
@@ -436,7 +436,7 @@ export class CharacterManager {
       const c = (char.id === player.id) ? player : char;
 
       if (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY) {
-        this.drawCharacter(c, isNpc, layerType, ctx, player, syncPlayerToJSON);
+        this.drawCharacter(c, isNpc, layerType, ctx, player, syncPlayerToJSON, cameraZoom);
       }
     };
 
