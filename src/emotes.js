@@ -661,8 +661,6 @@ export const emotes = {
     setup: (ctx, emote, c) => {
       const laughTime = (Date.now() - emote.startTime) / 150;
       const rock = Math.sin(laughTime) * 2; // pixels to shift
-      // Rotate 90 degrees to lay on the ground
-      ctx.rotate(Math.PI / 2);
       // Translate down slightly to appear "on the floor", and bob back and forth to simulate rolling
       ctx.translate(0, 10 + rock);
     },
@@ -919,9 +917,9 @@ export const emotes = {
     message_when_near: "{name} fell asleep next to {target_name}",
     sound: "/media/snoring.mp3",
     setup: (ctx, emote, c) => {
-      // Rotate 90 degrees to lay on the ground
-      ctx.rotate(Math.PI / 2);
-      ctx.translate(0, 10);
+      // Bob up and down gently like breathing instead of rotating 90 degrees
+      const breathe = Math.sin((Date.now() - emote.startTime) / 500) * 1;
+      ctx.translate(-2 + breathe, 0);
     },
     updateLimbs: (limbs, emote) => {
       // Relaxed limbs
@@ -954,10 +952,9 @@ export const emotes = {
 
         ctx.globalAlpha = 1 - Math.pow(progress, 2);
 
-        // Due to Math.PI/2 rotation, "up" on screen is local -X
+        // Drift backwards from head (local -X) and bob sideways
         const zX = -5 - progress * 30;
-        // Drift on screen is local Y
-        const zY = -5 + Math.sin(progress * Math.PI * 4 + i * 2) * 5;
+        const zY = Math.sin(progress * Math.PI * 4 + i * 2) * 8;
 
         const size = 6 + progress * 8;
         ctx.font = `${size}px sans-serif`;
