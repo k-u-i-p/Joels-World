@@ -827,6 +827,112 @@ export const emotes = {
       ctx.restore();
     }
   },
+  tennis: {
+    duration: 5000,
+    message: "{name} is serving a tennis ball",
+    message_when_near: "{name} hit a tennis ball at {target_name}!",
+    setup: (ctx, emote, c) => {
+      // Slight translation to simulate a wide stance
+      ctx.translate(-2, 0);
+    },
+    updateLimbs: (limbs, emote) => {
+      const timeActive = (Date.now() - emote.startTime) / 200;
+      const swing = Math.sin(timeActive);
+
+      // Wide stance for legs
+      limbs.leftLegStartX = 0; limbs.leftLegStartY = -6;
+      limbs.leftLegEndX = 4; limbs.leftLegEndY = -10;
+      limbs.rightLegStartX = 0; limbs.rightLegStartY = 6;
+      limbs.rightLegEndX = 4; limbs.rightLegEndY = 10;
+
+      // Arm swings the racket
+      limbs.rightArmX = 8 + swing * 6; 
+      limbs.rightArmY = 14; 
+      limbs.leftArmX = 4; 
+      limbs.leftArmY = -12;
+    },
+    draw: (ctx, emote) => {
+      ctx.save();
+      const timeActive = (Date.now() - emote.startTime);
+      const swingTime = timeActive / 200;
+      const swing = Math.sin(swingTime);
+
+      // --- Draw the Racket in the Right Hand ---
+      ctx.save();
+      // Move to the right hand position
+      const rightHandX = 8 + swing * 6;
+      const rightHandY = 14;
+      ctx.translate(rightHandX, rightHandY);
+      
+      // Rotate the racket based on the swing
+      ctx.rotate(Math.PI / 4 + swing * 0.5);
+
+      // Draw the Handle
+      ctx.fillStyle = '#2c3e50'; 
+      ctx.fillRect(-2, -1, 10, 3);
+      
+      // Draw the racket head (shaft and hoop)
+      ctx.translate(14, 0.5); // Move to end of handle
+      
+      // Strings/Hoop
+      ctx.beginPath();
+      if (ctx.ellipse) {
+        ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2);
+      } else {
+        // Fallback for older browsers
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+      }
+      // Fill the strings with a faint white grid or solid translucent color
+      ctx.fillStyle = 'rgba(236, 240, 241, 0.5)';
+      ctx.fill();
+      
+      // Draw the frame of the hoop
+      ctx.strokeStyle = '#e74c3c'; // Red frame
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Draw a grid for the strings
+      ctx.strokeStyle = 'rgba(189, 195, 199, 0.8)'; // Light grey strings
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      for (let i = -6; i <= 6; i += 3) {
+        ctx.moveTo(i, -4); ctx.lineTo(i, 4);
+        ctx.moveTo(-6, i * 0.6); ctx.lineTo(6, i * 0.6);
+      }
+      ctx.stroke();
+
+      ctx.restore();
+
+      // --- Draw the Bouncing Tennis Ball ---
+      // The ball should fly back and forth relative to the character
+      // We use a faster sine wave to make it bounce
+      const ballTime = timeActive / 100;
+      
+      // X travels away and comes back (or continually flies away if we want a serve)
+      const ballX = 30 + (timeActive / 15); 
+      // Y bounces
+      const ballBounce = Math.abs(Math.sin(ballTime)) * -15;
+
+      // Only draw the ball for the first 3 seconds of the emote
+      if (timeActive < 3000) {
+        ctx.translate(ballX, ballBounce);
+        
+        ctx.fillStyle = '#f1c40f'; // Bright tennis yellow/green
+        ctx.beginPath();
+        ctx.arc(0, 0, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw the white seam characteristic of a tennis ball
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(-1, 0, 2, -Math.PI/2, Math.PI/2);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+  },
   rugby: {
     duration: 3600000, // Lasts for 1 hour, or until player moves
     message: "{name} is holding a rugby ball",
