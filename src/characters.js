@@ -436,7 +436,7 @@ export class CharacterManager {
     }
 
     if (layerType === 'all' || layerType === 'overlay') {
-      if (layerType === 'overlay' && c.name && !c.hideName && !c.hide_nameplate) {
+      if (layerType === 'overlay' && c.name && !c.hide_nameplate) {
         ctx.save();
         ctx.translate(c.x | 0, c.y | 0);
         ctx.scale(1 / cameraZoom, 1 / cameraZoom);

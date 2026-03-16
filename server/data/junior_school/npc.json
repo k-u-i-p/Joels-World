@@ -598,13 +598,14 @@
           "I have my weekend custody and a half-eaten sandwich.",
           "Does anyone know how to assemble a bunk bed?",
           "I bought a sports car to feel alive again.",
-          "Found her on Hinge. 10 years younger!"
+          "Found her on Hinge... 10 years younger!"
         ]
       }
     ],
     "interaction_radius": 150,
     "on_exit": [],
-    "hairStyle": "messy"
+    "hairStyle": "messy",
+    "hide_nameplate": true
   },
   {
     "id": 23,
@@ -631,7 +632,8 @@
     ],
     "interaction_radius": 150,
     "on_exit": [],
-    "hairStyle": "messy"
+    "hairStyle": "messy",
+    "hide_nameplate": true
   },
   {
     "id": 24,
@@ -660,7 +662,8 @@
     ],
     "interaction_radius": 150,
     "on_exit": [],
-    "hairStyle": "long"
+    "hairStyle": "long",
+    "hide_nameplate": true
   },
   {
     "id": 25,
@@ -687,6 +690,7 @@
     ],
     "interaction_radius": 150,
     "on_exit": [],
-    "hairStyle": "long"
+    "hairStyle": "long",
+    "hide_nameplate": true
   }
 ]
