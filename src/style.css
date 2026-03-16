@@ -13,8 +13,8 @@
   --glass-bg: rgba(255, 255, 255, 0.5);
   --glass-bg-hover: rgba(255, 255, 255, 0.95);
   --glass-border: 1px solid rgba(255, 255, 255, 0.3);
-  --glass-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  --overlay-bg: rgba(0, 0, 0, 0.2);
+  --glass-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  --overlay-bg: rgba(0, 0, 0, 0); /* No screen dimming */
 }
 
 * {
@@ -73,10 +73,10 @@ body {
 }
 
 .glass-panel {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(30, 41, 59, 0.65); /* Dark translucent background */
   color: var(--color-text-light);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: var(--glass-border);
   box-shadow: var(--glass-shadow);
 }
@@ -155,8 +155,6 @@ body {
   margin-bottom: 20px;
   font-family: 'Pricedown', sans-serif;
 }
-
-/* (glass-panel properties now abstracted into #action-dialog block) */
 
 .help-section {
   background: rgba(0, 0, 0, 0.2);
