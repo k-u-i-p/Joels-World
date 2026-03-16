@@ -133,6 +133,49 @@ const exactCoords = [{ x: 0, y: 0 }];
 
 uiManager.initHelpDialog();
 
+// Map Dialog Setup
+const mapButton = document.getElementById('map-button');
+const closeMapBtn = document.getElementById('close-minimap-btn');
+const minimapDialog = document.getElementById('minimap-dialog');
+const minimapImage = document.getElementById('minimap-image');
+const minimapDot = document.getElementById('minimap-player-dot');
+let isMinimapOpen = false;
+
+if (mapButton && minimapDialog && closeMapBtn) {
+  mapButton.onclick = () => {
+    isMinimapOpen = true;
+    minimapDialog.style.display = 'flex';
+    if (window.init && window.init.mapData) {
+      minimapImage.src = `/minimaps/${window.init.mapData.id}.png`;
+      updateMinimapDot();
+    }
+  };
+
+  closeMapBtn.onclick = () => {
+    isMinimapOpen = false;
+    minimapDialog.style.display = 'none';
+  };
+}
+
+function updateMinimapDot() {
+  if (!isMinimapOpen || !window.init || !window.init.mapData) return;
+  
+  const mapWidth = window.init.mapData.width;
+  const mapHeight = window.init.mapData.height;
+  
+  // Coordinate system has 0,0 at center of map
+  const pctX = ((player.x + (mapWidth / 2)) / mapWidth) * 100;
+  const pctY = ((player.y + (mapHeight / 2)) / mapHeight) * 100;
+
+  // Clamp values inside boundary visually
+  const safeX = Math.max(0, Math.min(100, pctX));
+  const safeY = Math.max(0, Math.min(100, pctY));
+
+  minimapDot.style.left = `${safeX}%`;
+  minimapDot.style.top = `${safeY}%`;
+}
+
+
 /**
  * Processes all user inputs, updates the player coordinates, evaluates collisions,
  * triggers object entry/exit logics, and interpolates remote entity positions.

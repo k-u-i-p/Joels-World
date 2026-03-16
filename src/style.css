@@ -596,5 +596,43 @@ body {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
+/* GTA Style Minimap */
+#minimap-dialog {
+  align-items: center;
+  justify-content: center;
+}
 
-/* Joystick is now visible on all screens per user request */
+#minimap-wrapper {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  border: 6px solid #2c3e50;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+#minimap-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0.9;
+}
+
+#minimap-player-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background-color: #e74c3c;
+  border: 2px solid white;
+  border-radius: 50%;
+  transform: translate(-50%, -50%); /* Anchor to exact center of the blip */
+  box-shadow: 0 0 8px #e74c3c;
+  z-index: 2;
+  transition: top 0.2s linear, left 0.2s linear;
+}
