@@ -92,7 +92,7 @@
 
   <!-- Emotes Dialog Overlay -->
   <div id="emotes-dialog" class="overlay" style="display: none;">
-    <div class="dialog-content glass-panel" style="text-align: left; max-width: 350px; width: 80%; padding: 15px; max-height: 80vh; overflow-y: auto;">
+    <div class="dialog-content glass-panel" style="text-align: left; max-width: 350px; width: 80%; padding: 15px; max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px); overflow-y: auto;">
       <h2 style="text-align: center; font-size: 20px; margin-bottom: 15px; margin-top: 0; color: #fff;">Emotes</h2>
       <% 
         const emoteEmojis = {
