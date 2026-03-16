@@ -76,6 +76,13 @@ export class UIManager {
           helpDialog.style.display = 'none';
         }
       });
+
+      // Keyboard Shortcuts
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && helpDialog.style.display === 'flex') {
+          closeHelpBtn.click();
+        }
+      });
     }
   }
 
@@ -110,6 +117,13 @@ export class UIManager {
             emotesDialog.style.display = 'none';
           }
         });
+      });
+
+      // Keyboard Shortcuts
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && emotesDialog.style.display === 'flex') {
+          closeEmotesBtn.click();
+        }
       });
     }
   }
