@@ -76,7 +76,6 @@ body {
 .glass-panel {
   background-color: rgba(255, 255, 255, 0.2);
   color: var(--color-text-light);
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: var(--glass-border);
