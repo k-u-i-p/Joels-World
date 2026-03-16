@@ -103,7 +103,9 @@
 
   <% if (isAdmin) { %>
     <script>window.isAdmin = true;</script>
-    <div id="admin-fps" style="position: absolute; top: 10px; right: 10px; color: yellow; background: rgba(0,0,0,0.5); padding: 5px; font-family: monospace; z-index: 10000; border-radius: 4px;">FPS: --</div>
+    <div id="admin-fps"
+      style="position: absolute; top: 10px; right: 10px; color: yellow; background: rgba(0,0,0,0.5); padding: 5px; font-family: monospace; z-index: 10000; border-radius: 4px;">
+      FPS: --</div>
     <div id="admin-panel" style="display: none;">
       <div id="admin-panel-handle" class="admin-handle">
         Admin Panel
@@ -125,7 +127,9 @@
 
       <div id="edit-obj-section" style="display: none;">
         <h3>Edit Object</h3>
-        <div id="obj-id-display" style="font-size: 12px; font-family: monospace; color: #bdc3c7; text-align: center; margin-bottom: 8px; word-wrap: break-word;">ID: -</div>
+        <div id="obj-id-display"
+          style="font-size: 12px; font-family: monospace; color: #bdc3c7; text-align: center; margin-bottom: 8px; word-wrap: break-word;">
+          ID: -</div>
         <div style="text-align:center; margin-bottom:10px;">
           <input type="text" id="obj-name-input" class="admin-input" placeholder="Object Name (Optional)" />
         </div>
@@ -147,7 +151,7 @@
         <div class="admin-control-row" style="margin-top: 5px;">
           <span>Clip:</span>
           <input type="number" id="input-obj-clip"
-            style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
+            style="width: 60px; padding: 3px; font-size: 12px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
         </div>
         <button id="btn-delete-obj" class="admin-full-btn" style="background-color:#e74c3c; margin-top:10px;">Delete
           Object</button>
@@ -158,7 +162,8 @@
           <input type="text" id="npc-name-input" class="admin-input" placeholder="NPC Name" />
         </div>
         <details open>
-          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #3498db;">Layout & Constraints</summary>
+          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #3498db;">
+            Layout & Constraints</summary>
           <div style="padding-left: 5px; margin-bottom: 10px;">
             <div class="admin-control-row" style="margin-bottom:5px;">
               <span>Rotate:</span>
@@ -178,22 +183,24 @@
             <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
               <span>Radius:</span>
               <input type="number" id="npc-radius-input"
-                style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
+                style="width: 60px; padding: 3px; font-size: 12px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
             </div>
             <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
               <span>Roam Radius:</span>
               <input type="number" id="npc-roam-radius-input" title="Set to 0 to disable roaming"
-                style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
+                style="width: 60px; padding: 3px; font-size: 12px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
             </div>
           </div>
         </details>
 
         <details>
-          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #2ecc71;">Appearance</summary>
+          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #2ecc71;">
+            Appearance</summary>
           <div style="padding-left: 5px; margin-bottom: 10px;">
             <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
               <span>Gender: </span>
-              <select id="npc-gender-select" style="width: 80px; padding: 2px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
+              <select id="npc-gender-select"
+                style="width: 80px; padding: 2px; font-size: 12px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
                 <option value="male" style="color: black;">Male</option>
                 <option value="female" style="color: black;">Female</option>
               </select>
@@ -212,7 +219,8 @@
             </div>
             <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
               <span>Hair Style: </span>
-              <select id="npc-hair-style" style="width: 80px; padding: 2px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
+              <select id="npc-hair-style"
+                style="width: 80px; padding: 2px; font-size: 12px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
                 <option value="short" style="color: black;">Short</option>
                 <option value="long" style="color: black;">Long</option>
                 <option value="spiky" style="color: black;">Spiky</option>
@@ -223,7 +231,8 @@
             </div>
             <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
               <span>Emote: </span>
-              <select id="npc-default-emote" style="width: 80px; padding: 2px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
+              <select id="npc-default-emote"
+                style="width: 80px; padding: 2px; font-size: 12px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
                 <option value="" style="color: black;">None</option>
                 <option value="bounce" style="color: black;">Bounce</option>
                 <option value="cry" style="color: black;">Cry</option>
@@ -250,7 +259,8 @@
         </details>
 
         <details>
-          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #f1c40f;">Dialogue</summary>
+          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #f1c40f;">
+            Dialogue</summary>
           <div style="padding-left: 5px; margin-bottom: 10px;">
             <div style="margin-bottom: 5px;">
               <div style="font-size: 12px; margin-bottom: 2px;">On Enter Dialog (1 message per line):</div>
@@ -265,7 +275,8 @@
           </div>
         </details>
 
-        <button id="btn-delete-npc" class="admin-full-btn" style="background-color:#e74c3c; margin-top: 10px;">Delete NPC</button>
+        <button id="btn-delete-npc" class="admin-full-btn" style="background-color:#e74c3c; margin-top: 10px;">Delete
+          NPC</button>
       </div>
     </div>
     <% } else { %>
