@@ -178,13 +178,23 @@ export function setupWebSocket(server, sessionMiddleware) {
 
             if (now - npc._lastMoveTime >= npc.move_time) {
               npc._lastMoveTime = now;
-              npc._moveIdx = (npc._moveIdx + 1) % (npc.waypoints.length + 1);
+              npc._moveIdx = (npc._moveIdx + 1) % (npc.waypoints.length + 2);
 
               npc._currentOffsetX = npc._currentOffsetX || 0;
               npc._currentOffsetY = npc._currentOffsetY || 0;
               npc._currentOffsetRotation = npc._currentOffsetRotation || 0;
 
-              const offset = npc._moveIdx === 0 ? { x: 0, y: 0, rotation: 0 } : npc.waypoints[npc._moveIdx - 1];
+              let offset = { x: 0, y: 0, rotation: 0 };
+              
+              if (npc._moveIdx > 0 && npc._moveIdx <= npc.waypoints.length) {
+                offset = npc.waypoints[npc._moveIdx - 1];
+              } else if (npc._moveIdx === npc.waypoints.length + 1) {
+                // Step 1: Walk back to Home Coordinate explicitly
+                offset = { x: -npc._currentOffsetX, y: -npc._currentOffsetY };
+              } else if (npc._moveIdx === 0) {
+                // Step 2: Spin back to Home Rotation explicitly
+                offset = { rotation: -npc._currentOffsetRotation };
+              }
 
               if (offset.x !== undefined) npc._currentOffsetX += offset.x;
               if (offset.y !== undefined) npc._currentOffsetY += offset.y;
