@@ -394,6 +394,10 @@ export class CharacterManager {
           if (currentEmote && emotes[currentEmote.name]) {
             emoteDef = emotes[currentEmote.name];
             if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
+              if (c.activeEmoteAudio) {
+                c.activeEmoteAudio.pause();
+                c.activeEmoteAudio = null;
+              }
               if (isActualNpc && c.defaultEmote) {
                 c.emote = JSON.parse(JSON.stringify(c.defaultEmote));
                 currentEmote = c.emote;
