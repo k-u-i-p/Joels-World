@@ -10,58 +10,7 @@ import { NPCManager } from './managers/NPCManager.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const physicsEngine = new PhysicsEngine();
 
-export function appendToLog(mapData, logEntry, aiAgentManager, specificNpcId = null) {
-  if (!mapData.npcs) return;
 
-  const logLine = typeof logEntry === 'string' ? logEntry : logEntry.message;
-  if (!logLine) return; // Drop empty logs
-
-  const targetNpcs = new Set();
-
-  if (specificNpcId) {
-    const npc = mapData.npcs.find(n => n.id === specificNpcId);
-    if (npc) targetNpcs.add(npc);
-  } else {
-    // Proximity scan for all nearby NPCs
-    if (mapData.characters) {
-      Object.values(mapData.characters).forEach(player => {
-        const npcs = physicsEngine.findCharacters(mapData.npcs, player.x, player.y);
-        npcs.forEach(n => targetNpcs.add(n));
-      });
-    }
-  }
-
-  targetNpcs.forEach(npc => {
-    if (npc.agent && npc.agent.log_file) {
-      const logPath = path.resolve(__dirname, 'data', npc.agent.log_file);
-      let logArr = [];
-      try {
-        if (fs.existsSync(logPath)) {
-          const raw = fs.readFileSync(logPath, 'utf8');
-          logArr = raw.split('\n').filter(line => line.trim().length > 0);
-        }
-      } catch (e) {
-        console.error('Error reading log array:', e);
-      }
-
-      logArr.push(logLine);
-
-      if (logArr.length > 50) {
-        logArr = logArr.slice(logArr.length - 50);
-      }
-
-      try {
-        fs.writeFileSync(logPath, logArr.join('\n') + '\n', 'utf8');
-      } catch (e) {
-        console.error('Error writing log array:', e);
-      }
-
-      if (aiAgentManager) {
-        aiAgentManager.pulseAgent(mapData.id, npc.id);
-      }
-    }
-  });
-}
 
 export function setupWebSocket(server, sessionMiddleware) {
   const wss = new WebSocketServer({ server });
@@ -79,7 +28,7 @@ export function setupWebSocket(server, sessionMiddleware) {
   }
 
   const npcManager = new NPCManager(mapState);
-  const aiAgentManager = new AIAgentManager(mapState);
+  const aiAgentManager = new AIAgentManager(mapState, npcManager);
   aiAgentManager.startAIAgent();
 
   mapsData.forEach(mapDef => {
@@ -131,7 +80,7 @@ export function setupWebSocket(server, sessionMiddleware) {
     for (const mapId in mapState) {
       const mapObj = mapState[mapId];
       updatesBuffer.length = 0;
-      
+
       for (const charId in mapObj.dirtyCharacters) {
         updatesBuffer.push(mapObj.dirtyCharacters[charId]);
       }
@@ -330,7 +279,8 @@ export function setupWebSocket(server, sessionMiddleware) {
 
             sendInitPayload(mapData, newChar);
 
-            appendToLog(mapData, `${newChar.name || 'Student'} (${newPlayerId}) entered the map`, aiAgentManager);
+            npcManager.logEventToNearbyNPCs(mapData, `${newChar.name || 'Student'} (${newPlayerId}) entered the map`, aiAgentManager);
+
             return;
           }
 
@@ -360,7 +310,7 @@ export function setupWebSocket(server, sessionMiddleware) {
               return;
             }
 
-            appendToLog(mapData, logMsg, aiAgentManager, data.npc_id);
+            npcManager.logEventToNearbyNPCs(mapData, logMsg, aiAgentManager, data.npc_id);
           } else if (data.type === 'chat') {
             const now = Date.now();
             if (ws.lastChatTime && now - ws.lastChatTime < 2000) return;
@@ -381,9 +331,9 @@ export function setupWebSocket(server, sessionMiddleware) {
             const sender = mapData.characters[ws.clientId];
             const name = sender ? sender.name || ws.clientId : ws.clientId;
             if (sender) {
-              appendToLog(mapData, `${name} (${ws.clientId}) said: "${data.message}"`, aiAgentManager);
+              npcManager.logEventToNearbyNPCs(mapData, `${name} (${ws.clientId}) said: "${data.message}"`, aiAgentManager);
             } else {
-              appendToLog(mapData, `${name} (${ws.clientId}) said: "${data.message}"`, aiAgentManager);
+              npcManager.logEventToNearbyNPCs(mapData, `${name} (${ws.clientId}) said: "${data.message}"`, aiAgentManager);
             }
 
             const broadcastMsg = JSON.stringify({ type: 'chat', id: ws.clientId, message: data.message });
@@ -397,7 +347,7 @@ export function setupWebSocket(server, sessionMiddleware) {
 
             const name = sender ? sender.name || ws.clientId : ws.clientId;
 
-            appendToLog(mapData, `${name} (${ws.clientId}) left the map`, aiAgentManager);
+            npcManager.logEventToNearbyNPCs(mapData, `${name} (${ws.clientId}) left the map`, aiAgentManager);
 
             const id = data.id;
             delete mapData.characters[id];
@@ -414,7 +364,7 @@ export function setupWebSocket(server, sessionMiddleware) {
 
             if (mapData.can_leave === false && data.force !== true && !ws.isAdmin) {
               const charName = (mapData.characters[ws.clientId] && mapData.characters[ws.clientId].name) || (typeof newChar !== 'undefined' ? newChar.name : '') || 'Student';
-              appendToLog(mapData, `${charName} (${ws.clientId}) tried to leave ${mapData.name}`, aiAgentManager);
+              npcManager.logEventToNearbyNPCs(mapData, `${charName} (${ws.clientId}) tried to leave ${mapData.name}`, aiAgentManager);
               ws.send(JSON.stringify({ type: 'map_change_rejected' }));
               return;
             }
@@ -422,7 +372,7 @@ export function setupWebSocket(server, sessionMiddleware) {
             if (newMapData && ws.mapId !== requestedMapId) {
               const oldChar = mapData.characters[ws.clientId] || newChar;
 
-              appendToLog(mapData, `${oldChar.name} (${ws.clientId}) left the map`, aiAgentManager);
+              npcManager.logEventToNearbyNPCs(mapData, `${oldChar.name} (${ws.clientId}) left the map`, aiAgentManager);
 
               delete mapData.characters[ws.clientId];
               delete mapData.dirtyCharacters[ws.clientId];
@@ -468,7 +418,7 @@ export function setupWebSocket(server, sessionMiddleware) {
               mapData.dirtyCharacters[ws.clientId] = oldChar;
               mapData.clients.add(ws);
 
-              appendToLog(mapData, `${oldChar.name || 'Student'} (${ws.clientId}) entered ${mapData.name}`, aiAgentManager);
+              npcManager.logEventToNearbyNPCs(mapData, `${oldChar.name || 'Student'} (${ws.clientId}) entered ${mapData.name}`, aiAgentManager);
 
               // Send init to immediately reset the client seamlessly
               sendInitPayload(mapData, oldChar);

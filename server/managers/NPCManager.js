@@ -1,12 +1,67 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { PhysicsEngine } from '../../src/physics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export class NPCManager {
   constructor(mapState) {
     this.mapState = mapState;
+    this.physicsEngine = new PhysicsEngine();
+  }
+
+  logEventToNearbyNPCs(mapData, logEntry, aiAgentManager, specificNpcId = null) {
+    if (!mapData.npcs) return;
+
+    const logLine = typeof logEntry === 'string' ? logEntry : logEntry.message;
+    if (!logLine) return; // Drop empty logs
+
+    const targetNpcs = new Set();
+
+    if (specificNpcId) {
+      const npc = mapData.npcs.find(n => n.id === specificNpcId);
+      if (npc) targetNpcs.add(npc);
+    } else {
+      // Proximity scan for all nearby NPCs
+      if (mapData.characters) {
+        Object.values(mapData.characters).forEach(player => {
+          const npcs = this.physicsEngine.findCharacters(mapData.npcs, player.x, player.y);
+          npcs.forEach(n => targetNpcs.add(n));
+        });
+      }
+    }
+
+    targetNpcs.forEach(npc => {
+      if (npc.agent && npc.agent.log_file) {
+        const logPath = path.resolve(__dirname, '..', 'data', npc.agent.log_file);
+        let logArr = [];
+        try {
+          if (fs.existsSync(logPath)) {
+            const raw = fs.readFileSync(logPath, 'utf8');
+            logArr = raw.split('\n').filter(line => line.trim().length > 0);
+          }
+        } catch (e) {
+          console.error('Error reading log array:', e);
+        }
+
+        logArr.push(logLine);
+
+        if (logArr.length > 50) {
+          logArr = logArr.slice(logArr.length - 50);
+        }
+
+        try {
+          fs.writeFileSync(logPath, logArr.join('\n') + '\n', 'utf8');
+        } catch (e) {
+          console.error('Error writing log array:', e);
+        }
+
+        if (aiAgentManager) {
+          aiAgentManager.pulseAgent(mapData.id, npc.id);
+        }
+      }
+    });
   }
 
   initializeMapNPCs(mapDef, mapObj) {

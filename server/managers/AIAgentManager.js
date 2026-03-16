@@ -3,13 +3,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { PhysicsEngine } from '../../src/physics.js';
-import { appendToLog } from '../websocket.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export class AIAgentManager {
-    constructor(mapState) {
+    constructor(mapState, npcManager) {
         this.physicsEngine = new PhysicsEngine();
+        this.npcManager = npcManager;
         this.ai = null;
         this.apiKey = process.env.GEMINI_API_KEY;
         this.lastProcessed = {};
@@ -182,7 +182,7 @@ export class AIAgentManager {
                     
                     const broadcastMsg = JSON.stringify({ type: 'chat', id: npcId, message: msg });
                     const logLine = `${npcChar.name || npcId} (${npcId}) said: "${msg}"`;
-                    appendToLog(mapData, logLine);
+                    this.npcManager.logEventToNearbyNPCs(mapData, logLine, this);
 
                     if (npcChar.agent && npcChar.agent.log_file) {
                         const logFilePath = path.resolve(__dirname, '..', 'data', npcChar.agent.log_file);
