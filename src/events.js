@@ -6,7 +6,7 @@ export const EventHandlers = {
     const { UI } = context;
     const container = UI.avatarsContainer;
     if (container) {
-      let el = container.querySelector(`[data-npc-id="${sourceObj.id}"]`);
+      let el = container.querySelector('img');
       const avatarSrc = payload.startsWith('/') ? payload : '/' + payload;
 
       if (!el) {
@@ -28,7 +28,13 @@ export const EventHandlers = {
           });
         });
       } else {
+        el.dataset.npcId = sourceObj.id;
         el.src = avatarSrc;
+        el.classList.remove('avatar-out');
+        if (el._removeTimeout) {
+          clearTimeout(el._removeTimeout);
+          el._removeTimeout = null;
+        }
       }
 
       const actionDialog = document.getElementById('top-center-ui');

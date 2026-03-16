@@ -574,15 +574,20 @@ export class PhysicsEngine {
           const el = container.querySelector(`[data-npc-id="${prevNpc.id}"]`);
           if (el) {
             el.classList.add('avatar-out');
-            setTimeout(() => {
-              if (el.parentNode) el.remove();
-              if (container.children.length === 0) {
-                const actionDialog = document.getElementById('top-center-ui');
-                if (actionDialog) actionDialog.classList.remove('avatar-active');
-                const mapNameDisplay = uiManager.mapNameDisplay;
-                if (mapNameDisplay && mapNameDisplay.dataset.originalName) {
-                  mapNameDisplay.textContent = mapNameDisplay.dataset.originalName;
-                  delete mapNameDisplay.dataset.originalName;
+            
+            if (el._removeTimeout) clearTimeout(el._removeTimeout);
+            
+            el._removeTimeout = setTimeout(() => {
+              if (el.parentNode && el.classList.contains('avatar-out')) {
+                el.remove();
+                if (container.children.length === 0) {
+                  const actionDialog = document.getElementById('top-center-ui');
+                  if (actionDialog) actionDialog.classList.remove('avatar-active');
+                  const mapNameDisplay = uiManager.mapNameDisplay;
+                  if (mapNameDisplay && mapNameDisplay.dataset.originalName) {
+                    mapNameDisplay.textContent = mapNameDisplay.dataset.originalName;
+                    delete mapNameDisplay.dataset.originalName;
+                  }
                 }
               }
             }, 300); // Wait for CSS animation to finish
