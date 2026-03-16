@@ -4,6 +4,9 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const colors = ['#e74c3c', '#8e44ad', '#3498db', '#1abc9c', '#2ecc71', '#f1c40f', '#e67e22', '#34495e'];
+const shoeColors = ['#111111', '#5e3a1f', '#7f8c8d']; // Black, Brown, Grey
+
 export class MapManager {
   constructor() {
     this.mapState = {};
@@ -107,6 +110,49 @@ export class MapManager {
       }
     }
     return { spawnX, spawnY };
+  }
+
+  generateNewCharacter(mapId, playerId, playerName) {
+    const { spawnX, spawnY } = this.generateSpawnCoords(mapId);
+    
+    return {
+      id: playerId,
+      name: playerName.substring(0, 15),
+      x: spawnX,
+      y: spawnY,
+      width: 40,
+      height: 40,
+      rotation: 0,
+      gender: Math.random() > 0.5 ? 'male' : 'female',
+      shirtColor: colors[Math.floor(Math.random() * colors.length)],
+      pantsColor: colors[Math.floor(Math.random() * colors.length)],
+      armColor: colors[Math.floor(Math.random() * colors.length)],
+      shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)],
+      hairStyle: ['short', 'long', 'ponytail', 'spiky', 'messy', 'bald'][Math.floor(Math.random() * 6)],
+      hairColor: ['#f1c40f', '#5c3a21', '#2c3e50', '#000000'][Math.floor(Math.random() * 4)],
+      interaction_radius: 150
+    };
+  }
+
+  addCharacter(mapId, character) {
+    const mapData = this.mapState[mapId];
+    if (!mapData) return;
+    mapData.characters[character.id] = character;
+    mapData.dirtyCharacters[character.id] = character;
+  }
+
+  removeCharacter(mapId, characterId) {
+    const mapData = this.mapState[mapId];
+    if (!mapData) return;
+    delete mapData.characters[characterId];
+    delete mapData.dirtyCharacters[characterId];
+  }
+
+  markCharacterDirty(mapId, character) {
+    const mapData = this.mapState[mapId];
+    if (!mapData) return;
+    mapData.characters[character.id] = character;
+    mapData.dirtyCharacters[character.id] = character;
   }
 
   getInitPayload(mapId, myChar) {

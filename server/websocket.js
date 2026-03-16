@@ -45,12 +45,7 @@ export function setupWebSocket(server, sessionMiddleware) {
     }
   }, 100);
 
-  const colors = ['#e74c3c', '#8e44ad', '#3498db', '#1abc9c', '#2ecc71', '#f1c40f', '#e67e22', '#34495e'];
-  function getRandomColor() {
-    return colors[Math.floor(Math.random() * colors.length)];
-  }
 
-  const shoeColors = ['#111111', '#5e3a1f', '#7f8c8d']; // Black, Brown, Grey
 
   function sendError(ws, message) {
     if (ws.readyState === 1) {
@@ -135,8 +130,7 @@ export function setupWebSocket(server, sessionMiddleware) {
         session.player.x = spawnX;
         session.player.y = spawnY;
 
-        mapData.characters[ws.clientId] = session.player;
-        mapData.dirtyCharacters[ws.clientId] = session.player;
+        mapManager.addCharacter(mapData.id, session.player);
 
         console.log(`Resuming session character ${session.player.name} (${ws.clientId})`);
         ws.send(mapManager.getInitPayload(mapData.id, session.player));
@@ -161,25 +155,7 @@ export function setupWebSocket(server, sessionMiddleware) {
             const newPlayerId = globalPlayerIdCounter++;
             ws.clientId = newPlayerId;
 
-            const { spawnX, spawnY } = mapManager.generateSpawnCoords(mapData.id);
-
-            const newChar = {
-              id: newPlayerId,
-              name: playerName.substring(0, 15),
-              x: spawnX,
-              y: spawnY,
-              width: 40,
-              height: 40,
-              rotation: 0,
-              gender: Math.random() > 0.5 ? 'male' : 'female',
-              shirtColor: getRandomColor(),
-              pantsColor: getRandomColor(),
-              armColor: getRandomColor(),
-              shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)],
-              hairStyle: ['short', 'long', 'ponytail', 'spiky', 'messy', 'bald'][Math.floor(Math.random() * 6)],
-              hairColor: ['#f1c40f', '#5c3a21', '#2c3e50', '#000000'][Math.floor(Math.random() * 4)],
-              interaction_radius: 150
-            };
+            const newChar = mapManager.generateNewCharacter(mapData.id, newPlayerId, playerName);
 
             if (session) {
               newChar.mapId = ws.mapId;
@@ -187,8 +163,7 @@ export function setupWebSocket(server, sessionMiddleware) {
               session.save();
             }
 
-            mapData.characters[newPlayerId] = newChar;
-            mapData.dirtyCharacters[newPlayerId] = newChar;
+            mapManager.addCharacter(mapData.id, newChar);
 
             sendInitPayload(mapData, newChar);
 
@@ -204,8 +179,7 @@ export function setupWebSocket(server, sessionMiddleware) {
             const char = data.character;
 
             ws.clientId = char.id;
-            mapData.characters[char.id] = char;
-            mapData.dirtyCharacters[char.id] = char;
+            mapManager.markCharacterDirty(mapData.id, char);
           } else if (data.type === 'log') {
             const now = Date.now();
             if (ws.lastLogTime && now - ws.lastLogTime < 2000) return;
@@ -263,8 +237,7 @@ export function setupWebSocket(server, sessionMiddleware) {
             npcManager.logEventToNearbyNPCs(mapData, `${name} (${ws.clientId}) left the map`, aiAgentManager);
 
             const id = data.id;
-            delete mapData.characters[id];
-            delete mapData.dirtyCharacters[id];
+            mapManager.removeCharacter(mapData.id, id);
             const broadcastMsg = JSON.stringify({ type: 'disconnect', id });
             mapData.clients.forEach(client => {
               if (client !== ws && client.readyState === 1) {
@@ -287,8 +260,7 @@ export function setupWebSocket(server, sessionMiddleware) {
 
               npcManager.logEventToNearbyNPCs(mapData, `${oldChar.name} (${ws.clientId}) left the map`, aiAgentManager);
 
-              delete mapData.characters[ws.clientId];
-              delete mapData.dirtyCharacters[ws.clientId];
+              mapManager.removeCharacter(mapData.id, ws.clientId);
               const disconnectMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
               mapData.clients.forEach(client => {
                 if (client !== ws && client.readyState === 1) {
@@ -316,8 +288,7 @@ export function setupWebSocket(server, sessionMiddleware) {
                 session.save();
               }
 
-              mapData.characters[ws.clientId] = oldChar;
-              mapData.dirtyCharacters[ws.clientId] = oldChar;
+              mapManager.addCharacter(mapData.id, oldChar);
               mapData.clients.add(ws);
 
               npcManager.logEventToNearbyNPCs(mapData, `${oldChar.name || 'Student'} (${ws.clientId}) entered ${mapData.name}`, aiAgentManager);
@@ -346,8 +317,7 @@ export function setupWebSocket(server, sessionMiddleware) {
           }
 
           if (!isReconnected) {
-            delete mapData.characters[ws.clientId];
-            delete mapData.dirtyCharacters[ws.clientId];
+            mapManager.removeCharacter(mapData.id, ws.clientId);
             const broadcastMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
             mapData.clients.forEach(client => {
               if (client !== ws && client.readyState === 1) {
