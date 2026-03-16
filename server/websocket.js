@@ -171,6 +171,7 @@ export function setupWebSocket(server, sessionMiddleware) {
             if (npc._startX === undefined) {
               npc._startX = npc.x;
               npc._startY = npc.y;
+              npc._startRotation = npc.rotation || 0;
               npc._moveIdx = 0;
               npc._lastMoveTime = now;
             }
@@ -180,8 +181,14 @@ export function setupWebSocket(server, sessionMiddleware) {
               npc._moveIdx = (npc._moveIdx + 1) % (npc.move_cords.length + 1);
 
               const offset = npc._moveIdx === 0 ? { x: 0, y: 0 } : npc.move_cords[npc._moveIdx - 1];
-              npc.x = npc._startX + offset.x;
-              npc.y = npc._startY + offset.y;
+              npc.x = npc._startX + (offset.x || 0);
+              npc.y = npc._startY + (offset.y || 0);
+
+              if (offset.rotation !== undefined) {
+                npc.rotation = offset.rotation;
+              } else if (npc._moveIdx === 0) {
+                npc.rotation = npc._startRotation;
+              }
 
               mapObj.dirtyCharacters[npc.id] = npc;
             }

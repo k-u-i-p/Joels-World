@@ -107,6 +107,9 @@ export class NetworkClient {
                 localNpc.targetX = serverChar.x;
                 localNpc.targetY = serverChar.y;
               }
+              if (serverChar.rotation !== undefined) {
+                localNpc.targetRotation = serverChar.rotation;
+              }
               return; // Processed. Do not let it cascade into human character lists.
             }
 
