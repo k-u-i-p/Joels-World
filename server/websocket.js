@@ -176,7 +176,15 @@ export function setupWebSocket(server, sessionMiddleware) {
               npc._lastMoveTime = now;
             }
 
-            if (now - npc._lastMoveTime >= npc.move_time) {
+            let currentWaitTime = npc.move_time || 3000;
+            if (npc._moveIdx > 0 && npc._moveIdx <= npc.waypoints.length) {
+              const activeWaypoint = npc.waypoints[npc._moveIdx - 1];
+              if (activeWaypoint && activeWaypoint.move_time !== undefined) {
+                currentWaitTime = activeWaypoint.move_time;
+              }
+            }
+
+            if (now - npc._lastMoveTime >= currentWaitTime) {
               npc._lastMoveTime = now;
               npc._moveIdx = (npc._moveIdx + 1) % (npc.waypoints.length + 2);
 
