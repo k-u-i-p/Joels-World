@@ -180,15 +180,25 @@ export function setupWebSocket(server, sessionMiddleware) {
               npc._lastMoveTime = now;
               npc._moveIdx = (npc._moveIdx + 1) % (npc.move_cords.length + 1);
 
-              const offset = npc._moveIdx === 0 ? { x: 0, y: 0 } : npc.move_cords[npc._moveIdx - 1];
-              npc.x = npc._startX + (offset.x || 0);
-              npc.y = npc._startY + (offset.y || 0);
+              npc._currentOffsetX = npc._currentOffsetX || 0;
+              npc._currentOffsetY = npc._currentOffsetY || 0;
+              npc._currentOffsetRotation = npc._currentOffsetRotation || 0;
 
-              if (offset.rotation !== undefined) {
-                npc.rotation = npc._startRotation + offset.rotation;
-              } else if (npc._moveIdx === 0) {
-                npc.rotation = npc._startRotation;
+              const offset = npc._moveIdx === 0 ? { x: 0, y: 0, rotation: 0 } : npc.move_cords[npc._moveIdx - 1];
+
+              if (offset.x !== undefined) npc._currentOffsetX = offset.x;
+              if (offset.y !== undefined) npc._currentOffsetY = offset.y;
+              if (offset.rotation !== undefined) npc._currentOffsetRotation = offset.rotation;
+
+              if (npc._moveIdx === 0) {
+                 npc._currentOffsetX = 0;
+                 npc._currentOffsetY = 0;
+                 npc._currentOffsetRotation = 0;
               }
+
+              npc.x = npc._startX + npc._currentOffsetX;
+              npc.y = npc._startY + npc._currentOffsetY;
+              npc.rotation = npc._startRotation + npc._currentOffsetRotation;
 
               mapObj.dirtyCharacters[npc.id] = npc;
             }
