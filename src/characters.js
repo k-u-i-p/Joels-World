@@ -263,14 +263,14 @@ export class CharacterManager {
       } else { // 'long'
         ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
         ctx.fill();
-        
+
         // Flowing, wavy long hair draping dynamically behind (shorter length)
         ctx.beginPath();
-        ctx.moveTo(1, -7.5);
-        // Sweep out past left shoulder and moderately back
-        ctx.bezierCurveTo(-4, -9, -12, -7, -14, -2);
-        // Swoop back across the middle
-        ctx.bezierCurveTo(-15, 4, -10, 8, -5, 7.5);
+        ctx.moveTo(1, -5.5);
+        // Sweep out past left shoulder, much closer back
+        ctx.bezierCurveTo(-3, -8, -8, -6, -10, -2);
+        // Swoop back across the middle gently
+        ctx.bezierCurveTo(-11, 3, -7, 6, -4, 7);
         // Curve back to the right side of the head
         ctx.bezierCurveTo(-2, 7, 0, 7.5, 1, 7.5);
         ctx.fill();
@@ -578,33 +578,33 @@ function updateLocalNPCs(dt) {
       if (npc.waitTimer > 0) {
         npc.waitTimer -= dt;
       }
-      
+
       // Timer just expired, time to evaluate next phase
       if (npc.waitTimer <= 0) {
         if (npc._pendingRoamX !== undefined) {
           // Phase 2: Start moving towards the calculated roam coordinates
           npc.targetX = npc._pendingRoamX;
           npc.targetY = npc._pendingRoamY;
-          
+
           delete npc._pendingRoamX;
           delete npc._pendingRoamY;
-          
+
           // Wait 2-5 seconds at the new destination before picking another target
           npc.waitTimer = 2.0 + (Math.random() * 3.0);
         } else {
           // Phase 1: Pick a random destination and turn to face it
           const angle = Math.random() * Math.PI * 2;
           const distance = Math.random() * npc.roam_radius;
-          
+
           const destX = npc._startX + (Math.cos(angle) * distance);
           const destY = npc._startY + (Math.sin(angle) * distance);
-          
+
           const dx = destX - npc.x;
           const dy = destY - npc.y;
-          
+
           let destRotation = Math.atan2(dy, dx) * (180 / Math.PI);
           destRotation = (destRotation + 360) % 360;
-          
+
           npc.targetRotation = Math.round(destRotation);
           npc._pendingRoamX = destX;
           npc._pendingRoamY = destY;
@@ -658,7 +658,7 @@ function updateLocalNPCs(dt) {
         npc.targetX = npc._startX + npc._currentOffsetX;
         npc.targetY = npc._startY + npc._currentOffsetY;
         npc.targetRotation = npc._startRotation + npc._currentOffsetRotation;
-        
+
         npc.waitTimer = nodeWaitTime / 1000;
       }
     }
