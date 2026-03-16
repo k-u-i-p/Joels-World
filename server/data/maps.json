@@ -88,7 +88,7 @@
     "npcs": "detention/npc.json",
     "clip_mask": "detention/clip_mask.png",
     "character_scale": 4,
-    "default_zoom": 1,
+    "default_zoom": 0.75,
     "objects": "detention/objects.json",
     "spawn_area": 18,
     "can_leave": false,
@@ -135,7 +135,7 @@
     "npcs": "main_building/npc.json",
     "clip_mask": "main_building/clip_mask.png",
     "character_scale": 2.5,
-    "default_zoom": 0.75,
+    "default_zoom": 0.5,
     "objects": "main_building/objects.json",
     "spawn_area": 9,
     "on_enter": [
