@@ -668,7 +668,7 @@ body {
 /* Minimap */
 #minimap-wrapper {
   position: relative;
-  width: min(512px, 90vw, calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px));
+  width: min(512px, 90vw, calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px));
   aspect-ratio: 1;
   border-radius: 8px;
   border: 4px solid #000000;
