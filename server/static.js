@@ -67,7 +67,7 @@ export function setupStatic(app, server, port) {
           }
         }
 
-        return res.render('index', { 
+        return res.render('index', {
           isAdmin: isAdminSession,
           validEmotes,
           validHairStyles
@@ -76,7 +76,7 @@ export function setupStatic(app, server, port) {
         return next(e);
       }
     }
-    
+
     // Pass other non-static requests through
     next();
   });

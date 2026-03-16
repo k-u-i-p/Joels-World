@@ -524,9 +524,9 @@
     "height": 48,
     "rotation": 200,
     "gender": "female",
-    "shirtColor": "#bdc3c7",
+    "shirtColor": "#fff2d5",
     "pantsColor": "#95a5a6",
-    "armColor": "#bdc3c7",
+    "armColor": "#ffe2d6",
     "on_enter": [
       {
         "avatar": "avatars/becky.png",
@@ -547,7 +547,8 @@
         ]
       }
     ],
-    "hairStyle": "long"
+    "hairStyle": "long",
+    "hairColor": "#aa7942"
   },
   {
     "id": 20,
@@ -616,7 +617,7 @@
     "height": 48,
     "rotation": 180,
     "gender": "female",
-    "shirtColor": "#bdc3c7",
+    "shirtColor": "#aaaaaa",
     "pantsColor": "#95a5a6",
     "armColor": "#bdc3c7",
     "on_enter": [
@@ -633,7 +634,8 @@
     "interaction_radius": 150,
     "on_exit": [],
     "hairStyle": "messy",
-    "hide_nameplate": true
+    "hide_nameplate": true,
+    "hairColor": "#4d4028"
   },
   {
     "id": 24,
@@ -644,9 +646,9 @@
     "height": 48,
     "rotation": 160,
     "gender": "female",
-    "shirtColor": "#bdc3c7",
+    "shirtColor": "#4f7a28",
     "pantsColor": "#95a5a6",
-    "armColor": "#bdc3c7",
+    "armColor": "#4f7a28",
     "on_enter": [
       {
         "avatar": "avatars/hot_school_mum.png",
@@ -663,7 +665,8 @@
     "interaction_radius": 150,
     "on_exit": [],
     "hairStyle": "long",
-    "hide_nameplate": true
+    "hide_nameplate": true,
+    "hairColor": "#ca9c1b"
   },
   {
     "id": 25,
@@ -674,9 +677,9 @@
     "height": 48,
     "rotation": 85,
     "gender": "female",
-    "shirtColor": "#bdc3c7",
-    "pantsColor": "#95a5a6",
-    "armColor": "#bdc3c7",
+    "shirtColor": "#263e0f",
+    "pantsColor": "#001e57",
+    "armColor": "#4f5503",
     "on_enter": [
       {
         "avatar": "avatars/hot_school_mum_2.png",
@@ -690,7 +693,8 @@
     ],
     "interaction_radius": 150,
     "on_exit": [],
-    "hairStyle": "long",
-    "hide_nameplate": true
+    "hairStyle": "ponytail",
+    "hide_nameplate": true,
+    "hairColor": "#4f3920"
   }
 ]

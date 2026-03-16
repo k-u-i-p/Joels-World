@@ -44,10 +44,14 @@
           "sound": "media/splash.mp3",
           "volume": 1
         }
+      },
+      {
+        "emote": "swim"
       }
     ],
     "on_exit": [
       {
+        "emote": "wet",
         "play_sound": {
           "sound": "media/wet_footprints.mp3",
           "volume": 1

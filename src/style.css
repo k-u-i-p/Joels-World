@@ -292,7 +292,8 @@ body {
 #map-button {
   background: url('/icons/minimap.png') center/cover no-repeat;
   border: 2px solid #000;
-  color: transparent; /* visually hide text */
+  color: transparent;
+  /* visually hide text */
   position: relative;
   overflow: hidden;
 }
@@ -629,7 +630,7 @@ body {
   width: min(512px, 90vw, calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px));
   aspect-ratio: 1;
   border-radius: 8px;
-  border: 4px solid #2c3e50;
+  border: 4px solid #000000;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.8);
   overflow: hidden;
@@ -650,7 +651,8 @@ body {
   background-color: #e74c3c;
   border: 2px solid white;
   border-radius: 50%;
-  transform: translate(-50%, -50%); /* Anchor to exact center of the blip */
+  transform: translate(-50%, -50%);
+  /* Anchor to exact center of the blip */
   box-shadow: 0 0 8px #e74c3c;
   z-index: 2;
   transition: top 0.2s linear, left 0.2s linear;

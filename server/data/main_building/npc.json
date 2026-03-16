@@ -2,8 +2,8 @@
   {
     "id": 1,
     "name": "Ms Crosbie",
-    "x": -2007,
-    "y": 797,
+    "x": -1985,
+    "y": 806,
     "width": 48,
     "height": 48,
     "rotation": 15,
@@ -35,7 +35,7 @@
     ],
     "shoeColor": "#7f8c8d",
     "hairStyle": "long",
-    "hairColor": "#f1c40f"
+    "hairColor": "#a38e00"
   },
   {
     "id": 2,
@@ -63,7 +63,7 @@
     "on_exit": [],
     "shoeColor": "#111111",
     "hairStyle": "ponytail",
-    "hairColor": "#f1c40f"
+    "hairColor": "#d29d00"
   },
   {
     "id": 3,
@@ -258,23 +258,30 @@
   {
     "id": 9,
     "name": "Prospective Parent",
-    "x": 0,
-    "y": 0,
+    "x": -1794,
+    "y": -997,
     "width": 40,
     "height": 48,
     "rotation": 180,
     "gender": "female",
-    "shirtColor": "#bdc3c7",
-    "pantsColor": "#95a5a6",
-    "armColor": "#bdc3c7",
+    "shirtColor": "#263e0f",
+    "pantsColor": "#232323",
+    "armColor": "#4f5503",
     "on_enter": [
       {
         "avatar": "avatars/prospective_school_mum.png",
         "say": [
-          "Hi there!"
+          "Mr Hardy is so lovely! He's invited me to dinner later!",
+          "Everyone at this school seems so nice!",
+          "I'll let Henry worry about the VAT!"
         ]
       }
     ],
-    "interaction_radius": 150
+    "interaction_radius": 150,
+    "on_exit": [],
+    "roam_radius": 50,
+    "hairStyle": "long",
+    "hairColor": "#a77b00",
+    "default_emote": null
   }
 ]

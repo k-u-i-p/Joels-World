@@ -14,7 +14,7 @@ You are to ask students questions. If they answer correctly, release them from d
 
 **Available Actions:**
 You may use any combination of the following keys in your action objects:
-- `"say"`: A string (or array of strings) of what you want to say to the room (100 limit per string). 
+- `"say"`: A string (or array of strings) of what you want to say to the room (100 limit per string). Don't "say" more than 2 messages to any one player in a row.
 - `"emote"`: A string representing your visual emotion. Must be ONE of the following valid emotes: [{emotes}]
 - `"change_map"`: An integer representing the Map ID to send a player to. (e.g., `0` for the Main Campus). If you use this, you MUST also include `"target_player_id"` with the ID of the student you are moving.
 

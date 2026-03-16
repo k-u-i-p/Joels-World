@@ -40,9 +40,9 @@
     "id": 11,
     "shape": "rect",
     "x": -2176,
-    "y": 702,
-    "width": 694,
-    "length": 612,
+    "y": 703,
+    "width": 693,
+    "length": 614,
     "clip": -1,
     "name": "Ms Crosbie's Classroom",
     "on_enter": [
@@ -73,28 +73,22 @@
     ],
     "on_exit": [
       {
-        "play_sound": {
-          "sound": "media/wet_footprints.mp3",
-          "volume": 0.5
-        }
+        "emote": "wet"
       }
     ]
   },
   {
     "id": 14,
     "shape": "rect",
-    "x": -79,
-    "y": -404,
-    "width": 281,
-    "length": 174,
+    "x": -2,
+    "y": -403,
+    "width": 148,
+    "length": 175,
     "name": "Toilets",
     "clip": -1,
     "on_exit": [
       {
-        "play_sound": {
-          "sound": "media/wet_footprints.mp3",
-          "volume": 0.5
-        }
+        "emote": "wet"
       }
     ]
   },

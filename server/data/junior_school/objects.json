@@ -8,7 +8,7 @@
     "rotation": 90,
     "width": 759,
     "length": 202,
-    "clip": 50,
+    "clip": -1,
     "on_enter": [
       {
         "show_dialog": {

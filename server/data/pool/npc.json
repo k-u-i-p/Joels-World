@@ -65,8 +65,8 @@
   {
     "id": 3,
     "name": "Archie",
-    "x": -647,
-    "y": -208,
+    "x": -580,
+    "y": 43,
     "width": 40,
     "height": 40,
     "rotation": 0,
@@ -83,13 +83,19 @@
     "on_exit": [],
     "gender": "male",
     "hairStyle": "bald",
-    "hairColor": "#000000"
+    "hairColor": "#000000",
+    "default_emote": {
+      "name": "swim",
+      "startTime": 1773662456878
+    },
+    "interaction_radius": 150,
+    "roam_radius": 300
   },
   {
     "id": 4,
     "name": "Ben",
-    "x": -440,
-    "y": -198,
+    "x": -400.71086516270367,
+    "y": 102.2785106491594,
     "width": 40,
     "height": 40,
     "rotation": 175,
@@ -106,6 +112,11 @@
     "on_exit": [],
     "gender": "male",
     "hairStyle": "bald",
-    "hairColor": "#000000"
+    "hairColor": "#000000",
+    "default_emote": {
+      "name": "swim",
+      "startTime": 1773662449059
+    },
+    "roam_radius": 300
   }
 ]
