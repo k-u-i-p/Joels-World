@@ -186,9 +186,9 @@ export function setupWebSocket(server, sessionMiddleware) {
 
               const offset = npc._moveIdx === 0 ? { x: 0, y: 0, rotation: 0 } : npc.move_cords[npc._moveIdx - 1];
 
-              if (offset.x !== undefined) npc._currentOffsetX = offset.x;
-              if (offset.y !== undefined) npc._currentOffsetY = offset.y;
-              if (offset.rotation !== undefined) npc._currentOffsetRotation = offset.rotation;
+              if (offset.x !== undefined) npc._currentOffsetX += offset.x;
+              if (offset.y !== undefined) npc._currentOffsetY += offset.y;
+              if (offset.rotation !== undefined) npc._currentOffsetRotation += offset.rotation;
 
               if (npc._moveIdx === 0) {
                  npc._currentOffsetX = 0;
