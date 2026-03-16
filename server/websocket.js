@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { PhysicsEngine } from '../src/physics.js';
 import { AIAgentManager } from './managers/AIAgentManager.js';
 import { NPCManager } from './managers/NPCManager.js';
+import { MapManager } from './managers/MapManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const physicsEngine = new PhysicsEngine();
@@ -15,70 +16,19 @@ export const physicsEngine = new PhysicsEngine();
 export function setupWebSocket(server, sessionMiddleware) {
   const wss = new WebSocketServer({ server });
 
-  const mapState = {};
-  let globalPlayerIdCounter = 255;
-  const mapsFile = path.resolve(__dirname, 'data/maps.json');
-  let mapsData = [];
-  try {
-    if (fs.existsSync(mapsFile)) {
-      mapsData = JSON.parse(fs.readFileSync(mapsFile, 'utf-8'));
-    }
-  } catch (e) {
-    console.error("Error loading maps.json:", e);
-  }
+  const mapManager = new MapManager();
+  const npcManager = new NPCManager(mapManager.mapState);
+  const aiAgentManager = new AIAgentManager(mapManager.mapState, npcManager);
 
-  const npcManager = new NPCManager(mapState);
-  const aiAgentManager = new AIAgentManager(mapState, npcManager);
+  mapManager.initializeMaps(npcManager);
+
   aiAgentManager.startAIAgent();
-
-  mapsData.forEach(mapDef => {
-    const mapObj = {
-      ...mapDef,
-      clients: new Set(),
-      characters: {},
-      dirtyCharacters: {},
-      npcs: [],
-      objects: [],
-      objectsFile: mapDef.objects ? path.resolve(__dirname, 'data', mapDef.objects) : null,
-      npcsFile: mapDef.npcs ? path.resolve(__dirname, 'data', mapDef.npcs) : null,
-      logFile: mapDef.logFile ? path.resolve(__dirname, 'data', mapDef.logFile) : null
-    };
-
-
-    npcManager.initializeMapNPCs(mapDef, mapObj);
-
-    if (mapObj.objectsFile) {
-      try {
-        if (fs.existsSync(mapObj.objectsFile)) mapObj.objects = JSON.parse(fs.readFileSync(mapObj.objectsFile, 'utf-8'));
-      } catch (e) { console.error(`Error loading objects for map ${mapDef.id}:`, e); }
-
-      let objTimer;
-      fs.watch(mapObj.objectsFile, (eventType, filename) => {
-        if (objTimer) clearTimeout(objTimer);
-        objTimer = setTimeout(() => {
-          try {
-            if (fs.existsSync(mapObj.objectsFile)) {
-              mapObj.objects = JSON.parse(fs.readFileSync(mapObj.objectsFile, 'utf-8'));
-              console.log(`Objects updated for map ${mapDef.id}, broadcasting...`);
-              const broadcastMsg = JSON.stringify({ type: 'objects_update', objects: mapObj.objects });
-              mapObj.clients.forEach(client => {
-                if (client.readyState === 1) client.send(broadcastMsg);
-              });
-            }
-          } catch (e) { console.error('Error on obj watch:', e); }
-        }, 50);
-      });
-    }
-
-    mapState[mapDef.id] = mapObj;
-  });
-
   npcManager.startPatrolLoop();
 
   setInterval(() => {
     const updatesBuffer = [];
-    for (const mapId in mapState) {
-      const mapObj = mapState[mapId];
+    for (const mapId in mapManager.mapState) {
+      const mapObj = mapManager.mapState[mapId];
       updatesBuffer.length = 0;
 
       for (const charId in mapObj.dirtyCharacters) {
@@ -109,6 +59,8 @@ export function setupWebSocket(server, sessionMiddleware) {
     ws.close();
   }
 
+  let globalPlayerIdCounter = 255;
+
   wss.on('connection', (ws, req) => {
     console.log('Client connected');
 
@@ -131,11 +83,9 @@ export function setupWebSocket(server, sessionMiddleware) {
       if (session && session.player && session.player.mapId !== undefined) {
         requestedMapId = session.player.mapId;
       }
-      const mapKeys = Object.keys(mapState);
-      const mapId = mapState[requestedMapId] ? requestedMapId : (mapState[0] ? 0 : (mapKeys.length > 0 ? mapKeys[0] : null));
-      ws.mapId = mapId;
-
-      let mapData = mapState[mapId];
+      
+      ws.mapId = mapManager.getMap(requestedMapId) ? requestedMapId : mapManager.getFirstMapId();
+      let mapData = mapManager.getMap(ws.mapId);
 
       if (!mapData) {
         console.error(`No map found to attach client to (requested: ${requestedMapId})`);
@@ -146,8 +96,8 @@ export function setupWebSocket(server, sessionMiddleware) {
       mapData.clients.add(ws);
 
       let currentMaxId = globalPlayerIdCounter - 1;
-      for (const mId in mapState) {
-        const data = mapState[mId];
+      for (const mId in mapManager.mapState) {
+        const data = mapManager.mapState[mId];
         if (data.characters) {
           for (const charId in data.characters) {
             const char = data.characters[charId];
@@ -167,44 +117,7 @@ export function setupWebSocket(server, sessionMiddleware) {
       globalPlayerIdCounter = currentMaxId + 1;
       if (globalPlayerIdCounter < 255) globalPlayerIdCounter = 255;
 
-      // Helper functions for character generation
-      const generateSpawnCoords = (currentMapData) => {
-        let spawnX = Math.round(Math.random() * 800 + 100);
-        let spawnY = Math.round(Math.random() * 600 + 100);
 
-        if (currentMapData.spawn_area && currentMapData.objects) {
-          const spawnObj = currentMapData.objects.find(o => o.id === currentMapData.spawn_area);
-          if (spawnObj && spawnObj.shape === 'rect') {
-            const halfW = spawnObj.width / 2;
-            const halfL = spawnObj.length / 2;
-            spawnX = Math.round(spawnObj.x - halfW + Math.random() * spawnObj.width);
-            spawnY = Math.round(spawnObj.y - halfL + Math.random() * spawnObj.length);
-          }
-        }
-        return { spawnX, spawnY };
-      };
-
-      const sendInitPayload = (activeMapData, myChar) => {
-        ws.send(JSON.stringify({
-          type: 'init',
-          characters: Object.values(activeMapData.characters),
-          npcs: activeMapData.npcs,
-          objects: activeMapData.objects,
-          myCharacter: myChar,
-          mapData: {
-            id: activeMapData.id,
-            name: activeMapData.name,
-            width: activeMapData.width,
-            height: activeMapData.height,
-            layers: activeMapData.layers,
-            clip_mask: activeMapData.clip_mask,
-            character_scale: activeMapData.character_scale || 1,
-            default_zoom: activeMapData.default_zoom || 1,
-            on_enter: activeMapData.on_enter
-          },
-          mapsList: mapsData.map(m => ({ id: m.id, name: m.name }))
-        }));
-      };
 
       // If the session already has an attached character, boot them into the game instantly.
       if (session && session.player) {
@@ -218,7 +131,7 @@ export function setupWebSocket(server, sessionMiddleware) {
         ws.clientId = session.player.id;
 
         // Override persistent coordinates with a fresh spawn location dynamically 
-        const { spawnX, spawnY } = generateSpawnCoords(mapData);
+        const { spawnX, spawnY } = mapManager.generateSpawnCoords(mapData.id);
         session.player.x = spawnX;
         session.player.y = spawnY;
 
@@ -226,7 +139,7 @@ export function setupWebSocket(server, sessionMiddleware) {
         mapData.dirtyCharacters[ws.clientId] = session.player;
 
         console.log(`Resuming session character ${session.player.name} (${ws.clientId})`);
-        sendInitPayload(mapData, session.player);
+        ws.send(mapManager.getInitPayload(mapData.id, session.player));
       }
 
       ws.on('message', (message) => {
@@ -248,7 +161,7 @@ export function setupWebSocket(server, sessionMiddleware) {
             const newPlayerId = globalPlayerIdCounter++;
             ws.clientId = newPlayerId;
 
-            const { spawnX, spawnY } = generateSpawnCoords(mapData);
+            const { spawnX, spawnY } = mapManager.generateSpawnCoords(mapData.id);
 
             const newChar = {
               id: newPlayerId,
@@ -360,7 +273,7 @@ export function setupWebSocket(server, sessionMiddleware) {
             });
           } else if (data.type === 'change_map') {
             const requestedMapId = Number(data.mapId);
-            const newMapData = mapState[requestedMapId];
+            const newMapData = mapManager.getMap(requestedMapId);
 
             if (mapData.can_leave === false && data.force !== true && !ws.isAdmin) {
               const charName = (mapData.characters[ws.clientId] && mapData.characters[ws.clientId].name) || (typeof newChar !== 'undefined' ? newChar.name : '') || 'Student';
@@ -393,18 +306,7 @@ export function setupWebSocket(server, sessionMiddleware) {
               }
 
               // Reset position safely using spawn_area if available
-              let spawnX = Math.round(Math.random() * 800 + 100);
-              let spawnY = Math.round(Math.random() * 600 + 100);
-
-              if (newMapData.spawn_area && newMapData.objects) {
-                const spawnObj = newMapData.objects.find(o => o.id === newMapData.spawn_area);
-                if (spawnObj && spawnObj.shape === 'rect') {
-                  const halfW = spawnObj.width / 2;
-                  const halfL = spawnObj.length / 2;
-                  spawnX = Math.round(spawnObj.x - halfW + Math.random() * spawnObj.width);
-                  spawnY = Math.round(spawnObj.y - halfL + Math.random() * spawnObj.length);
-                }
-              }
+              const { spawnX, spawnY } = mapManager.generateSpawnCoords(newMapData.id);
 
               oldChar.x = spawnX;
               oldChar.y = spawnY;
@@ -421,7 +323,7 @@ export function setupWebSocket(server, sessionMiddleware) {
               npcManager.logEventToNearbyNPCs(mapData, `${oldChar.name || 'Student'} (${ws.clientId}) entered ${mapData.name}`, aiAgentManager);
 
               // Send init to immediately reset the client seamlessly
-              sendInitPayload(mapData, oldChar);
+              ws.send(mapManager.getInitPayload(mapData.id, oldChar));
             }
           } else {
             handleAdminMessage(ws, data, mapData);
@@ -461,6 +363,6 @@ export function setupWebSocket(server, sessionMiddleware) {
     });
   });
 
-  return { wss, mapState };
+  return { wss, mapState: mapManager.mapState };
 }
 
