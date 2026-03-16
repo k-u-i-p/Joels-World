@@ -43,101 +43,41 @@ The game world is governed by three primary descriptive JSON files for each map 
 
 ### 1. `maps.json`
 The master file dictating the available explorable spaces and their visual properties.
-```json
-{
-  "id": 0,
-  "name": "Junior Campus",
-  "width": 4372,
-  "height": 3840,
-  "layers": [
-    [
-      {
-        "alpha": 1, 
-        "chunked": true, 
-        "source_image": "/junior_school/background.png",
-        "chunk_size": 512,
-        "grid_w": 9,
-        "grid_h": 8,
-        "path_template": "/junior_school/chunks/background_{x}_{y}.png"
-      }
-    ]
-  ],
-  "clip_mask": "junior_school/clip_mask.svg", // Optional vector/png solid boundary
-  "npcs": "junior_school/npc.json", // Reference to the NPC file
-  "objects": "junior_school/objects.json", // Reference to the zones/collision file
-  "character_scale": 1.5,
-  "default_zoom": 1.0,
-  "spawn_area": 19, // Object ID to drop the player into upon connection
-  "can_leave": true, 
-  "on_enter": [
-    { "play_sound": { "sound": "media/music.mp3", "volume": 0.3 } }
-  ]
-}
-```
+- **`id`**: Unique identifier for the map.
+- **`name`**: The display name of the map.
+- **`width` / `height`**: The absolute dimensions of the map in pixels.
+- **`layers`**: A 2D array representing layered arrays of background textures. The first dimension separates depths (e.g., floor vs trees), and the second dimension contains the chunk definition objects (defining `alpha`, `source_image`, `chunk_size`, rendering `grid_w`/`grid_h`, and `path_template` for pre-split chunk fetching).
+- **`clip_mask`**: Optional path to an SVG/PNG to use as a global, pixel-perfect solid boundary.
+- **`npcs` / `objects`**: Path pointers mapping to the respective data configurations for this specific map.
+- **`character_scale` / `default_zoom`**: Multipliers adjusting how large entities and the viewport appear natively.
+- **`spawn_area`**: The ID of an object (from the `objects.json`) dictating where the player should spawn.
+- **`can_leave`**: Boolean flag indicating if the map allows transition exits.
+- **`on_enter`**: An array of event hooks triggered as soon as the map loads (e.g., initiating background music via `play_sound`).
 
 ### 2. `npc.json`
 Defines the AI, interactive characters, and standard wandering NPCs for the specific map.
-```json
-{
-  "id": 1,
-  "name": "Mr Hardy",
-  "x": -869,
-  "y": -389,
-  "width": 52,
-  "height": 58,
-  "rotation": 140,
-  "gender": "male", // Determines the body/face sprite base
-  "hairStyle": "messy", // Modifies the rendering style (bald, long, ponytail, short, messy)
-  "shirtColor": "#1c2833",
-  "pantsColor": "#2c3e50",
-  "interaction_radius": 150, // How close the player must be to trigger on_enter
-  "roam_radius": 300, // Optional: Range they will randomly wander
-  "waypoints": [
-    { "x": 50, "y": 150, "move_time": 3000 }, // Optional: specific patrol route
-    { "rotation": 120, "move_time": 1000 }
-  ],
-  "on_enter": [
-    {
-      "avatar": "avatars/mr_hardy.png", // Optional UI popup portrait
-      "say": [
-        "Hello {name}, I'm Mr Hardy",
-        "Two schools are better than three!"
-      ],
-      "log": { // Optional event logging (for AI history)
-        "message": "{name} ({player_id}) approached {npc_name}",
-        "rate_limit": 60
-      }
-    }
-  ],
-  "agent": { // Optional: Connects the character to the LLM backend
-    "log_file": "junior_school/agent_mr_hardy_logs.txt",
-    "prompt_file": "junior_school/agent_mr_hardy.md"
-  }
-}
-```
+- **`id`**: Unique identifier for the character.
+- **`name`**: The display name appearing on their name tag.
+- **`x` / `y`**: The starting coordinates.
+- **`width` / `height`**: Base physical dimensions of their sprite.
+- **`rotation`**: Initial rotation in degrees.
+- **`gender`**: Defines the body and face rendering type (`male` or `female`).
+- **`hairStyle`**: Modifies the hair rendering pass (`bald`, `long`, `ponytail`, `short`, `messy`, `spiky`).
+- **`hairColor` / `shirtColor` / `pantsColor` / `shoeColor`**: Hex color codes for the different respective clothing/body rendering passes.
+- **`interaction_radius`**: How close the player must be to trigger the character's `on_enter` event array.
+- **`roam_radius`**: (Optional) Pixel radius around their starting point they are allowed to randomly wander.
+- **`waypoints`**: (Optional) Array of objects dictating a sequential patrol route. The `x`, `y`, and `rotation` values in these objects are **relative offsets/deltas** applied consecutively from the character's original spawn coordinates, not absolute global map positions. Also takes a `move_time` in milliseconds.
+- **`on_enter` / `on_exit`**: Triggered when the player physically walks up to the character or leaves their radius. Often used to trigger speech dialog (`say`), logging events (`log`), or rendering a UI pop-up `avatar`.
+- **`agent`**: (Optional) Connects the character to the server-side LLM backend (requiring a `prompt_file` and `log_file`).
+- **`emoji`**: (Optional) Overrides the 3D model entirely and renders an emoji character instead.
 
 ### 3. `objects.json`
 Defines invisible structural barriers and interactive trigger zones scattered across the map.
-```json
-{
-  "id": 12,
-  "name": "Pool Entrance",
-  "shape": "rect",
-  "x": -2095, "y": -1254,
-  "width": 759, "length": 202,
-  "rotation": 90,
-  "clip": -1, // -1 means solid collision. 50+ means a walkable zone
-  "on_enter": [
-    {
-      "show_dialog": {
-        "type": "change_map",
-        "map": 3, 
-        "description": "Do you want to enter the Pool building?"
-      }
-    }
-  ],
-  "on_exit": [
-    { "clear_emote": true } // Event to trigger upon leaving the zone's AABB
-  ]
-}
-```
+- **`id`**: Unique identifier.
+- **`name`**: (Optional) Readable internal name.
+- **`shape`**: Defines the hitbox type (usually `rect`).
+- **`x` / `y`**: Coordinates defining the center of the bounding box.
+- **`width` / `length`**: Depth and length of the bounding box.
+- **`rotation`**: Rotation of the bounding box in degrees.
+- **`clip`**: Collision behavior. `-1` denotes a solid, impenetrable obstacle. Values above `0` typically denote a walkable vertical height or trigger zone.
+- **`on_enter` / `on_exit`**: Event hook pools triggered when the player's collision bounds physically enter or leave the object's area. Used for teleporting maps (`show_dialog` with `change_map`), playing sounds, or applying status effects.
