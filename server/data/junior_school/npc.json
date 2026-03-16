@@ -190,20 +190,23 @@
     "waypoints": [
       {
         "x": 50,
-        "y": 150
+        "y": 150,
+        "move_time": 3000
       },
       {
-        "rotation": 120
+        "rotation": 120,
+        "move_time": 1000
       },
       {
         "x": -100,
-        "y": 0
+        "y": 0,
+        "move_time": 2000
       },
       {
-        "rotation": 110
+        "rotation": 110,
+        "move_time": 1000
       }
     ],
-    "move_time": 3000,
     "on_enter": [
       {
         "avatar": "avatars/mr_savage.png",

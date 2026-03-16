@@ -167,7 +167,7 @@ export function setupWebSocket(server, sessionMiddleware) {
       if (mapObj.npcs) {
         for (let i = 0; i < mapObj.npcs.length; i++) {
           const npc = mapObj.npcs[i];
-          if (npc.waypoints && Array.isArray(npc.waypoints) && npc.move_time) {
+          if (npc.waypoints && Array.isArray(npc.waypoints) && npc.waypoints.length > 0) {
             if (npc._startX === undefined) {
               npc._startX = npc.x;
               npc._startY = npc.y;
