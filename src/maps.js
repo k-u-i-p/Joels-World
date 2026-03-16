@@ -156,9 +156,16 @@ export class MapManager {
             if (chunkData.img.complete && chunkData.img.naturalWidth > 0) {
               // Fast truncating for hardware integer drawing
               const drawX = (baseX + (x * layer.chunk_size)) | 0;
-              // Passing only dx, dy hits the browser's fast-path 1:1 blitting routine
-              // omitting dx, dy scaling avoids expensive bilinear filtering on mobile
-              ctx.drawImage(chunkData.img, drawX, drawY);
+              
+              if (cameraZoom === 1) {
+                // Fast-path natively for 1.0x maps (e.g., Junior School)
+                ctx.drawImage(chunkData.img, drawX, drawY);
+              } else {
+                // If scaled (e.g., Main Building 0.75x), HTML5 Canvas anti-aliases sub-pixel 
+                // edges which causes mathematically transparent bleed lines between seams.
+                // We physically draw the tile +1 pixel larger to forcefully overlap the seam!
+                ctx.drawImage(chunkData.img, drawX, drawY, layer.chunk_size + 1, layer.chunk_size + 1);
+              }
             }
           }
         }
