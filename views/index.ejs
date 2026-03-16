@@ -221,12 +221,9 @@
               <span>Hair Style: </span>
               <select id="npc-hair-style"
                 style="width: 80px; padding: 2px; font-size: 12px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
-                <option value="short" style="color: black;">Short</option>
-                <option value="long" style="color: black;">Long</option>
-                <option value="spiky" style="color: black;">Spiky</option>
-                <option value="messy" style="color: black;">Messy</option>
-                <option value="ponytail" style="color: black;">Ponytail</option>
-                <option value="bald" style="color: black;">Bald</option>
+                <% validHairStyles.forEach(style => { %>
+                  <option value="<%= style %>" style="color: black;"><%= style.charAt(0).toUpperCase() + style.slice(1) %></option>
+                <% }) %>
               </select>
             </div>
             <div class="admin-control-row" style="margin-bottom:5px;">
@@ -234,25 +231,9 @@
               <select id="npc-default-emote"
                 style="width: 80px; padding: 2px; font-size: 12px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
                 <option value="" style="color: black;">None</option>
-                <option value="bounce" style="color: black;">Bounce</option>
-                <option value="cry" style="color: black;">Cry</option>
-                <option value="dance" style="color: black;">Dance</option>
-                <option value="dead" style="color: black;">Dead</option>
-                <option value="eat" style="color: black;">Eat</option>
-                <option value="fart" style="color: black;">Fart</option>
-                <option value="gritty" style="color: black;">Gritty</option>
-                <option value="jump" style="color: black;">Jump</option>
-                <option value="laser" style="color: black;">Laser</option>
-                <option value="laugh" style="color: black;">Laugh</option>
-                <option value="love" style="color: black;">Love</option>
-                <option value="lunch" style="color: black;">Lunch</option>
-                <option value="rugby" style="color: black;">Rugby</option>
-                <option value="sit" style="color: black;">Sit</option>
-                <option value="sleep" style="color: black;">Sleep</option>
-                <option value="swim" style="color: black;">Swim</option>
-                <option value="wave" style="color: black;">Wave</option>
-                <option value="wet" style="color: black;">Wet</option>
-                <option value="write" style="color: black;">Write</option>
+                <% validEmotes.forEach(emote => { %>
+                  <option value="<%= emote %>" style="color: black;"><%= emote.charAt(0).toUpperCase() + emote.slice(1) %></option>
+                <% }) %>
               </select>
             </div>
           </div>
