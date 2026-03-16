@@ -35,8 +35,6 @@ export async function ensureMinimaps() {
       const inputPath = path.join(basePath, sourceRel);
       
       const outputPath = path.join(minimapsDir, `${map.id}.png`);
-      const metadataPath = path.join(minimapsDir, `${map.id}_meta.json`);
-      
       let needsGeneration = false;
       
       if (!fs.existsSync(inputPath)) {
@@ -46,17 +44,11 @@ export async function ensureMinimaps() {
 
       if (!fs.existsSync(outputPath)) {
         needsGeneration = true;
-      } else if (!fs.existsSync(metadataPath)) {
-        needsGeneration = true;
       } else {
         const inputStat = fs.statSync(inputPath);
-        try {
-          const meta = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
-          // Trigger re-generation if the file size changed, or if mtime differs. 
-          if (meta.size !== inputStat.size || meta.mtime !== inputStat.mtimeMs) {
-            needsGeneration = true;
-          }
-        } catch (e) {
+        const outputStat = fs.statSync(outputPath);
+        // Trigger re-generation if the source image is newer than the generated minimap.
+        if (inputStat.mtimeMs > outputStat.mtimeMs) {
           needsGeneration = true;
         }
       }
@@ -69,8 +61,6 @@ export async function ensureMinimaps() {
             .png({ quality: 80 })
             .toFile(outputPath);
             
-          const inputStat = fs.statSync(inputPath);
-          fs.writeFileSync(metadataPath, JSON.stringify({ size: inputStat.size, mtime: inputStat.mtimeMs }));
           console.log(`[Minimaps] Generated successfully for ${map.id}.`);
         } catch (err) {
            console.error(`[Minimaps] Failed to process minimap for ${map.id}:`, err);
