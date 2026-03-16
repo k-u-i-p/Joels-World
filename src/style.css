@@ -395,9 +395,12 @@ body {
   animation: slideDown 0.3s ease-out;
   word-wrap: break-word;
   transition: opacity 0.5s ease-out, transform 0.5s ease-out, margin-bottom 0.5s ease-out, max-height 0.5s ease-out, padding 0.5s ease-out;
-  max-height: 200px; /* arbitrary large value for normal state */
-  margin-bottom: 5px; /* ensure space between chats */
-  overflow: hidden; /* required for height collapse animation */
+  max-height: 200px;
+  /* arbitrary large value for normal state */
+  margin-bottom: 5px;
+  /* ensure space between chats */
+  overflow: hidden;
+  /* required for height collapse animation */
 }
 
 .server-chat-message strong {
@@ -479,17 +482,18 @@ body {
 }
 
 #avatars-container img {
-  transform-origin: center;
-  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out, padding 0.3s ease-in-out, max-height 0.3s ease-in-out;
+  transform-origin: top left;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out, padding 0.3s ease-in-out, max-height 0.3s ease-in-out, max-width 0.3s ease-in-out, margin 0.3s ease-in-out, border-width 0.3s ease-in-out;
   max-height: 128px;
+  max-width: 128px;
 }
 
 #avatars-container img.avatar-out {
   opacity: 0;
-  transform: scale(0.8) translateY(20px);
+  transform: scale(0);
   max-height: 0px;
-  padding-top: 0px;
-  padding-bottom: 0px;
+  max-width: 0px;
+  padding: 0px;
   border-width: 0px !important;
   margin: 0px;
 }
@@ -685,7 +689,8 @@ body {
   position: relative;
   border-radius: 12px;
   overflow: hidden;
-  background-color: rgba(87, 87, 87, 0.5); /* Match new manual glass styling */
+  background-color: rgba(87, 87, 87, 0.5);
+  /* Match new manual glass styling */
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border: var(--glass-border);
