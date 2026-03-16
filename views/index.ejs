@@ -33,7 +33,7 @@
       <div id="server-chat-stack"></div>
 
       <div id="action-dialog" class="dialog-content glass-panel" style="display: none;">
-        <h2 id="action-dialog-text"></h2>
+        <h2 id="action-dialog-text" class="dialog-header"></h2>
         <div class="action-dialog-buttons">
           <button id="action-dialog-yes" class="btn btn-success btn-action">Yes</button>
           <button id="action-dialog-no" class="btn btn-danger btn-action">No</button>
@@ -47,7 +47,7 @@
     <div class="dialog-content glass-panel">
       <img src="media/logo_128_128.png" alt="Joel's World Logo"
         style="display: block; margin: 0 auto 15px auto; width: 128px; height: 128px;" />
-      <h2 style="margin-bottom: 0;">Loading...</h2>
+      <h2 class="dialog-header">Loading...</h2>
     </div>
   </div>
 
@@ -56,7 +56,7 @@
     <div class="dialog-content glass-panel">
       <img src="media/logo_128_128.png" alt="Joel's World Logo"
         style="display: block; margin: 0 auto 15px auto; width: 128px; height: 128px;" />
-      <h2>Welcome!</h2>
+      <h2 class="dialog-header">Welcome!</h2>
       <input type="text" id="player-name-input" class="glass-input" placeholder="Enter your name..." maxlength="15"
         autocomplete="off" />
       <br>
@@ -69,7 +69,7 @@
     <div style="position: relative; max-width: 450px; width: 90%;">
       <button id="close-help-btn" class="dialog-close-btn">&times;</button>
       <div class="dialog-content glass-panel" style="text-align: left; width: 100%;">
-        <h2 style="text-align: center; font-size: 24px; margin-bottom: 25px; color: #fff;">Help</h2>
+        <h2 class="dialog-header">Help</h2>
 
         <div class="help-section">
           <h3><span class="icon">🎮</span> Controls</h3>
@@ -96,7 +96,7 @@
       <button id="close-emotes-btn" class="dialog-close-btn">&times;</button>
       <div class="dialog-content glass-panel"
         style="text-align: left; width: 100%; padding: 15px; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px); overflow-y: auto;">
-        <h2 style="text-align: center; font-size: 20px; margin-bottom: 15px; margin-top: 0; color: #fff;">Emotes</h2>
+        <h2 class="dialog-header">Emotes</h2>
         <% const emoteEmojis={ dance: '🕺' , fart: '💨' , dead: '💀' , cry: '😭' , rugby: '🏉' , sit: '🪑' , jump: '🦘'
           , eat: '🍔' , lunch: '🥪' }; %>
           <div id="emotes-list" style="display: flex; flex-direction: column; gap: 8px;">
