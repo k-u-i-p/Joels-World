@@ -267,6 +267,7 @@ body {
 }
 
 #help-button,
+#emotes-button,
 #map-button {
   width: 44px;
   height: 44px;
@@ -289,6 +290,13 @@ body {
   font-weight: bold;
 }
 
+#emotes-button {
+  background-color: #f39c12;
+  color: #ffffff;
+  border: none;
+  font-size: 24px;
+}
+
 #map-button {
   background: url('/icons/minimap.png') center/cover no-repeat;
   border: 2px solid #000;
@@ -299,14 +307,47 @@ body {
 }
 
 #help-button:hover,
+#emotes-button:hover,
 #map-button:hover {
   transform: scale(1.1);
   filter: brightness(1.2);
 }
 
 #help-button:active,
-#map-button:active {
-  transform: scale(0.95);
+#emotes-button:active,
+#map-button:active,
+#close-minimap-btn:active {
+  transform: scale(0.9);
+}
+
+/* Emotes UI */
+.emote-row {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.emote-row:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.emote-row:active {
+  transform: scale(0.98);
+}
+
+.emote-row-icon {
+  font-size: 24px;
+  margin-right: 15px;
+}
+
+.emote-row-name {
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
 }
 
 /* Chat System */

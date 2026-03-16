@@ -79,18 +79,37 @@
       </div>
 
       <div class="help-section">
-        <h3><span class="icon">💬</span> Chat & Emotes</h3>
+        <h3><span class="icon">💬</span> Chat</h3>
         <p style="margin: 0 0 10px 0; font-size: 14px; color: #cbd5e1;">Press Enter to type a message to other players.
         </p>
-        <div class="emote-tags">
-          <% validEmotes.forEach(emote => { %>
-            <span class="emote-tag">/<%= emote %></span>
-          <% }) %>
-        </div>
       </div>
 
       <div style="text-align: center; margin-top: 30px;">
         <button id="close-help-btn" class="btn btn-primary">Got it!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Emotes Dialog Overlay -->
+  <div id="emotes-dialog" class="overlay" style="display: none;">
+    <div class="dialog-content glass-panel" style="text-align: left; max-width: 350px; width: 80%; padding: 15px; max-height: 80vh; overflow-y: auto;">
+      <h2 style="text-align: center; font-size: 20px; margin-bottom: 15px; margin-top: 0; color: #fff;">Emotes</h2>
+      <% 
+        const emoteEmojis = {
+          dance: '🕺', fart: '💨', dead: '💀', cry: '😭', rugby: '🏉', 
+          sit: '🪑', jump: '🦘', eat: '🍔', lunch: '🥪'
+        };
+      %>
+      <div id="emotes-list" style="display: flex; flex-direction: column; gap: 8px;">
+        <% validEmotes.forEach(emote => { %>
+          <div class="emote-row" data-emote="<%= emote %>">
+            <span class="emote-row-icon"><%= emoteEmojis[emote] || '💬' %></span>
+            <span class="emote-row-name"><%= emote.charAt(0).toUpperCase() + emote.slice(1) %></span>
+          </div>
+        <% }) %>
+      </div>
+      <div style="text-align: center; margin-top: 20px;">
+        <button id="close-emotes-btn" class="btn btn-primary">Close</button>
       </div>
     </div>
   </div>
@@ -271,6 +290,7 @@
     <% } else { %>
       <div id="ui-buttons-container">
         <button id="map-button" title="Map (M)"></button>
+        <button id="emotes-button" title="Emotes">☺️</button>
         <button id="help-button">?</button>
       </div>
     <% } %>

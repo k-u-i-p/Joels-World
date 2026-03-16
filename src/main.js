@@ -132,6 +132,7 @@ const movementCoords = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
 const exactCoords = [{ x: 0, y: 0 }];
 
 uiManager.initHelpDialog();
+uiManager.initEmotesDialog();
 uiManager.initMinimapDialog();
 
 /**

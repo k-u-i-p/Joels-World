@@ -79,6 +79,41 @@ export class UIManager {
     }
   }
 
+  initEmotesDialog() {
+    const emotesButton = document.getElementById('emotes-button');
+    const emotesDialog = document.getElementById('emotes-dialog');
+    const closeEmotesBtn = document.getElementById('close-emotes-btn');
+
+    if (emotesButton && emotesDialog && closeEmotesBtn) {
+      emotesButton.addEventListener('click', () => {
+        emotesDialog.style.display = 'flex';
+      });
+
+      closeEmotesBtn.addEventListener('click', () => {
+        emotesDialog.style.display = 'none';
+      });
+
+      // Close when clicking outside of the dialog box
+      emotesDialog.addEventListener('click', (e) => {
+        if (e.target === emotesDialog) {
+          emotesDialog.style.display = 'none';
+        }
+      });
+
+      // Bind row clicks to chat emission
+      const emoteRows = document.querySelectorAll('.emote-row');
+      emoteRows.forEach(row => {
+        row.addEventListener('click', () => {
+          const emoteName = row.getAttribute('data-emote');
+          if (emoteName) {
+            window.dispatchEvent(new CustomEvent('chatSubmit', { detail: { message: '/' + emoteName } }));
+            emotesDialog.style.display = 'none';
+          }
+        });
+      });
+    }
+  }
+
   addServerChatMessage(senderName, message) {
     if (!this.serverChatStack) return;
 
