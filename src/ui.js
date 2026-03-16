@@ -79,20 +79,45 @@ export class UIManager {
   addServerChatMessage(senderName, message) {
     if (!this.serverChatStack) return;
 
+    const now = Date.now();
+
+    // Reduce time remaining on already displayed messages by 5 seconds
+    Array.from(this.serverChatStack.children).forEach(child => {
+      if (child.dataset.expireTime) {
+        let expire = parseInt(child.dataset.expireTime, 10) - 5000;
+        child.dataset.expireTime = expire;
+        
+        if (child.timeoutId) clearTimeout(child.timeoutId);
+        
+        const remaining = Math.max(0, expire - now);
+        child.timeoutId = setTimeout(() => {
+          child.classList.add('fade-out');
+          setTimeout(() => {
+            if (child.parentNode === this.serverChatStack) {
+              this.serverChatStack.removeChild(child);
+            }
+          }, 500);
+        }, remaining);
+      }
+    });
+
     const msgElement = document.createElement('div');
     msgElement.className = 'server-chat-message';
     msgElement.innerHTML = `<strong>${senderName}:</strong> ${message}`;
 
     // LIFO Stack Append - prepends to push older messages down
     this.serverChatStack.prepend(msgElement);
+    msgElement.dataset.expireTime = now + 30000;
 
     // Culling mechanism (max 5 active elements)
     while (this.serverChatStack.children.length > 5) {
-      this.serverChatStack.removeChild(this.serverChatStack.lastChild);
+      const last = this.serverChatStack.lastChild;
+      if (last.timeoutId) clearTimeout(last.timeoutId);
+      this.serverChatStack.removeChild(last);
     }
 
     // Decay sequence (30 seconds)
-    setTimeout(() => {
+    msgElement.timeoutId = setTimeout(() => {
       msgElement.classList.add('fade-out');
       setTimeout(() => {
         if (msgElement.parentNode === this.serverChatStack) {
