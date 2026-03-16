@@ -1,3 +1,5 @@
+import { player } from './main.js';
+
 export class UIManager {
   constructor() {
     this._ac = null;
@@ -170,8 +172,7 @@ export class UIManager {
         minimapDialog.style.display = 'flex';
         if (window.init && window.init.mapData) {
           minimapImage.src = `/minimaps/${window.init.mapData.id}.png`;
-          // We don't have full direct player reference without passing it, 
-          // let the main loop naturally draw it the next frame
+          this.updateMinimapDot(player);
         }
       };
 
@@ -201,6 +202,9 @@ export class UIManager {
 
     minimapDot.style.left = `${safeX}%`;
     minimapDot.style.top = `${safeY}%`;
+    
+    // Debug helper to ensure mathematically it's calculating correctly
+    // console.log(`[Minimap] Drawing Dot at X:${safeX}% Y:${safeY}%`);
   }
 }
 
