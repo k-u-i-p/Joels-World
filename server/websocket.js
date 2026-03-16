@@ -185,7 +185,7 @@ export function setupWebSocket(server, sessionMiddleware) {
               npc.y = npc._startY + (offset.y || 0);
 
               if (offset.rotation !== undefined) {
-                npc.rotation = offset.rotation;
+                npc.rotation = npc._startRotation + offset.rotation;
               } else if (npc._moveIdx === 0) {
                 npc.rotation = npc._startRotation;
               }

@@ -189,14 +189,14 @@
     "interaction_radius": 150,
     "move_cords": [
       {
-        "x": -50,
-        "y": -100
+        "x": 50,
+        "y": 150
       },
       {
-        "rotation": 180
+        "rotation": 110
       }
     ],
-    "move_time": 10000,
+    "move_time": 3000,
     "on_enter": [
       {
         "avatar": "avatars/mr_savage.png",
