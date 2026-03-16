@@ -478,6 +478,22 @@ body {
   padding-top: 10px;
 }
 
+#avatars-container img {
+  transform-origin: center;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out, padding 0.3s ease-in-out, max-height 0.3s ease-in-out;
+  max-height: 128px;
+}
+
+#avatars-container img.avatar-out {
+  opacity: 0;
+  transform: scale(0.8) translateY(20px);
+  max-height: 0px;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  border-width: 0px !important;
+  margin: 0px;
+}
+
 #avatars-container:empty {
   display: none;
 }
