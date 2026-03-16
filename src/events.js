@@ -18,7 +18,15 @@ export const EventHandlers = {
         el.style.borderRadius = '8px';
         el.style.border = '2px solid #ecf0f1';
         el.style.objectFit = 'cover';
+        el.classList.add('avatar-out'); // Start in the minimized/hidden state
         container.appendChild(el);
+        
+        // Force a browser reflow to register the starting state, then trigger the transition
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            el.classList.remove('avatar-out');
+          });
+        });
       } else {
         el.src = avatarSrc;
       }
