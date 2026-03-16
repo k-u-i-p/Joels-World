@@ -228,14 +228,13 @@ export class PhysicsEngine {
     const g = (pixel32 >> 8) & 0xFF;
     const b = (pixel32 >> 16) & 0xFF;
 
-    // The user's maps also use pure green `rgb(0, 255, 0)` as walkable areas.
-    // We check if it's dark (RGB values < 15 out of 255).
-    if (pixel32 > 0 && r < 15 && g < 15 && b < 15) {
-      // It's solid black/dark collision boundary
-      return false;
+    // Only pure white (255, 255, 255) and pure green (0, 255, 0) are walkable.
+    if ((r === 255 && g === 255 && b === 255) || (r === 0 && g === 255 && b === 0)) {
+      return true; // Walkable
     }
 
-    return true; // Walkable
+    // Anything else is a collision boundary
+    return false;
   }
 
   /**

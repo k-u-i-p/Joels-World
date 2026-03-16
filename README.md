@@ -47,7 +47,7 @@ The master file dictating the available explorable spaces and their visual prope
 - **`name`**: The display name of the map.
 - **`width` / `height`**: The absolute dimensions of the map in pixels.
 - **`layers`**: A 2D array representing layered arrays of background textures. The first dimension separates depths (e.g., floor vs trees), and the second dimension contains the chunk definition objects (defining `alpha`, `source_image`, `chunk_size`, rendering `grid_w`/`grid_h`, and `path_template` for pre-split chunk fetching).
-- **`clip_mask`**: Optional path to an SVG/PNG to use as a global, pixel-perfect solid boundary.
+- **`clip_mask`**: Optional path to an SVG/PNG to use as a global, pixel-perfect collision mask. Players can only walk/clip through pure white (`RGB 255,255,255`) or pure green (`RGB 0,255,0`) pixels; all other colors act as solid boundaries.
 - **`npcs` / `objects`**: Path pointers mapping to the respective data configurations for this specific map.
 - **`character_scale` / `default_zoom`**: Multipliers adjusting how large entities and the viewport appear natively.
 - **`spawn_area`**: The ID of an object (from the `objects.json`) dictating where the player should spawn.
