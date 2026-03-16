@@ -101,7 +101,66 @@ export class NetworkClient {
             const localNpcIndex = (window.init?.npcs || []).findIndex(n => n.id === serverChar.id);
             if (localNpcIndex > -1) {
               const localNpc = window.init.npcs[localNpcIndex];
-              if (serverChar.emote !== undefined) localNpc.emote = serverChar.emote;
+              if (serverChar.emote !== undefined) {
+                if (serverChar.emote && (!localNpc.emote || localNpc.emote.startTime !== serverChar.emote.startTime || localNpc.emote.name !== serverChar.emote.name)) {
+                  let isDefault = false;
+                  if (localNpc.default_emote && localNpc.default_emote.name === serverChar.emote.name && localNpc.default_emote.startTime === serverChar.emote.startTime) {
+                    isDefault = true;
+                  }
+
+                  if (!isDefault) {
+                    const emoteObj = emotes[serverChar.emote.name];
+                    if (emoteObj && (emoteObj.message || emoteObj.message_when_near)) {
+                      let msgText = '';
+                      let targetName = null;
+
+                      if (emoteObj.message_when_near) {
+                        let minD = Infinity;
+
+                        const checkDist = (c) => {
+                          if (c.id === localNpc.id && c === localNpc) return;
+                          const dx = c.x - (serverChar.x !== undefined ? serverChar.x : localNpc.x);
+                          const dy = c.y - (serverChar.y !== undefined ? serverChar.y : localNpc.y);
+                          const distSq = dx * dx + dy * dy;
+                          if (distSq < minD) {
+                            minD = distSq;
+                            targetName = c.name;
+                          }
+                        };
+
+                        (window.init?.characters || []).forEach(checkDist);
+                        (window.init?.npcs || []).forEach(checkDist);
+                        if (player && player.id !== localNpc.id) {
+                          const dx = player.x - (serverChar.x !== undefined ? serverChar.x : localNpc.x);
+                          const dy = player.y - (serverChar.y !== undefined ? serverChar.y : localNpc.y);
+                          const distSq = dx * dx + dy * dy;
+                          if (distSq < minD) {
+                            minD = distSq;
+                            targetName = player.name;
+                          }
+                        }
+                      }
+
+                      if (targetName && emoteObj.message_when_near) {
+                        msgText = emoteObj.message_when_near
+                          .replace('{name}', localNpc.name || 'Someone')
+                          .replace('{target_name}', targetName || 'Someone');
+                      } else if (emoteObj.message) {
+                        msgText = emoteObj.message.replace('{name}', localNpc.name || 'Someone');
+                      }
+
+                      if (msgText) {
+                        localNpc.chatMessage = msgText;
+                        localNpc.chatTime = Date.now();
+                        if (typeof uiManager !== 'undefined') {
+                          uiManager.addServerChatMessage(localNpc.name || 'Someone', msgText);
+                        }
+                      }
+                    }
+                  }
+                }
+                localNpc.emote = serverChar.emote;
+              }
               if (serverChar.interaction_radius !== undefined) localNpc.interaction_radius = serverChar.interaction_radius;
               return; // Processed. Do not let it cascade into human character lists.
             }
