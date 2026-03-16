@@ -122,11 +122,11 @@ export class UIManager {
     // Reduce time remaining on already displayed messages by 5 seconds
     Array.from(this.serverChatStack.children).forEach(child => {
       if (child.dataset.expireTime) {
-        let expire = parseInt(child.dataset.expireTime, 10) - 5000;
+        let expire = parseInt(child.dataset.expireTime, 10) - 10000;
         child.dataset.expireTime = expire;
-        
+
         if (child.timeoutId) clearTimeout(child.timeoutId);
-        
+
         const remaining = Math.max(0, expire - now);
         child.timeoutId = setTimeout(() => {
           child.classList.add('fade-out');
@@ -184,11 +184,11 @@ export class UIManager {
       overlay.style.transition = 'opacity 0.2s ease-in-out';
       document.body.appendChild(overlay);
     }
-    
+
     // Force reflow if immediately triggering again
     void overlay.offsetWidth;
     overlay.style.opacity = '1';
-    
+
     if (this._rejectTimeout) clearTimeout(this._rejectTimeout);
     this._rejectTimeout = setTimeout(() => {
       overlay.style.opacity = '0';
@@ -216,6 +216,13 @@ export class UIManager {
         minimapDialog.style.display = 'none';
       };
 
+      // Close when clicking outside of the dialog box
+      minimapDialog.addEventListener('click', (e) => {
+        if (e.target === minimapDialog) {
+          closeMapBtn.click();
+        }
+      });
+
       // Keyboard Shortcuts
       window.addEventListener('keydown', (e) => {
         if (e.key === 'm' || e.key === 'M') {
@@ -237,13 +244,13 @@ export class UIManager {
 
   updateMinimapDot(player) {
     if (!this.isMinimapOpen || !window.init || !window.init.mapData) return;
-    
+
     const minimapDot = document.getElementById('minimap-player-dot');
     if (!minimapDot) return;
 
     const mapWidth = window.init.mapData.width;
     const mapHeight = window.init.mapData.height;
-    
+
     // Coordinate system has 0,0 at center of map
     const pctX = ((player.x + (mapWidth / 2)) / mapWidth) * 100;
     const pctY = ((player.y + (mapHeight / 2)) / mapHeight) * 100;
@@ -254,7 +261,7 @@ export class UIManager {
 
     minimapDot.style.left = `${safeX}%`;
     minimapDot.style.top = `${safeY}%`;
-    
+
     // Debug helper to ensure mathematically it's calculating correctly
     // console.log(`[Minimap] Drawing Dot at X:${safeX}% Y:${safeY}%`);
   }
