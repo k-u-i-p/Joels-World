@@ -700,9 +700,12 @@ body {
   right: -15px;
   width: 40px;
   height: 40px;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
   color: #fff;
-  border: 2px solid #fff;
   border-radius: 50%;
   font-size: 28px;
   line-height: 1;
