@@ -1,6 +1,18 @@
 import { footprints } from './main.js';
 import { physicsEngine } from './physics.js';
 
+/**
+ * Generates the chat message text for a given emote, automatically handling string templating
+ * and nearest-target resolution for emotes that interact with surrounding entities.
+ * 
+ * @param {string} emoteName - The internal dictionary key for the emote (e.g. 'laugh', 'cry').
+ * @param {string} sourceName - The display name of the character performing the emote.
+ * @param {number} sourceX - The X-coordinate map position of the character performing the emote.
+ * @param {number} sourceY - The Y-coordinate map position of the character performing the emote.
+ * @param {string|number} sourceId - The unique session ID of the character performing the emote (to avoid self-targeting).
+ * @param {Object} [playerObj=null] - Optional reference to the local human player entity to include in nearest-target calculation.
+ * @returns {string|null} The fully processed message string, or null if the emote doesn't broadcast a message.
+ */
 export function getEmoteMessage(emoteName, sourceName, sourceX, sourceY, sourceId, playerObj = null) {
   const emoteObj = emotes[emoteName];
   if (!emoteObj || (!emoteObj.message && !emoteObj.message_when_near)) return null;
