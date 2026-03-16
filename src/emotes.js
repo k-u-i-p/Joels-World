@@ -926,11 +926,11 @@ export const emotes = {
       limbs.leftArmX = 4; limbs.leftArmY = -12;
       limbs.rightArmX = 4; limbs.rightArmY = 12;
 
-      limbs.leftLegStartX = -6; limbs.leftLegStartY = -4;
-      limbs.leftLegEndX = -16; limbs.leftLegEndY = -4;
+      limbs.leftLegStartX = 6; limbs.leftLegStartY = -4;
+      limbs.leftLegEndX = 16; limbs.leftLegEndY = -4;
 
-      limbs.rightLegStartX = -6; limbs.rightLegStartY = 4;
-      limbs.rightLegEndX = -16; limbs.rightLegEndY = 4;
+      limbs.rightLegStartX = 6; limbs.rightLegStartY = 4;
+      limbs.rightLegEndX = 16; limbs.rightLegEndY = 4;
     },
     draw: (ctx, emote) => {
       ctx.save();
