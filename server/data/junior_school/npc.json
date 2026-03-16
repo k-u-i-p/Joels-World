@@ -240,7 +240,7 @@
     "shoeColor": "#111111",
     "hairStyle": "bald",
     "hairColor": "#000000",
-    "emote": {
+    "default_emote": {
       "name": "rugby",
       "startTime": 0
     }
@@ -664,7 +664,7 @@
   },
   {
     "id": 25,
-    "name": "Hot School Mum 2",
+    "name": "Hot School Mum",
     "x": 595,
     "y": -1440,
     "width": 40,

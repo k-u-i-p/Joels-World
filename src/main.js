@@ -500,9 +500,6 @@ function handleInitData(data) {
     window.init = data;
     if (!window.init.characters) window.init.characters = [];
     if (!window.init.npcs) window.init.npcs = [];
-    window.init.npcs.forEach(n => {
-      if (n.emote && !n.defaultEmote) n.defaultEmote = JSON.parse(JSON.stringify(n.emote));
-    });
     activeNpc = null;
     if (window.selectedObject) window.selectedObject.set(null);
     if (window.selectedNpc) window.selectedNpc.set(null);

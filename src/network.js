@@ -101,12 +101,7 @@ export class NetworkClient {
             const localNpcIndex = (window.init?.npcs || []).findIndex(n => n.id === serverChar.id);
             if (localNpcIndex > -1) {
               const localNpc = window.init.npcs[localNpcIndex];
-              if (serverChar.emote !== undefined) {
-                if (!localNpc.hasOwnProperty('defaultEmote')) {
-                  localNpc.defaultEmote = localNpc.emote ? JSON.parse(JSON.stringify(localNpc.emote)) : null;
-                }
-                localNpc.emote = serverChar.emote;
-              }
+              if (serverChar.emote !== undefined) localNpc.emote = serverChar.emote;
               if (serverChar.interaction_radius !== undefined) localNpc.interaction_radius = serverChar.interaction_radius;
               return; // Processed. Do not let it cascade into human character lists.
             }
@@ -170,11 +165,6 @@ export class NetworkClient {
             window.init = { objects: data.objects || [] };
           }
         } else if (data.type === 'npcs_update') {
-          if (data.npcs) {
-            data.npcs.forEach(n => {
-              if (n.emote && !n.defaultEmote) n.defaultEmote = JSON.parse(JSON.stringify(n.emote));
-            });
-          }
           if (window.init) {
             window.init.npcs = data.npcs || [];
           } else {

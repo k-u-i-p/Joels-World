@@ -364,6 +364,10 @@ export class CharacterManager {
         const isActualNpc = isNpc;
         const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;
 
+        if (isActualNpc && !c.emote && c.default_emote) {
+          c.emote = JSON.parse(JSON.stringify(c.default_emote));
+        }
+
         if (isActualNpc && !hasMovement && !c.emote) {
           const prCnv = this.getPrerenderedNpc(c, scaleX, scaleY);
           ctx.save();
