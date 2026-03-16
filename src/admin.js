@@ -372,6 +372,22 @@ if (npcHairStyle) {
   };
 }
 
+const npcDefaultEmote = document.getElementById('npc-default-emote');
+if (npcDefaultEmote) {
+  npcDefaultEmote.onchange = (e) => {
+    if (!window.selectedNpc.get()) return;
+    
+    // Send either a constructed emote object or null explicitly
+    let emoteObj = null;
+    if (e.target.value !== '') {
+      emoteObj = { name: e.target.value, startTime: Date.now() };
+    }
+    
+    window.selectedNpc.get().default_emote = emoteObj;
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { default_emote: emoteObj } });
+  };
+}
+
 const npcGenderSelect = document.getElementById('npc-gender-select');
 if (npcGenderSelect) {
   npcGenderSelect.onchange = (e) => {
@@ -519,6 +535,7 @@ function updateAdminPanel() {
     const npcArmCol = document.getElementById('npc-arm-col');
     const npcHairCol = document.getElementById('npc-hair-col');
     const npcHairStyle = document.getElementById('npc-hair-style');
+    const npcDefaultEmote = document.getElementById('npc-default-emote');
     const npcGenderSelect = document.getElementById('npc-gender-select');
     const npcOnEnterInput = document.getElementById('npc-on-enter-input');
     const npcOnExitInput = document.getElementById('npc-on-exit-input');
@@ -532,6 +549,9 @@ function updateAdminPanel() {
     if (npcHairCol) npcHairCol.value = npc.hairColor || '#000000';
     if (npcHairStyle) npcHairStyle.value = npc.hairStyle || 'short';
     if (npcGenderSelect) npcGenderSelect.value = npc.gender || 'male';
+    if (npcDefaultEmote) {
+      npcDefaultEmote.value = npc.default_emote && npc.default_emote.name ? npc.default_emote.name : '';
+    }
 
     if (npcOnEnterInput) {
       if (npc.on_enter && npc.on_enter[0] && npc.on_enter[0].say) {
