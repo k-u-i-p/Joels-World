@@ -660,11 +660,11 @@ export const emotes = {
     sound: "/media/laugh.mp3",
     setup: (ctx, emote, c) => {
       const laughTime = (Date.now() - emote.startTime) / 150;
-      const rock = Math.sin(laughTime) * 0.2;
-      // Rotate 90 degrees to lay on the ground, plus some rocking back and forth
-      ctx.rotate(Math.PI / 2 + rock);
-      // Translate down slightly to appear "on the floor"
-      ctx.translate(0, 10);
+      const rock = Math.sin(laughTime) * 2; // pixels to shift
+      // Rotate 90 degrees to lay on the ground
+      ctx.rotate(Math.PI / 2);
+      // Translate down slightly to appear "on the floor", and bob back and forth to simulate rolling
+      ctx.translate(0, 10 + rock);
     },
     updateLimbs: (limbs, emote) => {
       const laughTime = (Date.now() - emote.startTime) / 100;
