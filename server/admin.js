@@ -2,7 +2,12 @@ import fs from 'fs';
 import path from 'path';
 
 function sanitizeJson(key, value) {
-  if (key.startsWith('_') || key === 'emote' || key === 'waitTimer' || key === 'currentWaypoint' || key === 'isMoving' || key === 'runDirectionTimer' || key === 'isRunning') {
+  if (key.startsWith('_') || key === 'waitTimer' || key === 'currentWaypoint' || key === 'isMoving' || key === 'runDirectionTimer' || key === 'isRunning') {
+    return undefined;
+  }
+  // Only strip transient runtime emotes from root entities (which have IDs)
+  // This preserves "emote" event triggers inside on_enter/on_exit arrays
+  if (key === 'emote' && this !== undefined && this.id !== undefined) {
     return undefined;
   }
   return value;
