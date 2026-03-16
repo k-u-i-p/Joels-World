@@ -75,6 +75,7 @@ export async function processOverlays() {
           // 3. Modifying raw pixel buffers
           // Both buffers are now RGBA format, matching byte alignment: 4 bytes per pixel.
           const totalBytes = sourceMeta.width * sourceMeta.height * 4;
+          const outBuffer = Buffer.alloc(totalBytes);
 
           for (let i = 0; i < totalBytes; i += 4) {
             const maskR = maskBuffer[i];
@@ -85,15 +86,16 @@ export async function processOverlays() {
             // If pixel is mostly black and opaque... keep it! Else, transparent.
             // Also keep pure green (0, 255, 0) which players can walk behind.
             if (maskA == 255 && maskR == 0 && maskB == 0 && maskG == 0 || maskA == 255 && maskG == 255 && maskR == 0 && maskB == 0) {
-              // Do nothing, leave source pixel as is regarding alpha.
-            } else {
-              // Pixel is NOT part of the clipping path, make it fully transparent in the new image
-              sourceBuffer[i + 3] = 0;
+              // Copy the source pixel to the output buffer
+              outBuffer[i] = sourceBuffer[i];
+              outBuffer[i + 1] = sourceBuffer[i + 1];
+              outBuffer[i + 2] = sourceBuffer[i + 2];
+              outBuffer[i + 3] = sourceBuffer[i + 3];
             }
           }
 
           // 4. Encode the buffer back into a PNG file
-          await sharp(sourceBuffer, {
+          await sharp(outBuffer, {
             raw: {
               width: sourceMeta.width,
               height: sourceMeta.height,

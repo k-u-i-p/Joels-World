@@ -170,7 +170,7 @@ export class MapManager {
           }
         }
 
-        // --- Memory Cleanup: Unload out-of-frame chunks ---
+        /*// --- Memory Cleanup: Unload out-of-frame chunks ---
         if (!layer.gcTick) layer.gcTick = 0;
         layer.gcTick++;
 
@@ -191,7 +191,7 @@ export class MapManager {
               layer.chunks[i] = null;
             }
           }
-        }
+        }*/
       } else {
         // --- Standard Legacy Image Rendering ---
         if (layer.image.complete && layer.image.naturalWidth > 0) {

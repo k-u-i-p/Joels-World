@@ -3,17 +3,17 @@
     "id": 0,
     "name": "Junior Campus",
     "width": 4372,
-    "height": 3840,
+    "height": 3841,
     "layers": [
       [
         {
           "alpha": 1,
           "chunked": true,
-          "source_image": "/junior_school/background.png",
+          "source_image": "/junior_school/background.jpg",
           "chunk_size": 512,
           "grid_w": 9,
           "grid_h": 8,
-          "path_template": "/junior_school/chunks/background_{x}_{y}.png"
+          "path_template": "/junior_school/chunks/background_{x}_{y}.jpg"
         }
       ],
       [
@@ -28,7 +28,7 @@
           "path_template": "/junior_school/chunks/trees_{x}_{y}.png"
         },
         {
-          "alpha": 0.9,
+          "alpha": 0.8,
           "overlay": true,
           "chunked": true,
           "source_image": "/junior_school/background_overlay.png",
@@ -42,7 +42,7 @@
     "clip_mask": "junior_school/clip_mask.svg",
     "npcs": "junior_school/npc.json",
     "character_scale": 1.5,
-    "default_zoom": 1.0,
+    "default_zoom": 1,
     "objects": "junior_school/objects.json",
     "spawn_area": 19,
     "can_leave": true,
