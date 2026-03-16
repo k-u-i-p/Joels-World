@@ -24,15 +24,28 @@ networkClient.connect((data) => {
 
 let viewportWidth = 0;
 let viewportHeight = 0;
+let maxViewportHeight = 0;
 
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
   const targetW = window.innerWidth;
   const targetH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 
-  if (viewportWidth !== targetW || viewportHeight !== targetH) {
+  // On iOS, opening the virtual keyboard aggressively shrinks window.innerHeight.
+  // We want to cache the maximum height and ignore the shrink to prevent the game canvas from squashing.
+  // However, if the width changes (orientation change), we MUST recalculate the new hardware height bound.
+  let isOrientationChange = Math.abs(viewportWidth - targetW) > 50;
+
+  if (isOrientationChange || targetH > maxViewportHeight) {
+    maxViewportHeight = targetH;
+  }
+
+  // Use the cached maximum height, unless the current height is somehow larger
+  const renderHeight = Math.max(targetH, maxViewportHeight);
+
+  if (viewportWidth !== targetW || viewportHeight !== renderHeight) {
     viewportWidth = targetW;
-    viewportHeight = targetH;
+    viewportHeight = renderHeight;
     canvas.width = viewportWidth * dpr;
     canvas.height = viewportHeight * dpr;
     canvas.style.width = viewportWidth + 'px';
