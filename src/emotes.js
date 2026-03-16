@@ -1,4 +1,51 @@
 import { footprints } from './main.js';
+import { physicsEngine } from './physics.js';
+
+export function getEmoteMessage(emoteName, sourceName, sourceX, sourceY, sourceId, playerObj = null) {
+  const emoteObj = emotes[emoteName];
+  if (!emoteObj || (!emoteObj.message && !emoteObj.message_when_near)) return null;
+
+  let msgText = '';
+  let targetName = null;
+
+  if (window.init && emoteObj.message_when_near) {
+    let minD = Infinity;
+
+    const checkDist = (list) => {
+      const results = physicsEngine.findCharacters(list, sourceX, sourceY, sourceId);
+      for (const c of results) {
+        if (c.id === sourceId) continue;
+        if (c._distSq < minD) {
+          minD = c._distSq;
+          targetName = c.name;
+        }
+      }
+    };
+
+    checkDist(window.init.characters || []);
+    checkDist(window.init.npcs || []);
+
+    if (playerObj && playerObj.id !== sourceId) {
+      const dx = playerObj.x - sourceX;
+      const dy = playerObj.y - sourceY;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < minD) {
+        minD = distSq;
+        targetName = playerObj.name || 'Someone';
+      }
+    }
+  }
+
+  if (targetName && emoteObj.message_when_near) {
+    msgText = emoteObj.message_when_near
+      .replace('{name}', sourceName || 'Someone')
+      .replace('{target_name}', targetName || 'Someone');
+  } else if (emoteObj.message) {
+    msgText = emoteObj.message.replace('{name}', sourceName || 'Someone');
+  }
+
+  return msgText;
+}
 
 export const emotes = {
   laser: {
@@ -662,7 +709,7 @@ export const emotes = {
       const laughTime = (Date.now() - emote.startTime) / 150;
       const rock = Math.sin(laughTime) * 2; // pixels to shift
       // Translate down slightly to appear "on the floor", and bob back and forth to simulate rolling
-      ctx.translate(0, 10 + rock);
+      ctx.translate(0, rock);
     },
     updateLimbs: (limbs, emote) => {
       const laughTime = (Date.now() - emote.startTime) / 100;
@@ -919,7 +966,7 @@ export const emotes = {
     setup: (ctx, emote, c) => {
       // Bob up and down gently like breathing instead of rotating 90 degrees
       const breathe = Math.sin((Date.now() - emote.startTime) / 500) * 1;
-      ctx.translate(-2 + breathe, 0);
+      ctx.translate(breathe, 0);
     },
     updateLimbs: (limbs, emote) => {
       // Relaxed limbs

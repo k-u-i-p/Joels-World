@@ -1,5 +1,5 @@
 import { initSound, soundManager } from './sound.js';
-import { emotes } from './emotes.js';
+import { emotes, getEmoteMessage } from './emotes.js';
 import { processEvents } from './events.js';
 import { mapManager } from './maps.js';
 import { characterManager } from './characters.js';
@@ -73,48 +73,12 @@ window.addEventListener('chatSubmit', (e) => {
       }
       player.emote = { name: command, startTime: Date.now() };
       const emoteObj = emotes[command];
-      if (emoteObj.message || emoteObj.message_when_near) {
-        let msgText = '';
-        let targetName = null;
+      const msgText = getEmoteMessage(command, player.name || 'Someone', player.x, player.y, player.id, null);
 
-        // Find nearest entity (NPC or other player) using physicsEngine
-        if (window.init && emoteObj.message_when_near) {
-          const chars = physicsEngine.findCharacters(window.init.characters, player.x, player.y, player.id);
-          const npcs = physicsEngine.findCharacters(window.init.npcs, player.x, player.y, player.id);
-
-          let nearest = null;
-          let minD = Infinity;
-
-          const check = (list) => {
-            for (const c of list) {
-              if (c._distSq < minD) {
-                minD = c._distSq;
-                nearest = c;
-              }
-            }
-          };
-
-          check(chars);
-          check(npcs);
-
-          if (nearest) {
-            targetName = nearest.name;
-          }
-        }
-
-        if (targetName && emoteObj.message_when_near) {
-          msgText = emoteObj.message_when_near
-            .replace('{name}', player.name || 'Someone')
-            .replace('{target_name}', targetName);
-        } else if (emoteObj.message) {
-          msgText = emoteObj.message.replace('{name}', player.name || 'Someone');
-        }
-
-        if (msgText) {
-          networkClient.sendChat(msgText);
-          player.chatMessage = msgText;
-          player.chatTime = Date.now();
-        }
+      if (msgText) {
+        networkClient.sendChat(msgText);
+        player.chatMessage = msgText;
+        player.chatTime = Date.now();
       }
 
       if (emoteObj.sound) {

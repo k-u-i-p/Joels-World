@@ -1,4 +1,4 @@
-import { emotes } from './emotes.js';
+import { emotes, getEmoteMessage } from './emotes.js';
 import { uiManager } from './ui.js';
 import { player } from './main.js';
 
@@ -109,52 +109,13 @@ export class NetworkClient {
                   }
 
                   if (!isDefault) {
-                    const emoteObj = emotes[serverChar.emote.name];
-                    if (emoteObj && (emoteObj.message || emoteObj.message_when_near)) {
-                      let msgText = '';
-                      let targetName = null;
+                    const msgText = getEmoteMessage(serverChar.emote.name, localNpc.name || 'Someone', serverChar.x !== undefined ? serverChar.x : localNpc.x, serverChar.y !== undefined ? serverChar.y : localNpc.y, localNpc.id, player);
 
-                      if (emoteObj.message_when_near) {
-                        let minD = Infinity;
-
-                        const checkDist = (c) => {
-                          if (c.id === localNpc.id && c === localNpc) return;
-                          const dx = c.x - (serverChar.x !== undefined ? serverChar.x : localNpc.x);
-                          const dy = c.y - (serverChar.y !== undefined ? serverChar.y : localNpc.y);
-                          const distSq = dx * dx + dy * dy;
-                          if (distSq < minD) {
-                            minD = distSq;
-                            targetName = c.name;
-                          }
-                        };
-
-                        (window.init?.characters || []).forEach(checkDist);
-                        (window.init?.npcs || []).forEach(checkDist);
-                        if (player && player.id !== localNpc.id) {
-                          const dx = player.x - (serverChar.x !== undefined ? serverChar.x : localNpc.x);
-                          const dy = player.y - (serverChar.y !== undefined ? serverChar.y : localNpc.y);
-                          const distSq = dx * dx + dy * dy;
-                          if (distSq < minD) {
-                            minD = distSq;
-                            targetName = player.name;
-                          }
-                        }
-                      }
-
-                      if (targetName && emoteObj.message_when_near) {
-                        msgText = emoteObj.message_when_near
-                          .replace('{name}', localNpc.name || 'Someone')
-                          .replace('{target_name}', targetName || 'Someone');
-                      } else if (emoteObj.message) {
-                        msgText = emoteObj.message.replace('{name}', localNpc.name || 'Someone');
-                      }
-
-                      if (msgText) {
-                        localNpc.chatMessage = msgText;
-                        localNpc.chatTime = Date.now();
-                        if (typeof uiManager !== 'undefined') {
-                          uiManager.addServerChatMessage(localNpc.name || 'Someone', msgText);
-                        }
+                    if (msgText) {
+                      localNpc.chatMessage = msgText;
+                      localNpc.chatTime = Date.now();
+                      if (typeof uiManager !== 'undefined') {
+                        uiManager.addServerChatMessage(localNpc.name || 'Someone', msgText);
                       }
                     }
                   }
