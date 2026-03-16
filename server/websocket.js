@@ -7,6 +7,7 @@ import { PhysicsEngine } from '../src/physics.js';
 import { AIAgentManager } from './managers/AIAgentManager.js';
 import { NPCManager } from './managers/NPCManager.js';
 import { MapManager } from './managers/MapManager.js';
+import { ChatManager } from './managers/ChatManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const physicsEngine = new PhysicsEngine();
@@ -19,6 +20,7 @@ export function setupWebSocket(server, sessionMiddleware) {
   const mapManager = new MapManager();
   const npcManager = new NPCManager(mapManager.mapState);
   const aiAgentManager = new AIAgentManager(mapManager.mapState, npcManager);
+  const chatManager = new ChatManager(mapManager, npcManager, aiAgentManager);
 
   mapManager.initializeMaps(npcManager);
 
@@ -181,54 +183,9 @@ export function setupWebSocket(server, sessionMiddleware) {
             ws.clientId = char.id;
             mapManager.markCharacterDirty(mapData.id, char);
           } else if (data.type === 'log') {
-            const now = Date.now();
-            if (ws.lastLogTime && now - ws.lastLogTime < 2000) return;
-            ws.lastLogTime = now;
-
-            console.log("LOG EVENT: ", data);
-            if (typeof data.message !== 'string') return;
-
-            const logMsg = data.message.trim();
-            if (!logMsg || logMsg.length > 300) return;
-
-            // Maintain LLM context security against newline injections or HTML markup
-            if (/[\r\n\t\\<>]/.test(logMsg)) {
-              console.warn(`[Security] Rejected malformed log message from ${ws.clientId}`);
-              return;
-            }
-
-            npcManager.logEventToNearbyNPCs(mapData, logMsg, aiAgentManager, data.npc_id);
+            chatManager.handleLogMessage(ws, data, mapData);
           } else if (data.type === 'chat') {
-            const now = Date.now();
-            if (ws.lastChatTime && now - ws.lastChatTime < 2000) return;
-            ws.lastChatTime = now;
-
-            if (typeof data.message !== 'string') return;
-
-            data.message = data.message.trim();
-            if (!data.message || data.message.length > 200) return;
-
-            // Discard if it contains newlines, tabs, escape backslashes, or HTML brackets.
-            if (/[\r\n\t\\<>]/.test(data.message)) {
-              sendError(ws, 'Invalid message. Please use only English letters with no spaces or symbols.');
-              return;
-            }
-
-            // Log chat
-            const sender = mapData.characters[ws.clientId];
-            const name = sender ? sender.name || ws.clientId : ws.clientId;
-            if (sender) {
-              npcManager.logEventToNearbyNPCs(mapData, `${name} (${ws.clientId}) said: "${data.message}"`, aiAgentManager);
-            } else {
-              npcManager.logEventToNearbyNPCs(mapData, `${name} (${ws.clientId}) said: "${data.message}"`, aiAgentManager);
-            }
-
-            const broadcastMsg = JSON.stringify({ type: 'chat', id: ws.clientId, message: data.message });
-            mapData.clients.forEach(client => {
-              if (client.readyState === 1) {
-                client.send(broadcastMsg);
-              }
-            });
+            chatManager.handleChatMessage(ws, data, mapData);
           } else if (data.type === 'disconnect') {
             const sender = mapData.characters[ws.clientId];
 
