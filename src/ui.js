@@ -5,6 +5,7 @@ export class UIManager {
     this._dt = null;
     this._by = null;
     this._bn = null;
+    this.isMinimapOpen = false;
   }
 
   get avatarsContainer() { return this._ac || (this._ac = document.getElementById('avatars-container')); }
@@ -155,6 +156,51 @@ export class UIManager {
     this._rejectTimeout = setTimeout(() => {
       overlay.style.opacity = '0';
     }, 2000);
+  }
+
+  initMinimapDialog() {
+    const mapButton = document.getElementById('map-button');
+    const closeMapBtn = document.getElementById('close-minimap-btn');
+    const minimapDialog = document.getElementById('minimap-dialog');
+    const minimapImage = document.getElementById('minimap-image');
+
+    if (mapButton && minimapDialog && closeMapBtn) {
+      mapButton.onclick = () => {
+        this.isMinimapOpen = true;
+        minimapDialog.style.display = 'flex';
+        if (window.init && window.init.mapData) {
+          minimapImage.src = `/minimaps/${window.init.mapData.id}.png`;
+          // We don't have full direct player reference without passing it, 
+          // let the main loop naturally draw it the next frame
+        }
+      };
+
+      closeMapBtn.onclick = () => {
+        this.isMinimapOpen = false;
+        minimapDialog.style.display = 'none';
+      };
+    }
+  }
+
+  updateMinimapDot(player) {
+    if (!this.isMinimapOpen || !window.init || !window.init.mapData) return;
+    
+    const minimapDot = document.getElementById('minimap-player-dot');
+    if (!minimapDot) return;
+
+    const mapWidth = window.init.mapData.width;
+    const mapHeight = window.init.mapData.height;
+    
+    // Coordinate system has 0,0 at center of map
+    const pctX = ((player.x + (mapWidth / 2)) / mapWidth) * 100;
+    const pctY = ((player.y + (mapHeight / 2)) / mapHeight) * 100;
+
+    // Clamp values inside boundary visually
+    const safeX = Math.max(0, Math.min(100, pctX));
+    const safeY = Math.max(0, Math.min(100, pctY));
+
+    minimapDot.style.left = `${safeX}%`;
+    minimapDot.style.top = `${safeY}%`;
   }
 }
 
