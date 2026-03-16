@@ -672,12 +672,12 @@ export const emotes = {
       limbs.leftArmX = 2; limbs.leftArmY = 0;
       limbs.rightArmX = 2; limbs.rightArmY = 0;
 
-      // Legs bent and kicking erratically
-      limbs.leftLegStartX = -8; limbs.leftLegStartY = -4;
-      limbs.leftLegEndX = -16 + kick; limbs.leftLegEndY = -10 + kick;
+      // Legs bent and kicking erratically in front
+      limbs.leftLegStartX = 4; limbs.leftLegStartY = -4;
+      limbs.leftLegEndX = 12 + kick; limbs.leftLegEndY = -8 + kick;
 
-      limbs.rightLegStartX = -8; limbs.rightLegStartY = 4;
-      limbs.rightLegEndX = -16 - kick; limbs.rightLegEndY = 10 + kick;
+      limbs.rightLegStartX = 4; limbs.rightLegStartY = 4;
+      limbs.rightLegEndX = 12 - kick; limbs.rightLegEndY = 8 + kick;
     },
     draw: (ctx, emote) => {
       ctx.save();
