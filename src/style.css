@@ -339,8 +339,9 @@ body {
 
 .emote-row-name {
   color: #fff;
+  font-family: 'Pricedown', sans-serif;
   font-size: 16px;
-  font-weight: bold;
+  /* font-weight: bold; -- Pricedown is naturally bold */
 }
 
 /* Chat System */
