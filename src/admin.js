@@ -537,8 +537,6 @@ function updateAdminPanel() {
     const npcHairStyle = document.getElementById('npc-hair-style');
     const npcDefaultEmote = document.getElementById('npc-default-emote');
     const npcGenderSelect = document.getElementById('npc-gender-select');
-    const npcOnEnterInput = document.getElementById('npc-on-enter-input');
-    const npcOnExitInput = document.getElementById('npc-on-exit-input');
 
     if (npcNameInput) npcNameInput.value = npc.name || '';
     if (npcRadiusInput) npcRadiusInput.value = npc.interaction_radius !== undefined ? npc.interaction_radius : 150;
@@ -553,25 +551,332 @@ function updateAdminPanel() {
       npcDefaultEmote.value = npc.default_emote && npc.default_emote.name ? npc.default_emote.name : '';
     }
 
-    if (npcOnEnterInput) {
-      if (npc.on_enter && npc.on_enter[0] && npc.on_enter[0].say) {
-        npcOnEnterInput.value = npc.on_enter[0].say.join('\n');
-      } else {
-        npcOnEnterInput.value = '';
-      }
-    }
-
-    if (npcOnExitInput) {
-      if (npc.on_exit && npc.on_exit[0] && npc.on_exit[0].say) {
-        npcOnExitInput.value = npc.on_exit[0].say.join('\n');
-      } else {
-        npcOnExitInput.value = '';
-      }
+    if (npcDefaultEmote) {
+      npcDefaultEmote.value = npc.default_emote && npc.default_emote.name ? npc.default_emote.name : '';
     }
   } else {
     if (editNpcSection) editNpcSection.style.display = 'none';
   }
+
+  // --- Generic Event Editor Bootstrap ---
+  const eventsSection = document.getElementById('admin-events-section');
+  if (window.selectedObject.get() || window.selectedNpc.get()) {
+    eventsSection.style.display = 'block';
+    const activeEntity = window.selectedObject.get() || window.selectedNpc.get();
+    
+    // Deep clone the events avoiding memory references
+    window.currentEditingEvents = {
+      on_enter: JSON.parse(JSON.stringify(activeEntity.on_enter || [])),
+      on_exit: JSON.parse(JSON.stringify(activeEntity.on_exit || []))
+    };
+
+    renderEventUI(window.currentEditingEvents.on_enter, 'events-on-enter-container', 'on_enter');
+    renderEventUI(window.currentEditingEvents.on_exit, 'events-on-exit-container', 'on_exit');
+  } else {
+    eventsSection.style.display = 'none';
+  }
 }
+
+// Global generic event state
+window.currentEditingEvents = { on_enter: [], on_exit: [] };
+
+function renderEventUI(eventsArray, containerId, eventType) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  if (!eventsArray || eventsArray.length === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.style.color = '#7f8c8d';
+    emptyMsg.style.fontSize = '12px';
+    emptyMsg.style.fontStyle = 'italic';
+    emptyMsg.style.marginBottom = '10px';
+    emptyMsg.textContent = 'No actions defined.';
+    container.appendChild(emptyMsg);
+    return;
+  }
+
+  eventsArray.forEach((actionObj, index) => {
+    // Determine the key (say, emote, play_sound, etc).
+    // Older schema used objects directly, but some might have multiple keys? 
+    // Usually it's one key per action object in this array schema.
+    const typeKey = Object.keys(actionObj)[0];
+    const payload = actionObj[typeKey];
+
+    const card = document.createElement('div');
+    card.style.background = 'rgba(0,0,0,0.3)';
+    card.style.border = '1px solid #7f8c8d';
+    card.style.borderRadius = '4px';
+    card.style.padding = '5px';
+    card.style.marginBottom = '8px';
+
+    // Header row
+    const headerRow = document.createElement('div');
+    headerRow.className = 'admin-control-row';
+    headerRow.style.marginBottom = '5px';
+
+    const typeSelect = document.createElement('select');
+    typeSelect.style.width = '100px';
+    typeSelect.style.padding = '2px';
+    typeSelect.style.fontSize = '12px';
+    typeSelect.style.borderRadius = '4px';
+    typeSelect.style.background = 'rgba(255,255,255,0.1)';
+    typeSelect.style.color = 'white';
+    typeSelect.style.border = '1px solid #7f8c8d';
+
+    const options = ['say', 'emote', 'play_sound', 'log', 'show_dialog', 'avatar', 'clear_emote', 'player_emote'];
+    options.forEach(opt => {
+      const optionEl = document.createElement('option');
+      optionEl.value = opt;
+      optionEl.textContent = opt.charAt(0).toUpperCase() + opt.slice(1).replace('_', ' ');
+      if (opt === typeKey) optionEl.selected = true;
+      optionEl.style.color = 'black';
+      typeSelect.appendChild(optionEl);
+    });
+
+    typeSelect.onchange = (e) => {
+      const newType = e.target.value;
+      let newPayload = '';
+      if (newType === 'say') newPayload = [''];
+      if (newType === 'play_sound') newPayload = { sound: '', volume: 1.0 };
+      if (newType === 'show_dialog') newPayload = { description: '', type: 'change_map', map: 1 };
+      if (newType === 'log') newPayload = { message: '', rate_limit: 0 };
+      
+      window.currentEditingEvents[eventType][index] = { [newType]: newPayload };
+      renderEventUI(window.currentEditingEvents[eventType], containerId, eventType);
+    };
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'admin-btn';
+    deleteBtn.style.color = '#e74c3c';
+    deleteBtn.textContent = 'X';
+    deleteBtn.onclick = () => {
+      window.currentEditingEvents[eventType].splice(index, 1);
+      renderEventUI(window.currentEditingEvents[eventType], containerId, eventType);
+    };
+
+    headerRow.appendChild(typeSelect);
+    headerRow.appendChild(deleteBtn);
+    card.appendChild(headerRow);
+
+    // Payload Editor area
+    const payloadContainer = document.createElement('div');
+    payloadContainer.style.marginTop = '5px';
+
+    if (typeKey === 'say') {
+      const textarea = document.createElement('textarea');
+      textarea.className = 'admin-textarea';
+      textarea.value = Array.isArray(payload) ? payload.join('\n') : payload;
+      textarea.onchange = (e) => {
+        const lines = e.target.value.split('\n').filter(l => l.trim() !== '');
+        window.currentEditingEvents[eventType][index][typeKey] = lines;
+      };
+      payloadContainer.appendChild(textarea);
+    } 
+    else if (typeKey === 'emote' || typeKey === 'player_emote') {
+      const select = document.createElement('select');
+      select.style.width = '100%';
+      select.style.padding = '2px';
+      select.style.fontSize = '12px';
+      select.style.background = 'rgba(255,255,255,0.1)';
+      select.style.color = 'white';
+      
+      const noOpt = document.createElement('option');
+      noOpt.value = '';
+      noOpt.textContent = 'Select...';
+      noOpt.style.color = 'black';
+      select.appendChild(noOpt);
+
+      (window.validEmotes || []).forEach(emote => {
+        const opt = document.createElement('option');
+        opt.value = emote;
+        opt.textContent = emote.charAt(0).toUpperCase() + emote.slice(1);
+        opt.style.color = 'black';
+        if (emote === payload) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      select.onchange = (e) => {
+        window.currentEditingEvents[eventType][index][typeKey] = e.target.value;
+      };
+      payloadContainer.appendChild(select);
+    }
+    else if (typeKey === 'play_sound') {
+      const row1 = document.createElement('div');
+      row1.className = 'admin-control-row';
+      row1.style.marginBottom = '2px';
+      row1.innerHTML = `<span style="font-size:11px;">Sound:</span>`;
+      const input = document.createElement('input');
+      input.className = 'admin-input';
+      input.style.width = '120px';
+      input.value = payload.sound || '';
+      input.onchange = (e) => {
+        window.currentEditingEvents[eventType][index][typeKey].sound = e.target.value;
+      };
+      row1.appendChild(input);
+
+      const row2 = document.createElement('div');
+      row2.className = 'admin-control-row';
+      row2.innerHTML = `<span style="font-size:11px;">Volume:</span>`;
+      const volInput = document.createElement('input');
+      volInput.type = 'number';
+      volInput.step = '0.1';
+      volInput.max = '1.0';
+      volInput.min = '0.0';
+      volInput.style.width = '60px';
+      volInput.style.fontSize = '12px';
+      volInput.value = payload.volume !== undefined ? payload.volume : 1.0;
+      volInput.onchange = (e) => {
+        window.currentEditingEvents[eventType][index][typeKey].volume = parseFloat(e.target.value);
+      };
+      row2.appendChild(volInput);
+
+      payloadContainer.appendChild(row1);
+      payloadContainer.appendChild(row2);
+    }
+    else if (typeKey === 'avatar') {
+      const input = document.createElement('input');
+      input.className = 'admin-input';
+      input.placeholder = "avatars/xxx.png";
+      input.value = payload || '';
+      input.onchange = (e) => {
+        window.currentEditingEvents[eventType][index][typeKey] = e.target.value;
+      };
+      payloadContainer.appendChild(input);
+    }
+    else if (typeKey === 'log') {
+      const input = document.createElement('input');
+      input.className = 'admin-input';
+      input.style.marginBottom = '2px';
+      input.placeholder = "Log Message";
+      input.value = typeof payload === 'string' ? payload : (payload.message || '');
+      input.onchange = (e) => {
+        if (typeof payload === 'string') {
+          window.currentEditingEvents[eventType][index][typeKey] = e.target.value;
+        } else {
+          window.currentEditingEvents[eventType][index][typeKey].message = e.target.value;
+        }
+      };
+
+      const row2 = document.createElement('div');
+      row2.className = 'admin-control-row';
+      row2.innerHTML = `<span style="font-size:11px;">Rate Limit (s):</span>`;
+      const limitInput = document.createElement('input');
+      limitInput.type = 'number';
+      limitInput.style.width = '60px';
+      limitInput.style.fontSize = '12px';
+      limitInput.value = (typeof payload === 'object' && payload.rate_limit) ? payload.rate_limit : 0;
+      limitInput.onchange = (e) => {
+        const msgStr = typeof window.currentEditingEvents[eventType][index][typeKey] === 'string' 
+          ? window.currentEditingEvents[eventType][index][typeKey] 
+          : window.currentEditingEvents[eventType][index][typeKey].message;
+          
+        window.currentEditingEvents[eventType][index][typeKey] = {
+          message: msgStr,
+          rate_limit: parseFloat(e.target.value) || 0
+        };
+      };
+      row2.appendChild(limitInput);
+
+      payloadContainer.appendChild(input);
+      payloadContainer.appendChild(row2);
+    }
+    else if (typeKey === 'show_dialog') {
+      const txt = document.createElement('input');
+      txt.className = 'admin-input';
+      txt.style.marginBottom = '2px';
+      txt.placeholder = "Dialog description";
+      txt.value = payload.description || '';
+      txt.onchange = (e) => window.currentEditingEvents[eventType][index][typeKey].description = e.target.value;
+      
+      const row1 = document.createElement('div');
+      row1.className = 'admin-control-row';
+      row1.innerHTML = `<span style="font-size:11px;">Type:</span>`;
+      const typeInp = document.createElement('input');
+      typeInp.className = 'admin-input';
+      typeInp.style.width = '90px';
+      typeInp.value = payload.type || 'change_map';
+      typeInp.onchange = (e) => window.currentEditingEvents[eventType][index][typeKey].type = e.target.value;
+      row1.appendChild(typeInp);
+
+      const row2 = document.createElement('div');
+      row2.className = 'admin-control-row';
+      row2.innerHTML = `<span style="font-size:11px;">Map ID:</span>`;
+      const mapInp = document.createElement('input');
+      mapInp.type = 'number';
+      mapInp.style.width = '60px';
+      mapInp.style.fontSize = '12px';
+      mapInp.value = payload.map || 1;
+      mapInp.onchange = (e) => window.currentEditingEvents[eventType][index][typeKey].map = parseInt(e.target.value);
+      row2.appendChild(mapInp);
+
+      payloadContainer.appendChild(txt);
+      payloadContainer.appendChild(row1);
+      payloadContainer.appendChild(row2);
+    }
+
+    card.appendChild(payloadContainer);
+    container.appendChild(card);
+  });
+}
+
+function attachEventButtons() {
+  const btnAddOnEnter = document.getElementById('btn-add-on-enter');
+  if (btnAddOnEnter) {
+    btnAddOnEnter.onclick = () => {
+      window.currentEditingEvents.on_enter.push({ say: [''] });
+      renderEventUI(window.currentEditingEvents.on_enter, 'events-on-enter-container', 'on_enter');
+    };
+  }
+
+  const btnAddOnExit = document.getElementById('btn-add-on-exit');
+  if (btnAddOnExit) {
+    btnAddOnExit.onclick = () => {
+      window.currentEditingEvents.on_exit.push({ say: [''] });
+      renderEventUI(window.currentEditingEvents.on_exit, 'events-on-exit-container', 'on_exit');
+    };
+  }
+
+  const btnSaveEvents = document.getElementById('btn-save-events');
+  if (btnSaveEvents) {
+    btnSaveEvents.onclick = () => {
+      const activeEntity = window.selectedObject.get() || window.selectedNpc.get();
+      if (!activeEntity) return;
+
+      // Clean empty arrays
+      const cleanEvents = (arr) => arr.length > 0 ? arr : undefined;
+
+      activeEntity.on_enter = cleanEvents(JSON.parse(JSON.stringify(window.currentEditingEvents.on_enter)));
+      activeEntity.on_exit = cleanEvents(JSON.parse(JSON.stringify(window.currentEditingEvents.on_exit)));
+
+      if (window.selectedObject.get()) {
+        networkClient.send({ 
+          type: 'update_object', 
+          id: activeEntity.id, 
+          updates: { on_enter: activeEntity.on_enter, on_exit: activeEntity.on_exit } 
+        });
+      } else if (window.selectedNpc.get()) {
+        networkClient.send({ 
+          type: 'update_npc', 
+          id: activeEntity.id, 
+          updates: { on_enter: activeEntity.on_enter, on_exit: activeEntity.on_exit } 
+        });
+      }
+
+      // Flash button green
+      const oldBg = btnSaveEvents.style.backgroundColor;
+      btnSaveEvents.style.backgroundColor = '#2ecc71';
+      btnSaveEvents.textContent = 'Saved!';
+      setTimeout(() => {
+        btnSaveEvents.style.backgroundColor = oldBg;
+        btnSaveEvents.textContent = 'Save Events';
+      }, 1000);
+    };
+  }
+}
+// Attach them once on load
+attachEventButtons();
 
 window.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return; // Only left click

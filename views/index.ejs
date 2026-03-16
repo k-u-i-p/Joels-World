@@ -239,25 +239,28 @@
           </div>
         </details>
 
-        <details>
-          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #f1c40f;">
-            Dialogue</summary>
-          <div style="padding-left: 5px; margin-bottom: 10px;">
-            <div style="margin-bottom: 5px;">
-              <div style="font-size: 12px; margin-bottom: 2px;">On Enter Dialog (1 message per line):</div>
-              <textarea id="npc-on-enter-input" class="admin-textarea"></textarea>
-            </div>
-            <div style="margin-bottom: 5px;">
-              <div style="font-size: 12px; margin-bottom: 2px;">On Exit Dialog (1 message per line):</div>
-              <textarea id="npc-on-exit-input" class="admin-textarea"></textarea>
-            </div>
-            <button id="btn-save-npc-dialog" class="admin-full-btn"
-              style="background-color:#3498db; margin-bottom: 5px;">Save Dialog</button>
-          </div>
-        </details>
-
         <button id="btn-delete-npc" class="admin-full-btn" style="background-color:#e74c3c; margin-top: 10px;">Delete
           NPC</button>
+      </div>
+
+      <div id="admin-events-section" style="display: none; margin-top: 15px;">
+        <h3>Event Triggers</h3>
+        <details open>
+          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #f1c40f;">On Enter</summary>
+          <div id="events-on-enter-container" style="padding-left: 5px; margin-bottom: 10px;">
+            <!-- Dynamic Actions -->
+          </div>
+          <button id="btn-add-on-enter" class="admin-full-btn" style="background-color:#2ecc71; margin-bottom: 5px; font-size:11px; padding:4px;">+ Add Action</button>
+        </details>
+        <details>
+          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #e67e22;">On Exit</summary>
+          <div id="events-on-exit-container" style="padding-left: 5px; margin-bottom: 10px;">
+            <!-- Dynamic Actions -->
+          </div>
+          <button id="btn-add-on-exit" class="admin-full-btn" style="background-color:#2ecc71; margin-bottom: 5px; font-size:11px; padding:4px;">+ Add Action</button>
+        </details>
+        
+        <button id="btn-save-events" class="admin-full-btn" style="background-color:#3498db; margin-top: 10px;">Save Events</button>
       </div>
     </div>
     <% } else { %>
@@ -269,7 +272,11 @@
         </div>
         <canvas id="gameCanvas"></canvas>
         <% if (isAdmin) { %>
-          <script>window.isAdmin = true;</script>
+          <script>
+            window.isAdmin = true;
+            window.validEmotes = <%- JSON.stringify(validEmotes) %>;
+            window.validHairStyles = <%- JSON.stringify(validHairStyles) %>;
+          </script>
           <script type="module" src="/src/admin.js"></script>
           <% } %>
             <script type="module" src="/src/main.js"></script>
