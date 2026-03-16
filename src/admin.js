@@ -675,27 +675,13 @@ function renderEventUI(eventsArray, containerId, eventType) {
       payloadContainer.appendChild(textarea);
     } 
     else if (typeKey === 'emote' || typeKey === 'player_emote') {
-      const select = document.createElement('select');
-      select.style.width = '100%';
-      select.style.padding = '2px';
-      select.style.fontSize = '12px';
-      select.style.background = 'rgba(255,255,255,0.1)';
-      select.style.color = 'white';
+      const template = document.getElementById('admin-emote-template');
+      const select = template.content.cloneNode(true).querySelector('select');
       
-      const noOpt = document.createElement('option');
-      noOpt.value = '';
-      noOpt.textContent = 'Select...';
-      noOpt.style.color = 'black';
-      select.appendChild(noOpt);
-
-      (window.validEmotes || []).forEach(emote => {
-        const opt = document.createElement('option');
-        opt.value = emote;
-        opt.textContent = emote.charAt(0).toUpperCase() + emote.slice(1);
-        opt.style.color = 'black';
-        if (emote === payload) opt.selected = true;
-        select.appendChild(opt);
-      });
+      if (payload) {
+        const opt = select.querySelector(`option[value="${payload}"]`);
+        if (opt) opt.selected = true;
+      }
 
       select.onchange = (e) => {
         window.currentEditingEvents[eventType][index][typeKey] = e.target.value;
