@@ -14,7 +14,7 @@
   --glass-bg-hover: rgba(255, 255, 255, 0.95);
   --glass-border: 1px solid rgba(255, 255, 255, 0.3);
   --glass-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  --overlay-bg: rgba(0, 0, 0, 0.7);
+  --overlay-bg: rgba(0, 0, 0, 0.2);
 }
 
 * {
