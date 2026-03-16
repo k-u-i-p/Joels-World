@@ -647,8 +647,8 @@ body {
   display: block;
   width: auto;
   height: auto;
-  min-width: min(1024px, 90vw);
-  max-height: 85vh;
+  min-width: min(512px, 90vw);
+  max-height: calc(100vh - 40px);
   opacity: 0.9;
 }
 
@@ -667,8 +667,8 @@ body {
 
 #close-minimap-btn {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 10px;
+  right: 10px;
   width: 44px;
   height: 44px;
   background-color: rgba(0, 0, 0, 0.7);
