@@ -57,7 +57,7 @@ export async function ensureMinimaps() {
         console.log(`[Minimaps] Generating/Updating minimap for ${map.id}...`);
         try {
           await sharp(inputPath)
-            .resize(512, null, { withoutEnlargement: true })
+            .resize(1024, null, { withoutEnlargement: true })
             .png({ quality: 80 })
             .toFile(outputPath);
             
