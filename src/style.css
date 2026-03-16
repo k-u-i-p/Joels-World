@@ -156,7 +156,7 @@ body {
 .dialog-content h2 {
   margin-top: 0;
   margin-bottom: 20px;
-  font-family: sans-serif;
+  font-family: 'Pricedown', sans-serif;
 }
 
 /* (glass-panel properties now abstracted into #action-dialog block) */
@@ -176,7 +176,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #60a5fa;
+  color: #fff;
 }
 
 .help-list {
