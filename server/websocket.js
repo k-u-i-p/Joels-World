@@ -167,7 +167,7 @@ export function setupWebSocket(server, sessionMiddleware) {
       if (mapObj.npcs) {
         for (let i = 0; i < mapObj.npcs.length; i++) {
           const npc = mapObj.npcs[i];
-          if (npc.move_cords && Array.isArray(npc.move_cords) && npc.move_time) {
+          if (npc.waypoints && Array.isArray(npc.waypoints) && npc.move_time) {
             if (npc._startX === undefined) {
               npc._startX = npc.x;
               npc._startY = npc.y;
@@ -178,13 +178,13 @@ export function setupWebSocket(server, sessionMiddleware) {
 
             if (now - npc._lastMoveTime >= npc.move_time) {
               npc._lastMoveTime = now;
-              npc._moveIdx = (npc._moveIdx + 1) % (npc.move_cords.length + 1);
+              npc._moveIdx = (npc._moveIdx + 1) % (npc.waypoints.length + 1);
 
               npc._currentOffsetX = npc._currentOffsetX || 0;
               npc._currentOffsetY = npc._currentOffsetY || 0;
               npc._currentOffsetRotation = npc._currentOffsetRotation || 0;
 
-              const offset = npc._moveIdx === 0 ? { x: 0, y: 0, rotation: 0 } : npc.move_cords[npc._moveIdx - 1];
+              const offset = npc._moveIdx === 0 ? { x: 0, y: 0, rotation: 0 } : npc.waypoints[npc._moveIdx - 1];
 
               if (offset.x !== undefined) npc._currentOffsetX += offset.x;
               if (offset.y !== undefined) npc._currentOffsetY += offset.y;

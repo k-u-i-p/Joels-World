@@ -187,13 +187,13 @@
     "pantsColor": "#34495e",
     "armColor": "#bdc3c7",
     "interaction_radius": 150,
-    "move_cords": [
+    "waypoints": [
       {
         "x": 50,
         "y": 150
       },
       {
-        "rotation": 180
+        "rotation": 90
       },
       {
         "x": -100,
