@@ -156,7 +156,7 @@ export class MapManager {
             if (chunkData.img.complete && chunkData.img.naturalWidth > 0) {
               // Fast truncating for hardware integer drawing
               const drawX = (baseX + (x * layer.chunk_size)) | 0;
-              
+
               if (cameraZoom === 1) {
                 // Fast-path natively for 1.0x maps (e.g., Junior School)
                 ctx.drawImage(chunkData.img, drawX, drawY);
