@@ -261,7 +261,18 @@ export class CharacterManager {
         ctx.lineTo(1, 7.5);
         ctx.fill();
       } else { // 'long'
-        ctx.arc(1, 0, 7.5, PI_HALF - 0.2, PI_ONE_HALF + 0.2, false);
+        ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
+        ctx.fill();
+        
+        // Flowing, wavy long hair draping dynamically behind
+        ctx.beginPath();
+        ctx.moveTo(1, -7.5);
+        // Sweep out past left shoulder and far back
+        ctx.bezierCurveTo(-8, -10, -18, -8, -20, -2);
+        // Swoop back across the middle, continuing backward
+        ctx.bezierCurveTo(-22, 6, -14, 9, -5, 7.5);
+        // Curve back to the right side of the head
+        ctx.bezierCurveTo(-2, 7, 0, 7.5, 1, 7.5);
         ctx.fill();
       }
     }
