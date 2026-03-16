@@ -180,6 +180,23 @@ export class UIManager {
         this.isMinimapOpen = false;
         minimapDialog.style.display = 'none';
       };
+
+      // Keyboard Shortcuts
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'm' || e.key === 'M') {
+          // Prevent map toggling if user is typing in chat/admin inputs
+          const activeElement = document.activeElement;
+          if (activeElement && activeElement.tagName === 'INPUT') return;
+
+          if (this.isMinimapOpen) {
+            closeMapBtn.click();
+          } else {
+            mapButton.click();
+          }
+        } else if (e.key === 'Escape' && this.isMinimapOpen) {
+          closeMapBtn.click();
+        }
+      });
     }
   }
 

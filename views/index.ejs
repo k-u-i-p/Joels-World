@@ -103,11 +103,11 @@
 
   <!-- Minimap Dialog Overlay -->
   <div id="minimap-dialog" class="overlay" style="display: none;">
+    <button id="close-minimap-btn">✖</button>
     <div id="minimap-wrapper">
       <img id="minimap-image" src="" alt="Minimap" />
       <div id="minimap-player-dot"></div>
     </div>
-    <button id="close-minimap-btn" class="btn btn-primary" style="margin-top: 15px;">Close Map</button>
   </div>
     </div>
   </div>
@@ -276,7 +276,7 @@
     </div>
     <% } else { %>
       <div id="ui-buttons-container">
-        <button id="map-button">🗺️</button>
+        <button id="map-button" title="Map (M)"></button>
         <button id="help-button">?</button>
       </div>
     <% } %>

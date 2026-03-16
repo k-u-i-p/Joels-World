@@ -142,15 +142,17 @@ function update(dt = 0.016) {
   const timeScale = (dt * 60) || 1;
 
   // Rotation (tank controls)
-  if (inputManager.isPressed('ArrowLeft')) {
-    player.rotation -= player.rotationSpeed * timeScale;
-  }
-  if (inputManager.isPressed('ArrowRight')) {
-    player.rotation += player.rotationSpeed * timeScale;
+  if (!uiManager.isMinimapOpen) {
+    if (inputManager.isPressed('ArrowLeft')) {
+      player.rotation -= player.rotationSpeed * timeScale;
+    }
+    if (inputManager.isPressed('ArrowRight')) {
+      player.rotation += player.rotationSpeed * timeScale;
+    }
   }
 
   // Trigger jump via spacebar
-  if (inputManager.isPressed('Space')) {
+  if (inputManager.isPressed('Space') && !uiManager.isMinimapOpen) {
     if (!player.emote || player.emote.name !== 'jump') {
       player.emote = { name: 'jump', startTime: Date.now() };
       if (player.activeEmoteAudio) {
@@ -194,8 +196,10 @@ function update(dt = 0.016) {
     const scaledSpeed = currentSpeed * timeScale;
     const intent = inputManager.getDemandedMovementVector(scaledSpeed, player.rotation);
 
-    dx += intent.dx;
-    dy += intent.dy;
+    if (!uiManager.isMinimapOpen) {
+      dx += intent.dx;
+      dy += intent.dy;
+    }
   } else {
     player.runDirectionTimer = null;
     player.isRunning = false;
