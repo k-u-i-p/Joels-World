@@ -398,6 +398,9 @@ export class CharacterManager {
                 c.activeEmoteAudio.pause();
                 c.activeEmoteAudio = null;
               }
+              // Immediately replace the expired emote to prevent a 1-frame visual flicker.
+              // If we only assigned null, the NPC would render in a neutral pose for
+              // this exact frame before line 379 caught it on the next loop.
               if (isActualNpc && c.default_emote) {
                 c.emote = JSON.parse(JSON.stringify(c.default_emote));
                 currentEmote = c.emote;
