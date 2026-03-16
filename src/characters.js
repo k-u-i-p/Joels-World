@@ -264,13 +264,13 @@ export class CharacterManager {
         ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
         ctx.fill();
 
-        // Flowing, wavy long hair draping dynamically behind (shorter length, stronger inward swoop)
+        // Flowing, wavy long hair draping dynamically behind
         ctx.beginPath();
         ctx.moveTo(1, -5.5);
-        // Sweep out past left shoulder, swooping strongly inward towards the center
-        ctx.bezierCurveTo(-4, -9, -8, -4, -9, -1);
-        // Swoop back outward toward the right shoulder
-        ctx.bezierCurveTo(-10, 4, -6, 7, -3, 7.5);
+        // Pinch tightly over the left shoulder, then flare out wide over the back
+        ctx.bezierCurveTo(0, -6, -16, -6, -14, -1);
+        // Swoop back in towards the right shoulder
+        ctx.bezierCurveTo(-12, 5, -6, 7, -2, 7.5);
         // Curve back to the right side of the head
         ctx.bezierCurveTo(-1, 7.5, 0, 7.5, 1, 7.5);
         ctx.fill();
