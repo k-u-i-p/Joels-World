@@ -383,7 +383,7 @@ body {
 #top-center-ui {
   display: none;
   flex-direction: column;
-  z-index: 1000;
+  z-index: 40;
   background-color: transparent;
   pointer-events: none;
   align-items: center;
