@@ -445,7 +445,9 @@ export class CharacterManager {
 
         ctx.restore();
       }
+    }
 
+    if (layerType === 'all' || layerType === 'chat') {
       if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
         ctx.save();
         ctx.translate(c.x | 0, c.y | 0);

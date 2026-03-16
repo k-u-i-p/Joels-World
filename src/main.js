@@ -469,6 +469,7 @@ function draw() {
   mapManager.drawLayer(1, ctx, canvas, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
   characterManager.drawCharacters('overlay', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
+  characterManager.drawCharacters('chat', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
   // Restore camera translation
   ctx.restore();

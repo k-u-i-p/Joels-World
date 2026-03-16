@@ -79,5 +79,5 @@ Defines invisible structural barriers and interactive trigger zones scattered ac
 - **`x` / `y`**: Coordinates defining the center of the bounding box.
 - **`width` / `length`**: Depth and length of the bounding box.
 - **`rotation`**: Rotation of the bounding box in degrees.
-- **`clip`**: Collision behavior. `-1` denotes a solid, impenetrable obstacle. Values above `0` typically denote a walkable vertical height or trigger zone.
+- **`clip`**: Allows characters to clip into the bounding box slightly by the given amount in pixels. `0` denotes a completely solid, impenetrable obstacle. `-1` denotes a trigger zone that the player can walk through entirely without collision.
 - **`on_enter` / `on_exit`**: Event hook pools triggered when the player's collision bounds physically enter or leave the object's area. Used for teleporting maps (`show_dialog` with `change_map`), playing sounds, or applying status effects.
