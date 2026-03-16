@@ -272,6 +272,7 @@ body {
   width: 44px;
   height: 44px;
   border-radius: 50%;
+  border: 2px solid #000;
   cursor: pointer;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
   pointer-events: auto;
@@ -285,7 +286,6 @@ body {
 #help-button {
   background-color: var(--color-primary);
   color: #ffffff;
-  border: none;
   font-size: 24px;
   font-weight: bold;
 }
@@ -293,13 +293,11 @@ body {
 #emotes-button {
   background-color: #f39c12;
   color: #ffffff;
-  border: none;
   font-size: 24px;
 }
 
 #map-button {
   background: url('/icons/minimap.png') center/cover no-repeat;
-  border: 2px solid #000;
   color: transparent;
   /* visually hide text */
   position: relative;
