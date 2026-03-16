@@ -395,7 +395,7 @@ export class CharacterManager {
             emoteDef = emotes[currentEmote.name];
             if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
               if (c.activeEmoteAudio) {
-                c.activeEmoteAudio.pause();
+                c.activeEmoteAudio.fadeOut(500);
                 c.activeEmoteAudio = null;
               }
               // Immediately replace the expired emote to prevent a 1-frame visual flicker.

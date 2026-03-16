@@ -81,7 +81,7 @@ window.addEventListener('chatSubmit', (e) => {
     const command = msg.toLowerCase().substring(1);
     if (emotes[command]) {
       if (player.activeEmoteAudio) {
-        player.activeEmoteAudio.pause();
+        player.activeEmoteAudio.fadeOut(500);
         player.activeEmoteAudio = null;
       }
       player.emote = { name: command, startTime: Date.now() };
@@ -170,7 +170,7 @@ function update(dt = 0.016) {
     if (!player.emote || player.emote.name !== 'jump') {
       player.emote = { name: 'jump', startTime: Date.now() };
       if (player.activeEmoteAudio) {
-        player.activeEmoteAudio.pause();
+        player.activeEmoteAudio.fadeOut(500);
         player.activeEmoteAudio = null;
       }
       if (emotes['jump'].sound) {
@@ -237,7 +237,7 @@ function update(dt = 0.016) {
 
     if (result.emoteCanceled) {
       if (player.activeEmoteAudio) {
-        player.activeEmoteAudio.pause();
+        player.activeEmoteAudio.fadeOut(500);
         player.activeEmoteAudio = null;
       }
       player.emote = null;
@@ -312,7 +312,7 @@ function update(dt = 0.016) {
       }
       if (shouldCancel) {
         if (player.activeEmoteAudio) {
-          player.activeEmoteAudio.pause();
+          player.activeEmoteAudio.fadeOut(500);
           player.activeEmoteAudio = null;
         }
         player.emote = null;

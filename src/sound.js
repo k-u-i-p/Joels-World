@@ -52,17 +52,35 @@ class SoundManager {
   }
 
   playPooled(src, volume = 1, loop = false) {
-    if (!this.audioCtx) return { pause: () => {} };
+    if (!this.audioCtx) return { pause: () => {}, fadeOut: () => {}, setRate: () => {} };
     if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+
+    const audioCtx = this.audioCtx;
 
     const result = {
       source: null,
+      gainNode: null,
       stopped: false,
       rate: 1,
       pause: function() {
         this.stopped = true;
         if (this.source) {
           try { this.source.stop(); } catch(e){}
+        }
+      },
+      fadeOut: function(durationMs = 500) {
+        this.stopped = true;
+        if (this.gainNode && audioCtx) {
+          try {
+            const currentTime = audioCtx.currentTime;
+            this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, currentTime);
+            this.gainNode.gain.linearRampToValueAtTime(0, currentTime + (durationMs / 1000));
+            if (this.source) {
+              this.source.stop(currentTime + (durationMs / 1000));
+            }
+          } catch(e) {}
+        } else {
+          this.pause();
         }
       },
       setRate: function(rate) {
@@ -85,6 +103,7 @@ class SoundManager {
       gainNode.connect(this.audioCtx.destination);
       source.start();
       result.source = source;
+      result.gainNode = gainNode;
     });
 
     return result;
