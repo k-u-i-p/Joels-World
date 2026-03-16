@@ -379,11 +379,20 @@ export class CharacterManager {
           if (currentEmote && emotes[currentEmote.name]) {
             emoteDef = emotes[currentEmote.name];
             if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
-              c.emote = null;
-              currentEmote = null;
-              if (c === player && syncPlayerToJSON) syncPlayerToJSON();
-              emoteDef = null;
-            } else if (emoteDef.setup) {
+              if (isActualNpc && c.defaultEmote) {
+                c.emote = JSON.parse(JSON.stringify(c.defaultEmote));
+                currentEmote = c.emote;
+                emoteDef = emotes[currentEmote.name] || null;
+                if (emoteDef && emoteDef.setup) {
+                  emoteDef.setup(ctx, currentEmote, c);
+                }
+              } else {
+                c.emote = null;
+                currentEmote = null;
+                if (c === player && syncPlayerToJSON) syncPlayerToJSON();
+                emoteDef = null;
+              }
+            } else if (emoteDef && emoteDef.setup) {
               emoteDef.setup(ctx, currentEmote, c);
             }
           }
