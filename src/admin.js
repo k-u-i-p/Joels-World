@@ -372,6 +372,15 @@ if (npcHairStyle) {
   };
 }
 
+const npcGenderSelect = document.getElementById('npc-gender-select');
+if (npcGenderSelect) {
+  npcGenderSelect.onchange = (e) => {
+    if (!window.selectedNpc.get()) return;
+    window.selectedNpc.get().gender = e.target.value;
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { gender: e.target.value } });
+  };
+}
+
 bindHoldAction('btn-npc-rot-left', () => {
   if (!window.selectedNpc.get()) return;
   window.selectedNpc.get().rotation = (window.selectedNpc.get().rotation || 0) - 5;
@@ -510,6 +519,7 @@ function updateAdminPanel() {
     const npcArmCol = document.getElementById('npc-arm-col');
     const npcHairCol = document.getElementById('npc-hair-col');
     const npcHairStyle = document.getElementById('npc-hair-style');
+    const npcGenderSelect = document.getElementById('npc-gender-select');
     const npcOnEnterInput = document.getElementById('npc-on-enter-input');
     const npcOnExitInput = document.getElementById('npc-on-exit-input');
 
@@ -521,6 +531,7 @@ function updateAdminPanel() {
     if (npcArmCol) npcArmCol.value = npc.armColor || '#f1c40f';
     if (npcHairCol) npcHairCol.value = npc.hairColor || '#000000';
     if (npcHairStyle) npcHairStyle.value = npc.hairStyle || 'short';
+    if (npcGenderSelect) npcGenderSelect.value = npc.gender || 'male';
 
     if (npcOnEnterInput) {
       if (npc.on_enter && npc.on_enter[0] && npc.on_enter[0].say) {

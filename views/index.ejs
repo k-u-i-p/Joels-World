@@ -157,65 +157,90 @@
         <div style="text-align:center; margin-bottom:5px;">
           <input type="text" id="npc-name-input" class="admin-input" placeholder="NPC Name" />
         </div>
-        <div class="admin-control-row" style="margin-bottom:5px;">
-          <span>Rotate:</span>
-          <button id="btn-npc-rot-left" class="admin-btn">↺</button>
-          <button id="btn-npc-rot-right" class="admin-btn">↻</button>
-        </div>
-        <div class="admin-control-row" style="margin-bottom:5px;">
-          <span>Width:</span>
-          <button id="btn-npc-width-dec" class="admin-btn">-</button>
-          <button id="btn-npc-width-inc" class="admin-btn">+</button>
-        </div>
-        <div class="admin-control-row" style="margin-bottom:5px;">
-          <span>Height:</span>
-          <button id="btn-npc-height-dec" class="admin-btn">-</button>
-          <button id="btn-npc-height-inc" class="admin-btn">+</button>
-        </div>
-        <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
-          <span>Radius:</span>
-          <input type="number" id="npc-radius-input"
-            style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
-        </div>
-        <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
-          <span>Roam Radius:</span>
-          <input type="number" id="npc-roam-radius-input" title="Set to 0 to disable roaming"
-            style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
-        </div>
-        <div style="margin-bottom:5px;">
-          <span>Shirt: </span><input type="color" id="npc-shirt-col" class="admin-color-picker" />
-        </div>
-        <div style="margin-bottom:5px;">
-          <span>Pants: </span><input type="color" id="npc-pants-col" class="admin-color-picker" />
-        </div>
-        <div style="margin-bottom:5px;">
-          <span>Arms: </span><input type="color" id="npc-arm-col" class="admin-color-picker" />
-        </div>
-        <div style="margin-bottom:5px;">
-          <span>Hair Col: </span><input type="color" id="npc-hair-col" class="admin-color-picker" />
-        </div>
-        <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
-          <span>Hair Style: </span>
-          <select id="npc-hair-style" style="width: 80px; padding: 2px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
-            <option value="short" style="color: black;">Short</option>
-            <option value="long" style="color: black;">Long</option>
-            <option value="spiky" style="color: black;">Spiky</option>
-            <option value="messy" style="color: black;">Messy</option>
-            <option value="ponytail" style="color: black;">Ponytail</option>
-            <option value="bald" style="color: black;">Bald</option>
-          </select>
-        </div>
-        <div style="margin-bottom: 5px;">
-          <div style="font-size: 12px; margin-bottom: 2px;">On Enter Dialog (1 message per line):</div>
-          <textarea id="npc-on-enter-input" class="admin-textarea"></textarea>
-        </div>
-        <div style="margin-bottom: 5px;">
-          <div style="font-size: 12px; margin-bottom: 2px;">On Exit Dialog (1 message per line):</div>
-          <textarea id="npc-on-exit-input" class="admin-textarea"></textarea>
-        </div>
-        <button id="btn-save-npc-dialog" class="admin-full-btn"
-          style="background-color:#3498db; margin-bottom: 5px;">Save Dialog</button>
-        <button id="btn-delete-npc" class="admin-full-btn" style="background-color:#e74c3c;">Delete NPC</button>
+        <details open>
+          <summary style="cursor: pointer; font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #3498db;">Layout & Constraints</summary>
+          <div style="padding-left: 5px; margin-bottom: 10px;">
+            <div class="admin-control-row" style="margin-bottom:5px;">
+              <span>Rotate:</span>
+              <button id="btn-npc-rot-left" class="admin-btn">↺</button>
+              <button id="btn-npc-rot-right" class="admin-btn">↻</button>
+            </div>
+            <div class="admin-control-row" style="margin-bottom:5px;">
+              <span>Width:</span>
+              <button id="btn-npc-width-dec" class="admin-btn">-</button>
+              <button id="btn-npc-width-inc" class="admin-btn">+</button>
+            </div>
+            <div class="admin-control-row" style="margin-bottom:5px;">
+              <span>Height:</span>
+              <button id="btn-npc-height-dec" class="admin-btn">-</button>
+              <button id="btn-npc-height-inc" class="admin-btn">+</button>
+            </div>
+            <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+              <span>Radius:</span>
+              <input type="number" id="npc-radius-input"
+                style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
+            </div>
+            <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+              <span>Roam Radius:</span>
+              <input type="number" id="npc-roam-radius-input" title="Set to 0 to disable roaming"
+                style="width: 60px; padding: 3px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
+            </div>
+          </div>
+        </details>
+
+        <details>
+          <summary style="cursor: pointer; font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #2ecc71;">Appearance</summary>
+          <div style="padding-left: 5px; margin-bottom: 10px;">
+            <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+              <span>Gender: </span>
+              <select id="npc-gender-select" style="width: 80px; padding: 2px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
+                <option value="male" style="color: black;">Male</option>
+                <option value="female" style="color: black;">Female</option>
+              </select>
+            </div>
+            <div style="margin-bottom:5px;">
+              <span>Shirt: </span><input type="color" id="npc-shirt-col" class="admin-color-picker" />
+            </div>
+            <div style="margin-bottom:5px;">
+              <span>Pants: </span><input type="color" id="npc-pants-col" class="admin-color-picker" />
+            </div>
+            <div style="margin-bottom:5px;">
+              <span>Arms: </span><input type="color" id="npc-arm-col" class="admin-color-picker" />
+            </div>
+            <div style="margin-bottom:5px;">
+              <span>Hair Col: </span><input type="color" id="npc-hair-col" class="admin-color-picker" />
+            </div>
+            <div style="margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+              <span>Hair Style: </span>
+              <select id="npc-hair-style" style="width: 80px; padding: 2px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
+                <option value="short" style="color: black;">Short</option>
+                <option value="long" style="color: black;">Long</option>
+                <option value="spiky" style="color: black;">Spiky</option>
+                <option value="messy" style="color: black;">Messy</option>
+                <option value="ponytail" style="color: black;">Ponytail</option>
+                <option value="bald" style="color: black;">Bald</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <details>
+          <summary style="cursor: pointer; font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #f1c40f;">Dialogue</summary>
+          <div style="padding-left: 5px; margin-bottom: 10px;">
+            <div style="margin-bottom: 5px;">
+              <div style="font-size: 12px; margin-bottom: 2px;">On Enter Dialog (1 message per line):</div>
+              <textarea id="npc-on-enter-input" class="admin-textarea"></textarea>
+            </div>
+            <div style="margin-bottom: 5px;">
+              <div style="font-size: 12px; margin-bottom: 2px;">On Exit Dialog (1 message per line):</div>
+              <textarea id="npc-on-exit-input" class="admin-textarea"></textarea>
+            </div>
+            <button id="btn-save-npc-dialog" class="admin-full-btn"
+              style="background-color:#3498db; margin-bottom: 5px;">Save Dialog</button>
+          </div>
+        </details>
+
+        <button id="btn-delete-npc" class="admin-full-btn" style="background-color:#e74c3c; margin-top: 10px;">Delete NPC</button>
       </div>
     </div>
     <% } else { %>
