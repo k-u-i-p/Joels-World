@@ -100,7 +100,7 @@
         "show_dialog": {
           "type": "change_map",
           "map": 0,
-          "description": "Do you want to exit the detention?"
+          "description": "Exit detention?"
         }
       }
     ]
@@ -114,15 +114,7 @@
     "length": 141,
     "name": "Exit 2",
     "clip": -1,
-    "on_enter": [
-      {
-        "show_dialog": {
-          "type": "change_map",
-          "map": 0,
-          "description": "Do you want to exit the detention?"
-        }
-      }
-    ]
+    "on_enter": 19
   },
   {
     "id": 21,

@@ -16,15 +16,14 @@
       {
         "avatar": "avatars/mr_maycock.png",
         "say": [
-          "I used to play professional rugby, {name}, what's your excuse?",
-          "Hurry up and get in the pool! We're training champions here!",
+          "I used to play professional rugby, {name}!?",
+          "Hurry up and get in the pool {name}!",
           "Keep those elbows high and your core tight, {name}!",
-          "Built like a tank, ain't I? You can get there too, {name}!",
-          "I want to see Michael Phelps speeds today! Let's go!",
+          "Built like a tank, ain't I {name}?",
+          "I want to see Michael Phelps speeds today!",
           "That's the spirit, {name}! Push through the burn!",
-          "In rugby we tackle through the pain! In the pool we swim through it!",
           "Form is everything! Don't let me see you slouching, {name}!",
-          "Look at the width of these shoulders! Swimming did this! Get in!"
+          "Look at the width of these shoulders! Swimming did this!"
         ]
       }
     ],
@@ -36,8 +35,8 @@
       }
     ],
     "shoeColor": "#111111",
-    "hairStyle": "bald",
-    "hairColor": "#000000"
+    "hairStyle": "short",
+    "hairColor": "#aa7942"
   },
   {
     "id": 2,
@@ -86,7 +85,7 @@
     "hairColor": "#000000",
     "default_emote": {
       "name": "swim",
-      "startTime": 1773662456878
+      "startTime": 1773674236062
     },
     "interaction_radius": 150,
     "roam_radius": 300
@@ -115,8 +114,8 @@
     "hairColor": "#000000",
     "default_emote": {
       "name": "swim",
-      "startTime": 1773662449059
+      "startTime": 1773674200626
     },
-    "roam_radius": 300
+    "roam_radius": 150
   }
 ]

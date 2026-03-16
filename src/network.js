@@ -108,7 +108,7 @@ export class NetworkClient {
                     isDefault = true;
                   }
 
-                  if (!isDefault) {
+                  /*if (!isDefault) {
                     const msgText = getEmoteMessage(serverChar.emote.name, localNpc.name || 'Someone', serverChar.x !== undefined ? serverChar.x : localNpc.x, serverChar.y !== undefined ? serverChar.y : localNpc.y, localNpc.id, player);
 
                     if (msgText) {
@@ -118,7 +118,7 @@ export class NetworkClient {
                         uiManager.addServerChatMessage(localNpc.name || 'Someone', msgText);
                       }
                     }
-                  }
+                  }*/
                 }
                 localNpc.emote = serverChar.emote;
               }

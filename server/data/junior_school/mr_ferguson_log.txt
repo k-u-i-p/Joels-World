@@ -1,2 +1,14 @@
-Ben (255) entered the playground
-Mr Ferguson (9) said: "Alright, everyone! Welcome to the playground! Let's have some fun, but remember to play nice!"
+Ben (256) entered the playground
+Mr Ferguson (9) said: "Alright Ben! Welcome to the playground. Remember, no monkey business today!"
+Ben (256) entered the playground
+Mr Ferguson (9) said: "Ben, still here? Good! Just checking you weren't trying to make a quick getaway already!"
+Ben (256) entered the playground
+Mr Ferguson (9) said: "Ben, still playing hopscotch with the entrance? One more time and you'll be hop-skipping to detention!"
+Mr Ferguson (9) said: "Alright Ben, looks like you've earned your hop-skip to detention! Mr Hardy is expecting you!"
+Ben (256) entered the playground
+Mr Ferguson (9) said: "Ben, did you take the scenic route back? Detention is where you're meant to be, buddy!"
+Ben (256) left the map
+Ben (256) entered the playground
+Mr Ferguson (9) said: "Ben, mate! Mr Hardy must be missing you already. Let's not make a habit of this, eh?"
+Mr Ferguson (9) said: "Alright Ben, enough is enough! Off you go to Mr Hardy. No more detours!"
+Ben (256) left the map

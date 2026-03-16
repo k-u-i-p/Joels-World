@@ -31,7 +31,7 @@
         "show_dialog": {
           "type": "change_map",
           "map": 0,
-          "description": "Do you want to exit the main building?"
+          "description": "Exit the main building?"
         }
       }
     ]
@@ -101,15 +101,7 @@
     "length": 139,
     "clip": 50,
     "name": "Exit",
-    "on_enter": [
-      {
-        "show_dialog": {
-          "type": "change_map",
-          "map": 0,
-          "description": "Do you want to exit the main building?"
-        }
-      }
-    ]
+    "on_enter": 10
   },
   {
     "id": 16,
@@ -120,15 +112,7 @@
     "length": 139,
     "clip": 50,
     "name": "Exit",
-    "on_enter": [
-      {
-        "show_dialog": {
-          "type": "change_map",
-          "map": 0,
-          "description": "Do you want to exit the main building?"
-        }
-      }
-    ]
+    "on_enter": 10
   },
   {
     "id": 17,
@@ -139,14 +123,6 @@
     "length": 227,
     "clip": 50,
     "name": "Exit",
-    "on_enter": [
-      {
-        "show_dialog": {
-          "type": "change_map",
-          "map": 0,
-          "description": "Do you want to exit the main building?"
-        }
-      }
-    ]
+    "on_enter": 10
   }
 ]

@@ -14,7 +14,7 @@
         "show_dialog": {
           "type": "change_map",
           "map": 3,
-          "description": "Do you want to enter the Pool building?"
+          "description": "Enter the Pool building?"
         }
       }
     ]
@@ -73,7 +73,7 @@
         "show_dialog": {
           "type": "change_map",
           "map": 2,
-          "description": "Do you want to enter the Main Building?"
+          "description": "Enter the Main Building?"
         }
       }
     ]
@@ -106,15 +106,7 @@
     "width": 306,
     "length": 269,
     "clip": -1,
-    "on_enter": [
-      {
-        "show_dialog": {
-          "type": "change_map",
-          "map": 2,
-          "description": "Do you want to enter the Main Building?"
-        }
-      }
-    ]
+    "on_enter": 36
   },
   {
     "id": 47,
@@ -126,15 +118,7 @@
     "width": 316,
     "length": 145,
     "clip": -1,
-    "on_enter": [
-      {
-        "show_dialog": {
-          "type": "change_map",
-          "map": 2,
-          "description": "Do you want to enter the Main Building?"
-        }
-      }
-    ]
+    "on_enter": 36
   },
   {
     "id": 48,
@@ -146,14 +130,6 @@
     "width": 340,
     "length": 157,
     "clip": -1,
-    "on_enter": [
-      {
-        "show_dialog": {
-          "type": "change_map",
-          "map": 2,
-          "description": "Do you want to enter the Main Building?"
-        }
-      }
-    ]
+    "on_enter": 36
   }
 ]

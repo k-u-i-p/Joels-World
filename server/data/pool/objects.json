@@ -24,7 +24,7 @@
         "show_dialog": {
           "type": "change_map",
           "map": 0,
-          "description": "Do you want to exit the pool?"
+          "description": "Exit the pool?"
         }
       }
     ]

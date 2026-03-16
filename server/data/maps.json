@@ -188,7 +188,7 @@
       {
         "play_sound": {
           "sound": "media/pool_sound_effect.mp3",
-          "volume": 1
+          "volume": 0.25
         }
       }
     ]
