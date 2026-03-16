@@ -1,4 +1,5 @@
 import { emotes } from './emotes.js';
+import { physicsEngine } from './physics.js';
 
 const DEG_TO_RAD = Math.PI / 180;
 const PI2 = Math.PI * 2;
@@ -125,10 +126,33 @@ export class CharacterManager {
    * @param {Object} limbs - Pre-calculated limb position coordinates.
    */
   drawHumanoid(ctx, c, limbs) {
+    const angle = (c.rotation || 0) * DEG_TO_RAD;
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const baseScale = window.init?.mapData?.character_scale || 1;
+    const widthScale = (c.width || 40) / 40;
+    const heightScale = (c.height || 40) / 40;
+    const scaleX = baseScale * widthScale;
+    const scaleY = baseScale * heightScale;
+
+    // Fast inline helper to mathematically translate local limb coordinates back to absolute
+    // world coordinates by inverting the current canvas scaling and rotation transforms!
+    const isVisible = (localX, localY) => {
+      const sx = localX * scaleX;
+      const sy = localY * scaleY;
+      const rotX = sx * cosA - sy * sinA;
+      const rotY = sx * sinA + sy * cosA;
+      return physicsEngine.checkClipMask((c.x || 0) + rotX, (c.y || 0) + rotY, 0);
+    };
+
     if (!c.emote || (c.emote.name !== 'sit' && c.emote.name !== 'lunch' && c.emote.name !== 'write')) {
       const shoeColor = c.shoeColor || '#1a252f';
-      this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
-      this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
+      if (isVisible(limbs.leftLegEndX, limbs.leftLegEndY)) {
+        this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
+      }
+      if (isVisible(limbs.rightLegEndX, limbs.rightLegEndY)) {
+        this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
+      }
     }
 
 
@@ -155,18 +179,22 @@ export class CharacterManager {
     leftHandGrad.addColorStop(0.6, '#e0ab63');
     leftHandGrad.addColorStop(1, '#a67232');
     ctx.fillStyle = leftHandGrad;
-    ctx.beginPath();
-    ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
-    ctx.fill();
+    if (isVisible(limbs.leftArmX, limbs.leftArmY)) {
+      ctx.beginPath();
+      ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
+      ctx.fill();
+    }
 
     const rightHandGrad = ctx.createRadialGradient(limbs.rightArmX, limbs.rightArmY - 1, 0.5, limbs.rightArmX, limbs.rightArmY, 3);
     rightHandGrad.addColorStop(0, '#f5d39e');
     rightHandGrad.addColorStop(0.6, '#e0ab63');
     rightHandGrad.addColorStop(1, '#a67232');
     ctx.fillStyle = rightHandGrad;
-    ctx.beginPath();
-    ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
-    ctx.fill();
+    if (isVisible(limbs.rightArmX, limbs.rightArmY)) {
+      ctx.beginPath();
+      ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
+      ctx.fill();
+    }
 
     // Gradient for the body (torso cylinder)
     const bodyGradient = ctx.createLinearGradient(-8, 0, 8, 0);
