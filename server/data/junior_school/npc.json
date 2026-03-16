@@ -187,6 +187,13 @@
     "pantsColor": "#34495e",
     "armColor": "#bdc3c7",
     "interaction_radius": 150,
+    "move_cords": [
+      {
+        "x": -50,
+        "y": -100
+      }
+    ],
+    "move_time": 10000,
     "on_enter": [
       {
         "avatar": "avatars/mr_savage.png",

@@ -104,8 +104,8 @@ export class NetworkClient {
               if (serverChar.emote !== undefined) localNpc.emote = serverChar.emote;
               if (serverChar.interaction_radius !== undefined) localNpc.interaction_radius = serverChar.interaction_radius;
               if (serverChar.x !== undefined) {
-                localNpc.x = serverChar.x;
-                localNpc.y = serverChar.y;
+                localNpc.targetX = serverChar.x;
+                localNpc.targetY = serverChar.y;
               }
               return; // Processed. Do not let it cascade into human character lists.
             }
