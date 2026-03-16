@@ -43,13 +43,13 @@
   {
     "id": 19,
     "shape": "rect",
-    "x": -1171,
-    "y": -222,
-    "width": 413,
-    "length": 269,
+    "x": -1218,
+    "y": -215,
+    "width": 365,
+    "length": 263,
     "name": "Spawn Area",
     "clip": -1,
-    "rotation": -3
+    "rotation": -2
   },
   {
     "id": 20,

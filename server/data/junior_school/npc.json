@@ -2,11 +2,11 @@
   {
     "id": 1,
     "name": "Mr Hardy",
-    "x": -881,
-    "y": -371,
+    "x": -869,
+    "y": -389,
     "width": 52,
     "height": 58,
-    "rotation": 165,
+    "rotation": 140,
     "gender": "male",
     "shirtColor": "#1c2833",
     "pantsColor": "#2c3e50",
@@ -42,7 +42,7 @@
     "shoeColor": "#7f8c8d",
     "hairStyle": "messy",
     "hairColor": "#4a4a4a",
-    "_distSq": 3316.7421191327585,
+    "_distSq": 9310.160300635875,
     "emote": null
   },
   {
@@ -99,7 +99,7 @@
     "shoeColor": "#111111",
     "hairStyle": "bald",
     "hairColor": "#000000",
-    "_distSq": 14850.31663733435
+    "_distSq": 22205
   },
   {
     "id": 4,
@@ -177,8 +177,8 @@
   {
     "id": 8,
     "name": "Mr Savage",
-    "x": -1957,
-    "y": -384,
+    "x": -1984,
+    "y": -411,
     "width": 46,
     "height": 54,
     "rotation": 70,

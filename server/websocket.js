@@ -160,9 +160,35 @@ export function setupWebSocket(server, sessionMiddleware) {
   const updatesBuffer = [];
 
   setInterval(() => {
+    const now = Date.now();
     for (const mapId in mapState) {
       const mapObj = mapState[mapId];
-      
+
+      if (mapObj.npcs) {
+        for (let i = 0; i < mapObj.npcs.length; i++) {
+          const npc = mapObj.npcs[i];
+          if (npc.move_cords && Array.isArray(npc.move_cords) && npc.move_time) {
+            if (npc._startX === undefined) {
+              npc._startX = npc.x;
+              npc._startY = npc.y;
+              npc._moveIdx = 0;
+              npc._lastMoveTime = now;
+            }
+
+            if (now - npc._lastMoveTime >= npc.move_time) {
+              npc._lastMoveTime = now;
+              npc._moveIdx = (npc._moveIdx + 1) % (npc.move_cords.length + 1);
+
+              const offset = npc._moveIdx === 0 ? { x: 0, y: 0 } : npc.move_cords[npc._moveIdx - 1];
+              npc.x = npc._startX + offset.x;
+              npc.y = npc._startY + offset.y;
+
+              mapObj.dirtyCharacters[npc.id] = npc;
+            }
+          }
+        }
+      }
+
       updatesBuffer.length = 0;
       for (const charId in mapObj.dirtyCharacters) {
         updatesBuffer.push(mapObj.dirtyCharacters[charId]);
@@ -425,6 +451,12 @@ export function setupWebSocket(server, sessionMiddleware) {
               }
             });
           } else if (data.type === 'disconnect') {
+            const sender = mapData.characters[ws.clientId];
+
+            const name = sender ? sender.name || ws.clientId : ws.clientId;
+
+            appendToLog(mapData, `${name} (${ws.clientId}) left the map`);
+
             const id = data.id;
             delete mapData.characters[id];
             delete mapData.dirtyCharacters[id];
@@ -434,7 +466,6 @@ export function setupWebSocket(server, sessionMiddleware) {
                 client.send(broadcastMsg);
               }
             });
-            appendToLog(mapData, `${name} (${ws.clientId}) left the map`);
           } else if (data.type === 'change_map') {
             const requestedMapId = Number(data.mapId);
             const newMapData = mapState[requestedMapId];
@@ -448,6 +479,9 @@ export function setupWebSocket(server, sessionMiddleware) {
 
             if (newMapData && ws.mapId !== requestedMapId) {
               const oldChar = mapData.characters[ws.clientId] || newChar;
+
+              appendToLog(mapData, `${oldChar.name} (${ws.clientId}) left the map`);
+
               delete mapData.characters[ws.clientId];
               delete mapData.dirtyCharacters[ws.clientId];
               const disconnectMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
