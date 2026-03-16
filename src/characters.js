@@ -398,8 +398,8 @@ export class CharacterManager {
                 c.activeEmoteAudio.pause();
                 c.activeEmoteAudio = null;
               }
-              if (isActualNpc && c.defaultEmote) {
-                c.emote = JSON.parse(JSON.stringify(c.defaultEmote));
+              if (isActualNpc && c.default_emote) {
+                c.emote = JSON.parse(JSON.stringify(c.default_emote));
                 currentEmote = c.emote;
                 emoteDef = emotes[currentEmote.name] || null;
                 if (emoteDef && emoteDef.setup) {
