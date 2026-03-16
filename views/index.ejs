@@ -44,7 +44,7 @@
 
   <!-- Loading Dialog Overlay -->
   <div id="loading-dialog" class="overlay">
-    <div class="dialog-content">
+    <div class="dialog-content glass-panel">
       <img src="media/logo_128_128.png" alt="Joel's World Logo"
         style="display: block; margin: 0 auto 15px auto; width: 128px; height: 128px;" />
       <h2 style="margin-bottom: 0;">Loading...</h2>
@@ -53,10 +53,10 @@
 
   <!-- Naming Dialog Overlay -->
   <div id="name-dialog" class="overlay" style="display: none;">
-    <div class="dialog-content">
+    <div class="dialog-content glass-panel">
       <img src="media/logo_128_128.png" alt="Joel's World Logo"
         style="display: block; margin: 0 auto 15px auto; width: 128px; height: 128px;" />
-      <h2>Welcome to Joel's World</h2>
+      <h2>Welcome!</h2>
       <input type="text" id="player-name-input" class="glass-input" placeholder="Enter your name..." maxlength="15"
         autocomplete="off" />
       <br>
@@ -72,46 +72,48 @@
         <h2 style="text-align: center; font-size: 24px; margin-bottom: 25px; color: #fff;">Help</h2>
 
         <div class="help-section">
-        <h3><span class="icon">🎮</span> Controls</h3>
-        <ul class="help-list">
-          <li><strong>Keyboard:</strong> Arrow keys to move and turn.</li>
-          <li><strong>Mobile:</strong> Use the virtual joysticks to move and turn.</li>
-          <li><strong>Interact:</strong> Figure out how to escape school!</li>
-        </ul>
-      </div>
+          <h3><span class="icon">🎮</span> Controls</h3>
+          <ul class="help-list">
+            <li><strong>Keyboard:</strong> Arrow keys to move and turn.</li>
+            <li><strong>Mobile:</strong> Use the virtual joysticks to move and turn.</li>
+            <li><strong>Interact:</strong> Figure out how to escape school!</li>
+          </ul>
+        </div>
 
-      <div class="help-section">
-        <h3><span class="icon">💬</span> Chat</h3>
-        <p style="margin: 0 0 10px 0; font-size: 14px; color: #cbd5e1;">Press Enter to type a message to other players.
-        </p>
+        <div class="help-section">
+          <h3><span class="icon">💬</span> Chat</h3>
+          <p style="margin: 0 0 10px 0; font-size: 14px; color: #cbd5e1;">Press Enter to type a message to other
+            players.
+          </p>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
   <!-- Emotes Dialog Overlay -->
   <div id="emotes-dialog" class="overlay" style="display: none;">
     <div style="position: relative; max-width: 350px; width: 80%;">
       <button id="close-emotes-btn" class="dialog-close-btn">&times;</button>
-      <div class="dialog-content glass-panel" style="text-align: left; width: 100%; padding: 15px; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px); overflow-y: auto;">
+      <div class="dialog-content glass-panel"
+        style="text-align: left; width: 100%; padding: 15px; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px); overflow-y: auto;">
         <h2 style="text-align: center; font-size: 20px; margin-bottom: 15px; margin-top: 0; color: #fff;">Emotes</h2>
-        <% 
-          const emoteEmojis = {
-          dance: '🕺', fart: '💨', dead: '💀', cry: '😭', rugby: '🏉', 
-          sit: '🪑', jump: '🦘', eat: '🍔', lunch: '🥪'
-        };
-      %>
-      <div id="emotes-list" style="display: flex; flex-direction: column; gap: 8px;">
-        <% validEmotes.forEach(emote => { %>
-          <div class="emote-row" data-emote="<%= emote %>">
-            <span class="emote-row-icon"><%= emoteEmojis[emote] || '💬' %></span>
-            <span class="emote-row-name"><%= emote.charAt(0).toUpperCase() + emote.slice(1) %></span>
+        <% const emoteEmojis={ dance: '🕺' , fart: '💨' , dead: '💀' , cry: '😭' , rugby: '🏉' , sit: '🪑' , jump: '🦘'
+          , eat: '🍔' , lunch: '🥪' }; %>
+          <div id="emotes-list" style="display: flex; flex-direction: column; gap: 8px;">
+            <% validEmotes.forEach(emote=> { %>
+              <div class="emote-row" data-emote="<%= emote %>">
+                <span class="emote-row-icon">
+                  <%= emoteEmojis[emote] || '💬' %>
+                </span>
+                <span class="emote-row-name">
+                  <%= emote.charAt(0).toUpperCase() + emote.slice(1) %>
+                </span>
+              </div>
+              <% }) %>
           </div>
-        <% }) %>
       </div>
     </div>
   </div>
-</div>
 
   <!-- Minimap Dialog Overlay -->
   <div id="minimap-dialog" class="overlay" style="display: none;">
@@ -244,9 +246,11 @@
               <span>Hair Style: </span>
               <select id="npc-hair-style"
                 style="width: 80px; padding: 2px; font-size: 12px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
-                <% validHairStyles.forEach(style => { %>
-                  <option value="<%= style %>" style="color: black;"><%= style.charAt(0).toUpperCase() + style.slice(1) %></option>
-                <% }) %>
+                <% validHairStyles.forEach(style=> { %>
+                  <option value="<%= style %>" style="color: black;">
+                    <%= style.charAt(0).toUpperCase() + style.slice(1) %>
+                  </option>
+                  <% }) %>
               </select>
             </div>
             <div class="admin-control-row" style="margin-bottom:5px;">
@@ -254,9 +258,11 @@
               <select id="npc-default-emote"
                 style="width: 80px; padding: 2px; font-size: 12px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid #7f8c8d;">
                 <option value="" style="color: black;">None</option>
-                <% validEmotes.forEach(emote => { %>
-                  <option value="<%= emote %>" style="color: black;"><%= emote.charAt(0).toUpperCase() + emote.slice(1) %></option>
-                <% }) %>
+                <% validEmotes.forEach(emote=> { %>
+                  <option value="<%= emote %>" style="color: black;">
+                    <%= emote.charAt(0).toUpperCase() + emote.slice(1) %>
+                  </option>
+                  <% }) %>
               </select>
             </div>
           </div>
@@ -269,21 +275,26 @@
       <div id="admin-events-section" style="display: none; margin-top: 15px;">
         <h3>Event Triggers</h3>
         <details open>
-          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #f1c40f;">On Enter</summary>
+          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #f1c40f;">On
+            Enter</summary>
           <div id="events-on-enter-container" style="padding-left: 5px; margin-bottom: 10px;">
             <!-- Dynamic Actions -->
           </div>
-          <button id="btn-add-on-enter" class="admin-full-btn" style="background-color:#2ecc71; margin-bottom: 5px; font-size:11px; padding:4px;">+ Add Action</button>
+          <button id="btn-add-on-enter" class="admin-full-btn"
+            style="background-color:#2ecc71; margin-bottom: 5px; font-size:11px; padding:4px;">+ Add Action</button>
         </details>
         <details>
-          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #e67e22;">On Exit</summary>
+          <summary style="cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #e67e22;">On
+            Exit</summary>
           <div id="events-on-exit-container" style="padding-left: 5px; margin-bottom: 10px;">
             <!-- Dynamic Actions -->
           </div>
-          <button id="btn-add-on-exit" class="admin-full-btn" style="background-color:#2ecc71; margin-bottom: 5px; font-size:11px; padding:4px;">+ Add Action</button>
+          <button id="btn-add-on-exit" class="admin-full-btn"
+            style="background-color:#2ecc71; margin-bottom: 5px; font-size:11px; padding:4px;">+ Add Action</button>
         </details>
-        
-        <button id="btn-save-events" class="admin-full-btn" style="background-color:#3498db; margin-top: 10px;">Save Events</button>
+
+        <button id="btn-save-events" class="admin-full-btn" style="background-color:#3498db; margin-top: 10px;">Save
+          Events</button>
       </div>
     </div>
     <% } else { %>
@@ -292,7 +303,7 @@
         <button id="emotes-button" title="Emotes">☺️</button>
         <button id="help-button">?</button>
       </div>
-    <% } %>
+      <% } %>
 
         <div id="joystick-move-container">
           <div id="joystick-move-knob"></div>
@@ -303,11 +314,14 @@
             window.isAdmin = true;
           </script>
           <template id="admin-emote-template">
-            <select style="width: 100%; padding: 2px; font-size: 12px; background: rgba(255,255,255,0.1); color: white;">
+            <select
+              style="width: 100%; padding: 2px; font-size: 12px; background: rgba(255,255,255,0.1); color: white;">
               <option value="" style="color: black;">Select...</option>
-              <% validEmotes.forEach(emote => { %>
-                <option value="<%= emote %>" style="color: black;"><%= emote.charAt(0).toUpperCase() + emote.slice(1) %></option>
-              <% }) %>
+              <% validEmotes.forEach(emote=> { %>
+                <option value="<%= emote %>" style="color: black;">
+                  <%= emote.charAt(0).toUpperCase() + emote.slice(1) %>
+                </option>
+                <% }) %>
             </select>
           </template>
           <script type="module" src="/src/admin.js"></script>
