@@ -354,7 +354,8 @@ function executeEvents(sourceObj, rawActions, eventType = 'on_enter') {
  */
 function draw() {
   camera.x = player.x;
-  camera.y = player.y;
+  // Offset camera Y slightly higher so the player renders lower down in the view, leaving more space above them
+  camera.y = player.y - (viewportHeight / camera.zoom * 0.15);
 
   // Read from cached globals instead of forcing aggressive DOM reflow every frame
   let yOffset = window.visualViewport ? cachedViewportOffsetY : 0;
