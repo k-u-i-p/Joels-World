@@ -465,8 +465,8 @@ export class PhysicsEngine {
       const cdy = c.targetY - c.y;
       const distSq = cdx * cdx + cdy * cdy;
 
-      // Snap if teleported really far (100^2 = 10000)
-      if (distSq > 10000) {
+      // Snap if teleported really far (500^2 = 250000)
+      if (distSq > 250000) {
         c.x = c.targetX;
         c.y = c.targetY;
         c.rotation = c.targetRotation;
