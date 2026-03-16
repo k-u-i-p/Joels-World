@@ -136,7 +136,12 @@ export class UIManager {
     // Reduce time remaining on already displayed messages by 5 seconds
     Array.from(this.serverChatStack.children).forEach(child => {
       if (child.dataset.expireTime) {
-        let expire = parseInt(child.dataset.expireTime, 10) - 10000;
+        let expire = parseInt(child.dataset.expireTime, 10);
+        if (expire > 20000) {
+          expire -= 10000;
+        } else if (expire > 5000) {
+          expire -= 2500;
+        }
         child.dataset.expireTime = expire;
 
         if (child.timeoutId) clearTimeout(child.timeoutId);
@@ -148,7 +153,7 @@ export class UIManager {
             if (child.parentNode === this.serverChatStack) {
               this.serverChatStack.removeChild(child);
             }
-          }, 500);
+          }, 550); // Wait slightly longer than 0.5s CSS collapse animation
         }, remaining);
       }
     });
@@ -175,7 +180,7 @@ export class UIManager {
         if (msgElement.parentNode === this.serverChatStack) {
           this.serverChatStack.removeChild(msgElement);
         }
-      }, 500); // 500ms aligns with CSS transition timeframe
+      }, 550); // Wait slightly longer than 0.5s CSS collapse animation
     }, 30000);
   }
 
