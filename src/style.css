@@ -635,6 +635,7 @@ body {
   font-size: 0;
   max-width: 90vw;
   max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px);
+  aspect-ratio: 1 / 1;
   border-radius: 8px; /* Square map */
   border: 4px solid #2c3e50;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.2);
@@ -645,8 +646,10 @@ body {
 
 #minimap-image {
   display: block;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
   min-width: min(512px, 90vw);
   max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px);
   opacity: 0.9;
