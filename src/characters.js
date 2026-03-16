@@ -145,6 +145,32 @@ export class CharacterManager {
       return physicsEngine.checkClipMask((c.x || 0) + rotX, (c.y || 0) + rotY, 0);
     };
 
+    // Calculate exact mask intersection by stepping along the hand vector
+    const getRaycastEnd = (startX, startY, targetX, targetY) => {
+      let dx = targetX - startX;
+      let dy = targetY - startY;
+      let dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist === 0) return { x: targetX, y: targetY, hit: !isVisible(targetX, targetY) };
+      
+      let stepX = dx / dist;
+      let stepY = dy / dist;
+      
+      let currentX = startX;
+      let currentY = startY;
+      
+      // Step pixel by pixel along the visual length of the arm
+      for (let i = 0; i < dist; i += 1) {
+        if (!isVisible(currentX, currentY)) {
+           return { x: currentX, y: currentY, hit: true };
+        }
+        currentX += stepX;
+        currentY += stepY;
+      }
+      
+      // Reached the hand target without hitting the mask
+      return { x: targetX, y: targetY, hit: !isVisible(targetX, targetY) };
+    };
+
     if (!c.emote || (c.emote.name !== 'sit' && c.emote.name !== 'lunch' && c.emote.name !== 'write')) {
       const shoeColor = c.shoeColor || '#1a252f';
       if (isVisible(limbs.leftLegEndX, limbs.leftLegEndY)) {
@@ -157,6 +183,10 @@ export class CharacterManager {
 
 
     const armOffset = 11; // Restore normal wide shoulder anchors
+    
+    // Raycast both arms to determine exactly where they should physically truncate
+    const leftArmEnd = getRaycastEnd(0, -armOffset, limbs.leftArmX, limbs.leftArmY);
+    const rightArmEnd = getRaycastEnd(0, armOffset, limbs.rightArmX, limbs.rightArmY);
 
     // Gradient for arms (cylindrical simulation)
     const armGradient = ctx.createLinearGradient(0, -armOffset, 0, limbs.leftArmY);
@@ -166,20 +196,21 @@ export class CharacterManager {
     ctx.lineWidth = 5;
     ctx.strokeStyle = armGradient;
 
-    this.drawLine(ctx, 0, -armOffset, limbs.leftArmX, limbs.leftArmY);
+    this.drawLine(ctx, 0, -armOffset, leftArmEnd.x, leftArmEnd.y);
 
     const rightArmGradient = ctx.createLinearGradient(0, armOffset, 0, limbs.rightArmY);
     rightArmGradient.addColorStop(0, c.armColor || '#3498db');
     rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
     ctx.strokeStyle = rightArmGradient;
-    this.drawLine(ctx, 0, armOffset, limbs.rightArmX, limbs.rightArmY);
+    this.drawLine(ctx, 0, armOffset, rightArmEnd.x, rightArmEnd.y);
 
     const leftHandGrad = ctx.createRadialGradient(limbs.leftArmX, limbs.leftArmY - 1, 0.5, limbs.leftArmX, limbs.leftArmY, 3);
     leftHandGrad.addColorStop(0, '#f5d39e');
     leftHandGrad.addColorStop(0.6, '#e0ab63');
     leftHandGrad.addColorStop(1, '#a67232');
     ctx.fillStyle = leftHandGrad;
-    if (isVisible(limbs.leftArmX, limbs.leftArmY)) {
+    // Only draw the fists if the raycast natively reached the end of the limb coordinate
+    if (!leftArmEnd.hit) {
       ctx.beginPath();
       ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
       ctx.fill();
@@ -190,7 +221,7 @@ export class CharacterManager {
     rightHandGrad.addColorStop(0.6, '#e0ab63');
     rightHandGrad.addColorStop(1, '#a67232');
     ctx.fillStyle = rightHandGrad;
-    if (isVisible(limbs.rightArmX, limbs.rightArmY)) {
+    if (!rightArmEnd.hit) {
       ctx.beginPath();
       ctx.arc(limbs.rightArmX, limbs.rightArmY, 3, 0, PI2);
       ctx.fill();
