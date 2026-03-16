@@ -239,7 +239,11 @@
     "on_exit": [],
     "shoeColor": "#111111",
     "hairStyle": "bald",
-    "hairColor": "#000000"
+    "hairColor": "#000000",
+    "emote": {
+      "name": "rugby",
+      "startTime": 0
+    }
   },
   {
     "id": 9,
