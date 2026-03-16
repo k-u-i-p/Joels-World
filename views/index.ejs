@@ -66,11 +66,12 @@
 
   <!-- Help Dialog Overlay -->
   <div id="help-dialog" class="overlay" style="display: none;">
-    <div class="dialog-content glass-panel" style="text-align: left; max-width: 450px; width: 90%;">
+    <div style="position: relative; max-width: 450px; width: 90%;">
       <button id="close-help-btn" class="dialog-close-btn">&times;</button>
-      <h2 style="text-align: center; font-size: 24px; margin-bottom: 25px; color: #fff;">Controls & Commands</h2>
+      <div class="dialog-content glass-panel" style="text-align: left; width: 100%;">
+        <h2 style="text-align: center; font-size: 24px; margin-bottom: 25px; color: #fff;">Controls & Commands</h2>
 
-      <div class="help-section">
+        <div class="help-section">
         <h3><span class="icon">🎮</span> Controls</h3>
         <ul class="help-list">
           <li><strong>Keyboard:</strong> Arrow keys to move and turn.</li>
@@ -89,11 +90,12 @@
 
   <!-- Emotes Dialog Overlay -->
   <div id="emotes-dialog" class="overlay" style="display: none;">
-    <div class="dialog-content glass-panel" style="text-align: left; max-width: 350px; width: 80%; padding: 15px; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px); overflow-y: auto;">
+    <div style="position: relative; max-width: 350px; width: 80%;">
       <button id="close-emotes-btn" class="dialog-close-btn">&times;</button>
-      <h2 style="text-align: center; font-size: 20px; margin-bottom: 15px; margin-top: 0; color: #fff;">Emotes</h2>
-      <% 
-        const emoteEmojis = {
+      <div class="dialog-content glass-panel" style="text-align: left; width: 100%; padding: 15px; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px); overflow-y: auto;">
+        <h2 style="text-align: center; font-size: 20px; margin-bottom: 15px; margin-top: 0; color: #fff;">Emotes</h2>
+        <% 
+          const emoteEmojis = {
           dance: '🕺', fart: '💨', dead: '💀', cry: '😭', rugby: '🏉', 
           sit: '🪑', jump: '🦘', eat: '🍔', lunch: '🥪'
         };
@@ -111,10 +113,12 @@
 
   <!-- Minimap Dialog Overlay -->
   <div id="minimap-dialog" class="overlay" style="display: none;">
-    <div id="minimap-wrapper">
+    <div style="position: relative;">
       <button id="close-minimap-btn" class="dialog-close-btn">&times;</button>
-      <img id="minimap-image" src="" alt="Minimap" />
-      <div id="minimap-player-dot"></div>
+      <div id="minimap-wrapper">
+        <img id="minimap-image" src="" alt="Minimap" />
+        <div id="minimap-player-dot"></div>
+      </div>
     </div>
   </div>
     </div>
