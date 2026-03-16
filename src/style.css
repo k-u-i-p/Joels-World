@@ -72,7 +72,6 @@ body {
   position: relative;
 }
 
-#action-dialog,
 .glass-panel {
   background-color: rgba(255, 255, 255, 0.2);
   color: var(--color-text-light);
