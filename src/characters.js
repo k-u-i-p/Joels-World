@@ -528,3 +528,116 @@ export class CharacterManager {
 }
 
 export const characterManager = new CharacterManager();
+
+/**
+ * Calculates local NPC movement and wandering behavior per-frame using Delta Time.
+ * Completely replaces the old Server-side waypoint and roam patrol loops to eliminate network latency.
+ */
+function updateLocalNPCs(dt) {
+  if (!window.init || !window.init.npcs) return;
+
+  const npcs = window.init.npcs;
+  for (let i = 0; i < npcs.length; i++) {
+    const npc = npcs[i];
+
+    if (npc.roam_radius !== undefined && typeof npc.roam_radius === 'number') {
+      if (npc.waitTimer === undefined) {
+        npc._startX = npc.x !== undefined ? npc.x : 0;
+        npc._startY = npc.y !== undefined ? npc.y : 0;
+        npc._startRotation = npc.rotation || 0;
+        npc.waitTimer = 1.0 + Math.random() * 3.0; // Wait 1-4 seconds initially
+      }
+
+      // If we are currently waiting
+      if (npc.waitTimer > 0) {
+        npc.waitTimer -= dt;
+      }
+      
+      // Timer just expired, time to evaluate next phase
+      if (npc.waitTimer <= 0) {
+        if (npc._pendingRoamX !== undefined) {
+          // Phase 2: Start moving towards the calculated roam coordinates
+          npc.targetX = npc._pendingRoamX;
+          npc.targetY = npc._pendingRoamY;
+          
+          delete npc._pendingRoamX;
+          delete npc._pendingRoamY;
+          
+          // Wait 2-5 seconds at the new destination before picking another target
+          npc.waitTimer = 2.0 + (Math.random() * 3.0);
+        } else {
+          // Phase 1: Pick a random destination and turn to face it
+          const angle = Math.random() * Math.PI * 2;
+          const distance = Math.random() * npc.roam_radius;
+          
+          const destX = npc._startX + (Math.cos(angle) * distance);
+          const destY = npc._startY + (Math.sin(angle) * distance);
+          
+          const dx = destX - npc.x;
+          const dy = destY - npc.y;
+          
+          let destRotation = Math.atan2(dy, dx) * (180 / Math.PI);
+          destRotation = (destRotation + 360) % 360;
+          
+          npc.targetRotation = Math.round(destRotation);
+          npc._pendingRoamX = destX;
+          npc._pendingRoamY = destY;
+
+          // Wait 0.5s for the physical turn interpolation to complete
+          npc.waitTimer = 0.5;
+        }
+      }
+    } else if (npc.waypoints && Array.isArray(npc.waypoints) && npc.waypoints.length > 0) {
+      if (npc.waitTimer === undefined) {
+        npc._startX = npc.x !== undefined ? npc.x : 0;
+        npc._startY = npc.y !== undefined ? npc.y : 0;
+        npc._startRotation = npc.rotation || 0;
+        npc._moveIdx = 0;
+        npc.waitTimer = 0;
+      }
+
+      if (npc.waitTimer > 0) {
+        npc.waitTimer -= dt;
+      }
+
+      if (npc.waitTimer <= 0) {
+        npc._moveIdx = (npc._moveIdx + 1) % (npc.waypoints.length + 2);
+
+        npc._currentOffsetX = npc._currentOffsetX || 0;
+        npc._currentOffsetY = npc._currentOffsetY || 0;
+        npc._currentOffsetRotation = npc._currentOffsetRotation || 0;
+
+        let offset = { x: 0, y: 0, rotation: 0 };
+        let nodeWaitTime = npc.move_time || 3000;
+
+        if (npc._moveIdx > 0 && npc._moveIdx <= npc.waypoints.length) {
+          offset = npc.waypoints[npc._moveIdx - 1];
+          if (offset.move_time !== undefined) nodeWaitTime = offset.move_time;
+        } else if (npc._moveIdx === npc.waypoints.length + 1) {
+          offset = { x: -npc._currentOffsetX, y: -npc._currentOffsetY };
+        } else if (npc._moveIdx === 0) {
+          offset = { rotation: -npc._currentOffsetRotation };
+        }
+
+        if (offset.x !== undefined) npc._currentOffsetX += offset.x;
+        if (offset.y !== undefined) npc._currentOffsetY += offset.y;
+        if (offset.rotation !== undefined) npc._currentOffsetRotation += offset.rotation;
+
+        if (npc._moveIdx === 0) {
+          npc._currentOffsetX = 0;
+          npc._currentOffsetY = 0;
+          npc._currentOffsetRotation = 0;
+        }
+
+        npc.targetX = npc._startX + npc._currentOffsetX;
+        npc.targetY = npc._startY + npc._currentOffsetY;
+        npc.targetRotation = npc._startRotation + npc._currentOffsetRotation;
+        
+        npc.waitTimer = nodeWaitTime / 1000;
+      }
+    }
+  }
+}
+
+import { gameLoop } from './gameloop.js';
+gameLoop.registerFunction(updateLocalNPCs);

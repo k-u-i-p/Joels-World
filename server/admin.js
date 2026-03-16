@@ -1,6 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 
+function sanitizeJson(key, value) {
+  if (key.startsWith('_') || key === 'emote' || key === 'waitTimer' || key === 'currentWaypoint' || key === 'isMoving' || key === 'runDirectionTimer' || key === 'isRunning') {
+    return undefined;
+  }
+  return value;
+}
+
 export function handleAdminMessage(ws, data, mapData) {
   const { objects, objectsFile } = mapData;
 
@@ -12,7 +19,7 @@ export function handleAdminMessage(ws, data, mapData) {
       obj.x = data.x;
       obj.y = data.y;
       try {
-        fs.writeFileSync(objectsFile, JSON.stringify(objects, null, 2), 'utf-8');
+        fs.writeFileSync(objectsFile, JSON.stringify(objects, sanitizeJson, 2), 'utf-8');
       } catch (e) { console.error('Failed saving objects file:', e); }
     }
     return true;
@@ -22,7 +29,7 @@ export function handleAdminMessage(ws, data, mapData) {
       npc.x = data.x;
       npc.y = data.y;
       try {
-        if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, null, 2), 'utf-8');
+        if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, sanitizeJson, 2), 'utf-8');
       } catch (e) { console.error('Failed saving npcs file:', e); }
     }
     return true;
@@ -32,7 +39,7 @@ export function handleAdminMessage(ws, data, mapData) {
       if (data.name) obj.name = data.name;
       else delete obj.name;
       try {
-        fs.writeFileSync(objectsFile, JSON.stringify(objects, null, 2), 'utf-8');
+        fs.writeFileSync(objectsFile, JSON.stringify(objects, sanitizeJson, 2), 'utf-8');
       } catch (e) { console.error('Failed saving objects file:', e); }
     }
     return true;
@@ -44,7 +51,7 @@ export function handleAdminMessage(ws, data, mapData) {
       if (data.x !== undefined) obj.x = data.x;
       if (data.y !== undefined) obj.y = data.y;
       try {
-        fs.writeFileSync(objectsFile, JSON.stringify(objects, null, 2), 'utf-8');
+        fs.writeFileSync(objectsFile, JSON.stringify(objects, sanitizeJson, 2), 'utf-8');
       } catch (e) { console.error('Failed saving objects file:', e); }
     }
     return true;
@@ -53,7 +60,7 @@ export function handleAdminMessage(ws, data, mapData) {
     if (obj) {
       if (data.rotation !== undefined) obj.rotation = data.rotation;
       try {
-        fs.writeFileSync(objectsFile, JSON.stringify(objects, null, 2), 'utf-8');
+        fs.writeFileSync(objectsFile, JSON.stringify(objects, sanitizeJson, 2), 'utf-8');
       } catch (e) { console.error('Failed saving objects file:', e); }
     }
     return true;
@@ -62,7 +69,7 @@ export function handleAdminMessage(ws, data, mapData) {
     if (idx !== -1) {
       objects.splice(idx, 1);
       try {
-        fs.writeFileSync(objectsFile, JSON.stringify(objects, null, 2), 'utf-8');
+        fs.writeFileSync(objectsFile, JSON.stringify(objects, sanitizeJson, 2), 'utf-8');
       } catch (e) { console.error('Failed saving objects file:', e); }
     }
     return true;
@@ -71,7 +78,7 @@ export function handleAdminMessage(ws, data, mapData) {
     if (obj && data.updates) {
       Object.assign(obj, data.updates);
       try {
-        fs.writeFileSync(objectsFile, JSON.stringify(objects, null, 2), 'utf-8');
+        fs.writeFileSync(objectsFile, JSON.stringify(objects, sanitizeJson, 2), 'utf-8');
       } catch (e) { console.error('Failed saving objects file:', e); }
     }
     return true;
@@ -96,7 +103,7 @@ export function handleAdminMessage(ws, data, mapData) {
     
     objects.push(newObj);
     try {
-      fs.writeFileSync(objectsFile, JSON.stringify(objects, null, 2), 'utf-8');
+      fs.writeFileSync(objectsFile, JSON.stringify(objects, sanitizeJson, 2), 'utf-8');
     } catch (e) { console.error('Failed saving objects file:', e); }
     return true;
   } else if (data.type === 'update_npc') {
@@ -104,7 +111,7 @@ export function handleAdminMessage(ws, data, mapData) {
     if (npc && data.updates) {
       Object.assign(npc, data.updates);
       try {
-        if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, null, 2), 'utf-8');
+        if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, sanitizeJson, 2), 'utf-8');
       } catch (e) { console.error('Failed saving npcs file:', e); }
     }
     return true;
@@ -132,7 +139,7 @@ export function handleAdminMessage(ws, data, mapData) {
     if (!mapData.npcs) mapData.npcs = [];
     mapData.npcs.push(newNpc);
     try {
-      if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, null, 2), 'utf-8');
+      if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, sanitizeJson, 2), 'utf-8');
     } catch (e) { console.error('Failed saving npcs file:', e); }
     return true;
   } else if (data.type === 'delete_npc') {
@@ -141,7 +148,7 @@ export function handleAdminMessage(ws, data, mapData) {
       if (idx !== -1) {
         mapData.npcs.splice(idx, 1);
         try {
-          if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, null, 2), 'utf-8');
+          if (mapData.npcsFile) fs.writeFileSync(mapData.npcsFile, JSON.stringify(mapData.npcs, sanitizeJson, 2), 'utf-8');
         } catch (e) { console.error('Failed saving npcs file:', e); }
       }
     }

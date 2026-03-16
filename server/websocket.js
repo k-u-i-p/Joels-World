@@ -19,42 +19,32 @@ export function setupWebSocket(server, sessionMiddleware) {
   const wss = new WebSocketServer({ server });
 
   const mapManager = new MapManager();
-  const npcManager = new NPCManager(mapManager.mapState);
-  const aiAgentManager = new AIAgentManager(mapManager.mapState, npcManager);
+  const npcManager = new NPCManager(mapManager);
+  const aiAgentManager = new AIAgentManager(mapManager, npcManager);
   const chatManager = new ChatManager(mapManager, npcManager, aiAgentManager);
   const clientManager = new ClientManager(mapManager, npcManager, aiAgentManager, chatManager);
 
   mapManager.initializeMaps(npcManager);
 
   aiAgentManager.startAIAgent();
-  npcManager.startPatrolLoop();
 
+  //Server tick loop. Updates clients with character positions
   setInterval(() => {
-    const updatesBuffer = [];
-    for (const mapId in mapManager.mapState) {
-      const mapObj = mapManager.mapState[mapId];
-      updatesBuffer.length = 0;
-
-      for (const charId in mapObj.dirtyCharacters) {
-        updatesBuffer.push(mapObj.dirtyCharacters[charId]);
-      }
+    for (const mapObj of mapManager.getAllMaps()) {
+      const updatesBuffer = mapManager.getDirtyCharacters(mapObj.id);
 
       if (updatesBuffer.length > 0) {
         const broadcastMsg = JSON.stringify({ type: 'tick', characters: updatesBuffer });
-        mapObj.clients.forEach(client => {
-          if (client.readyState === 1) client.send(broadcastMsg);
-        });
-        mapObj.dirtyCharacters = {};
+        mapManager.broadcastMessage(mapObj.id, broadcastMsg);
+        mapManager.clearDirtyCharacters(mapObj.id);
       }
     }
-  }, 100);
-
-
+  }, 200);
 
   wss.on('connection', (ws, req) => {
     clientManager.handleConnection(ws, req, sessionMiddleware, wss);
   });
 
-  return { wss, mapState: mapManager.mapState };
+  return { wss };
 }
 

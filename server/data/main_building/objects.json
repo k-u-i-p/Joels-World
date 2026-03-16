@@ -65,7 +65,6 @@
     "clip": -1,
     "on_enter": [
       {
-        "emote": "fart",
         "play_sound": {
           "sound": "media/diarrhea.mp3",
           "volume": 1
@@ -74,7 +73,6 @@
     ],
     "on_exit": [
       {
-        "emote": "wet",
         "play_sound": {
           "sound": "media/wet_footprints.mp3",
           "volume": 0.5
@@ -93,7 +91,6 @@
     "clip": -1,
     "on_exit": [
       {
-        "emote": "wet",
         "play_sound": {
           "sound": "media/wet_footprints.mp3",
           "volume": 0.5

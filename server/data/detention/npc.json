@@ -36,14 +36,9 @@
         ]
       }
     ],
-    "emote": {
-      "name": "sit",
-      "startTime": 0
-    },
     "shoeColor": "#7f8c8d",
     "hairStyle": "messy",
-    "hairColor": "#4a4a4a",
-    "_distSq": 79270.97539603384
+    "hairColor": "#4a4a4a"
   },
   {
     "id": 3,
@@ -57,10 +52,6 @@
     "pantsColor": "#bdc3c7",
     "armColor": "#e74c3c",
     "interaction_radius": 200,
-    "emote": {
-      "name": "sit",
-      "startTime": 0
-    },
     "on_enter": [
       {
         "say": [
@@ -92,10 +83,6 @@
     "armColor": "#9b59b6",
     "gender": "female",
     "interaction_radius": 200,
-    "emote": {
-      "name": "write",
-      "startTime": 0
-    },
     "on_enter": [
       {
         "say": [
@@ -126,10 +113,6 @@
     "pantsColor": "#34495e",
     "armColor": "#f1c40f",
     "interaction_radius": 200,
-    "emote": {
-      "name": "sit",
-      "startTime": 0
-    },
     "on_enter": [
       {
         "say": [
@@ -161,10 +144,6 @@
     "armColor": "#2ecc71",
     "gender": "female",
     "interaction_radius": 200,
-    "emote": {
-      "name": "write",
-      "startTime": 0
-    },
     "on_enter": [
       {
         "say": [
@@ -195,10 +174,6 @@
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
     "interaction_radius": 200,
-    "emote": {
-      "name": "write",
-      "startTime": 0
-    },
     "on_enter": [
       {
         "say": [

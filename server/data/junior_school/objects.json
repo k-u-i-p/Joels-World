@@ -30,9 +30,7 @@
     "length": 1006,
     "clip": -1,
     "on_enter": [
-      {
-        "emote": "rugby"
-      }
+      {}
     ],
     "on_exit": [
       {
@@ -63,12 +61,12 @@
   {
     "id": 36,
     "shape": "rect",
-    "x": 563,
-    "y": -1253,
+    "x": 481,
+    "y": -1192,
     "name": "Main School Building",
     "rotation": -3,
-    "width": 293,
-    "length": 317,
+    "width": 115,
+    "length": 176,
     "clip": -1,
     "on_enter": [
       {

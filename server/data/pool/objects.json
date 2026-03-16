@@ -40,7 +40,6 @@
     "clip": -1,
     "on_enter": [
       {
-        "emote": "swim",
         "play_sound": {
           "sound": "media/splash.mp3",
           "volume": 1
@@ -49,7 +48,6 @@
     ],
     "on_exit": [
       {
-        "emote": "wet",
         "play_sound": {
           "sound": "media/wet_footprints.mp3",
           "volume": 1

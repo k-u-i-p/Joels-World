@@ -103,13 +103,6 @@ export class NetworkClient {
               const localNpc = window.init.npcs[localNpcIndex];
               if (serverChar.emote !== undefined) localNpc.emote = serverChar.emote;
               if (serverChar.interaction_radius !== undefined) localNpc.interaction_radius = serverChar.interaction_radius;
-              if (serverChar.x !== undefined) {
-                localNpc.targetX = serverChar.x;
-                localNpc.targetY = serverChar.y;
-              }
-              if (serverChar.rotation !== undefined) {
-                localNpc.targetRotation = serverChar.rotation;
-              }
               return; // Processed. Do not let it cascade into human character lists.
             }
 

@@ -337,6 +337,21 @@ if (npcRadiusInput) {
   });
 }
 
+const npcRoamRadiusInput = document.getElementById('npc-roam-radius-input');
+if (npcRoamRadiusInput) {
+  npcRoamRadiusInput.addEventListener('change', (e) => {
+    if (!window.selectedNpc.get()) return;
+    const radiusVal = parseInt(e.target.value, 10);
+    if (isNaN(radiusVal) || radiusVal <= 0) {
+      delete window.selectedNpc.get().roam_radius;
+      networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { roam_radius: null } });
+    } else {
+      window.selectedNpc.get().roam_radius = radiusVal;
+      networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { roam_radius: radiusVal } });
+    }
+  });
+}
+
 ['shirtColor', 'pantsColor', 'armColor'].forEach(part => {
   const colInput = document.getElementById(`npc-${part === 'shirtColor' ? 'shirt' : part === 'pantsColor' ? 'pants' : 'arm'}-col`);
   if (colInput) {
@@ -478,19 +493,21 @@ function updateAdminPanel() {
     if (editNpcSection) editNpcSection.style.display = 'block';
     const npc = window.selectedNpc.get();
 
-    if (npcNameInput) npcNameInput.value = npc.name || '';
-
-    if (document.getElementById('npc-shirt-col')) document.getElementById('npc-shirt-col').value = npc.shirtColor || '#3498db';
-    if (document.getElementById('npc-pants-col')) document.getElementById('npc-pants-col').value = npc.pantsColor || '#2c3e50';
-    if (document.getElementById('npc-arm-col')) document.getElementById('npc-arm-col').value = npc.armColor || '#3498db';
-
-    const npcRadiusInputDisplay = document.getElementById('npc-radius-input');
-    if (npcRadiusInputDisplay) {
-      npcRadiusInputDisplay.value = npc.interaction_radius !== undefined ? npc.interaction_radius : 150;
-    }
-
+    const npcNameInput = document.getElementById('npc-name-input');
+    const npcRadiusInput = document.getElementById('npc-radius-input');
+    const npcRoamRadiusInput = document.getElementById('npc-roam-radius-input');
+    const npcShirtCol = document.getElementById('npc-shirt-col');
+    const npcPantsCol = document.getElementById('npc-pants-col');
+    const npcArmCol = document.getElementById('npc-arm-col');
     const npcOnEnterInput = document.getElementById('npc-on-enter-input');
     const npcOnExitInput = document.getElementById('npc-on-exit-input');
+
+    if (npcNameInput) npcNameInput.value = npc.name || '';
+    if (npcRadiusInput) npcRadiusInput.value = npc.interaction_radius !== undefined ? npc.interaction_radius : 150;
+    if (npcRoamRadiusInput) npcRoamRadiusInput.value = npc.roam_radius !== undefined ? npc.roam_radius : '';
+    if (npcShirtCol) npcShirtCol.value = npc.shirtColor || '#3498db';
+    if (npcPantsCol) npcPantsCol.value = npc.pantsColor || '#2c3e50';
+    if (npcArmCol) npcArmCol.value = npc.armColor || '#f1c40f';
 
     if (npcOnEnterInput) {
       if (npc.on_enter && npc.on_enter[0] && npc.on_enter[0].say) {
@@ -846,7 +863,23 @@ function adminDraw() {
       ctx.arc(0, 0, (Math.max(npc.width, npc.height) / 2 || 20) + 5, 0, Math.PI * 2);
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'cyan';
+      ctx.setLineDash([]); // Ensure no dashes for hitbox
       ctx.stroke();
+
+      // Roam Radius Visualizer
+      if (npc.roam_radius !== undefined && typeof npc.roam_radius === 'number' && npc.roam_radius > 0) {
+        const startXDist = npc._startX !== undefined ? npc._startX - npc.x : 0;
+        const startYDist = npc._startY !== undefined ? npc._startY - npc.y : 0;
+
+        ctx.beginPath();
+        // Shift drawing center back to the anchor point the NPC is roaming around
+        ctx.arc(startXDist, startYDist, npc.roam_radius, 0, Math.PI * 2);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+        ctx.setLineDash([10, 10]);
+        ctx.stroke();
+        ctx.setLineDash([]); // Reset to solid line for others
+      }
 
       // Interaction Radius
       const r = npc.interaction_radius !== undefined ? npc.interaction_radius : 150;

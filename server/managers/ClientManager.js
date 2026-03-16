@@ -11,8 +11,7 @@ export class ClientManager {
 
   initializeMaxId() {
     let currentMaxId = this.globalPlayerIdCounter - 1;
-    for (const mId in this.mapManager.mapState) {
-      const data = this.mapManager.mapState[mId];
+    for (const data of this.mapManager.getAllMaps()) {
       if (data.characters) {
         for (const charId in data.characters) {
           const char = data.characters[charId];
@@ -72,7 +71,7 @@ export class ClientManager {
         return;
       }
 
-      mapData.clients.add(ws);
+      this.mapManager.addClient(mapData.id, ws);
       this.initializeMaxId();
 
       // If the session already has an attached character, boot them into the game instantly.
@@ -134,7 +133,7 @@ export class ClientManager {
           }
 
           // Drop all standard gameplay packets if they don't have a spawned character yet
-          if (!ws.clientId || !mapData.characters[ws.clientId]) return;
+          if (!ws.clientId || !this.mapManager.getCharacter(mapData.id, ws.clientId)) return;
 
           if (data.type === 'update') {
             const char = data.character;
@@ -161,33 +160,23 @@ export class ClientManager {
         if (ws.clientId) {
           console.log('Client disconnected', ws.clientId);
 
-          let isReconnected = false;
-          for (const client of mapData.clients) {
-            if (client !== ws && client.readyState === 1 && client.clientId === ws.clientId) {
-              isReconnected = true;
-              break;
-            }
-          }
+          let isReconnected = this.mapManager.hasActiveClient(mapData.id, ws.clientId, ws);
 
           if (!isReconnected) {
             this.mapManager.removeCharacter(mapData.id, ws.clientId);
             const broadcastMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
-            mapData.clients.forEach(client => {
-              if (client !== ws && client.readyState === 1) {
-                client.send(broadcastMsg);
-              }
-            });
+            this.mapManager.broadcastToAllExcept(mapData.id, broadcastMsg, ws.clientId);
           } else {
             console.log(`Client ${ws.clientId} closed, but a new active socket was found. Skipping deletion.`);
           }
         }
-        mapData.clients.delete(ws);
+        this.mapManager.removeClient(mapData.id, ws);
       });
     });
   }
 
   handleDisconnect(ws, data, mapData) {
-    const sender = mapData.characters[ws.clientId];
+    const sender = this.mapManager.getCharacter(mapData.id, ws.clientId);
 
     const name = sender ? sender.name || ws.clientId : ws.clientId;
 
@@ -196,11 +185,7 @@ export class ClientManager {
     const id = data.id;
     this.mapManager.removeCharacter(mapData.id, id);
     const broadcastMsg = JSON.stringify({ type: 'disconnect', id });
-    mapData.clients.forEach(client => {
-      if (client !== ws && client.readyState === 1) {
-        client.send(broadcastMsg);
-      }
-    });
+    this.mapManager.broadcastToAllExcept(mapData.id, broadcastMsg, ws.clientId);
   }
 
   handleChangeMap(ws, data, mapData, session) {
@@ -208,25 +193,22 @@ export class ClientManager {
     const newMapData = this.mapManager.getMap(requestedMapId);
 
     if (mapData.can_leave === false && data.force !== true && !ws.isAdmin) {
-      const charName = (mapData.characters[ws.clientId] && mapData.characters[ws.clientId].name) || 'Student';
+      const sender = this.mapManager.getCharacter(mapData.id, ws.clientId);
+      const charName = (sender && sender.name) || 'Student';
       this.npcManager.logEventToNearbyNPCs(mapData, `${charName} (${ws.clientId}) tried to leave ${mapData.name}`, this.aiAgentManager);
       ws.send(JSON.stringify({ type: 'map_change_rejected' }));
       return mapData;
     }
 
     if (newMapData && ws.mapId !== requestedMapId) {
-      const oldChar = mapData.characters[ws.clientId];
+      const oldChar = this.mapManager.getCharacter(mapData.id, ws.clientId);
 
       this.npcManager.logEventToNearbyNPCs(mapData, `${oldChar.name} (${ws.clientId}) left the map`, this.aiAgentManager);
 
       this.mapManager.removeCharacter(mapData.id, ws.clientId);
       const disconnectMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
-      mapData.clients.forEach(client => {
-        if (client !== ws && client.readyState === 1) {
-          client.send(disconnectMsg);
-        }
-      });
-      mapData.clients.delete(ws);
+      this.mapManager.broadcastToAllExcept(mapData.id, disconnectMsg, ws.clientId);
+      this.mapManager.removeClient(mapData.id, ws);
 
       // Update client reference
       ws.mapId = requestedMapId;
@@ -247,7 +229,7 @@ export class ClientManager {
       }
 
       this.mapManager.addCharacter(newMapData.id, oldChar);
-      newMapData.clients.add(ws);
+      this.mapManager.addClient(newMapData.id, ws);
 
       this.npcManager.logEventToNearbyNPCs(newMapData, `${oldChar.name || 'Student'} (${ws.clientId}) entered ${newMapData.name}`, this.aiAgentManager);
 

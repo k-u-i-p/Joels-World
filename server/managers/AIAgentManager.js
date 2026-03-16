@@ -7,15 +7,16 @@ import { PhysicsEngine } from '../../src/physics.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export class AIAgentManager {
-    constructor(mapState, npcManager) {
+    constructor(mapManager, npcManager) {
         this.physicsEngine = new PhysicsEngine();
         this.npcManager = npcManager;
         this.ai = null;
         this.apiKey = process.env.GEMINI_API_KEY;
         this.lastProcessed = {};
-        this.globalMapState = mapState;
+        this.mapManager = mapManager;
         this.agentLastPulseTime = {};
         this.agentPendingPulse = {};
+        this.validEmotes = [];
     }
 
     startAIAgent() {
@@ -39,8 +40,20 @@ export class AIAgentManager {
         }
         console.log("[AI] Starting background agent system...");
 
-        for (const mapId in this.globalMapState) {
-            const mapData = this.globalMapState[mapId];
+        try {
+            const srcPath = path.resolve(__dirname, '../../src/emotes.js');
+            const code = fs.readFileSync(srcPath, 'utf8');
+            const regex = /^  ([a-zA-Z0-9_]+): \{/gm;
+            let m;
+            while ((m = regex.exec(code)) !== null) {
+                this.validEmotes.push(m[1]);
+            }
+            console.log(`[AI] Loaded ${this.validEmotes.length} valid emotes for AI configuration.`);
+        } catch (e) {
+            console.warn("[AI] Failed to parse src/emotes.js:", e);
+        }
+
+        for (const mapData of this.mapManager.getAllMaps()) {
             if (mapData.npcs) {
                 for (const npc of mapData.npcs) {
                     if (npc.agent && npc.agent.log_file) {
@@ -60,9 +73,9 @@ export class AIAgentManager {
     }
 
     pulseAgent(mapId, npcId) {
-        if (!this.ai || !this.globalMapState) return;
+        if (!this.ai || !this.mapManager) return;
 
-        const mapData = this.globalMapState[mapId];
+        const mapData = this.mapManager.getMap(mapId);
         if (!mapData || !mapData.npcs) return;
 
         const npc = mapData.npcs.find(n => n.id === npcId);
@@ -108,11 +121,11 @@ export class AIAgentManager {
             console.log(`[AI][${mapData.name}] New events detected! Formatting prompt for ${npc.name}...`);
 
             let agentPrompt = fs.readFileSync(agentFilePath, 'utf8');
-            const validEmotes = ["dance", "fart", "laugh", "cry", "angry", "surprised"];
+            const validEmotesList = this.validEmotes.length > 0 ? this.validEmotes.join(", ") : "dance, fart, laugh, cry, angry, surprised";
 
             agentPrompt = agentPrompt
                 .replace("{agent_id}", npc.id)
-                .replace("{emotes}", validEmotes.join(", "));
+                .replace("{emotes}", validEmotesList);
 
             const prompt = `${agentPrompt}\n\nRecent Events Log:\n${logsText}\n\nRespond EXACTLY with a valid JSON array representing the actions.`;
 
@@ -207,11 +220,12 @@ export class AIAgentManager {
 
             if (act.emote) {
                 console.log(`[AI][${mapData.name}] NPC '${npcChar.name || npcId}' emoting: ${act.emote}`);
-                npcChar.emote = act.emote;
+                const emoteObj = { name: act.emote, startTime: Date.now() };
+                npcChar.emote = emoteObj;
                 
                 const updateMsg = JSON.stringify({
                   type: 'update',
-                  character: { id: npcId, emote: act.emote }
+                  character: { id: npcId, emote: emoteObj }
                 });
                 
                 mapData.clients.forEach(client => {
@@ -220,7 +234,8 @@ export class AIAgentManager {
 
                 setTimeout(() => {
                     const currentNpc = mapData.npcs.find(n => n.id === npcId);
-                    if (currentNpc && currentNpc.emote === act.emote) {
+                    // Clear if it hasn't been overwritten by a new emote
+                    if (currentNpc && currentNpc.emote === emoteObj) {
                         currentNpc.emote = null;
                         const clearMsg = JSON.stringify({
                           type: 'update',

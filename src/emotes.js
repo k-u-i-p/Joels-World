@@ -78,6 +78,26 @@ export const emotes = {
     updateLimbs: (limbs, emote) => { },
     draw: (ctx, emote) => { }
   },
+  wave: {
+    duration: 3000,
+    message: "{name} waves",
+    message_when_near: "{name} waved at {target_name}",
+    sound: null,
+    setup: (ctx, emote, c) => { },
+    updateLimbs: (limbs, emote) => {
+      const waveTime = (Date.now() - emote.startTime) / 80;
+      const armSwing = Math.sin(waveTime) * 6;
+
+      // Right arm waving (closer to body, swinging forward and back)
+      limbs.rightArmX = 4 + armSwing;
+      limbs.rightArmY = 16;
+
+      // Left arm resting
+      limbs.leftArmX = 4;
+      limbs.leftArmY = -14;
+    },
+    draw: (ctx, emote) => { }
+  },
   wet: {
     duration: 10000,
     message: "{name} is dripping wet",
@@ -313,9 +333,9 @@ export const emotes = {
       // Right arm moving to write
       limbs.rightArmX = 14 + armMoveX;
       limbs.rightArmY = 6 + armMoveY;
-      
+
       // Left arm resting
-      limbs.leftArmX = 12; 
+      limbs.leftArmX = 12;
       limbs.leftArmY = -8;
     },
     draw: (ctx, emote) => {

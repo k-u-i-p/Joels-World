@@ -28,7 +28,9 @@
           "Did I tell you about the school's strategic plan {name}?",
           "Two schools are better than three!",
           "Look at this upgraded campus! Beautiful!",
-          "Welcome to St Peters {name}!"
+          "Welcome to St Peters {name}!",
+          "If I see one more pupil walking on the grass...",
+          "My strategic plan involves a lot of coffee."
         ]
       }
     ],
@@ -39,11 +41,15 @@
         ]
       }
     ],
+    "waypoints": [
+      {
+        "rotation": 20,
+        "move_time": 3000
+      }
+    ],
     "shoeColor": "#7f8c8d",
     "hairStyle": "messy",
-    "hairColor": "#4a4a4a",
-    "_distSq": 9310.160300635875,
-    "emote": null
+    "hairColor": "#4a4a4a"
   },
   {
     "id": 2,
@@ -63,14 +69,16 @@
         "say": [
           "We don't need no education!",
           "We don't need no thought control!",
-          "Hey! Teacher! Leave them kids alone!"
+          "Hey! Teacher! Leave them kids alone!",
+          "Just kidding, I actually love math.",
+          "Is it break time yet?",
+          "I left my homework in my other pants."
         ]
       }
     ],
     "shoeColor": "#5e3a1f",
     "hairStyle": "bald",
-    "hairColor": "#000000",
-    "_distSq": 3483.530866875993
+    "hairColor": "#000000"
   },
   {
     "id": 3,
@@ -98,8 +106,7 @@
     "on_exit": [],
     "shoeColor": "#111111",
     "hairStyle": "bald",
-    "hairColor": "#000000",
-    "_distSq": 22205
+    "hairColor": "#000000"
   },
   {
     "id": 4,
@@ -120,12 +127,14 @@
     "on_enter": [
       {
         "say": [
-          "Stop singing the song!"
+          "Stop singing the song!",
+          "I can't get that tune out of my head!",
+          "Does anyone know modern pop instead of 70s rock?",
+          "I swear my ears are ringing."
         ]
       }
     ],
-    "on_exit": [],
-    "_distSq": 13677.793177618329
+    "on_exit": []
   },
   {
     "id": 5,
@@ -143,7 +152,10 @@
     "on_enter": [
       {
         "say": [
-          "Hi {name}, today we shall play a good game?"
+          "Hi {name}, today we shall play a good game?",
+          "I brought my shiny Charizard card today.",
+          "Wanna trade your sandwich for my apple?",
+          "I hid a frog in my desk. Don't tell the teacher!"
         ]
       }
     ],
@@ -166,13 +178,18 @@
     "armColor": "#ffffff",
     "interaction_radius": 150,
     "emoji": "🚽",
-    "emote": {
-      "name": "bounce",
-      "startTime": 0
-    },
     "shoeColor": "#111111",
     "hairStyle": "bald",
-    "hairColor": "#000000"
+    "hairColor": "#000000",
+    "on_enter": [
+      {
+        "say": [
+          "Flush me baby one more time!",
+          "I've seen things you people wouldn't believe...",
+          "Please aim carefully, I just got cleaned."
+        ]
+      }
+    ]
   },
   {
     "id": 8,
@@ -213,16 +230,13 @@
         "say": [
           "I taught your father you know.",
           "Looking forward to retirement and hitting the ski slopes!",
-          "In my day we didn't have these fancy rugby boots.",
-          "Keep those knees up! ...Well, I won't, but you should."
+          "Keep those knees up! ...Well, I won't, but you should.",
+          "Back in 1982, I scored a try from the car park!",
+          "If you drop that ball again, I'm making you run to the moon!"
         ]
       }
     ],
     "on_exit": [],
-    "emote": {
-      "name": "rugby",
-      "startTime": 0
-    },
     "shoeColor": "#111111",
     "hairStyle": "bald",
     "hairColor": "#000000"
@@ -246,7 +260,10 @@
       {
         "avatar": "avatars/mr_ferguson.png",
         "say": [
-          "Go away! I'm on Duty here!"
+          "Go away! I'm on Duty here!",
+          "I've got eyes in the back of my head, lad!",
+          "Don't make me blow this whistle! I will do it!",
+          "Walk, don't run! Oh wait, this is the playground... still, walk!"
         ],
         "log": {
           "message": "{name} ({player_id}) entered the playground",
@@ -257,7 +274,8 @@
     "on_exit": [],
     "interaction_radius": 800,
     "hairStyle": "bald",
-    "hairColor": "#000000"
+    "hairColor": "#000000",
+    "gender": "male"
   },
   {
     "id": 10,
@@ -276,14 +294,15 @@
         "say": [
           "I've got more detentions than anyone else here!",
           "Detention is basically my second home.",
-          "They say I'm a legend in the detention room."
+          "They say I'm a legend in the detention room.",
+          "I even have a plaque on my favorite detention chair.",
+          "One day, they'll name the detention hall after me."
         ]
       }
     ],
     "shoeColor": "#5e3a1f",
     "hairStyle": "bald",
-    "hairColor": "#000000",
-    "_distSq": 3627.071008469347
+    "hairColor": "#000000"
   },
   {
     "id": 11,
@@ -299,15 +318,17 @@
     "on_enter": [
       {
         "say": [
-          "Pudding is yum yum!"
+          "Pudding is yum yum!",
+          "I would trade my soul for extra custard.",
+          "Do you think they have sticky toffee pudding today?",
+          "If lunch is delayed by one more minute, I riot."
         ]
       }
     ],
     "on_exit": [],
     "gender": "male",
     "hairStyle": "bald",
-    "hairColor": "#000000",
-    "_distSq": 3920.559809431588
+    "hairColor": "#000000"
   },
   {
     "id": 12,
@@ -323,15 +344,16 @@
     "on_enter": [
       {
         "say": [
-          "You're a rubbish teacher, {name}! Join in!"
+          "You're a rubbish teacher, {name}! Join in!",
+          "I double dog dare you to jump in the puddle!",
+          "Homework is just a conspiracy by the pencil industry."
         ]
       }
     ],
     "on_exit": [],
     "gender": "male",
     "hairStyle": "bald",
-    "hairColor": "#000000",
-    "_distSq": 7631.030316511217
+    "hairColor": "#000000"
   },
   {
     "id": 13,
@@ -347,7 +369,7 @@
     "on_enter": [
       {
         "say": [
-          "No, I am not!"
+          "If I have to repeat myself, there will be no break time!"
         ]
       }
     ],
@@ -371,7 +393,9 @@
           "Sssss... excuse me!",
           "That was a spicy mouse I ate.",
           "Ssss... silent but deadly.",
-          "Ssssssssshart!"
+          "Ssssssssshart!",
+          "I need some antacid sssssir.",
+          "Never trust a snake after taco tuesday."
         ],
         "play_sound": {
           "sound": "media/fart.mp3",
@@ -379,6 +403,286 @@
         }
       }
     ],
-    "on_exit": []
+    "gender": "male",
+    "hairStyle": "bald"
+  },
+  {
+    "id": 15,
+    "name": "Tommy",
+    "x": 1195.0895223761947,
+    "y": -221.69710251607117,
+    "width": 35,
+    "height": 35,
+    "rotation": 90,
+    "shirtColor": "#e74c3c",
+    "pantsColor": "#2c3e50",
+    "armColor": "#e74c3c",
+    "on_enter": [
+      {
+        "avatar": "avatars/boy_age_8.png",
+        "say": [
+          "Catch me if you can Mr Ferguson!",
+          "I'm fueled entirely by sugar!",
+          "I just drank three juice boxes in a row!",
+          "You'll never take me alive!"
+        ]
+      }
+    ],
+    "roam_radius": 300,
+    "gender": "male",
+    "hairStyle": "messy"
+  },
+  {
+    "id": 16,
+    "name": "Sarah",
+    "x": 1484.2104671564132,
+    "y": -335.0584222535764,
+    "width": 35,
+    "height": 35,
+    "rotation": 180,
+    "shirtColor": "#f1c40f",
+    "pantsColor": "#2c3e50",
+    "armColor": "#f1c40f",
+    "gender": "female",
+    "hairStyle": "long",
+    "hairColor": "#e67e22",
+    "on_enter": [
+      {
+        "avatar": "avatars/girl_age_6.png",
+        "say": [
+          "Wheeee!",
+          "Tag, you're it!",
+          "No fair!",
+          "I'm telling!"
+        ]
+      }
+    ],
+    "roam_radius": 350
+  },
+  {
+    "id": 17,
+    "name": "Billy",
+    "x": 1495,
+    "y": -71,
+    "width": 35,
+    "height": 35,
+    "rotation": 270,
+    "shirtColor": "#2ecc71",
+    "pantsColor": "#2c3e50",
+    "armColor": "#2ecc71",
+    "on_enter": [
+      {
+        "avatar": "avatars/boy_age_7.png",
+        "say": [
+          "Run faster!",
+          "My shoes have racing stripes so I go quicker!",
+          "I beat a cheetah in a race once. It was a slow cheetah.",
+          "Sarah's cheating!"
+        ]
+      }
+    ],
+    "roam_radius": 150,
+    "gender": "male",
+    "hairStyle": "messy"
+  },
+  {
+    "id": 18,
+    "name": "Emily",
+    "x": 1322,
+    "y": 5,
+    "width": 35,
+    "height": 35,
+    "rotation": 0,
+    "shirtColor": "#9b59b6",
+    "pantsColor": "#2c3e50",
+    "armColor": "#9b59b6",
+    "gender": "female",
+    "hairStyle": "ponytail",
+    "on_enter": [
+      {
+        "avatar": "avatars/girl_age_8.png",
+        "say": [
+          "He can't catch us!",
+          "We are the rulers of the playground!",
+          "I have the ultimate hiding spot, but I won't tell you.",
+          "Tag! You're it! Now the teacher is chasing you!"
+        ]
+      }
+    ],
+    "roam_radius": 400
+  },
+  {
+    "id": 19,
+    "name": "Becky",
+    "x": 679,
+    "y": -1179,
+    "width": 40,
+    "height": 48,
+    "rotation": 200,
+    "gender": "female",
+    "shirtColor": "#bdc3c7",
+    "pantsColor": "#95a5a6",
+    "armColor": "#bdc3c7",
+    "on_enter": [
+      {
+        "avatar": "avatars/becky.png",
+        "say": [
+          "I wonder what Joel & Summer have done today!",
+          "I need wine!",
+          "Is it 5 o'clock somewhere yet?",
+          "I survived another PTA meeting, barely.",
+          "My coffee is 90% espresso and 10% desperation."
+        ]
+      }
+    ],
+    "interaction_radius": 150,
+    "on_exit": [
+      {
+        "say": [
+          "I'll vibe on my own then!"
+        ]
+      }
+    ],
+    "hairStyle": "long"
+  },
+  {
+    "id": 20,
+    "name": "Ben",
+    "x": 537,
+    "y": -1540,
+    "width": 40,
+    "height": 48,
+    "rotation": 135,
+    "gender": "male",
+    "shirtColor": "#bdc3c7",
+    "pantsColor": "#95a5a6",
+    "armColor": "#bdc3c7",
+    "on_enter": [
+      {
+        "avatar": "avatars/ben.png",
+        "say": [
+          "Joel & I made this game you know.",
+          "It totally works on my machine.",
+          "Please don't look at the source code.",
+          "We consider the bugs to be features."
+        ]
+      }
+    ],
+    "interaction_radius": 150,
+    "on_exit": [],
+    "hairStyle": "short"
+  },
+  {
+    "id": 21,
+    "name": "Divorced Dad",
+    "x": 254,
+    "y": -1618,
+    "width": 40,
+    "height": 48,
+    "rotation": 70,
+    "gender": "male",
+    "shirtColor": "#bdc3c7",
+    "pantsColor": "#95a5a6",
+    "armColor": "#bdc3c7",
+    "on_enter": [
+      {
+        "avatar": "avatars/divorce_school_dad.png",
+        "say": [
+          "Where do I go?",
+          "She took everything!",
+          "Uff... Never get married.",
+          "I have my weekend custody and a half-eaten sandwich.",
+          "Does anyone know how to assemble a bunk bed?",
+          "I bought a sports car to feel alive again.",
+          "Found her on Hinge. 10 years younger!"
+        ]
+      }
+    ],
+    "interaction_radius": 150,
+    "on_exit": [],
+    "hairStyle": "messy"
+  },
+  {
+    "id": 23,
+    "name": "Dowdy School Mum",
+    "x": 674,
+    "y": -1304,
+    "width": 40,
+    "height": 48,
+    "rotation": 180,
+    "gender": "female",
+    "shirtColor": "#bdc3c7",
+    "pantsColor": "#95a5a6",
+    "armColor": "#bdc3c7",
+    "on_enter": [
+      {
+        "avatar": "avatars/dowdy_school_mum.png",
+        "say": [
+          "I've forgotten Arthur's games bag again!",
+          "I'm wearing pyjamas under this coat.",
+          "I think I left the iron on... oh dear.",
+          "Does reheating stale pizza count as cooking?"
+        ]
+      }
+    ],
+    "interaction_radius": 150,
+    "on_exit": [],
+    "hairStyle": "messy"
+  },
+  {
+    "id": 24,
+    "name": "Hot School Mum",
+    "x": 666,
+    "y": -1385,
+    "width": 40,
+    "height": 48,
+    "rotation": 160,
+    "gender": "female",
+    "shirtColor": "#bdc3c7",
+    "pantsColor": "#95a5a6",
+    "armColor": "#bdc3c7",
+    "on_enter": [
+      {
+        "avatar": "avatars/hot_school_mum.png",
+        "say": [
+          "She's such a bitch!",
+          "Skiing in Verbier next week!",
+          "Yes! Girls spa day!",
+          "My activewear costs more than my car.",
+          "I only drink alkaline water harvested from a glacier.",
+          "Do you like my new Range Rover?"
+        ]
+      }
+    ],
+    "interaction_radius": 150,
+    "on_exit": [],
+    "hairStyle": "long"
+  },
+  {
+    "id": 25,
+    "name": "Hot School Mum 2",
+    "x": 595,
+    "y": -1440,
+    "width": 40,
+    "height": 48,
+    "rotation": 85,
+    "gender": "female",
+    "shirtColor": "#bdc3c7",
+    "pantsColor": "#95a5a6",
+    "armColor": "#bdc3c7",
+    "on_enter": [
+      {
+        "avatar": "avatars/hot_school_mum_2.png",
+        "say": [
+          "Can you tell I've had botox?",
+          "I physically cannot frown right now.",
+          "My lips have their own postcode.",
+          "I told my surgeon to just surprise me."
+        ]
+      }
+    ],
+    "interaction_radius": 150,
+    "on_exit": [],
+    "hairStyle": "long"
   }
 ]

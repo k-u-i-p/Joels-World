@@ -70,6 +70,54 @@ export class MapManager {
     return this.mapState[mapId];
   }
   
+  getAllMaps() {
+    return Object.values(this.mapState);
+  }
+
+  getCharacters(mapId) {
+    const mapData = this.mapState[mapId];
+    return mapData ? Object.values(mapData.characters) : [];
+  }
+
+  getCharacter(mapId, characterId) {
+    const mapData = this.mapState[mapId];
+    return mapData ? mapData.characters[characterId] : null;
+  }
+
+  getNpcs(mapId) {
+    const mapData = this.mapState[mapId];
+    return mapData ? mapData.npcs : [];
+  }
+
+  getDirtyCharacters(mapId) {
+    const mapData = this.mapState[mapId];
+    return mapData ? Object.values(mapData.dirtyCharacters) : [];
+  }
+
+  clearDirtyCharacters(mapId) {
+    const mapData = this.mapState[mapId];
+    if (mapData) mapData.dirtyCharacters = {};
+  }
+
+  addClient(mapId, ws) {
+    const mapData = this.mapState[mapId];
+    if (mapData) mapData.clients.add(ws);
+  }
+
+  removeClient(mapId, ws) {
+    const mapData = this.mapState[mapId];
+    if (mapData) mapData.clients.delete(ws);
+  }
+  
+  hasActiveClient(mapId, clientId, excludeWs) {
+    const mapData = this.mapState[mapId];
+    if (!mapData) return false;
+    for (const client of mapData.clients) {
+      if (client !== excludeWs && client.readyState === 1 && client.clientId === clientId) return true;
+    }
+    return false;
+  }
+
   getFirstMapId() {
     const mapKeys = Object.keys(this.mapState);
     if (this.mapState[0]) return 0;

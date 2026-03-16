@@ -244,13 +244,16 @@ export class PhysicsEngine {
    * @param {Array} objectsList - List of map objects to test clipping against.
    * @param {number} newX - The target X coordinate.
    * @param {number} newY - The target Y coordinate.
+   * @param {number} playerRadius - The collision radius.
    * @param {number} mapW - The total map width.
    * @param {number} mapH - The total map height.
    * @param {Array} npcList - Optional list of NPCs to check collision against
    * @param {string|number} entityId - The ID of the moving entity (to avoid self-collision)
+   * @param {number} currentX - The starting X coordinate.
+   * @param {number} currentY - The starting Y coordinate.
    * @returns {boolean} True if the entity can move to the new coordinates, otherwise false.
    */
-  canMoveTo(objectsList, newX, newY, playerRadius, mapW, mapH, npcList = null, entityId = null) {
+  canMoveTo(objectsList, newX, newY, playerRadius, mapW, mapH, npcList = null, entityId = null, currentX = null, currentY = null) {
     // Check map boundaries efficiently
     if (mapW && mapH) {
       const halfMapW = mapW * 0.5;
@@ -297,7 +300,19 @@ export class PhysicsEngine {
 
         // Ellipse collision equation: (x^2 / a^2) + (y^2 / b^2) < 1
         // Depth is along X (chest), width is along Y (shoulder)
-        if ((localDx * localDx) / chestRadiusSq + (localDy * localDy) / shoulderRadiusSq < 1) {
+        const newOverlap = (localDx * localDx) / chestRadiusSq + (localDy * localDy) / shoulderRadiusSq;
+        
+        if (newOverlap < 1) {
+          if (currentX !== null && currentY !== null) {
+            const oldDx = currentX - npc.x;
+            const oldDy = currentY - npc.y;
+            const oldLocalDx = oldDx * cosA - oldDy * sinA;
+            const oldLocalDy = oldDx * sinA + oldDy * cosA;
+            const oldOverlap = (oldLocalDx * oldLocalDx) / chestRadiusSq + (oldLocalDy * oldLocalDy) / shoulderRadiusSq;
+            
+            // Allow escape if already overlapping and moving away from center
+            if (oldOverlap < 1 && newOverlap >= oldOverlap) continue;
+          }
           return false;
         }
       }
@@ -368,14 +383,14 @@ export class PhysicsEngine {
 
     // Try moving in both axes, then X only, then Y only (sliding against walls)
     if (isEmoteForced) {
-      if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id)) {
+      if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id, entity.x, entity.y)) {
         result.newX += dx;
         result.newY += dy;
       } else {
         result.emoteCanceled = true; // Hit something while jumping!
       }
     } else {
-      if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id)) {
+      if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id, entity.x, entity.y)) {
         result.newX += dx;
         result.newY += dy;
       } else {
@@ -407,7 +422,7 @@ export class PhysicsEngine {
           let slideWorldDx = testLocalDx * cosA + testLocalDy * sinA;
           let slideWorldDy = -testLocalDx * sinA + testLocalDy * cosA;
 
-          if (this.canMoveTo(possibleOverlaps, entity.x + slideWorldDx, entity.y + slideWorldDy, playerRadius, mapW, mapH, npcList, entity.id)) {
+          if (this.canMoveTo(possibleOverlaps, entity.x + slideWorldDx, entity.y + slideWorldDy, playerRadius, mapW, mapH, npcList, entity.id, entity.x, entity.y)) {
             result.newX += slideWorldDx;
             result.newY += slideWorldDy;
           } else {
@@ -417,22 +432,22 @@ export class PhysicsEngine {
             slideWorldDx = testLocalDx2 * cosA + testLocalDy2 * sinA;
             slideWorldDy = -testLocalDx2 * sinA + testLocalDy2 * cosA;
 
-            if (this.canMoveTo(possibleOverlaps, entity.x + slideWorldDx, entity.y + slideWorldDy, playerRadius, mapW, mapH, npcList, entity.id)) {
+            if (this.canMoveTo(possibleOverlaps, entity.x + slideWorldDx, entity.y + slideWorldDy, playerRadius, mapW, mapH, npcList, entity.id, entity.x, entity.y)) {
               result.newX += slideWorldDx;
               result.newY += slideWorldDy;
-            } else if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y, playerRadius, mapW, mapH, npcList, entity.id)) {
+            } else if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y, playerRadius, mapW, mapH, npcList, entity.id, entity.x, entity.y)) {
               // Fallback to pure X
               result.newX += dx;
-            } else if (this.canMoveTo(possibleOverlaps, entity.x, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id)) {
+            } else if (this.canMoveTo(possibleOverlaps, entity.x, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id, entity.x, entity.y)) {
               // Fallback to pure Y
               result.newY += dy;
             }
           }
         } else {
           // Fallback to standard axis-aligned sliding
-          if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y, playerRadius, mapW, mapH, npcList, entity.id)) {
+          if (this.canMoveTo(possibleOverlaps, entity.x + dx, entity.y, playerRadius, mapW, mapH, npcList, entity.id, entity.x, entity.y)) {
             result.newX += dx;
-          } else if (this.canMoveTo(possibleOverlaps, entity.x, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id)) {
+          } else if (this.canMoveTo(possibleOverlaps, entity.x, entity.y + dy, playerRadius, mapW, mapH, npcList, entity.id, entity.x, entity.y)) {
             result.newY += dy;
           }
         }
@@ -465,8 +480,8 @@ export class PhysicsEngine {
       const cdy = c.targetY - c.y;
       const distSq = cdx * cdx + cdy * cdy;
 
-      // Snap if teleported really far (500^2 = 250000)
-      if (distSq > 250000) {
+      // Snap if teleported really far (5000^2 = 25000000)
+      if (distSq > 25000000) {
         c.x = c.targetX;
         c.y = c.targetY;
         c.rotation = c.targetRotation;
@@ -475,8 +490,8 @@ export class PhysicsEngine {
         const distance = Math.sqrt(distSq);
         const baseSpeed = c.moveSpeed || 3;
 
-        // If distance is large (e.g. > 40px), temporarily boost speed so they catch up seamlessly
-        const catchupMultiplier = distance > 40 ? 1.5 : 1.0;
+        // If distance is extremely large (e.g. > 1000px), temporarily boost speed so they catch up seamlessly
+        const catchupMultiplier = distance > 1000 ? 1.5 : 1.0;
         let stepDist = baseSpeed * catchupMultiplier * timeScale;
 
         // Don't overshoot the target

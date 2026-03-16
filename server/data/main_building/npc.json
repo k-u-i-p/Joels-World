@@ -121,10 +121,6 @@
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
     "interaction_radius": 150,
-    "emote": {
-      "name": "lunch",
-      "startTime": 0
-    },
     "on_enter": [
       {
         "say": [
@@ -158,10 +154,6 @@
     "pantsColor": "#34495e",
     "armColor": "#f1c40f",
     "interaction_radius": 150,
-    "emote": {
-      "name": "lunch",
-      "startTime": 0
-    },
     "on_enter": [
       {
         "say": [
@@ -229,10 +221,6 @@
     "pantsColor": "#2c3e50",
     "armColor": "#61177c",
     "interaction_radius": 150,
-    "emote": {
-      "name": "sit",
-      "startTime": 0
-    },
     "on_enter": [
       {
         "say": [
@@ -266,5 +254,27 @@
     "gender": "male",
     "hairStyle": "bald",
     "hairColor": "#000000"
+  },
+  {
+    "id": 9,
+    "name": "Prospective Parent",
+    "x": 0,
+    "y": 0,
+    "width": 40,
+    "height": 48,
+    "rotation": 180,
+    "gender": "female",
+    "shirtColor": "#bdc3c7",
+    "pantsColor": "#95a5a6",
+    "armColor": "#bdc3c7",
+    "on_enter": [
+      {
+        "avatar": "avatars/prospective_school_mum.png",
+        "say": [
+          "Hi there!"
+        ]
+      }
+    ],
+    "interaction_radius": 150
   }
 ]

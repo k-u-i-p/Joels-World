@@ -49,7 +49,7 @@ export class ChatManager {
     }
 
     // Log chat
-    const sender = mapData.characters[ws.clientId];
+    const sender = this.mapManager.getCharacter(mapData.id, ws.clientId);
     const name = sender ? sender.name || ws.clientId : ws.clientId;
     
     this.npcManager.logEventToNearbyNPCs(mapData, `${name} (${ws.clientId}) said: "${data.message}"`, this.aiAgentManager);
