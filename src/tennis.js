@@ -98,6 +98,8 @@ let state = {
   playerAimPitch: 0,
   npcAimYaw: 0,
   npcAimPitch: 0,
+  playerSwingAnim: { pitch: 0.1, yaw: Math.PI * 0.35, roll: 0.3, reach: 4 },
+  npcSwingAnim: { pitch: 0.1, yaw: Math.PI * 0.35, roll: 0.3, reach: 4 }
 };
 
 // ==========================================
@@ -137,12 +139,12 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0) {
     let baseYaw = sweepStart + (sweepEnd - sweepStart) * progress;
 
     yaw = baseYaw + aimYaw;
-    
+
     // Vertical Swoop: Stroke from low to high
     const pitchStart = aimPitch - 0.4;
     const pitchEnd = aimPitch + 0.4;
     pitch = pitchStart + (pitchEnd - pitchStart) * progress;
-    
+
     roll = Math.max(0.1, Math.abs(Math.cos(progress * Math.PI)));
     reach = 4 + Math.sin(progress * Math.PI) * 12; // Fully extend dynamically through the swing arc center
   } else if (isApproaching) {
@@ -152,7 +154,7 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0) {
     reach = 4; // Cocked back elbow bent
   } else {
     yaw = Math.PI * 0.35; // Idle rotated backwards slightly
-    pitch = 0.1;
+    pitch = state.resetting ? -1.0 : 0.1; // Point racket deeply down towards the ground between points
     roll = 0.3;
     reach = 4; // Relaxed elbow bent
   }
@@ -536,21 +538,43 @@ function update(dt) {
   const isPlayerApproaching = state.ballVY > 0 && !state.playerHasSwung && Math.abs(state.ballOffsetX - state.playerOffsetX) < 150 && (playerY - state.ballY) > 0 && (playerY - state.ballY) < 150;
   const isNpcApproaching = state.ballVY < 0 && !state.npcHasSwung && Math.abs(state.ballOffsetX - state.npcOffsetX) < 150 && (state.ballY - npcY) > 0 && (state.ballY - npcY) < 150;
 
-  const playerSwing = getSwingState(state.playerSwingTimer, isPlayerApproaching);
-  const npcSwing = getSwingState(state.npcSwingTimer, isNpcApproaching);
+  // Calculate true physical target states
+  const targetPlayerSwing = getSwingState(state.playerSwingTimer, isPlayerApproaching, state.playerAimYaw, state.playerAimPitch);
+  const targetNpcSwing = getSwingState(state.npcSwingTimer, isNpcApproaching, state.npcAimYaw, state.npcAimPitch);
 
-  // Character arms dynamically stretch slightly if ball is just outside character center
-  const playerSideReach = 14 + (isPlayerApproaching || state.playerSwingTimer > 0 ? clamp(state.ballOffsetX - state.playerOffsetX, -12, 12) : 0);
-  const npcSideReach = 14 + (isNpcApproaching || state.npcSwingTimer > 0 ? clamp(-(state.ballOffsetX - state.npcOffsetX), -12, 12) : 0);
+  // Animate the actual arm states towards the target geometries using dt-scaled lerp.
+  // Snap instantly to the procedural stroke arc during active swing (timer > 0) to preserve precise hit collision physics.
+  const pLerp = state.playerSwingTimer > 0 ? 1.0 : clamp(12 * dt, 0, 1);
+  state.playerSwingAnim.pitch += (targetPlayerSwing.pitch - state.playerSwingAnim.pitch) * pLerp;
+  state.playerSwingAnim.yaw += (targetPlayerSwing.yaw - state.playerSwingAnim.yaw) * pLerp;
+  state.playerSwingAnim.roll += (targetPlayerSwing.roll - state.playerSwingAnim.roll) * pLerp;
+  state.playerSwingAnim.reach += (targetPlayerSwing.reach - state.playerSwingAnim.reach) * pLerp;
 
-  // Compute Z-axis reach elevation for high-bouncing shots only when ball in Y-proximity
+  const nLerp = state.npcSwingTimer > 0 ? 1.0 : clamp(12 * dt, 0, 1);
+  state.npcSwingAnim.pitch += (targetNpcSwing.pitch - state.npcSwingAnim.pitch) * nLerp;
+  state.npcSwingAnim.yaw += (targetNpcSwing.yaw - state.npcSwingAnim.yaw) * nLerp;
+  state.npcSwingAnim.roll += (targetNpcSwing.roll - state.npcSwingAnim.roll) * nLerp;
+  state.npcSwingAnim.reach += (targetNpcSwing.reach - state.npcSwingAnim.reach) * nLerp;
+
+  // Compute Z-axis leaps only for high lobs that exceed standing arm reach (> 40px altitude)
   const playerDistY = Math.abs(state.ballY - playerY);
   const playerZMult = clamp(1 - (playerDistY / 80), 0, 1);
-  state.playerElevateZ = (isPlayerApproaching || state.playerSwingTimer > 0) ? clamp(state.ballCurrentHeight - 20, 0, 70) * playerZMult : 0;
+  if (isPlayerApproaching || state.playerSwingTimer > 0) {
+    // Only leave the ground if the ball is too high to simply reach
+    const requiredJump = Math.max(0, state.ballCurrentHeight - 35);
+    state.playerElevateZ = clamp(requiredJump, 0, 70) * playerZMult;
+  } else {
+    state.playerElevateZ = 0;
+  }
 
   const npcDistY = Math.abs(state.ballY - npcY);
   const npcZMult = clamp(1 - (npcDistY / 80), 0, 1);
-  state.npcElevateZ = (isNpcApproaching || state.npcSwingTimer > 0) ? clamp(state.ballCurrentHeight - 20, 0, 70) * npcZMult : 0;
+  if (isNpcApproaching || state.npcSwingTimer > 0) {
+    const requiredJump = Math.max(0, state.ballCurrentHeight - 35);
+    state.npcElevateZ = clamp(requiredJump, 0, 70) * npcZMult;
+  } else {
+    state.npcElevateZ = 0;
+  }
 
   // Absolute world coordinates of both racket hitboxes (calculated strictly from canvas renderer payload)
   const playerRacketPos = getRacketWorldPos(true);
@@ -961,7 +985,7 @@ function update(dt) {
     !state.resetting &&
     state.ballVY > 0 &&
     state.playerSwingTimer > 0 &&
-    Math.abs(state.ballY - playerRacketPos.groundY) < 50 && 
+    Math.abs(state.ballY - playerRacketPos.groundY) < 50 &&
     state.ballCurrentHeight >= playerRacketPos.z - 15 && state.ballCurrentHeight <= playerRacketPos.z + 50 &&
     // Strict Elliptical Intersection Boolean Matrix Check over standard Box Radius Check
     (Math.pow(pLocalDx, 2) / Math.pow(playerRacketPos.w + BALL_RADIUS, 2)) +
@@ -976,7 +1000,7 @@ function update(dt) {
     // Apply slight directional spin off center hits manually controlled by the player leaning into the ball
     const isLeaningLeft = inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA') || (inputManager.keys.TouchMove && inputManager.joystickVector.x < -0.3);
     const isLeaningRight = inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD') || (inputManager.keys.TouchMove && inputManager.joystickVector.x > 0.3);
-    
+
     if (isLeaningLeft) {
       targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.15 + (Math.random() * 20); // Aim left sideline
       returnSpeed *= 1.2; // Power boost!
@@ -996,7 +1020,7 @@ function update(dt) {
       targetY = COURT_INNER_BOUNDS.y + 20; // Aim deep lob
       returnSpeed *= 0.9;
     } else if (isAimingDown) {
-      targetY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height/2 - 20; // Aim short smash
+      targetY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2 - 20; // Aim short smash
       returnSpeed *= 1.3;
     }
 
@@ -1025,7 +1049,7 @@ function update(dt) {
     !state.resetting &&
     state.ballVY < 0 &&
     state.npcSwingTimer > 0 &&
-    Math.abs(state.ballY - npcRacketPos.groundY) < 50 && 
+    Math.abs(state.ballY - npcRacketPos.groundY) < 50 &&
     state.ballCurrentHeight >= npcRacketPos.z - 15 && state.ballCurrentHeight <= npcRacketPos.z + 50 &&
     (Math.pow(nLocalDx, 2) / Math.pow(npcRacketPos.w + BALL_RADIUS, 2)) +
     (Math.pow(nLocalDy, 2) / Math.pow(npcRacketPos.h + BALL_RADIUS, 2)) <= 1
@@ -1087,9 +1111,9 @@ function update(dt) {
  * @param {number} swingAngle - Rotational swing adjustment.
  */
 function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = null) {
-  const pitchMult = Math.cos(pitch);
+  const pitchMult = Math.max(0.05, Math.abs(Math.cos(pitch)));
   const rx = Math.max(1, 8 * roll);
-  
+
   if (ctx && limbs) {
     ctx.save();
     ctx.translate(limbs.rightArmX, limbs.rightArmY);
@@ -1136,11 +1160,11 @@ function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = 
     if (transformData && ctx.getTransform) {
       const transform = ctx.getTransform();
       const pt = transform.transformPoint(new DOMPoint(0, headCy));
-      
+
       // Invert the canvas viewport scaling to save pure internal game engine coordinates
       const gameX = ((pt.x - transformData.offsetX) / transformData.scale) - transformData.centerX;
       const gameY = (pt.y - transformData.offsetY) / transformData.scale;
-      
+
       transformData.targetStateObj.x = gameX;
       transformData.targetStateObj.y = gameY;
       transformData.targetStateObj.groundY = gameY + transformData.elevateZ;
@@ -1216,12 +1240,8 @@ function draw() {
   const gameWidth = GAME_HEIGHT * imageAspect;
   const centerX = gameWidth / 2;
 
-  // Process logic parameters exactly as update tick evaluates them
-  const isPlayerApproaching = state.ballVY > 0 && !state.playerHasSwung && Math.abs(state.ballOffsetX - state.playerOffsetX) < 150 && (playerY - state.ballY) > 0 && (playerY - state.ballY) < 150;
-  const isNpcApproaching = state.ballVY < 0 && !state.npcHasSwung && Math.abs(state.ballOffsetX - state.npcOffsetX) < 150 && (state.ballY - npcY) > 0 && (state.ballY - npcY) < 150;
-
-  const npcSwing = getSwingState(state.npcSwingTimer, isNpcApproaching, state.npcAimYaw, state.npcAimPitch);
-  const playerSwing = getSwingState(state.playerSwingTimer, isPlayerApproaching, state.playerAimYaw, state.playerAimPitch);
+  const npcSwing = state.npcSwingAnim;
+  const playerSwing = state.playerSwingAnim;
 
   const pArmL = playerSwing.reach * Math.cos(playerSwing.pitch);
   const pRightArmX = 4 + pArmL * Math.cos(playerSwing.yaw);
