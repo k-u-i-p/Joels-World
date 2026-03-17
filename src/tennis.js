@@ -19,7 +19,6 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 const GAME_HEIGHT = 800;
-const PLAYABLE_HALF_WIDTH = 225; // Defines the lateral boundaries for characters
 const PADDLE_SPEED = 250;        // Player movement speed
 const NPC_SPEED = 200;           // NPC movement speed
 const BALL_SPEED = 220;          // Base horizontal ball speed
@@ -30,10 +29,11 @@ const SWING_DURATION = 0.25;     // Duration of a racket swing in seconds
 const NET_HEIGHT = 45;           // Minimum Z-altitude required to cross the court
 
 const COURT_INNER_BOUNDS = { x: -125, y: 180, width: 255, height: 440 };
+const PLAYABLE_HALF_WIDTH = (COURT_INNER_BOUNDS.width / 2) + 100; // Lateral character bounds naturally scale with the court
 
 // Character specific positioning
-const PLAYER_BASE_Y = GAME_HEIGHT - 170;
-const NPC_BASE_Y = 170;
+const PLAYER_BASE_Y = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height + 10;
+const NPC_BASE_Y = COURT_INNER_BOUNDS.y - 10;
 
 // ==========================================
 // GAME STATE
