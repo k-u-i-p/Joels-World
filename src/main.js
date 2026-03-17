@@ -507,8 +507,6 @@ function handleInitData(data) {
 
       const topUi = document.getElementById('top-center-ui');
       if (topUi) topUi.style.display = 'none';
-      const joystick = document.getElementById('joystick-move-container');
-      if (joystick) joystick.style.display = 'none';
 
       import(window.init.mapData.import).then(module => {
         module.initMinigame();
@@ -523,12 +521,16 @@ function handleInitData(data) {
 
       const topUi = document.getElementById('top-center-ui');
       if (topUi) topUi.style.display = 'flex';
-      const joystick = document.getElementById('joystick-move-container');
-      if (joystick) joystick.style.display = 'flex';
 
       gameLoop.registerFunction(updateLocalNPCs);
       gameLoop.registerFunction(update);
       gameLoop.registerFunction(draw);
+    }
+
+    if (window.isAdmin) {
+      import('./admin.js').then(adminModule => {
+        gameLoop.registerFunction(adminModule.adminDraw);
+      });
     }
 
     gameLoop.start();

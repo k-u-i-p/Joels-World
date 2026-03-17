@@ -10,6 +10,7 @@ import { gameLoop } from './gameloop.js';
 import { inputManager } from './input.js';
 import { characterManager } from './characters.js';
 import { player, camera } from './main.js';
+import { soundManager } from './sound.js';
 
 // ==========================================
 // CONSTANTS & CONFIGURATION
@@ -40,7 +41,7 @@ const NPC_BASE_Y = 170;
 let minigameActive = false;
 let npc = null;
 let bgImage = new Image();
-bgImage.src = '/minigames/tennis/map.png';
+bgImage.src = '/minigames/tennis/map.svg';
 
 /** 
  * Central state object tracking real-time mutable variables for physics, 
@@ -82,6 +83,10 @@ let state = {
   npcHasSwung: false,
   bounceCount: 0,
   resetting: false,
+  resetDelayTimer: 0,
+  rallyCount: 0,
+  introPhase: 'walkToNet',
+  introTimer: 0,
   nextServerIsPlayer: false,
   serveSide: -1,
 };
@@ -208,14 +213,14 @@ function hitBallToTarget(targetX, targetY, velocity) {
   // Ensure the ball arcs high enough to clear the physical net structure if the target crosses the net
   const netY = GAME_HEIGHT / 2;
   const crossesNet = (state.ballY < netY && targetY > netY) || (state.ballY > netY && targetY < netY);
-  
+
   if (crossesNet) {
     // Rough estimation of how long it takes to reach the net
     const timeToNet = (Math.abs(netY - state.ballY) / Math.abs(dy)) * timeToTarget;
     // Calculate the minimum Z-velocity needed to be exactly above NET_HEIGHT when t = timeToNet
     const requiredClearanceHeight = NET_HEIGHT + BALL_RADIUS + 5; // adding 5px buffer
     const minVZ = (requiredClearanceHeight - state.ballCurrentHeight + 0.5 * GRAVITY * timeToNet * timeToNet) / timeToNet;
-    
+
     // If the flat stroke calculations predict crashing into the net, boost the arc
     if (vZ < minVZ) {
       vZ = minVZ;
@@ -254,18 +259,29 @@ export function initMinigame() {
   state.playerOffsetY = 0;
   state.npcOffsetX = state.serveSide * 80;
   state.npcOffsetY = 0;
-  state.playerSwingTimer = 0;
   state.npcSwingTimer = 0;
   state.playerLegTimer = 0;
   state.npcLegTimer = 0;
+  state.resetDelayTimer = 0;
   state.playerElevateZ = 0;
   state.npcElevateZ = 0;
   state.npcTargetX = 0;
   state.npcTargetY = NPC_BASE_Y;
-  state.npcHasTarget = false;
   state.resetting = false;
 
-  serveBall(false); // NPC serves first
+  // Start cinematic intro instead of immediately serving
+  state.introPhase = 'walkToNet';
+  state.introTimer = 0;
+  // Place characters far back initially
+  state.playerOffsetY = 30;
+  state.npcOffsetY = -30;
+  // Put the ball somewhere hidden temporarily
+  state.ballCurrentHeight = -100;
+  state.ballVX = 0;
+  state.ballVY = 0;
+
+  // Start background music
+  soundManager.playBackground('/media/hushed_crowd.mp3', 0.5);
 
   // Setup overhead perspective
   camera.x = 0;
@@ -304,9 +320,16 @@ function serveBall(playerServing) {
   let serveVelocity = playerServing ? BALL_SPEED * 0.7 : BALL_SPEED * 0.65;
   hitBallToTarget(targetX, targetY, serveVelocity);
 
+  // Add random variance to volume and pitch for organic audio
+  let soundSrc = playerServing ? '/media/hit_tennis_ball.mp3' : '/media/hit_tennis_ball2.mp3';
+  let sound = soundManager.playPooled(soundSrc, 0.7 + Math.random() * 0.5);
+  sound.setRate(0.85 + Math.random() * 0.3);
+
   // Renew locks allowing exactly one swing per volley
   state.playerHasSwung = false;
   state.npcHasSwung = false;
+  state.bounceCount = 0;
+  state.rallyCount = 0;
 
   // Force character to animate hitting the serve
   if (playerServing) {
@@ -329,6 +352,10 @@ function triggerPointReset(nextPlayerServing) {
   state.resetting = true;
   state.nextServerIsPlayer = nextPlayerServing;
   state.serveSide *= -1;
+  state.resetDelayTimer = 1.5; // Brief intermission before next serve
+  if (state.rallyCount >= 4) {
+    soundManager.playPooled('/media/clap.mp3', 0.8);
+  }
 }
 
 /**
@@ -338,6 +365,93 @@ function triggerPointReset(nextPlayerServing) {
  */
 function update(dt) {
   if (!minigameActive) return;
+
+  // Cinematic Intro Sequence
+  if (state.introPhase && state.introPhase !== 'playing') {
+    if (state.introPhase === 'walkToNet') {
+      const targetPlayerY = (GAME_HEIGHT / 2) + 25;
+      const targetNpcY = (GAME_HEIGHT / 2) - 25;
+      
+      const pDist = targetPlayerY - getPlayerY();
+      const nDist = targetNpcY - getNpcY();
+      const pDistX = 0 - state.playerOffsetX;
+      const nDistX = 0 - state.npcOffsetX;
+      
+      const speed = PADDLE_SPEED * dt * 0.5;
+      
+      if (Math.abs(pDist) > 2) {
+        state.playerOffsetY += Math.sign(pDist) * speed;
+        state.playerLegTimer += speed * 0.1;
+      }
+      if (Math.abs(pDistX) > 2) {
+        state.playerOffsetX += Math.sign(pDistX) * speed;
+        state.playerLegTimer += speed * 0.1;
+      } else {
+        state.playerOffsetX = 0;
+      }
+
+      if (Math.abs(nDist) > 2) {
+        state.npcOffsetY += Math.sign(nDist) * speed;
+        state.npcLegTimer += speed * 0.1;
+      }
+      if (Math.abs(nDistX) > 2) {
+        state.npcOffsetX += Math.sign(nDistX) * speed;
+        state.npcLegTimer += speed * 0.1;
+      } else {
+        state.npcOffsetX = 0;
+      }
+      
+      // Face each other
+      state.playerRotation = 270;
+      state.npcRotation = 90;
+      
+      if (Math.abs(pDist) <= 2 && Math.abs(nDist) <= 2 && Math.abs(pDistX) <= 2 && Math.abs(nDistX) <= 2) {
+        state.introPhase = 'shakeHands';
+        state.introTimer = 2.0; // 2 seconds of shaking hands
+        state.playerLegTimer = 0;
+        state.npcLegTimer = 0;
+      }
+    } else if (state.introPhase === 'shakeHands') {
+      state.introTimer -= dt;
+      // Simulate hand shake by oscillating rotation slightly
+      state.playerRotation = 270 + Math.sin(state.introTimer * 20) * 10;
+      state.npcRotation = 90 - Math.sin(state.introTimer * 20) * 10;
+      
+      if (state.introTimer <= 0) {
+        state.introPhase = 'walkToBaseline';
+      }
+    } else if (state.introPhase === 'walkToBaseline') {
+      const pDist = -state.playerOffsetY; // target 0
+      const nDist = -state.npcOffsetY; // target 0
+      const speed = PADDLE_SPEED * dt * 0.6;
+      
+      if (Math.abs(pDist) > 2) {
+        state.playerOffsetY += Math.sign(pDist) * speed;
+        state.playerLegTimer += speed * 0.1;
+        state.playerRotation = 90; // Face away while walking back
+      } else {
+        state.playerRotation = 270; // Turn around when at baseline
+      }
+      
+      if (Math.abs(nDist) > 2) {
+        state.npcOffsetY += Math.sign(nDist) * speed;
+        state.npcLegTimer += speed * 0.1;
+        state.npcRotation = 270; // Face away while walking back
+      } else {
+        state.npcRotation = 90; // Turn around when at baseline
+      }
+      
+      if (Math.abs(pDist) <= 2 && Math.abs(nDist) <= 2) {
+        state.playerOffsetY = 0;
+        state.npcOffsetY = 0;
+        state.playerLegTimer = 0;
+        state.npcLegTimer = 0;
+        state.introPhase = 'playing';
+        serveBall(false); // NPC serves first to start the real game
+      }
+    }
+    return; // Block the rest of the game update loop during intro
+  }
 
   const playerY = getPlayerY();
   const npcY = getNpcY();
@@ -432,17 +546,24 @@ function update(dt) {
   } else {
     let playerMoveX = 0;
     let playerMoveY = 0;
-    if (inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW')) {
-      playerMoveY = -PADDLE_SPEED * dt;
-    }
-    if (inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS')) {
-      playerMoveY = PADDLE_SPEED * dt;
-    }
-    if (inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA')) {
-      playerMoveX = -PADDLE_SPEED * dt;
-    }
-    if (inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD')) {
-      playerMoveX = PADDLE_SPEED * dt;
+    
+    // Read from analog mobile joystick first if active
+    if (inputManager.keys.TouchMove) {
+      playerMoveX = inputManager.joystickVector.x * PADDLE_SPEED * dt;
+      playerMoveY = inputManager.joystickVector.y * PADDLE_SPEED * dt;
+    } else {
+      if (inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW')) {
+        playerMoveY = -PADDLE_SPEED * dt;
+      }
+      if (inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS')) {
+        playerMoveY = PADDLE_SPEED * dt;
+      }
+      if (inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA')) {
+        playerMoveX = -PADDLE_SPEED * dt;
+      }
+      if (inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD')) {
+        playerMoveX = PADDLE_SPEED * dt;
+      }
     }
 
     if (playerMoveX !== 0) {
@@ -530,10 +651,10 @@ function update(dt) {
 
         // Calculate intercept trajectory when ball crosses that specific Y-depth plane
         const timeToIntercept = Math.abs((targetY - state.ballY) / state.ballVY);
-        
+
         // Calculate raw X trajectory without walls
         let absoluteTargetX = state.ballOffsetX + (state.ballVX * timeToIntercept);
-        
+
         // Mathematically fold the X-coordinate if the trajectory ricochets off a side wall
         const X_BOUND = PLAYABLE_HALF_WIDTH + 150;
         if (absoluteTargetX > X_BOUND) {
@@ -541,7 +662,7 @@ function update(dt) {
         } else if (absoluteTargetX < -X_BOUND) {
           absoluteTargetX = -X_BOUND + (-X_BOUND - absoluteTargetX);
         }
-        
+
         state.npcTargetX = absoluteTargetX + approximatedRacketOffset;
         state.npcTargetY = targetY;
         state.npcHasTarget = true;
@@ -603,7 +724,11 @@ function update(dt) {
   }
 
   if (state.resetting && !playerMoved && !npcMoved) {
-    serveBall(state.nextServerIsPlayer);
+    if (state.resetDelayTimer > 0) {
+      state.resetDelayTimer -= dt;
+    } else {
+      serveBall(state.nextServerIsPlayer);
+    }
     return;
   }
 
@@ -635,7 +760,7 @@ function update(dt) {
 
   // 6. Handle Planar XY movement and Structural Net Collision
   state.ballOffsetX += state.ballVX * dt;
-  
+
   const prevBallY = state.ballY;
   state.ballY += state.ballVY * dt;
 
@@ -673,9 +798,21 @@ function update(dt) {
     const hitOffset = state.ballOffsetX - playerRacketPos.x;
     targetX += hitOffset * 1.5;
 
-    // Dynamically increase speed with every returned rally
-    const returnSpeed = state.ballCurrentVelocity * 1.1;
+    // Standard baseline rally acceleration
+    let returnSpeed = state.ballCurrentVelocity * 1.05;
+
+    // Power Shot Mechanic: If the player leans left (rotating the racket forward into the ball's incoming trajectory) exactly at the point of impact
+    const isLeaningLeft = inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA') || (inputManager.keys.TouchMove && inputManager.joystickVector.x < -0.3);
+    if (isLeaningLeft) {
+      returnSpeed *= 1.4; // 40% velocity boost!
+    }
+
+    state.rallyCount++;
     hitBallToTarget(targetX, targetY, returnSpeed);
+
+    // Add random variance to volume and pitch for organic audio
+    let soundP = soundManager.playPooled('/media/hit_tennis_ball.mp3', 0.7 + Math.random() * 0.5);
+    soundP.setRate(0.85 + Math.random() * 0.3);
 
     state.ballCurrentHeight = Math.max(10, state.ballCurrentHeight); // Simulate ground strike lift 
 
@@ -700,7 +837,12 @@ function update(dt) {
     const targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
 
     const returnSpeed = state.ballCurrentVelocity * 1.1;
+    state.rallyCount++;
     hitBallToTarget(targetX, targetY, returnSpeed);
+
+    // Add random variance to volume and pitch for organic audio
+    let soundN = soundManager.playPooled('/media/hit_tennis_ball2.mp3', 0.7 + Math.random() * 0.5);
+    soundN.setRate(0.85 + Math.random() * 0.3);
 
     state.ballCurrentHeight = Math.max(10, state.ballCurrentHeight);
 
@@ -914,6 +1056,32 @@ function draw() {
   ctx.fillText('🎾', 0, 0);
   ctx.restore();
 
+  // Calculate and render crosshairs onto the destination surface exactly where ball's geometry will collide
+  const vZTargetCheck = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
+  const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ballCurrentHeight;
+  let tLand = 0;
+  if (det >= 0) {
+    tLand = (vZTargetCheck + Math.sqrt(det)) / GRAVITY;
+  }
+  const landX = centerX + state.ballOffsetX + state.ballVX * tLand;
+  const landY = state.ballY + state.ballVY * tLand;
+
+  // Only show the landing X to non-admins if the ball is moving towards the player
+  if (window.isAdmin || state.ballVY > 0) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+    ctx.lineWidth = 2; // Made slightly thicker for regular players
+
+    ctx.beginPath();
+    ctx.moveTo(landX - 5, landY - 5);
+    ctx.lineTo(landX + 5, landY + 5);
+    ctx.moveTo(landX + 5, landY - 5);
+    ctx.lineTo(landX - 5, landY + 5);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   // 4. Admin Hitbox Diagnostic Visualization Overlay
   if (window.isAdmin) {
     const pHitbox = getRacketWorldPos(state.playerOffsetX, playerY, playerSwing, playerSideReach, state.playerRotation, state.playerElevateZ);
@@ -930,23 +1098,6 @@ function draw() {
 
     ctx.beginPath();
     ctx.ellipse(centerX + nHitbox.x, nHitbox.y, nHitbox.w, nHitbox.h, nHitbox.angle, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Calculate and render crosshairs onto the destination surface exactly where ball's geometry will collide
-    const vZTargetCheck = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
-    const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ballCurrentHeight;
-    let tLand = 0;
-    if (det >= 0) {
-      tLand = (vZTargetCheck + Math.sqrt(det)) / GRAVITY;
-    }
-    const landX = centerX + state.ballOffsetX + state.ballVX * tLand;
-    const landY = state.ballY + state.ballVY * tLand;
-
-    ctx.beginPath();
-    ctx.moveTo(landX - 5, landY - 5);
-    ctx.lineTo(landX + 5, landY + 5);
-    ctx.moveTo(landX + 5, landY - 5);
-    ctx.lineTo(landX - 5, landY + 5);
     ctx.stroke();
 
     ctx.restore();

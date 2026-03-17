@@ -12,6 +12,8 @@ export class InputManager {
       TouchMove: false
     };
 
+    this.joystickVector = { x: 0, y: 0 };
+
     this.isChatFocused = false;
     this.initKeyboard();
     this.initJoystick();
@@ -173,8 +175,15 @@ export class InputManager {
       moveKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
 
       this.keys.TouchMove = false;
+      this.joystickVector.x = 0;
+      this.joystickVector.y = 0;
+      
       if (distance > 10) {
         this.keys.TouchMove = true;
+        // Normalize the vector so minigames can scale it relative to their own speed constraints
+        this.joystickVector.x = Math.cos(angle);
+        this.joystickVector.y = Math.sin(angle);
+        
         // Direct global override for player targeting rotation immediately
         if (player) {
            player.rotation = angle * 180 / Math.PI;
@@ -198,6 +207,8 @@ export class InputManager {
 
       activeTouchId = null;
       moveKnob.style.transform = `translate(0px, 0px)`;
+      this.joystickVector.x = 0;
+      this.joystickVector.y = 0;
       this.keys.TouchMove = false;
     };
 

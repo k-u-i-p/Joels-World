@@ -376,13 +376,13 @@ const npcDefaultEmote = document.getElementById('npc-default-emote');
 if (npcDefaultEmote) {
   npcDefaultEmote.onchange = (e) => {
     if (!window.selectedNpc.get()) return;
-    
+
     // Send either a constructed emote object or null explicitly
     let emoteObj = null;
     if (e.target.value !== '') {
       emoteObj = { name: e.target.value, startTime: Date.now() };
     }
-    
+
     window.selectedNpc.get().default_emote = emoteObj;
     networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { default_emote: emoteObj } });
   };
@@ -563,7 +563,7 @@ function updateAdminPanel() {
   if (window.selectedObject.get() || window.selectedNpc.get()) {
     eventsSection.style.display = 'block';
     const activeEntity = window.selectedObject.get() || window.selectedNpc.get();
-    
+
     // Deep clone the events avoiding memory references
     window.currentEditingEvents = {
       on_enter: JSON.parse(JSON.stringify(activeEntity.on_enter || [])),
@@ -583,9 +583,9 @@ window.currentEditingEvents = { on_enter: [], on_exit: [] };
 function renderEventUI(eventsArray, containerId, eventType) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  
+
   container.innerHTML = '';
-  
+
   if (!eventsArray || eventsArray.length === 0) {
     const emptyMsg = document.createElement('div');
     emptyMsg.style.color = '#7f8c8d';
@@ -642,7 +642,7 @@ function renderEventUI(eventsArray, containerId, eventType) {
       if (newType === 'play_sound') newPayload = { sound: '', volume: 1.0 };
       if (newType === 'show_dialog') newPayload = { description: '', type: 'change_map', map: 1 };
       if (newType === 'log') newPayload = { message: '', rate_limit: 0 };
-      
+
       window.currentEditingEvents[eventType][index] = { [newType]: newPayload };
       renderEventUI(window.currentEditingEvents[eventType], containerId, eventType);
     };
@@ -673,11 +673,11 @@ function renderEventUI(eventsArray, containerId, eventType) {
         window.currentEditingEvents[eventType][index][typeKey] = lines;
       };
       payloadContainer.appendChild(textarea);
-    } 
+    }
     else if (typeKey === 'emote' || typeKey === 'player_emote') {
       const template = document.getElementById('admin-emote-template');
       const select = template.content.cloneNode(true).querySelector('select');
-      
+
       if (payload) {
         const opt = select.querySelector(`option[value="${payload}"]`);
         if (opt) opt.selected = true;
@@ -754,10 +754,10 @@ function renderEventUI(eventsArray, containerId, eventType) {
       limitInput.style.fontSize = '12px';
       limitInput.value = (typeof payload === 'object' && payload.rate_limit) ? payload.rate_limit : 0;
       limitInput.onchange = (e) => {
-        const msgStr = typeof window.currentEditingEvents[eventType][index][typeKey] === 'string' 
-          ? window.currentEditingEvents[eventType][index][typeKey] 
+        const msgStr = typeof window.currentEditingEvents[eventType][index][typeKey] === 'string'
+          ? window.currentEditingEvents[eventType][index][typeKey]
           : window.currentEditingEvents[eventType][index][typeKey].message;
-          
+
         window.currentEditingEvents[eventType][index][typeKey] = {
           message: msgStr,
           rate_limit: parseFloat(e.target.value) || 0
@@ -775,7 +775,7 @@ function renderEventUI(eventsArray, containerId, eventType) {
       txt.placeholder = "Dialog description";
       txt.value = payload.description || '';
       txt.onchange = (e) => window.currentEditingEvents[eventType][index][typeKey].description = e.target.value;
-      
+
       const row1 = document.createElement('div');
       row1.className = 'admin-control-row';
       row1.innerHTML = `<span style="font-size:11px;">Type:</span>`;
@@ -837,16 +837,16 @@ function attachEventButtons() {
       activeEntity.on_exit = cleanEvents(JSON.parse(JSON.stringify(window.currentEditingEvents.on_exit)));
 
       if (window.selectedObject.get()) {
-        networkClient.send({ 
-          type: 'update_object', 
-          id: activeEntity.id, 
-          updates: { on_enter: activeEntity.on_enter, on_exit: activeEntity.on_exit } 
+        networkClient.send({
+          type: 'update_object',
+          id: activeEntity.id,
+          updates: { on_enter: activeEntity.on_enter, on_exit: activeEntity.on_exit }
         });
       } else if (window.selectedNpc.get()) {
-        networkClient.send({ 
-          type: 'update_npc', 
-          id: activeEntity.id, 
-          updates: { on_enter: activeEntity.on_enter, on_exit: activeEntity.on_exit } 
+        networkClient.send({
+          type: 'update_npc',
+          id: activeEntity.id,
+          updates: { on_enter: activeEntity.on_enter, on_exit: activeEntity.on_exit }
         });
       }
 
@@ -1126,7 +1126,7 @@ window.addEventListener('paste', (e) => {
 
 updateAdminPanel();
 
-function adminDraw() {
+export function adminDraw() {
   const dpr = window.devicePixelRatio || 1;
   ctx.save();
   ctx.scale(dpr, dpr);
@@ -1231,5 +1231,3 @@ function adminDraw() {
 
   ctx.restore();
 }
-
-gameLoop.registerFunction(adminDraw, true);
