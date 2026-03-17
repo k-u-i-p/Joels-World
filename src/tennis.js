@@ -29,7 +29,8 @@ const SWING_DURATION = 0.25;     // Duration of a racket swing in seconds
 const NET_HEIGHT = 45;           // Minimum Z-altitude required to cross the court
 
 const COURT_INNER_BOUNDS = { x: -125, y: 180, width: 255, height: 440 };
-const PLAYABLE_HALF_WIDTH = (COURT_INNER_BOUNDS.width / 2) + 100; // Lateral character bounds naturally scale with the court
+const PLAYABLE_OVERSHOOT = 100; // How far characters can physically run out of bounds beyond the court lines
+const PLAYABLE_HALF_WIDTH = (COURT_INNER_BOUNDS.width / 2) + PLAYABLE_OVERSHOOT; // Lateral character bounds naturally scale with the court
 
 // Character specific positioning
 const PLAYER_BASE_Y = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height + 10;
@@ -97,7 +98,6 @@ let state = {
   playerAimYaw: 0,
   playerAimPitch: 0,
   npcAimYaw: 0,
-  npcAimPitch: 0,
   playerSwingAnim: { pitch: 0.1, yaw: Math.PI * 0.35, roll: 0.3, reach: 4 },
   npcSwingAnim: { pitch: 0.1, yaw: Math.PI * 0.35, roll: 0.3, reach: 4 }
 };
@@ -722,10 +722,10 @@ function update(dt) {
     state.playerRotation += shortestP * 0.2;
   }
 
-  // Enforce rigid physical boundaries
-  state.playerOffsetX = clamp(state.playerOffsetX, -PLAYABLE_HALF_WIDTH + 50, PLAYABLE_HALF_WIDTH - 50);
-  // Vertical bounds (-100 forward into court, 50 backward behind baseline)
-  state.playerOffsetY = clamp(state.playerOffsetY, -100, 50);
+  // Enforce rigid physical boundaries (100px past court lines)
+  state.playerOffsetX = clamp(state.playerOffsetX, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
+  // Vertical bounds (to the net, and outside baseline)
+  state.playerOffsetY = clamp(state.playerOffsetY, -(COURT_INNER_BOUNDS.height / 2 + 10), PLAYABLE_OVERSHOOT - 10);
 
   // Character legs only animate if they mathematically changed coordinate after clamping
   const playerMoved = (state.playerOffsetX !== prevPlayerX) || (state.playerOffsetY !== prevPlayerY);
@@ -814,7 +814,7 @@ function update(dt) {
         }
 
         // Position NPC physically behind the ball's bounce depth, clamped to their playable area
-        const targetY = clamp(predictedLandY - 15, NPC_BASE_Y - 50, NPC_BASE_Y + 50);
+        const targetY = clamp(predictedLandY - 15, NPC_BASE_Y - (PLAYABLE_OVERSHOOT - 10), NPC_BASE_Y + COURT_INNER_BOUNDS.height / 2 + 10);
 
         // Calculate intercept trajectory when ball crosses that specific Y-depth plane
         const timeToIntercept = Math.abs((targetY - state.ballY) / state.ballVY);
@@ -872,10 +872,10 @@ function update(dt) {
     state.npcRotation += shortestN * 0.2;
   }
 
-  // Enforce rigid physical boundaries
-  state.npcOffsetX = clamp(state.npcOffsetX, -PLAYABLE_HALF_WIDTH + 50, PLAYABLE_HALF_WIDTH - 50);
-  // Vertical bounds (-50 backward behind baseline, 50 forward into court)
-  state.npcOffsetY = clamp(state.npcOffsetY, -50, 50);
+  // Enforce rigid physical boundaries (100px past court lines)
+  state.npcOffsetX = clamp(state.npcOffsetX, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
+  // Vertical bounds (outside baseline, to the net)
+  state.npcOffsetY = clamp(state.npcOffsetY, -(PLAYABLE_OVERSHOOT - 10), (COURT_INNER_BOUNDS.height / 2) + 10);
 
   // Character legs only animate if they mathematically changed coordinate after clamping
   const npcMoved = (state.npcOffsetX !== prevNpcX) || (state.npcOffsetY !== prevNpcY);
@@ -1263,7 +1263,9 @@ function draw() {
   ctx.fill();
 
   ctx.rotate(state.npcRotation * (Math.PI / 180));
+  
   const npcLimbs = getLimbs(state.npcLegTimer, state.npcDirection, state.npcDirectionY, nRightArmX, nRightArmY);
+
   characterManager.drawShoe(ctx, npcLimbs.leftLegEndX, npcLimbs.leftLegEndY, npc.shoeColor || '#1a252f', true);
   characterManager.drawShoe(ctx, npcLimbs.rightLegEndX, npcLimbs.rightLegEndY, npc.shoeColor || '#1a252f', false);
 
