@@ -162,17 +162,9 @@ function serveBall(playerServing) {
 function getSwingState(timer, isApproaching) {
   if (timer > 0) {
     const progress = 1 - (timer / 0.25); // 0 to 1
-    let angle = 0;
-    let reach = 4;
-    if (progress < 0.4) {
-      const t = progress / 0.4;
-      angle = t * 1.0; // Cock back (positive angle = backward/outward)
-      reach = 4 + t * 4; // Slight pull
-    } else {
-      const t = (progress - 0.4) / 0.6;
-      angle = 1.0 - t * 2.2; // Swing forcefully forward across the body
-      reach = 8 + Math.sin(t * Math.PI) * 6; // Extend arm gracefully through the stroke
-    }
+    // Seamlessly transition from cocked back (1.0) into a fast forward stroke
+    const angle = 1.0 - progress * 2.2;
+    const reach = 4 + Math.sin(progress * Math.PI) * 10;
     return { angle, reach };
   } else if (isApproaching) {
     return { angle: 1.0, reach: 4 }; // Hold cocked position
@@ -237,16 +229,18 @@ function update(dt) {
   const racketHitHalfWidth = 15 * camera.zoom; // Exact collision radius of the racket head
   const racketHitDepth = 10 * camera.zoom;
 
+  const visualBallY = state.ballY - state.ballCurrentHeight;
+
   // Trigger player swing
   if (state.ballVY > 0 && state.playerSwingTimer === 0) {
-    if (playerRacketPos.y - state.ballY < 25 * camera.zoom && playerRacketPos.y - state.ballY > -10 * camera.zoom && Math.abs(state.ballOffsetX - playerRacketPos.x) < racketHitHalfWidth + 30 * camera.zoom) {
+    if (playerRacketPos.y - visualBallY < 45 * camera.zoom && playerRacketPos.y - visualBallY > -10 * camera.zoom && Math.abs(state.ballOffsetX - playerRacketPos.x) < racketHitHalfWidth + 30 * camera.zoom) {
       state.playerSwingTimer = SWING_DURATION;
     }
   }
 
   // Trigger NPC swing
   if (state.ballVY < 0 && state.npcSwingTimer === 0) {
-    if (state.ballY - npcRacketPos.y < 25 * camera.zoom && state.ballY - npcRacketPos.y > -10 * camera.zoom && Math.abs(state.ballOffsetX - npcRacketPos.x) < racketHitHalfWidth + 30 * camera.zoom) {
+    if (visualBallY - npcRacketPos.y < 45 * camera.zoom && visualBallY - npcRacketPos.y > -10 * camera.zoom && Math.abs(state.ballOffsetX - npcRacketPos.x) < racketHitHalfWidth + 30 * camera.zoom) {
       state.npcSwingTimer = SWING_DURATION;
     }
   }
@@ -324,8 +318,8 @@ function update(dt) {
   // Racket Collisions (Player - Bottom)
   if (
     state.ballVY > 0 &&
-    state.ballY + BALL_RADIUS >= playerRacketPos.y - racketHitDepth &&
-    state.ballY - BALL_RADIUS <= playerRacketPos.y + racketHitDepth &&
+    visualBallY + BALL_RADIUS >= playerRacketPos.y - racketHitDepth &&
+    visualBallY - BALL_RADIUS <= playerRacketPos.y + racketHitDepth &&
     state.ballOffsetX >= playerRacketPos.x - racketHitHalfWidth &&
     state.ballOffsetX <= playerRacketPos.x + racketHitHalfWidth
   ) {
@@ -354,8 +348,8 @@ function update(dt) {
   // Racket Collisions (NPC - Top)
   if (
     state.ballVY < 0 &&
-    state.ballY - BALL_RADIUS <= npcRacketPos.y + racketHitDepth &&
-    state.ballY + BALL_RADIUS >= npcRacketPos.y - racketHitDepth &&
+    visualBallY - BALL_RADIUS <= npcRacketPos.y + racketHitDepth &&
+    visualBallY + BALL_RADIUS >= npcRacketPos.y - racketHitDepth &&
     state.ballOffsetX >= npcRacketPos.x - racketHitHalfWidth &&
     state.ballOffsetX <= npcRacketPos.x + racketHitHalfWidth
   ) {
