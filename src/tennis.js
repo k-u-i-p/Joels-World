@@ -92,6 +92,8 @@ let state = {
   npcScore: 0,
   lastHitter: null,
   faultFlag: false,
+  playerRacketPos: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
+  npcRacketPos: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
 };
 
 // ==========================================
@@ -149,38 +151,10 @@ function getSwingState(timer, isApproaching) {
  * @param {number} sideReach - Current lateral extension of the arm.
  * @returns {{x: number, y: number}} The precise structural center of the racket strings.
  */
-function getRacketWorldPos(offsetX, y, swingState, sideReach, baseRotation, elevateZ = 0) {
-  // Baseline graphic rotation (Math.PI / 2) + idle rotation (1.0) + dynamic swing angle
-  const racketAngle = Math.PI / 2 + 1.0 + swingState.angle;
-
-  // Calculate relative structural center of the racket head strings 
-  // (the drawRacket graphic renders the ellipse centered at 0, -18 locally)
-  const racketHeadLocalX = 18 * Math.sin(racketAngle);
-  const racketHeadLocalY = -18 * Math.cos(racketAngle);
-
-  // Raw unrotated local (X, Y) relative to the character origin
-  const localX = swingState.reach + racketHeadLocalX;
-  const localY = sideReach + racketHeadLocalY;
-
-  // Apply actual spatial world transformation matrix based on character's current facing angle
-  const rotRad = baseRotation * (Math.PI / 180);
-  const cosRot = Math.cos(rotRad);
-  const sinRot = Math.sin(rotRad);
-
-  const worldOffsetX = (localX * cosRot - localY * sinRot) * camera.zoom;
-  const worldOffsetY = (localX * sinRot + localY * cosRot) * camera.zoom;
-
-  const hitWidth = 15 * swingState.roll * camera.zoom;
-  const hitDepth = 10 * camera.zoom;
-
-  return {
-    x: offsetX + worldOffsetX,
-    y: y + worldOffsetY - elevateZ,
-    groundY: y + worldOffsetY,
-    w: Math.max(1, hitWidth),
-    h: hitDepth,
-    angle: rotRad + racketAngle
-  };
+function getRacketWorldPos(isPlayer) {
+  // Return the statically cached hitbox matrix derived natively from the canvas renderer
+  // This guarantees 100% parity between physics boundaries and painted pixels!
+  return isPlayer ? state.playerRacketPos : state.npcRacketPos;
 }
 
 /**
@@ -558,9 +532,9 @@ function update(dt) {
   const npcZMult = clamp(1 - (npcDistY / 80), 0, 1);
   state.npcElevateZ = (isNpcApproaching || state.npcSwingTimer > 0) ? clamp(state.ballCurrentHeight - 20, 0, 70) * npcZMult : 0;
 
-  // Absolute world coordinates of both racket hitboxes
-  const playerRacketPos = getRacketWorldPos(state.playerOffsetX, playerY, playerSwing, playerSideReach, state.playerRotation, state.playerElevateZ);
-  const npcRacketPos = getRacketWorldPos(state.npcOffsetX, npcY, npcSwing, npcSideReach, state.npcRotation, state.npcElevateZ);
+  // Absolute world coordinates of both racket hitboxes (calculated strictly from canvas renderer payload)
+  const playerRacketPos = getRacketWorldPos(true);
+  const npcRacketPos = getRacketWorldPos(false);
 
   // The actual collision checks test against visually elevated (Z-adjusted) Y coord 
   const visualBallY = state.ballY - state.ballCurrentHeight;
@@ -581,7 +555,8 @@ function update(dt) {
     const localDy = dx * Math.sin(-playerRacketPos.angle) + dy * Math.cos(-playerRacketPos.angle);
 
     if (
-      Math.abs(state.ballY - playerRacketPos.groundY) < 50 && state.ballCurrentHeight < 100 &&
+      Math.abs(state.ballY - playerRacketPos.groundY) < 50 &&
+      state.ballCurrentHeight >= playerRacketPos.z - 15 && state.ballCurrentHeight <= playerRacketPos.z + 50 &&
       Math.pow(localDx, 2) / Math.pow(playerTriggerW, 2) + Math.pow(localDy, 2) / Math.pow(playerTriggerH, 2) <= 1
     ) {
       state.playerSwingTimer = SWING_DURATION;
@@ -596,7 +571,8 @@ function update(dt) {
     const localDy = dx * Math.sin(-npcRacketPos.angle) + dy * Math.cos(-npcRacketPos.angle);
 
     if (
-      Math.abs(state.ballY - npcRacketPos.groundY) < 50 && state.ballCurrentHeight < 100 &&
+      Math.abs(state.ballY - npcRacketPos.groundY) < 50 &&
+      state.ballCurrentHeight >= npcRacketPos.z - 15 && state.ballCurrentHeight <= npcRacketPos.z + 50 &&
       Math.pow(localDx, 2) / Math.pow(npcTriggerW, 2) + Math.pow(localDy, 2) / Math.pow(npcTriggerH, 2) <= 1
     ) {
       state.npcSwingTimer = SWING_DURATION;
@@ -948,7 +924,8 @@ function update(dt) {
     !state.resetting &&
     state.ballVY > 0 &&
     state.playerSwingTimer > 0 &&
-    Math.abs(state.ballY - playerRacketPos.groundY) < 50 && state.ballCurrentHeight < 100 &&
+    Math.abs(state.ballY - playerRacketPos.groundY) < 50 && 
+    state.ballCurrentHeight >= playerRacketPos.z - 15 && state.ballCurrentHeight <= playerRacketPos.z + 50 &&
     // Strict Elliptical Intersection Boolean Matrix Check over standard Box Radius Check
     (Math.pow(pLocalDx, 2) / Math.pow(playerRacketPos.w + BALL_RADIUS, 2)) +
     (Math.pow(pLocalDy, 2) / Math.pow(playerRacketPos.h + BALL_RADIUS, 2)) <= 1
@@ -994,7 +971,8 @@ function update(dt) {
     !state.resetting &&
     state.ballVY < 0 &&
     state.npcSwingTimer > 0 &&
-    Math.abs(state.ballY - npcRacketPos.groundY) < 50 && state.ballCurrentHeight < 100 &&
+    Math.abs(state.ballY - npcRacketPos.groundY) < 50 && 
+    state.ballCurrentHeight >= npcRacketPos.z - 15 && state.ballCurrentHeight <= npcRacketPos.z + 50 &&
     (Math.pow(nLocalDx, 2) / Math.pow(npcRacketPos.w + BALL_RADIUS, 2)) +
     (Math.pow(nLocalDy, 2) / Math.pow(npcRacketPos.h + BALL_RADIUS, 2)) <= 1
   ) {
@@ -1050,45 +1028,68 @@ function update(dt) {
  * @param {Object} limbs - Current Limb positions. 
  * @param {number} swingAngle - Rotational swing adjustment.
  */
-function drawRacket(ctx, limbs, swingAngle = 0, roll = 1.0) {
-  ctx.save();
-  ctx.translate(limbs.rightArmX, limbs.rightArmY);
-
-  ctx.rotate(Math.PI / 2 + 1.0 + swingAngle);
-
-  // Draw handle
-  ctx.fillStyle = '#2c3e50';
-  ctx.fillRect(-2, -10, 4, 15);
-
+function drawRacket(ctx, limbs, swingAngle = 0, roll = 1.0, transformData = null) {
   const rx = Math.max(1, 8 * roll);
+  
+  if (ctx && limbs) {
+    ctx.save();
+    ctx.translate(limbs.rightArmX, limbs.rightArmY);
 
-  // Draw structural frame
-  ctx.strokeStyle = '#e74c3c';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  if (ctx.ellipse) {
-    ctx.ellipse(0, -18, rx, 12, 0, 0, Math.PI * 2);
-  } else {
-    ctx.arc(0, -18, Math.max(rx, 10), 0, Math.PI * 2);
+    ctx.rotate(Math.PI / 2 + 1.0 + swingAngle);
+
+    // Draw handle
+    ctx.fillStyle = '#2c3e50';
+    ctx.fillRect(-2, -10, 4, 15);
+
+    // Draw structural frame
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (ctx.ellipse) {
+      ctx.ellipse(0, -18, rx, 12, 0, 0, Math.PI * 2);
+    } else {
+      ctx.arc(0, -18, Math.max(rx, 10), 0, Math.PI * 2);
+    }
+    ctx.stroke();
+
+    // Draw strings
+    ctx.strokeStyle = 'rgba(236, 240, 241, 0.5)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+
+    for (let i = -5; i <= 5; i += 3) {
+      ctx.moveTo(i * roll, -28);
+      ctx.lineTo(i * roll, -8);
+    }
+    for (let i = -26; i <= -10; i += 3) {
+      ctx.moveTo(-rx, i);
+      ctx.lineTo(rx, i);
+    }
+    ctx.stroke();
+
+    // Extract raw rendering matrix transformations natively
+    if (transformData && ctx.getTransform) {
+      const transform = ctx.getTransform();
+      const pt = transform.transformPoint(new DOMPoint(0, -18));
+      
+      // Invert the canvas viewport scaling to save pure internal game engine coordinates
+      const gameX = ((pt.x - transformData.offsetX) / transformData.scale) - transformData.centerX;
+      const gameY = (pt.y - transformData.offsetY) / transformData.scale;
+      
+      transformData.targetStateObj.x = gameX;
+      transformData.targetStateObj.y = gameY;
+      transformData.targetStateObj.groundY = gameY + transformData.elevateZ;
+      transformData.targetStateObj.z = transformData.elevateZ;
+      transformData.targetStateObj.w = Math.max(1, rx * camera.zoom);
+      transformData.targetStateObj.h = 12 * camera.zoom;
+      transformData.targetStateObj.angle = transformData.baseRotation * (Math.PI / 180) + (Math.PI / 2 + 1.0 + swingAngle);
+    }
+
+    ctx.restore();
   }
-  ctx.stroke();
 
-  // Draw strings
-  ctx.strokeStyle = 'rgba(236, 240, 241, 0.5)';
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-
-  for (let i = -5; i <= 5; i += 3) {
-    ctx.moveTo(i * roll, -28);
-    ctx.lineTo(i * roll, -8);
-  }
-  for (let i = -26; i <= -10; i += 3) {
-    ctx.moveTo(-rx, i);
-    ctx.lineTo(rx, i);
-  }
-  ctx.stroke();
-
-  ctx.restore();
+  // Always mathematically inform caller of the exact ellipse bounds rendered if they care
+  return { w: rx, h: 12 };
 }
 
 /**
@@ -1184,7 +1185,8 @@ function draw() {
   ctx.translate(0, -state.npcElevateZ / camera.zoom);
   ctx.rotate(state.npcRotation * (Math.PI / 180));
 
-  drawRacket(ctx, npcLimbs, npcSwing.angle, npcSwing.roll);
+  const transformN = { offsetX, offsetY, scale, centerX, baseRotation: state.npcRotation, elevateZ: state.npcElevateZ, targetStateObj: state.npcRacketPos };
+  drawRacket(ctx, npcLimbs, npcSwing.angle, npcSwing.roll, transformN);
   characterManager.drawHumanoidUpperBody(ctx, { ...npc, rotation: state.npcRotation, x: 0, y: 0 }, npcLimbs);
   ctx.restore();
 
@@ -1259,14 +1261,15 @@ function draw() {
   ctx.translate(0, -state.playerElevateZ / camera.zoom);
   ctx.rotate(state.playerRotation * (Math.PI / 180));
 
-  drawRacket(ctx, playerLimbs, playerSwing.angle, playerSwing.roll);
+  const transformP = { offsetX, offsetY, scale, centerX, baseRotation: state.playerRotation, elevateZ: state.playerElevateZ, targetStateObj: state.playerRacketPos };
+  drawRacket(ctx, playerLimbs, playerSwing.angle, playerSwing.roll, transformP);
   characterManager.drawHumanoidUpperBody(ctx, playerCharacter, playerLimbs);
   ctx.restore();
 
   // 3. Admin Hitbox Diagnostic Visualization Overlay
   if (window.isAdmin) {
-    const pHitbox = getRacketWorldPos(state.playerOffsetX, playerY, playerSwing, playerSideReach, state.playerRotation, state.playerElevateZ);
-    const nHitbox = getRacketWorldPos(state.npcOffsetX, npcY, npcSwing, npcSideReach, state.npcRotation, state.npcElevateZ);
+    const pHitbox = getRacketWorldPos(true);
+    const nHitbox = getRacketWorldPos(false);
 
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
