@@ -29,7 +29,7 @@ const GRAVITY = 800;             // Gravity affecting the ball Z-axis (pixels/s^
 const SWING_DURATION = 0.25;     // Duration of a racket swing in seconds
 const NET_HEIGHT = 45;           // Minimum Z-altitude required to cross the court
 
-const COURT_INNER_BOUNDS = { x: -78, y: 264, width: 156, height: 272 };
+const COURT_INNER_BOUNDS = { x: -125, y: 180, width: 255, height: 440 };
 
 // Character specific positioning
 const PLAYER_BASE_Y = GAME_HEIGHT - 170;
@@ -88,9 +88,10 @@ let state = {
   introPhase: 'walkToNet',
   introTimer: 0,
   nextServerIsPlayer: false,
-  serveSide: -1,
   playerScore: 0,
   npcScore: 0,
+  lastHitter: null,
+  faultFlag: false,
 };
 
 // ==========================================
@@ -322,6 +323,7 @@ function serveBall(playerServing) {
     targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 3);
   }
 
+  state.lastHitter = playerServing ? 'player' : 'npc';
   state.ballCurrentHeight = 40; // Characters throw the ball to waist height for serve
   let serveVelocity = playerServing ? BALL_SPEED * 0.7 : BALL_SPEED * 0.65;
   hitBallToTarget(targetX, targetY, serveVelocity);
@@ -336,6 +338,7 @@ function serveBall(playerServing) {
   state.npcHasSwung = false;
   state.bounceCount = 0;
   state.rallyCount = 0;
+  state.faultFlag = false;
 
   // Force character to animate hitting the serve
   if (playerServing) {
@@ -376,7 +379,7 @@ function updateScoreboardDOM() {
 function triggerPointReset(nextPlayerServing) {
   if (state.resetting) return;
   state.resetting = true;
-  
+
   // Award point based on who is serving next (loser of the rally serves)
   if (nextPlayerServing) {
     state.npcScore++;
@@ -414,14 +417,14 @@ function update(dt) {
     if (state.introPhase === 'walkToNet') {
       const targetPlayerY = (GAME_HEIGHT / 2) + 25;
       const targetNpcY = (GAME_HEIGHT / 2) - 25;
-      
+
       const pDist = targetPlayerY - getPlayerY();
       const nDist = targetNpcY - getNpcY();
       const pDistX = 0 - state.playerOffsetX;
       const nDistX = 0 - state.npcOffsetX;
-      
+
       const speed = PADDLE_SPEED * dt * 0.5;
-      
+
       if (Math.abs(pDist) > 2) {
         state.playerOffsetY += Math.sign(pDist) * speed;
         state.playerLegTimer += speed * 0.1;
@@ -443,11 +446,11 @@ function update(dt) {
       } else {
         state.npcOffsetX = 0;
       }
-      
+
       // Face each other
       state.playerRotation = 270;
       state.npcRotation = 90;
-      
+
       if (Math.abs(pDist) <= 2 && Math.abs(nDist) <= 2 && Math.abs(pDistX) <= 2 && Math.abs(nDistX) <= 2) {
         state.introPhase = 'shakeHands';
         state.introTimer = 2.0; // 2 seconds of shaking hands
@@ -459,7 +462,7 @@ function update(dt) {
       // Simulate hand shake by oscillating rotation slightly
       state.playerRotation = 270 + Math.sin(state.introTimer * 20) * 10;
       state.npcRotation = 90 - Math.sin(state.introTimer * 20) * 10;
-      
+
       if (state.introTimer <= 0) {
         state.introPhase = 'walkToBaseline';
       }
@@ -471,7 +474,7 @@ function update(dt) {
       const pDistX = targetPX - state.playerOffsetX;
       const nDistY = -state.npcOffsetY; // target 0
       const nDistX = targetNX - state.npcOffsetX;
-      
+
       const speed = PADDLE_SPEED * dt * 0.6;
       let pMoved = false;
       let nMoved = false;
@@ -484,7 +487,7 @@ function update(dt) {
         state.playerOffsetX += Math.sign(pDistX) * speed;
         pMoved = true;
       }
-      
+
       if (pMoved) {
         state.playerLegTimer += speed * 0.1;
         state.playerRotation = 90; // Face away while walking back
@@ -493,7 +496,7 @@ function update(dt) {
         state.playerOffsetX = targetPX;
         state.playerOffsetY = 0;
       }
-      
+
       if (Math.abs(nDistY) > 2) {
         state.npcOffsetY += Math.sign(nDistY) * speed;
         nMoved = true;
@@ -511,7 +514,7 @@ function update(dt) {
         state.npcOffsetX = targetNX;
         state.npcOffsetY = 0;
       }
-      
+
       if (!pMoved && !nMoved) {
         state.playerLegTimer = 0;
         state.npcLegTimer = 0;
@@ -615,7 +618,7 @@ function update(dt) {
   } else {
     let playerMoveX = 0;
     let playerMoveY = 0;
-    
+
     // Read from analog mobile joystick first if active
     if (inputManager.keys.TouchMove) {
       playerMoveX = inputManager.joystickVector.x * PADDLE_SPEED * dt;
@@ -815,12 +818,36 @@ function update(dt) {
     state.ballCurrentHeight = 0;
     state.bounceCount++;
 
-    // Double-bounce rule: If it lands twice before being intercepted, the point is over
-    if (state.bounceCount === 2) {
-      if (state.ballY > GAME_HEIGHT / 2) {
-        triggerPointReset(true);  // Bounced twice on Player's side -> NPC scored
+    if (state.bounceCount === 1 && !state.resetting && state.lastHitter) {
+      const inBoundsX = state.ballOffsetX >= -78 && state.ballOffsetX <= 78;
+      let validBounce = false;
+
+      if (state.lastHitter === 'player') {
+        validBounce = inBoundsX && state.ballY >= 264 && state.ballY <= 400; // NPC's half
+      } else if (state.lastHitter === 'npc') {
+        validBounce = inBoundsX && state.ballY >= 400 && state.ballY <= 536; // Player's half
       } else {
-        triggerPointReset(false); // Bounced twice on NPC's side -> Player scored
+        validBounce = true;
+      }
+
+      // If the first bounce is out of bounds, flag it as a fault, but let the point continue in case the opponent still returns it
+      if (!validBounce) {
+        state.faultFlag = true;
+      }
+    }
+
+    // Double-bounce rule: If it lands twice before being intercepted, the point is over
+    if (state.bounceCount === 2 && !state.resetting) {
+      if (state.faultFlag) {
+        // The first bounce was out of bounds, so the last hitter loses
+        triggerPointReset(state.lastHitter === 'player');
+      } else {
+        // The first bounce was IN bounds, so the person who failed to return it loses
+        if (state.ballY > GAME_HEIGHT / 2) {
+          triggerPointReset(true);  // Bounced twice on Player's side -> NPC scored
+        } else {
+          triggerPointReset(false); // Bounced twice on NPC's side -> Player scored
+        }
       }
     }
 
@@ -878,6 +905,9 @@ function update(dt) {
     }
 
     state.rallyCount++;
+    state.lastHitter = 'player';
+    state.bounceCount = 0; // Hitting the ball rests the bounce count
+    state.faultFlag = false;
     hitBallToTarget(targetX, targetY, returnSpeed);
 
     // Add random variance to volume and pitch for organic audio
@@ -908,6 +938,9 @@ function update(dt) {
 
     const returnSpeed = state.ballCurrentVelocity * 1.1;
     state.rallyCount++;
+    state.lastHitter = 'npc';
+    state.bounceCount = 0; // Hitting the ball resets bounce count
+    state.faultFlag = false;
     hitBallToTarget(targetX, targetY, returnSpeed);
 
     // Add random variance to volume and pitch for organic audio
@@ -923,11 +956,21 @@ function update(dt) {
   // Point resolving (scoring logic) automatically triggers walkback
   if (!state.resetting) {
     const isOffScreenX = Math.abs(state.ballOffsetX) > PLAYABLE_HALF_WIDTH + 150;
+    const isOffScreenY = state.ballY < -50 || state.ballY > GAME_HEIGHT + 50;
 
-    if (state.ballY < 0 || (isOffScreenX && state.ballVY < 0)) {
-      triggerPointReset(false); // Player scored
-    } else if (state.ballY > GAME_HEIGHT || (isOffScreenX && state.ballVY > 0)) {
-      triggerPointReset(true);  // NPC scored
+    if (isOffScreenX || isOffScreenY) {
+      if (state.bounceCount === 0) {
+        // Flew off-screen without ever bouncing (Out of bounds)
+        triggerPointReset(state.lastHitter === 'player');
+      } else if (state.bounceCount === 1) {
+        if (state.faultFlag) {
+          // Bounced out of bounds, then flew off screen
+          triggerPointReset(state.lastHitter === 'player');
+        } else {
+          // Bounced validly in the opponent's court, then went completely off-screen (Winner)
+          triggerPointReset(state.lastHitter === 'npc');
+        }
+      }
     }
   }
 }
@@ -1171,6 +1214,17 @@ function draw() {
 
     ctx.beginPath();
     ctx.ellipse(centerX + nHitbox.x, nHitbox.y, nHitbox.w, nHitbox.h, nHitbox.angle, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Draw Court Bounds
+    ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)'; // Cyan for bounds
+    ctx.lineWidth = 2;
+    ctx.strokeRect(centerX + COURT_INNER_BOUNDS.x, COURT_INNER_BOUNDS.y, COURT_INNER_BOUNDS.width, COURT_INNER_BOUNDS.height);
+
+    // Draw the halfway net line within the bounds
+    ctx.beginPath();
+    ctx.moveTo(centerX + COURT_INNER_BOUNDS.x, GAME_HEIGHT / 2);
+    ctx.lineTo(centerX + COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width, GAME_HEIGHT / 2);
     ctx.stroke();
 
     ctx.restore();
