@@ -18,17 +18,18 @@ import { soundManager } from './sound.js';
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-const GAME_HEIGHT = 800;
-const PADDLE_SPEED = 250;        // Player movement speed
-const NPC_SPEED = 200;           // NPC movement speed
-const BALL_SPEED = 220;          // Base horizontal ball speed
-const MAXIMUM_BALL_SPEED = 300;  // Absolute engine speed ceiling for rallying
-const BALL_RADIUS = 3;           // Collision and drawing radius of the ball
-const GRAVITY = 800;             // Gravity affecting the ball Z-axis (pixels/s^2)
-const SWING_DURATION = 0.25;     // Duration of a racket swing in seconds
-const NET_HEIGHT = 45;           // Minimum Z-altitude required to cross the court
+const COURT_INNER_BOUNDS = { x: -59, y: 85, width: 120, height: 205 };
+const GAME_SCALE = COURT_INNER_BOUNDS.width / 255; // Used to normalize velocities against court shrinks
 
-const COURT_INNER_BOUNDS = { x: -125, y: 180, width: 255, height: 440 };
+const PADDLE_SPEED = 250 * GAME_SCALE;        // Player movement speed
+const NPC_SPEED = 200 * GAME_SCALE;           // NPC movement speed
+const BALL_SPEED = 220 * GAME_SCALE;          // Base horizontal ball speed
+const MAXIMUM_BALL_SPEED = 300 * GAME_SCALE;  // Absolute engine speed ceiling for rallying
+const BALL_RADIUS = 3;                        // Collision and drawing radius of the ball
+const GRAVITY = 800 * GAME_SCALE;             // Gravity affecting the ball Z-axis (pixels/s^2)
+const SWING_DURATION = 0.25;                  // Duration of a racket swing in seconds
+const NET_HEIGHT = 45 * GAME_SCALE;           // Minimum Z-altitude required to cross the court
+
 const PLAYABLE_OVERSHOOT = 75; // How far characters can physically run out of bounds beyond the court lines
 const PLAYABLE_HALF_WIDTH = (COURT_INNER_BOUNDS.width / 2) + PLAYABLE_OVERSHOOT; // Lateral character bounds naturally scale with the court
 
@@ -51,7 +52,7 @@ bgImage.src = '/minigames/tennis/map.svg';
 let state = {
   // Ball planar (2D) coordinates
   ballOffsetX: 0,
-  ballY: GAME_HEIGHT / 2,
+  ballY: COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2,
   ballVX: BALL_SPEED * 0.7,
   ballVY: BALL_SPEED * 0.7,
 
@@ -92,6 +93,10 @@ let state = {
   playerScore: 0,
   npcScore: 0,
   lastHitter: null,
+  isServe: false,
+  faults: 0,
+  trajectoryPoints: [],
+  trajectoryFrozen: false,
   playerRacketPos: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
   npcRacketPos: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
   playerAimYaw: 0,
@@ -153,7 +158,7 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0) {
     reach = 4; // Cocked back elbow bent
   } else {
     yaw = Math.PI * 0.35; // Idle rotated backwards slightly
-    pitch = state.resetting ? -1.0 : 0.1; // Point racket deeply down towards the ground between points
+    pitch = (state.resetting || !!state.introPhase) ? -1.0 : 0.1; // Point racket deeply down towards the ground between points or during intro
     roll = 0.3;
     reach = 4; // Relaxed elbow bent
   }
@@ -189,6 +194,8 @@ function getRacketWorldPos(isPlayer) {
 function hitBallToTarget(targetX, targetY, velocity) {
   state.ballCurrentVelocity = Math.min(velocity, MAXIMUM_BALL_SPEED);
   state.bounceCount = 0;
+  state.trajectoryPoints = []; // Clear history on physical strike
+  state.trajectoryFrozen = false; // Unfreeze tracking
 
   const dx = targetX - state.ballOffsetX;
   const dy = targetY - state.ballY;
@@ -209,7 +216,7 @@ function hitBallToTarget(targetX, targetY, velocity) {
   let vZ = (0.5 * GRAVITY * timeToTarget * timeToTarget - state.ballCurrentHeight) / timeToTarget;
 
   // Ensure the ball arcs high enough to clear the physical net structure if the target crosses the net
-  const netY = GAME_HEIGHT / 2;
+  const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
   const crossesNet = (state.ballY < netY && targetY > netY) || (state.ballY > netY && targetY < netY);
 
   if (crossesNet) {
@@ -297,7 +304,7 @@ export function initMinigame() {
 
   // Setup overhead perspective
   camera.x = 0;
-  camera.y = GAME_HEIGHT / 2;
+  camera.y = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
   camera.zoom = 1.8;
 
   const scoreboard = document.getElementById('tennis-scoreboard');
@@ -316,20 +323,52 @@ export function initMinigame() {
  */
 function serveBall(playerServing) {
   state.resetting = false;
+  state.isServe = true;
   const playerY = getPlayerY();
 
   state.ballOffsetX = playerServing ? state.playerOffsetX : state.npcOffsetX;
   state.ballY = playerServing ? playerY : getNpcY();
 
-  const targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
-  let targetY;
+  // Calculate strict service box zones (Tennis Service line is approx 53.8% of the 39ft half-court distance)
+  const centerX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width / 2;
+  const serviceBoxDepth = COURT_INNER_BOUNDS.height * 0.27; // ~118.8
+  const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
 
-  // Decide strict serving zones
+  let boxMinX, boxMaxX, boxMinY, boxMaxY;
+
+  // Serves are strictly cross-court
   if (playerServing) {
-    targetY = COURT_INNER_BOUNDS.y + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+    boxMinY = netY - serviceBoxDepth;
+    boxMaxY = netY;
+    boxMinX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x : centerX;
+    boxMaxX = (state.serveSide === -1) ? centerX : COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width;
   } else {
-    // NPC serves restrictively into the front-third so the arc is flatter
-    targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 3);
+    boxMinY = netY;
+    boxMaxY = netY + serviceBoxDepth;
+    boxMinX = (state.serveSide === -1) ? centerX : COURT_INNER_BOUNDS.x;
+    boxMaxX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width : centerX;
+  }
+
+  state.activeServiceBox = { minX: boxMinX, maxX: boxMaxX, minY: boxMinY, maxY: boxMaxY };
+
+  let targetX, targetY;
+  if (Math.random() < 0.9) {
+    // 90% chance: serve successfully hits the box, clustered organically to the T or Wide corners!
+    const aimWide = Math.random() > 0.5;
+    const safeLeft = boxMinX + 15;
+    const safeRight = boxMaxX - 15;
+    const safeY = playerServing ? boxMinY + 20 : boxMaxY - 20; // Deep towards the service line
+
+    targetX = aimWide ? safeLeft : safeRight;
+    targetY = safeY;
+
+    // Very slight organic variance for human error
+    targetX += (Math.random() * 10 - 5);
+    targetY += (Math.random() * 10 - 5);
+  } else {
+    // 10% chance: Hit a fault! (Hits the net, long, wide, or completely the wrong box)
+    targetX = boxMinX + Math.random() * (boxMaxX - boxMinX) + (Math.random() * 60 - 30);
+    targetY = boxMinY + Math.random() * (boxMaxY - boxMinY) + (playerServing ? -40 : 40);
   }
 
   state.lastHitter = playerServing ? 'player' : 'npc';
@@ -378,6 +417,23 @@ function updateScoreboardDOM() {
   if (playerEl) playerEl.innerText = 'YOU: ' + (currentScore.playerStr || '');
 }
 
+function triggerFault(playerServing) {
+  if (state.resetting) return;
+  state.faults++;
+  soundManager.playPooled('/media/hit_tennis_ball2.mp3', 0.5); // Thud representing bad shot
+
+  if (state.faults >= 2) {
+    // Double Fault!
+    triggerPointReset(!playerServing);
+  } else {
+    // Single fault! Reset physics but keep point alive
+    state.resetting = true;
+    state.trajectoryFrozen = true;
+    state.resetDelayTimer = 1.0;
+    state.nextServerIsPlayer = playerServing; // Same person serves again
+  }
+}
+
 /**
  * Triggers the end of a point, forcing characters to automatically
  * walk back to their default service baseline coordinates.
@@ -387,6 +443,7 @@ function updateScoreboardDOM() {
 function triggerPointReset(nextPlayerServing) {
   if (state.resetting) return;
   state.resetting = true;
+  state.trajectoryFrozen = true; // Freeze the graph to display the concluding shot!
 
   // Award point based on who is serving next (loser of the rally serves)
   if (nextPlayerServing) {
@@ -394,6 +451,9 @@ function triggerPointReset(nextPlayerServing) {
   } else {
     state.playerScore++;
   }
+
+  // Clear faults for the next point
+  state.faults = 0;
 
   const scoreData = getTennisScore(state.playerScore, state.npcScore);
   if (scoreData.winner) {
@@ -423,8 +483,9 @@ function update(dt) {
   // Cinematic Intro Sequence
   if (state.introPhase && state.introPhase !== 'playing') {
     if (state.introPhase === 'walkToNet') {
-      const targetPlayerY = (GAME_HEIGHT / 2) + 25;
-      const targetNpcY = (GAME_HEIGHT / 2) - 25;
+      const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
+      const targetPlayerY = netY + 25;
+      const targetNpcY = netY - 25;
 
       const pDist = targetPlayerY - getPlayerY();
       const nDist = targetNpcY - getNpcY();
@@ -814,26 +875,24 @@ function update(dt) {
         // Because the NPC physically holds the racket in their right hand, but faces DOWN (90 degrees) when swinging,
         // their racket sweeps dynamically from their screen-left (-X) towards their center body over the SWING_DURATION arc.
         // Therefore, the NPC must mathematically target slightly to the screen-right (+X) of the ball's incoming trajectory.
-        const approximatedRacketOffset = 40 * camera.zoom;
+        const approximatedRacketOffset = 40 * camera.zoom * GAME_SCALE;
         // Predict trajectory where ball lands based on vertical physics
         let predictedLandY = NPC_BASE_Y;
+        let tLand = 0;
         const vZTargetCheck = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
         const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ballCurrentHeight;
         if (det >= 0) {
-          const tLand = (vZTargetCheck + Math.sqrt(det)) / GRAVITY;
+          tLand = (vZTargetCheck + Math.sqrt(det)) / GRAVITY;
           predictedLandY = state.ballY + state.ballVY * tLand;
         }
 
-        // Position NPC physically behind the ball's bounce depth, clamped to their playable area
-        const targetY = clamp(predictedLandY - 15, NPC_BASE_Y - (PLAYABLE_OVERSHOOT - 10), NPC_BASE_Y + COURT_INNER_BOUNDS.height / 2 + 10);
+        // Position NPC physically behind the ball's bounce depth, clamped to their playable half-court area
+        const targetY = clamp(predictedLandY - (15 * GAME_SCALE), NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, COURT_INNER_BOUNDS.y + 10);
 
-        // Calculate intercept trajectory when ball crosses that specific Y-depth plane
-        const timeToIntercept = Math.abs((targetY - state.ballY) / state.ballVY);
+        // Calculate raw X trajectory directly from physics air-time!
+        let absoluteTargetX = state.ballOffsetX + (state.ballVX * tLand);
 
-        // Calculate raw X trajectory
-        let absoluteTargetX = state.ballOffsetX + (state.ballVX * timeToIntercept);
-
-        state.npcTargetX = absoluteTargetX + approximatedRacketOffset;
+        state.npcTargetX = clamp(absoluteTargetX + approximatedRacketOffset, -PLAYABLE_HALF_WIDTH + 10, PLAYABLE_HALF_WIDTH - 10);
         state.npcTargetY = targetY;
         state.npcHasTarget = true;
       }
@@ -930,28 +989,42 @@ function update(dt) {
       const maxX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width;
       const minY = COURT_INNER_BOUNDS.y;
       const maxY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height;
-      const netY = GAME_HEIGHT / 2;
+      const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
 
       const inBoundsX = state.ballOffsetX >= minX && state.ballOffsetX <= maxX;
       let validBounce = false;
 
-      if (state.lastHitter === 'player') {
-        validBounce = inBoundsX && state.ballY >= minY && state.ballY <= netY; // NPC's half
-      } else if (state.lastHitter === 'npc') {
-        validBounce = inBoundsX && state.ballY >= netY && state.ballY <= maxY; // Player's half
+      if (state.isServe) {
+        // Enforce rigid Service Box intersections!
+        const box = state.activeServiceBox;
+        if (state.ballOffsetX >= box.minX && state.ballOffsetX <= box.maxX && state.ballY >= box.minY && state.ballY <= box.maxY) {
+          validBounce = true;
+          state.isServe = false; // Valid serve, rally is now organically open
+        }
       } else {
-        validBounce = true;
+        // Enforce total half-court bounds!
+        if (state.lastHitter === 'player') {
+          validBounce = inBoundsX && state.ballY >= minY && state.ballY <= netY; // NPC's half
+        } else if (state.lastHitter === 'npc') {
+          validBounce = inBoundsX && state.ballY >= netY && state.ballY <= maxY; // Player's half
+        } else {
+          validBounce = true;
+        }
       }
 
       // If the first bounce is out of bounds, the point is instantly dead!
       if (!validBounce) {
-        triggerPointReset(state.lastHitter === 'player');
+        if (state.isServe) {
+          triggerFault(state.lastHitter === 'player');
+        } else {
+          triggerPointReset(state.lastHitter === 'player');
+        }
       }
     }
 
     // Double-bounce rule: If it lands twice validly before being intercepted, the person who failed to return it loses
     if (state.bounceCount === 2 && !state.resetting) {
-      if (state.ballY > GAME_HEIGHT / 2) {
+      if (state.ballY > COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) {
         triggerPointReset(true);  // Bounced twice on Player's side -> NPC scored
       } else {
         triggerPointReset(false); // Bounced twice on NPC's side -> Player scored
@@ -968,8 +1041,14 @@ function update(dt) {
   const prevBallY = state.ballY;
   state.ballY += state.ballVY * dt;
 
+  if (minigameActive && !state.trajectoryFrozen) {
+    state.trajectoryPoints.push({ x: state.ballOffsetX, y: state.ballY, z: state.ballCurrentHeight });
+    // Keep array from growing infinitely if the ball gets stuck out of bounds
+    if (state.trajectoryPoints.length > 300) state.trajectoryPoints.shift();
+  }
+
   // Check if ball mathematically crossed the Y-center of the court during this frame
-  const netY = GAME_HEIGHT / 2;
+  const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
   if ((prevBallY < netY && state.ballY >= netY) || (prevBallY >= netY && state.ballY < netY)) {
     if (state.ballCurrentHeight < NET_HEIGHT) {
       // Ball hit the physical net structure!
@@ -1032,6 +1111,7 @@ function update(dt) {
     state.rallyCount++;
     state.lastHitter = 'player';
     state.bounceCount = 0; // Hitting the ball rests the bounce count
+    state.isServe = false; // The rally is live!
     hitBallToTarget(targetX, targetY, returnSpeed);
 
     // Add random variance to volume and pitch for organic audio
@@ -1069,6 +1149,7 @@ function update(dt) {
     state.rallyCount++;
     state.lastHitter = 'npc';
     state.bounceCount = 0; // Hitting the ball resets bounce count
+    state.isServe = false; // The rally is live!
     hitBallToTarget(targetX, targetY, returnSpeed);
 
     // Add random variance to volume and pitch for organic audio
@@ -1084,12 +1165,14 @@ function update(dt) {
   // Point resolving (scoring logic) automatically triggers walkback
   if (!state.resetting) {
     const isOffScreenX = Math.abs(state.ballOffsetX) > PLAYABLE_HALF_WIDTH + 150;
-    const isOffScreenY = state.ballY < -50 || state.ballY > GAME_HEIGHT + 50;
+    const courtMaxY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height;
+    const isOffScreenY = state.ballY < COURT_INNER_BOUNDS.y - 150 || state.ballY > courtMaxY + 150;
 
     if (isOffScreenX || isOffScreenY) {
       if (state.bounceCount === 0) {
         // Flew off-screen without ever bouncing (Out of bounds)
-        triggerPointReset(state.lastHitter === 'player');
+        if (state.isServe) triggerFault(state.lastHitter === 'player');
+        else triggerPointReset(state.lastHitter === 'player');
       } else if (state.bounceCount === 1) {
         // Bounced validly in the opponent's court, then went completely off-screen (Winner)
         triggerPointReset(state.lastHitter === 'npc');
@@ -1167,8 +1250,8 @@ function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = 
       transformData.targetStateObj.y = gameY;
       transformData.targetStateObj.groundY = gameY + transformData.elevateZ;
       transformData.targetStateObj.z = transformData.elevateZ + (20 * Math.sin(pitch)); // Raise structural bounds via arm pitch altitude!
-      transformData.targetStateObj.w = Math.max(1, rx * camera.zoom);
-      transformData.targetStateObj.h = Math.max(1, headRy * camera.zoom);
+      transformData.targetStateObj.w = Math.max(1, rx * camera.zoom * (transformData.courtScale || 1));
+      transformData.targetStateObj.h = Math.max(1, headRy * camera.zoom * (transformData.courtScale || 1));
       transformData.targetStateObj.angle = transformData.baseRotation * (Math.PI / 180) + yaw + Math.PI / 2;
     }
 
@@ -1221,9 +1304,12 @@ function draw() {
     return;
   }
 
-  // Responsively scale to viewport real-estate seamlessly covering edges
-  const renderHeight = viewportHeight * dpr;
   const imageAspect = bgImage.width / bgImage.height;
+
+  // Game native virtual layout dimension based on total inner court height plus baseline runoffs
+  const virtualGameHeight = COURT_INNER_BOUNDS.height + (PLAYABLE_OVERSHOOT * 2) + 20;
+
+  const renderHeight = viewportHeight * dpr;
   const renderWidth = renderHeight * imageAspect;
 
   const offsetX = (viewportWidth * dpr - renderWidth) / 2;
@@ -1232,11 +1318,14 @@ function draw() {
   ctx.drawImage(bgImage, offsetX, offsetY, renderWidth, renderHeight);
   ctx.translate(offsetX, offsetY);
 
-  const scale = renderHeight / GAME_HEIGHT;
+  const scale = renderHeight / virtualGameHeight;
   ctx.scale(scale, scale);
 
-  const gameWidth = GAME_HEIGHT * imageAspect;
+  const gameWidth = virtualGameHeight * imageAspect;
   const centerX = gameWidth / 2;
+
+  // Derive visual scaling metric from the customized bounding area
+  const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
 
   const npcSwing = state.npcSwingAnim;
   const playerSwing = state.playerSwingAnim;
@@ -1252,7 +1341,7 @@ function draw() {
   // 1. Render NPC
   ctx.save();
   ctx.translate(centerX + state.npcOffsetX, npcY);
-  ctx.scale(camera.zoom, camera.zoom);
+  ctx.scale(camera.zoom * COURT_SCALE, camera.zoom * COURT_SCALE);
 
   // Drop shadow
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
@@ -1272,7 +1361,7 @@ function draw() {
   ctx.translate(0, -state.npcElevateZ / camera.zoom);
   ctx.rotate(state.npcRotation * (Math.PI / 180));
 
-  const transformN = { offsetX, offsetY, scale, centerX, baseRotation: state.npcRotation, elevateZ: state.npcElevateZ, targetStateObj: state.npcRacketPos };
+  const transformN = { offsetX, offsetY, scale, centerX, baseRotation: state.npcRotation, elevateZ: state.npcElevateZ, targetStateObj: state.npcRacketPos, courtScale: COURT_SCALE };
   drawRacket(ctx, npcLimbs, npcSwing.pitch, npcSwing.yaw, npcSwing.roll, transformN);
   characterManager.drawHumanoidUpperBody(ctx, { ...npc, rotation: state.npcRotation, x: 0, y: 0 }, npcLimbs);
   ctx.restore();
@@ -1284,14 +1373,14 @@ function draw() {
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
   ctx.beginPath();
   // Shrink shadow exponentially based on elevation altitude
-  const shadowRadius = Math.max(2, BALL_RADIUS * 2 - state.ballCurrentHeight * 0.05);
+  const shadowRadius = Math.max(2 * COURT_SCALE, (BALL_RADIUS * 2 - state.ballCurrentHeight * 0.05) * COURT_SCALE);
   ctx.arc(centerX + state.ballOffsetX, state.ballY, shadowRadius, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
   // Physical Ball Emoji
   ctx.save();
-  ctx.font = `${BALL_RADIUS * 3}px sans-serif`;
+  ctx.font = `${Math.max(6, BALL_RADIUS * 2 * COURT_SCALE)}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   // Translate ball spatially along actual true Z-axis
@@ -1314,13 +1403,14 @@ function draw() {
   if (window.isAdmin || state.ballVY > 0) {
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
-    ctx.lineWidth = 2; // Made slightly thicker for regular players
+    ctx.lineWidth = Math.max(1, 2 * COURT_SCALE); // Scale thickness
 
     ctx.beginPath();
-    ctx.moveTo(landX - 5, landY - 5);
-    ctx.lineTo(landX + 5, landY + 5);
-    ctx.moveTo(landX + 5, landY - 5);
-    ctx.lineTo(landX - 5, landY + 5);
+    const crossSize = 5 * COURT_SCALE; // Scale crosshair structural size
+    ctx.moveTo(landX - crossSize, landY - crossSize);
+    ctx.lineTo(landX + crossSize, landY + crossSize);
+    ctx.moveTo(landX + crossSize, landY - crossSize);
+    ctx.lineTo(landX - crossSize, landY + crossSize);
     ctx.stroke();
 
     ctx.restore();
@@ -1329,7 +1419,7 @@ function draw() {
   // 3. Render Player
   ctx.save();
   ctx.translate(centerX + state.playerOffsetX, playerY);
-  ctx.scale(camera.zoom, camera.zoom);
+  ctx.scale(camera.zoom * COURT_SCALE, camera.zoom * COURT_SCALE);
 
   // Drop shadow
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
@@ -1348,7 +1438,7 @@ function draw() {
   ctx.translate(0, -state.playerElevateZ / camera.zoom);
   ctx.rotate(state.playerRotation * (Math.PI / 180));
 
-  const transformP = { offsetX, offsetY, scale, centerX, baseRotation: state.playerRotation, elevateZ: state.playerElevateZ, targetStateObj: state.playerRacketPos };
+  const transformP = { offsetX, offsetY, scale, centerX, baseRotation: state.playerRotation, elevateZ: state.playerElevateZ, targetStateObj: state.playerRacketPos, courtScale: COURT_SCALE };
   drawRacket(ctx, playerLimbs, playerSwing.pitch, playerSwing.yaw, playerSwing.roll, transformP);
   characterManager.drawHumanoidUpperBody(ctx, playerCharacter, playerLimbs);
   ctx.restore();
@@ -1377,13 +1467,98 @@ function draw() {
     ctx.strokeRect(centerX + COURT_INNER_BOUNDS.x, COURT_INNER_BOUNDS.y, COURT_INNER_BOUNDS.width, COURT_INNER_BOUNDS.height);
 
     // Draw the halfway net line within the bounds
+    const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
     ctx.beginPath();
-    ctx.moveTo(centerX + COURT_INNER_BOUNDS.x, GAME_HEIGHT / 2);
-    ctx.lineTo(centerX + COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width, GAME_HEIGHT / 2);
+    ctx.moveTo(centerX + COURT_INNER_BOUNDS.x, netY);
+    ctx.lineTo(centerX + COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width, netY);
     ctx.stroke();
 
     ctx.restore();
   }
 
   ctx.restore(); // Restore from world/camera zoom and offset
+
+  // 4. Draw HUD Overlays (Mapped directly to absolute canvas container size)
+
+  // Trajectory Profile Panel (Bottom Center)
+  if (state.trajectoryPoints.length > 1) {
+    ctx.save();
+
+    const panelW = 400;
+    const panelH = 100;
+    const panelX = (canvas.width - panelW) / 2;
+    const panelY = canvas.height - panelH - 20; // Float 20px off bottom
+
+    // Draw Glassmorphic Backdrop
+    ctx.fillStyle = 'rgba(25, 30, 40, 0.7)';
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 12);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Map 3D points to 2D side-profile display box
+    // Distance (Y-Depth) maps to X axis, and Altitude (Z) maps to Y axis
+
+    // Auto-scale the graph viewport based on the total distance the ball has traveled since hit
+    const startY = state.trajectoryPoints[0].y;
+    const endY = state.trajectoryPoints[state.trajectoryPoints.length - 1].y;
+    const totalDistance = Math.max(100, Math.abs(endY - startY)); // Prevent divide by zero on idle
+
+    // Draw Net marker
+    const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
+    const netProfileX = panelX + (Math.abs(netY - Math.min(startY, endY)) / totalDistance) * panelW;
+    if (netProfileX > panelX && netProfileX < panelX + panelW) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineDashOffset = 0;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(netProfileX, panelY + panelH);
+      ctx.lineTo(netProfileX, panelY + panelH - (NET_HEIGHT * 0.5)); // Scale net height representation
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Draw curve
+    ctx.beginPath();
+    ctx.strokeStyle = '#f1c40f'; // Bright yellow
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    for (let i = 0; i < state.trajectoryPoints.length; i++) {
+      const pt = state.trajectoryPoints[i];
+
+      // Calculate progress percentage through total distance
+      const distProgress = Math.abs(pt.y - startY) / totalDistance;
+
+      // Map to graph box width
+      const graphX = panelX + (distProgress * panelW);
+      // Map height inversely (subtract from bottom)
+      const graphY = panelY + panelH - (pt.z * 0.5);
+
+      if (i === 0) ctx.moveTo(graphX, graphY);
+      else ctx.lineTo(graphX, graphY);
+    }
+
+    ctx.stroke();
+
+    // Draw current ball blip
+    const lastPt = state.trajectoryPoints[state.trajectoryPoints.length - 1];
+    const ballX = panelX + (Math.abs(lastPt.y - startY) / totalDistance * panelW);
+    const ballY = panelY + panelH - (lastPt.z * 0.5);
+
+    ctx.fillStyle = '#f39c12';
+    ctx.beginPath();
+    ctx.arc(ballX, ballY, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('SIDE PROFILE', panelX + panelW / 2, panelY + 15);
+
+    ctx.restore();
+  }
 }
