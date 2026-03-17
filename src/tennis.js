@@ -29,7 +29,7 @@ const GRAVITY = 800;             // Gravity affecting the ball Z-axis (pixels/s^
 const SWING_DURATION = 0.25;     // Duration of a racket swing in seconds
 const NET_HEIGHT = 45;           // Minimum Z-altitude required to cross the court
 
-const COURT_INNER_BOUNDS = { x: -78, y: 264, width: 100, height: 272 };
+const COURT_INNER_BOUNDS = { x: -78, y: 264, width: 156, height: 272 };
 
 // Character specific positioning
 const PLAYER_BASE_Y = GAME_HEIGHT - 170;
@@ -393,7 +393,8 @@ function triggerPointReset(nextPlayerServing) {
   updateScoreboardDOM();
 
   state.nextServerIsPlayer = nextPlayerServing;
-  state.serveSide *= -1;
+  // Always serve from Deuce (-1) on Even total points, Ad (1) on Odd total points
+  state.serveSide = ((state.playerScore + state.npcScore) % 2 === 0) ? -1 : 1;
   state.resetDelayTimer = 1.5; // Brief intermission before next serve
   if (state.rallyCount >= 4) {
     soundManager.playPooled('/media/clap.mp3', 0.8);
@@ -463,33 +464,59 @@ function update(dt) {
         state.introPhase = 'walkToBaseline';
       }
     } else if (state.introPhase === 'walkToBaseline') {
-      const pDist = -state.playerOffsetY; // target 0
-      const nDist = -state.npcOffsetY; // target 0
-      const speed = PADDLE_SPEED * dt * 0.6;
+      const targetPX = state.nextServerIsPlayer ? state.serveSide * 80 : state.serveSide * -80;
+      const targetNX = state.nextServerIsPlayer ? state.serveSide * -80 : state.serveSide * 80;
+
+      const pDistY = -state.playerOffsetY; // target 0
+      const pDistX = targetPX - state.playerOffsetX;
+      const nDistY = -state.npcOffsetY; // target 0
+      const nDistX = targetNX - state.npcOffsetX;
       
-      if (Math.abs(pDist) > 2) {
-        state.playerOffsetY += Math.sign(pDist) * speed;
+      const speed = PADDLE_SPEED * dt * 0.6;
+      let pMoved = false;
+      let nMoved = false;
+
+      if (Math.abs(pDistY) > 2) {
+        state.playerOffsetY += Math.sign(pDistY) * speed;
+        pMoved = true;
+      }
+      if (Math.abs(pDistX) > 2) {
+        state.playerOffsetX += Math.sign(pDistX) * speed;
+        pMoved = true;
+      }
+      
+      if (pMoved) {
         state.playerLegTimer += speed * 0.1;
         state.playerRotation = 90; // Face away while walking back
       } else {
         state.playerRotation = 270; // Turn around when at baseline
+        state.playerOffsetX = targetPX;
+        state.playerOffsetY = 0;
       }
       
-      if (Math.abs(nDist) > 2) {
-        state.npcOffsetY += Math.sign(nDist) * speed;
+      if (Math.abs(nDistY) > 2) {
+        state.npcOffsetY += Math.sign(nDistY) * speed;
+        nMoved = true;
+      }
+      if (Math.abs(nDistX) > 2) {
+        state.npcOffsetX += Math.sign(nDistX) * speed;
+        nMoved = true;
+      }
+
+      if (nMoved) {
         state.npcLegTimer += speed * 0.1;
         state.npcRotation = 270; // Face away while walking back
       } else {
         state.npcRotation = 90; // Turn around when at baseline
+        state.npcOffsetX = targetNX;
+        state.npcOffsetY = 0;
       }
       
-      if (Math.abs(pDist) <= 2 && Math.abs(nDist) <= 2) {
-        state.playerOffsetY = 0;
-        state.npcOffsetY = 0;
+      if (!pMoved && !nMoved) {
         state.playerLegTimer = 0;
         state.npcLegTimer = 0;
         state.introPhase = 'playing';
-        serveBall(false); // NPC serves first to start the real game
+        serveBall(state.nextServerIsPlayer);
       }
     }
     return; // Block the rest of the game update loop during intro
@@ -608,13 +635,22 @@ function update(dt) {
       }
     }
 
-    if (playerMoveX !== 0) {
-      state.playerOffsetX += playerMoveX;
-      state.playerDirection = Math.sign(playerMoveX);
-    }
-    if (playerMoveY !== 0) {
-      state.playerOffsetY += playerMoveY;
-      state.playerDirectionY = Math.sign(playerMoveY);
+    if (playerMoveX !== 0 || playerMoveY !== 0) {
+      // Normalize diagonal keyboard strafe speed so you don't move 1.41x faster
+      if (playerMoveX !== 0 && playerMoveY !== 0 && !inputManager.keys.TouchMove) {
+        const length = Math.sqrt(playerMoveX * playerMoveX + playerMoveY * playerMoveY);
+        playerMoveX = (playerMoveX / length) * PADDLE_SPEED * dt;
+        playerMoveY = (playerMoveY / length) * PADDLE_SPEED * dt;
+      }
+
+      if (playerMoveX !== 0) {
+        state.playerOffsetX += playerMoveX;
+        state.playerDirection = Math.sign(playerMoveX);
+      }
+      if (playerMoveY !== 0) {
+        state.playerOffsetY += playerMoveY;
+        state.playerDirectionY = Math.sign(playerMoveY);
+      }
     }
 
     // Smoothly rotate player based on movement
@@ -694,16 +730,8 @@ function update(dt) {
         // Calculate intercept trajectory when ball crosses that specific Y-depth plane
         const timeToIntercept = Math.abs((targetY - state.ballY) / state.ballVY);
 
-        // Calculate raw X trajectory without walls
+        // Calculate raw X trajectory
         let absoluteTargetX = state.ballOffsetX + (state.ballVX * timeToIntercept);
-
-        // Mathematically fold the X-coordinate if the trajectory ricochets off a side wall
-        const X_BOUND = PLAYABLE_HALF_WIDTH + 150;
-        if (absoluteTargetX > X_BOUND) {
-          absoluteTargetX = X_BOUND - (absoluteTargetX - X_BOUND);
-        } else if (absoluteTargetX < -X_BOUND) {
-          absoluteTargetX = -X_BOUND + (-X_BOUND - absoluteTargetX);
-        }
 
         state.npcTargetX = absoluteTargetX + approximatedRacketOffset;
         state.npcTargetY = targetY;
@@ -771,7 +799,7 @@ function update(dt) {
     } else {
       serveBall(state.nextServerIsPlayer);
     }
-    return;
+    // Allow physics payload to execute while anticipating serve!
   }
 
   // 5. 3D Spatial Ball Physics Processing
