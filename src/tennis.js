@@ -136,11 +136,12 @@ const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 function calculateAimAngles(charX, charY, charElevZ, isPlayer) {
   let tIntercept = 0;
 
-  // Calculate precise intercept time based on ball's Y-velocity and character's Y-plane
+  // Calculate precise intercept time mapped to the character's forward extended racket plane
+  const hitPlaneY = isPlayer ? charY - 15 : charY + 15;
   if (isPlayer && state.ballVY > 0) {
-    tIntercept = (charY - state.ballY) / state.ballVY;
+    tIntercept = (hitPlaneY - state.ballY) / state.ballVY;
   } else if (!isPlayer && state.ballVY < 0) {
-    tIntercept = (charY - state.ballY) / state.ballVY;
+    tIntercept = (hitPlaneY - state.ballY) / state.ballVY;
   }
 
   let predictedX = state.ballOffsetX;
@@ -190,9 +191,10 @@ function calculateAimAngles(charX, charY, charElevZ, isPlayer) {
  * Calculates the exact procedural angle and reach of the character's arm during a stroke, considering aim.
  * @param {number} timer - Current countdown of the swing timer.
  * @param {boolean} isApproaching - Whether the ball is incoming within range.
+ * @param {number} maxDuration - The dynamic scaling length of this specific human reaction!
  * @returns {{pitch: number, yaw: number, roll: number}}
  */
-function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0) {
+function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0, maxDuration = 0.15) {
   let yaw = 0;
   let pitch = 0;
   let roll = 0.8; // Native roll: 0.0 = edge-on top-down (strings facing ball)
@@ -205,19 +207,19 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0) {
   const lateralStretch = Math.abs(aimYaw) * 10;
 
   if (timer > 0) {
-    let progress = 1 - (timer / SWING_DURATION); // 0.0 to 1.0
+    let progress = 1 - (timer / maxDuration); // 0.0 to 1.0
     // Apply an ease-in-out cubic curve to simulate authentic swing snap/acceleration
     progress = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
     // Core sweep: Cocked back to crossing the body
-    const sweepStart = Math.PI * 0.35;
-    const sweepEnd = -Math.PI * 0.55;
+    const sweepStart = Math.PI * 0.45;
+    const sweepEnd = -Math.PI * 0.45;
     let baseYaw = sweepStart + (sweepEnd - sweepStart) * progress;
     yaw = baseYaw + aimYaw;
 
     if (isOverhead) {
       // Overhead swing: Starts high behind the head, chops downward
-      const pitchStart = aimPitch + 0.8;
-      const pitchEnd = aimPitch - 0.4;
+      const pitchStart = aimPitch + 0.6;
+      const pitchEnd = aimPitch - 0.6;
       pitch = pitchStart + (pitchEnd - pitchStart) * progress;
 
       // Serve/smash: flattens out to hit the ball, then pronates out
@@ -226,7 +228,7 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0) {
     } else {
       // Groundstroke: Starts low, brushes upwards through the ball (topspin)
       const pitchStart = aimPitch - 0.6;
-      const pitchEnd = aimPitch + 0.3;
+      const pitchEnd = aimPitch + 0.6;
       pitch = pitchStart + (pitchEnd - pitchStart) * progress;
 
       roll = Math.abs(progress - 0.5) * 0.3; // 0.0 at contact
@@ -701,8 +703,10 @@ function update(dt) {
   const isNpcApproaching = state.ballVY < 0 && !state.npcHasSwung;
 
   // Calculate true physical target states
-  const targetPlayerSwing = getSwingState(state.playerSwingTimer, isPlayerApproaching, state.playerAimYaw, state.playerAimPitch);
-  const targetNpcSwing = getSwingState(state.npcSwingTimer, isNpcApproaching, state.npcAimYaw, state.npcAimPitch);
+  const pDur = state.playerSwingMaxDuration || 0.15;
+  const nDur = state.npcSwingMaxDuration || 0.15;
+  const targetPlayerSwing = getSwingState(state.playerSwingTimer, isPlayerApproaching, state.playerAimYaw, state.playerAimPitch, pDur);
+  const targetNpcSwing = getSwingState(state.npcSwingTimer, isNpcApproaching, state.npcAimYaw, state.npcAimPitch, nDur);
 
   // Animate the actual arm states towards the target geometries using dt-scaled lerp.
   // Snap instantly to the procedural stroke arc during active swing (timer > 0) to preserve precise hit collision physics.
@@ -752,37 +756,60 @@ function update(dt) {
   const npcTriggerW = npcRacketPos.w + 30 * camera.zoom;
   const npcTriggerH = npcRacketPos.h + 15 * camera.zoom;
 
-  // 2. Automated Swing Triggers
-  // Swing initiates only if the racket will successfully intersect the ball's trajectory, and it is physically in reach
+  // 2. Automated Swing Triggers (Predictive Time-to-Intercept Model)
   if (!state.resetting && state.ballVY > 0 && state.playerSwingTimer === 0 && !state.playerHasSwung) {
-    const dx = state.ballOffsetX - playerRacketPos.x;
-    const dy = visualBallY - playerRacketPos.y;
-    const localDx = dx * Math.cos(-playerRacketPos.angle) - dy * Math.sin(-playerRacketPos.angle);
-    const localDy = dx * Math.sin(-playerRacketPos.angle) + dy * Math.cos(-playerRacketPos.angle);
+    // Intercept target is the racket plane, physically out in front!
+    const tIntercept = (playerY - 15 - state.ballY) / state.ballVY;
 
-    if (
-      Math.abs(state.ballY - playerRacketPos.groundY) < 50 &&
-      state.ballCurrentHeight >= playerRacketPos.z - 15 && state.ballCurrentHeight <= playerRacketPos.z + 50 &&
-      Math.pow(localDx, 2) / Math.pow(playerTriggerW, 2) + Math.pow(localDy, 2) / Math.pow(playerTriggerH, 2) <= 1
-    ) {
-      state.playerSwingTimer = SWING_DURATION;
-      state.playerHasSwung = true;
+    // Is the ball arriving within a realistic human reaction window? (0.35 seconds)
+    if (tIntercept > 0 && tIntercept < 0.35) {
+      // Fast projection of purely horizontal alignment
+      const predictedX = state.ballOffsetX + state.ballVX * tIntercept;
+      
+      // Fast projection of purely vertical alignment (no micro-bounces needed for basic reach verification)
+      let predictedZ = state.ballCurrentHeight;
+      const vZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
+      predictedZ += (vZ * tIntercept) - (0.5 * GRAVITY * tIntercept * tIntercept);
+      if (predictedZ < 0) predictedZ = Math.abs(predictedZ) * 0.6; // Basic check
+
+      // Is the projected crossing point physically within the dynamic bounds of our racket extension?
+      const dx = predictedX - playerRacketPos.x;
+      
+      if (
+        Math.abs(dx) < playerTriggerW + 15 && // Generous horizontal reach allowance
+        predictedZ > -20 && predictedZ < playerRacketPos.z + 100 // Generous vertical reach allowance (accounting for jumping logic)
+      ) {
+        // Dynamically map the swing arc so that progress=0.5 (the apex hit frame) perfectly aligns with tIntercept
+        state.playerSwingMaxDuration = tIntercept * 2.0; 
+        state.playerSwingTimer = state.playerSwingMaxDuration;
+        state.playerHasSwung = true;
+      }
     }
   }
 
   if (!state.resetting && state.ballVY < 0 && state.npcSwingTimer === 0 && !state.npcHasSwung) {
-    const dx = state.ballOffsetX - npcRacketPos.x;
-    const dy = visualBallY - npcRacketPos.y;
-    const localDx = dx * Math.cos(-npcRacketPos.angle) - dy * Math.sin(-npcRacketPos.angle);
-    const localDy = dx * Math.sin(-npcRacketPos.angle) + dy * Math.cos(-npcRacketPos.angle);
+    // Intercept target is the racket plane, physically out in front!
+    const tIntercept = (npcY + 15 - state.ballY) / state.ballVY;
 
-    if (
-      Math.abs(state.ballY - npcRacketPos.groundY) < 50 &&
-      state.ballCurrentHeight >= npcRacketPos.z - 15 && state.ballCurrentHeight <= npcRacketPos.z + 50 &&
-      Math.pow(localDx, 2) / Math.pow(npcTriggerW, 2) + Math.pow(localDy, 2) / Math.pow(npcTriggerH, 2) <= 1
-    ) {
-      state.npcSwingTimer = SWING_DURATION;
-      state.npcHasSwung = true;
+    // AI reacting slightly faster/later based on AI difficulty? Hardcoded to identical physics window for now.
+    if (tIntercept > 0 && tIntercept < 0.35) {
+      const predictedX = state.ballOffsetX + state.ballVX * tIntercept;
+      
+      let predictedZ = state.ballCurrentHeight;
+      const vZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
+      predictedZ += (vZ * tIntercept) - (0.5 * GRAVITY * tIntercept * tIntercept);
+      if (predictedZ < 0) predictedZ = Math.abs(predictedZ) * 0.6;
+
+      const dx = predictedX - npcRacketPos.x;
+      
+      if (
+        Math.abs(dx) < npcTriggerW + 15 &&
+        predictedZ > -20 && predictedZ < npcRacketPos.z + 100
+      ) {
+        state.npcSwingMaxDuration = tIntercept * 2.0;
+        state.npcSwingTimer = state.npcSwingMaxDuration;
+        state.npcHasSwung = true;
+      }
     }
   }
 
@@ -1127,7 +1154,13 @@ function update(dt) {
   state.ballY += state.ballVY * dt;
 
   if (minigameActive && !state.trajectoryFrozen) {
-    state.trajectoryPoints.push({ x: state.ballOffsetX, y: state.ballY, z: state.ballCurrentHeight });
+    state.trajectoryPoints.push({ 
+      x: state.ballOffsetX, 
+      y: state.ballY, 
+      z: state.ballCurrentHeight,
+      pZ: playerRacketPos.z + 25, // Align to physical shoulder height (25px above floor)
+      nZ: npcRacketPos.z + 25
+    });
     // Keep array from growing infinitely if the ball gets stuck out of bounds
     if (state.trajectoryPoints.length > 300) state.trajectoryPoints.shift();
   }
@@ -1629,6 +1662,36 @@ function draw() {
       else ctx.lineTo(graphX, graphY);
     }
 
+    ctx.stroke();
+
+    // Secondary line: Player's historical racket altitude tracking
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(52, 152, 219, 0.7)'; // Transparent blue
+    ctx.lineWidth = 2;
+    for (let i = 0; i < state.trajectoryPoints.length; i++) {
+      const pt = state.trajectoryPoints[i];
+      const distProgress = Math.abs(pt.y - startY) / totalDistance;
+      const graphX = panelX + (distProgress * panelW);
+      const graphY = panelY + panelH - (pt.pZ * 0.5);
+
+      if (i === 0) ctx.moveTo(graphX, graphY);
+      else ctx.lineTo(graphX, graphY);
+    }
+    ctx.stroke();
+
+    // Tertiary line: NPC's historical racket altitude tracking
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(231, 76, 60, 0.7)'; // Transparent red
+    ctx.lineWidth = 2;
+    for (let i = 0; i < state.trajectoryPoints.length; i++) {
+      const pt = state.trajectoryPoints[i];
+      const distProgress = Math.abs(pt.y - startY) / totalDistance;
+      const graphX = panelX + (distProgress * panelW);
+      const graphY = panelY + panelH - (pt.nZ * 0.5);
+
+      if (i === 0) ctx.moveTo(graphX, graphY);
+      else ctx.lineTo(graphX, graphY);
+    }
     ctx.stroke();
 
     // Draw current ball blip
