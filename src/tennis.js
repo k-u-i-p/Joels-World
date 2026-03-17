@@ -1021,8 +1021,11 @@ function draw() {
   const npcSwing = getSwingState(state.npcSwingTimer, isNpcApproaching);
   const playerSwing = getSwingState(state.playerSwingTimer, isPlayerApproaching);
 
-  const playerSideReach = 14 + (isPlayerApproaching || state.playerSwingTimer > 0 ? clamp(state.ballOffsetX - state.playerOffsetX, -12, 12) : 0);
-  const npcSideReach = 14 + (isNpcApproaching || state.npcSwingTimer > 0 ? clamp(-(state.ballOffsetX - state.npcOffsetX), -12, 12) : 0);
+  const pTargetOffset = state.ballOffsetX - state.playerOffsetX;
+  const playerSideReach = 14 + (isPlayerApproaching || state.playerSwingTimer > 0 ? clamp(pTargetOffset - 14, -12, 12) : 0);
+
+  const nTargetOffset = -(state.ballOffsetX - state.npcOffsetX);
+  const npcSideReach = 14 + (isNpcApproaching || state.npcSwingTimer > 0 ? clamp(nTargetOffset - 14, -12, 12) : 0);
 
   // 1. Render NPC
   ctx.save();
