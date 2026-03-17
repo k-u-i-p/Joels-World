@@ -116,13 +116,16 @@ function getSwingState(timer, isApproaching) {
     const angle = 1.0 - progress * 2.2;
     // Push the racket dynamically forward during the arc
     const reach = 4 + Math.sin(progress * Math.PI) * 10;
-    return { angle, reach };
+
+    // Racket roll (simulates flipping the face): highly visible when cocked/follow-through, edge-on at apex
+    const roll = Math.max(0.1, Math.abs(Math.cos(progress * Math.PI)));
+    return { angle, reach, roll };
   } else if (isApproaching) {
     // Prepare for incoming ball (cock racket backwards)
-    return { angle: 1.0, reach: 4 };
+    return { angle: 1.0, reach: 4, roll: 0.8 };
   } else {
     // Idle state
-    return { angle: 0, reach: 4 };
+    return { angle: 0, reach: 4, roll: 0.3 };
   }
 }
 
@@ -137,7 +140,7 @@ function getSwingState(timer, isApproaching) {
  * @param {number} sideReach - Current lateral extension of the arm.
  * @returns {{x: number, y: number}} The precise structural center of the racket strings.
  */
-function getRacketWorldPos(isPlayer, offsetX, y, swingState, sideReach) {
+function getRacketWorldPos(offsetX, y, swingState, sideReach, baseRotation) {
   // Baseline graphic rotation (Math.PI / 2) + idle rotation (1.0) + dynamic swing angle
   const racketAngle = Math.PI / 2 + 1.0 + swingState.angle;
 
@@ -146,22 +149,28 @@ function getRacketWorldPos(isPlayer, offsetX, y, swingState, sideReach) {
   const racketHeadLocalX = 18 * Math.sin(racketAngle);
   const racketHeadLocalY = -18 * Math.cos(racketAngle);
 
-  const totalLocalX = swingState.reach + racketHeadLocalX;
-  const totalLocalY = sideReach + racketHeadLocalY;
+  // Raw unrotated local (X, Y) relative to the character origin
+  const localX = swingState.reach + racketHeadLocalX;
+  const localY = sideReach + racketHeadLocalY;
 
-  if (isPlayer) {
-    // Player faces North (visually rotated 270 degrees in canvas space)
-    return {
-      x: offsetX + totalLocalY * camera.zoom,
-      y: y - totalLocalX * camera.zoom
-    };
-  } else {
-    // NPC faces South (visually rotated 90 degrees in canvas space)
-    return {
-      x: offsetX - totalLocalY * camera.zoom,
-      y: y + totalLocalX * camera.zoom
-    };
-  }
+  // Apply actual spatial world transformation matrix based on character's current facing angle
+  const rotRad = baseRotation * (Math.PI / 180);
+  const cosRot = Math.cos(rotRad);
+  const sinRot = Math.sin(rotRad);
+
+  const worldOffsetX = (localX * cosRot - localY * sinRot) * camera.zoom;
+  const worldOffsetY = (localX * sinRot + localY * cosRot) * camera.zoom;
+
+  const hitWidth = 15 * swingState.roll * camera.zoom;
+  const hitDepth = 10 * camera.zoom;
+
+  return {
+    x: offsetX + worldOffsetX,
+    y: y + worldOffsetY,
+    w: Math.max(1, hitWidth),
+    h: hitDepth,
+    angle: rotRad + racketAngle
+  };
 }
 
 /**
@@ -220,6 +229,9 @@ export function initMinigame() {
   state.npcSwingTimer = 0;
   state.playerLegTimer = 0;
   state.npcLegTimer = 0;
+  state.npcTargetX = 0;
+  state.npcTargetY = NPC_BASE_Y;
+  state.npcHasTarget = false;
   state.resetting = false;
 
   serveBall(false); // NPC serves first
@@ -319,31 +331,40 @@ function update(dt) {
   const npcSideReach = 14 + (isNpcApproaching || state.npcSwingTimer > 0 ? clamp(-(state.ballOffsetX - state.npcOffsetX), -12, 12) : 0);
 
   // Absolute world coordinates of both racket hitboxes
-  const playerRacketPos = getRacketWorldPos(true, state.playerOffsetX, playerY, playerSwing, playerSideReach);
-  const npcRacketPos = getRacketWorldPos(false, state.npcOffsetX, npcY, npcSwing, npcSideReach);
-
-  // Define elliptical mathematical geometry of hitboxes exactly matching visual size
-  const racketHitHalfWidth = 15 * camera.zoom;
-  const racketHitDepth = 10 * camera.zoom;
+  const playerRacketPos = getRacketWorldPos(state.playerOffsetX, playerY, playerSwing, playerSideReach, state.playerRotation);
+  const npcRacketPos = getRacketWorldPos(state.npcOffsetX, npcY, npcSwing, npcSideReach, state.npcRotation);
 
   // The actual collision checks test against visually elevated (Z-adjusted) Y coord 
   const visualBallY = state.ballY - state.ballCurrentHeight;
 
   // Calculate specific collision boundaries
-  const triggerW = racketHitHalfWidth + 30 * camera.zoom;
-  const triggerH = 25 * camera.zoom;
+  const playerTriggerW = playerRacketPos.w + 30 * camera.zoom;
+  const playerTriggerH = playerRacketPos.h + 15 * camera.zoom;
+  
+  const npcTriggerW = npcRacketPos.w + 30 * camera.zoom;
+  const npcTriggerH = npcRacketPos.h + 15 * camera.zoom;
 
   // 2. Automated Swing Triggers
   // Swing initiates only if the racket will successfully intersect the ball's trajectory
   if (!state.resetting && state.ballVY > 0 && state.playerSwingTimer === 0 && !state.playerHasSwung) {
-    if (Math.pow(state.ballOffsetX - playerRacketPos.x, 2) / Math.pow(triggerW, 2) + Math.pow(visualBallY - playerRacketPos.y, 2) / Math.pow(triggerH, 2) <= 1) {
+    const dx = state.ballOffsetX - playerRacketPos.x;
+    const dy = visualBallY - playerRacketPos.y;
+    const localDx = dx * Math.cos(-playerRacketPos.angle) - dy * Math.sin(-playerRacketPos.angle);
+    const localDy = dx * Math.sin(-playerRacketPos.angle) + dy * Math.cos(-playerRacketPos.angle);
+
+    if (Math.pow(localDx, 2) / Math.pow(playerTriggerW, 2) + Math.pow(localDy, 2) / Math.pow(playerTriggerH, 2) <= 1) {
       state.playerSwingTimer = SWING_DURATION;
       state.playerHasSwung = true;
     }
   }
 
   if (!state.resetting && state.ballVY < 0 && state.npcSwingTimer === 0 && !state.npcHasSwung) {
-    if (Math.pow(state.ballOffsetX - npcRacketPos.x, 2) / Math.pow(triggerW, 2) + Math.pow(visualBallY - npcRacketPos.y, 2) / Math.pow(triggerH, 2) <= 1) {
+    const dx = state.ballOffsetX - npcRacketPos.x;
+    const dy = visualBallY - npcRacketPos.y;
+    const localDx = dx * Math.cos(-npcRacketPos.angle) - dy * Math.sin(-npcRacketPos.angle);
+    const localDy = dx * Math.sin(-npcRacketPos.angle) + dy * Math.cos(-npcRacketPos.angle);
+
+    if (Math.pow(localDx, 2) / Math.pow(npcTriggerW, 2) + Math.pow(localDy, 2) / Math.pow(npcTriggerH, 2) <= 1) {
       state.npcSwingTimer = SWING_DURATION;
       state.npcHasSwung = true;
     }
@@ -386,7 +407,7 @@ function update(dt) {
       state.playerOffsetY += playerMoveY;
       state.playerDirectionY = Math.sign(playerMoveY);
     }
-    
+
     // Smoothly rotate player based on movement
     let targetPlayerRotation = 270; // Default facing net
     if (playerMoveX > 0 && playerMoveY === 0) targetPlayerRotation = 0;
@@ -444,13 +465,38 @@ function update(dt) {
     }
   } else {
     // Account for the distance between the NPC's center and its actual racket's sweet spot.
-    // We use a fixed approximation during tracking to prevent feedback loop stuttering.
     const approximatedRacketOffset = -28 * camera.zoom;
 
-    // Follow ball if approaching, otherwise smoothly reset back to baseline center
-    const targetTrackingX = state.ballVY < 0 ? state.ballOffsetX - approximatedRacketOffset : 0;
-    const distToTarget = targetTrackingX - state.npcOffsetX;
+    if (state.ballVY < 0) {
+      if (!state.npcHasTarget) {
+        // Predict trajectory where ball lands based on vertical physics
+        let predictedLandY = NPC_BASE_Y;
+        const vZTargetCheck = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
+        const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ballCurrentHeight;
+        if (det >= 0) {
+          const tLand = (vZTargetCheck + Math.sqrt(det)) / GRAVITY;
+          predictedLandY = state.ballY + state.ballVY * tLand;
+        }
 
+        // Position NPC physically behind the ball's bounce depth, clamped to their playable area
+        const targetY = clamp(predictedLandY - 15, NPC_BASE_Y - 50, NPC_BASE_Y + 50);
+
+        // Calculate intercept trajectory when ball crosses that specific Y-depth plane
+        const timeToIntercept = Math.abs((targetY - state.ballY) / state.ballVY);
+        
+        state.npcTargetX = state.ballOffsetX + (state.ballVX * timeToIntercept) - approximatedRacketOffset;
+        state.npcTargetY = targetY;
+        state.npcHasTarget = true;
+      }
+    } else {
+      // Ball is moving away toward player, reset to center gracefully
+      state.npcTargetX = 0;
+      state.npcTargetY = NPC_BASE_Y;
+      state.npcHasTarget = false;
+    }
+
+    const distToTarget = state.npcTargetX - state.npcOffsetX;
+    
     // Use a soft deadzone and prevent overshooting frame-by-frame
     if (Math.abs(distToTarget) > 2) {
       const moveStep = Math.min(NPC_SPEED * dt, Math.abs(distToTarget));
@@ -459,8 +505,7 @@ function update(dt) {
     }
 
     // Track dynamically on the Y axis
-    const targetTrackingY = state.ballVY < 0 ? state.ballY : NPC_BASE_Y;
-    const distToTargetY = targetTrackingY - npcY;
+    const distToTargetY = state.npcTargetY - npcY;
 
     if (Math.abs(distToTargetY) > 2) {
       const moveStepY = Math.min(NPC_SPEED * dt, Math.abs(distToTargetY));
@@ -473,7 +518,7 @@ function update(dt) {
     if (Math.abs(distToTarget) > 2) {
       targetNpcRotation = state.npcDirection > 0 ? 0 : 180;
     }
-    
+
     const diffN = targetNpcRotation - state.npcRotation;
     let shortestN = (diffN + 540) % 360 - 180;
     state.npcRotation += shortestN * 0.2;
@@ -516,7 +561,7 @@ function update(dt) {
   if (state.ballCurrentHeight < 0) {
     state.ballCurrentHeight = 0;
     state.bounceCount++;
-    
+
     // Double-bounce rule: If it lands twice before being intercepted, the point is over
     if (state.bounceCount === 2) {
       if (state.ballY > GAME_HEIGHT / 2) {
@@ -536,13 +581,18 @@ function update(dt) {
 
   // 6. Racket Deflections
 
+  const pDx = state.ballOffsetX - playerRacketPos.x;
+  const pDy = visualBallY - playerRacketPos.y;
+  const pLocalDx = pDx * Math.cos(-playerRacketPos.angle) - pDy * Math.sin(-playerRacketPos.angle);
+  const pLocalDy = pDx * Math.sin(-playerRacketPos.angle) + pDy * Math.cos(-playerRacketPos.angle);
+
   if (
     !state.resetting &&
     state.ballVY > 0 &&
     state.playerSwingTimer > 0 &&
     // Strict Elliptical Intersection Boolean Matrix Check over standard Box Radius Check
-    (Math.pow(state.ballOffsetX - playerRacketPos.x, 2) / Math.pow(racketHitHalfWidth + BALL_RADIUS, 2)) +
-    (Math.pow(visualBallY - playerRacketPos.y, 2) / Math.pow(racketHitDepth + BALL_RADIUS, 2)) <= 1
+    (Math.pow(pLocalDx, 2) / Math.pow(playerRacketPos.w + BALL_RADIUS, 2)) +
+    (Math.pow(pLocalDy, 2) / Math.pow(playerRacketPos.h + BALL_RADIUS, 2)) <= 1
   ) {
     let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
     let targetY = COURT_INNER_BOUNDS.y + Math.random() * (COURT_INNER_BOUNDS.height / 2);
@@ -561,12 +611,17 @@ function update(dt) {
     state.npcHasSwung = false;
   }
 
+  const nDx = state.ballOffsetX - npcRacketPos.x;
+  const nDy = visualBallY - npcRacketPos.y;
+  const nLocalDx = nDx * Math.cos(-npcRacketPos.angle) - nDy * Math.sin(-npcRacketPos.angle);
+  const nLocalDy = nDx * Math.sin(-npcRacketPos.angle) + nDy * Math.cos(-npcRacketPos.angle);
+
   if (
     !state.resetting &&
     state.ballVY < 0 &&
     state.npcSwingTimer > 0 &&
-    (Math.pow(state.ballOffsetX - npcRacketPos.x, 2) / Math.pow(racketHitHalfWidth + BALL_RADIUS, 2)) +
-    (Math.pow(visualBallY - npcRacketPos.y, 2) / Math.pow(racketHitDepth + BALL_RADIUS, 2)) <= 1
+    (Math.pow(nLocalDx, 2) / Math.pow(npcRacketPos.w + BALL_RADIUS, 2)) +
+    (Math.pow(nLocalDy, 2) / Math.pow(npcRacketPos.h + BALL_RADIUS, 2)) <= 1
   ) {
     const targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
     const targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
@@ -583,7 +638,7 @@ function update(dt) {
   // Point resolving (scoring logic) automatically triggers walkback
   if (!state.resetting) {
     const isOffScreenX = Math.abs(state.ballOffsetX) > PLAYABLE_HALF_WIDTH + 150;
-    
+
     if (state.ballY < 0 || (isOffScreenX && state.ballVY < 0)) {
       triggerPointReset(false); // Player scored
     } else if (state.ballY > GAME_HEIGHT || (isOffScreenX && state.ballVY > 0)) {
@@ -602,7 +657,7 @@ function update(dt) {
  * @param {Object} limbs - Current Limb positions. 
  * @param {number} swingAngle - Rotational swing adjustment.
  */
-function drawRacket(ctx, limbs, swingAngle = 0) {
+function drawRacket(ctx, limbs, swingAngle = 0, roll = 1.0) {
   ctx.save();
   ctx.translate(limbs.rightArmX, limbs.rightArmY);
 
@@ -612,14 +667,16 @@ function drawRacket(ctx, limbs, swingAngle = 0) {
   ctx.fillStyle = '#2c3e50';
   ctx.fillRect(-2, -10, 4, 15);
 
+  const rx = Math.max(1, 8 * roll);
+
   // Draw structural frame
   ctx.strokeStyle = '#e74c3c';
   ctx.lineWidth = 2;
   ctx.beginPath();
   if (ctx.ellipse) {
-    ctx.ellipse(0, -18, 8, 12, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -18, rx, 12, 0, 0, Math.PI * 2);
   } else {
-    ctx.arc(0, -18, 10, 0, Math.PI * 2);
+    ctx.arc(0, -18, Math.max(rx, 10), 0, Math.PI * 2);
   }
   ctx.stroke();
 
@@ -627,13 +684,14 @@ function drawRacket(ctx, limbs, swingAngle = 0) {
   ctx.strokeStyle = 'rgba(236, 240, 241, 0.5)';
   ctx.lineWidth = 0.5;
   ctx.beginPath();
+
   for (let i = -5; i <= 5; i += 3) {
-    ctx.moveTo(i, -28);
-    ctx.lineTo(i, -8);
+    ctx.moveTo(i * roll, -28);
+    ctx.lineTo(i * roll, -8);
   }
   for (let i = -26; i <= -10; i += 3) {
-    ctx.moveTo(-6, i);
-    ctx.lineTo(6, i);
+    ctx.moveTo(-rx, i);
+    ctx.lineTo(rx, i);
   }
   ctx.stroke();
 
@@ -652,9 +710,9 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, reach, sideReach) {
   return {
     leftArmX: 4 - legSwing * armStride, leftArmY: -14,
     rightArmX: reach, rightArmY: sideReach,
-    leftLegStartX: -2 + (safeDirY * legSwing * legStride), leftLegStartY: -6 + (-safeDirX * legSwing * legStride), 
+    leftLegStartX: -2 + (safeDirY * legSwing * legStride), leftLegStartY: -6 + (-safeDirX * legSwing * legStride),
     leftLegEndX: -2 + (safeDirY * legSwing * legStride), leftLegEndY: -6 + (-safeDirX * legSwing * legStride),
-    rightLegStartX: -2 - (safeDirY * legSwing * legStride), rightLegStartY: 6 - (-safeDirX * legSwing * legStride), 
+    rightLegStartX: -2 - (safeDirY * legSwing * legStride), rightLegStartY: 6 - (-safeDirX * legSwing * legStride),
     rightLegEndX: -2 - (safeDirY * legSwing * legStride), rightLegEndY: 6 - (-safeDirX * legSwing * legStride)
   };
 }
@@ -722,7 +780,7 @@ function draw() {
 
   ctx.rotate(state.npcRotation * (Math.PI / 180));
   const npcLimbs = getLimbs(state.npcLegTimer, state.npcDirection, state.npcDirectionY, npcSwing.reach, npcSideReach);
-  drawRacket(ctx, npcLimbs, npcSwing.angle);
+  drawRacket(ctx, npcLimbs, npcSwing.angle, npcSwing.roll);
   characterManager.drawShoe(ctx, npcLimbs.leftLegEndX, npcLimbs.leftLegEndY, npc.shoeColor || '#1a252f', true);
   characterManager.drawShoe(ctx, npcLimbs.rightLegEndX, npcLimbs.rightLegEndY, npc.shoeColor || '#1a252f', false);
   characterManager.drawHumanoidUpperBody(ctx, { ...npc, rotation: state.npcRotation, x: 0, y: 0 }, npcLimbs);
@@ -743,7 +801,7 @@ function draw() {
   let playerCharacter = window.init.myCharacter;
   const playerLimbs = getLimbs(state.playerLegTimer, state.playerDirection, state.playerDirectionY, playerSwing.reach, playerSideReach);
   playerCharacter.rotation = state.playerRotation;
-  drawRacket(ctx, playerLimbs, playerSwing.angle);
+  drawRacket(ctx, playerLimbs, playerSwing.angle, playerSwing.roll);
   characterManager.drawShoe(ctx, playerLimbs.leftLegEndX, playerLimbs.leftLegEndY, playerCharacter.shoeColor || '#1a252f', true);
   characterManager.drawShoe(ctx, playerLimbs.rightLegEndX, playerLimbs.rightLegEndY, playerCharacter.shoeColor || '#1a252f', false);
   characterManager.drawHumanoidUpperBody(ctx, playerCharacter, playerLimbs);
@@ -774,11 +832,8 @@ function draw() {
 
   // 4. Admin Hitbox Diagnostic Visualization Overlay
   if (window.isAdmin) {
-    const pHitbox = getRacketWorldPos(true, state.playerOffsetX, playerY, playerSwing, playerSideReach);
-    const nHitbox = getRacketWorldPos(false, state.npcOffsetX, npcY, npcSwing, npcSideReach);
-
-    const racketHitHalfWidth = 15 * camera.zoom;
-    const racketHitDepth = 10 * camera.zoom;
+    const pHitbox = getRacketWorldPos(state.playerOffsetX, playerY, playerSwing, playerSideReach, state.playerRotation);
+    const nHitbox = getRacketWorldPos(state.npcOffsetX, npcY, npcSwing, npcSideReach, state.npcRotation);
 
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
@@ -786,11 +841,11 @@ function draw() {
 
     // Draw Elliptical Target Hitbox representations exactly identical to logic
     ctx.beginPath();
-    ctx.ellipse(centerX + pHitbox.x, pHitbox.y, racketHitHalfWidth, racketHitDepth, 0, 0, Math.PI * 2);
+    ctx.ellipse(centerX + pHitbox.x, pHitbox.y, pHitbox.w, pHitbox.h, pHitbox.angle, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.ellipse(centerX + nHitbox.x, nHitbox.y, racketHitHalfWidth, racketHitDepth, 0, 0, Math.PI * 2);
+    ctx.ellipse(centerX + nHitbox.x, nHitbox.y, nHitbox.w, nHitbox.h, nHitbox.angle, 0, Math.PI * 2);
     ctx.stroke();
 
     // Calculate and render crosshairs onto the destination surface exactly where ball's geometry will collide
