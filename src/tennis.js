@@ -94,6 +94,10 @@ let state = {
   faultFlag: false,
   playerRacketPos: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
   npcRacketPos: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
+  playerAimYaw: 0,
+  playerAimPitch: 0,
+  npcAimYaw: 0,
+  npcAimPitch: 0,
 };
 
 // ==========================================
@@ -114,30 +118,37 @@ function getNpcY() {
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
 /**
- * Calculates the exact procedural angle and reach of the character's arm during a stroke.
+ * Calculates the exact procedural angle and reach of the character's arm during a stroke, considering aim.
  * @param {number} timer - Current countdown of the swing timer.
  * @param {boolean} isApproaching - Whether the ball is incoming within range.
- * @returns {{angle: number, reach: number}}
+ * @returns {{pitch: number, yaw: number, roll: number}}
  */
-function getSwingState(timer, isApproaching) {
-  if (timer > 0) {
-    // Actively swinging
-    const progress = 1 - (timer / SWING_DURATION); // 0.0 to 1.0
-    // Transition from completely cocked back (1.0) into a fast forward stroke crossing the body
-    const angle = 1.0 - progress * 2.2;
-    // Push the racket dynamically forward during the arc
-    const reach = 4 + Math.sin(progress * Math.PI) * 10;
+function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0) {
+  let yaw = 0;
+  let pitch = 0;
+  let roll = 0;
 
-    // Racket roll (simulates flipping the face): highly visible when cocked/follow-through, edge-on at apex
-    const roll = Math.max(0.1, Math.abs(Math.cos(progress * Math.PI)));
-    return { angle, reach, roll };
+  if (timer > 0) {
+    const progress = 1 - (timer / SWING_DURATION); // 0.0 to 1.0
+    // Transition from completely cocked back (right) into a fast forward stroke crossing the body (left)
+    const sweepStart = Math.PI * 0.4;
+    const sweepEnd = -Math.PI * 0.6;
+    let baseYaw = sweepStart + (sweepEnd - sweepStart) * progress;
+
+    yaw = baseYaw + aimYaw;
+    pitch = aimPitch;
+    roll = Math.max(0.1, Math.abs(Math.cos(progress * Math.PI)));
   } else if (isApproaching) {
-    // Prepare for incoming ball (cock racket backwards)
-    return { angle: 1.0, reach: 4, roll: 0.8 };
+    yaw = Math.PI * 0.4 + aimYaw;
+    pitch = aimPitch;
+    roll = 0.8;
   } else {
-    // Idle state
-    return { angle: 0, reach: 4, roll: 0.3 };
+    yaw = Math.PI * 0.2; // Idle slightly right
+    pitch = 0.1;
+    roll = 0.3;
   }
+
+  return { pitch, yaw, roll };
 }
 
 /**
@@ -600,25 +611,27 @@ function update(dt) {
         pMovedY = Math.sign(distToY) * Math.min(moveStepP, Math.abs(distToY));
         state.playerOffsetY += pMovedY;
       }
-
-      let targetRot = 270;
-      if (pMovedX > 0 && pMovedY === 0) targetRot = 0;
-      else if (pMovedX < 0 && pMovedY === 0) targetRot = 180;
-      else if (pMovedX > 0 && pMovedY < 0) targetRot = 315;
-      else if (pMovedX < 0 && pMovedY < 0) targetRot = 225;
-      else if (pMovedX > 0 && pMovedY > 0) targetRot = 45;
-      else if (pMovedX < 0 && pMovedY > 0) targetRot = 135;
-      else if (pMovedX === 0 && pMovedY > 0) targetRot = 90;
-
-      const diffP = targetRot - state.playerRotation;
-      let shortestP = (diffP + 540) % 360 - 180;
-      state.playerRotation += shortestP * 0.2;
     } else {
       const diffP = 270 - state.playerRotation;
       let shortestP = (diffP + 540) % 360 - 180;
       state.playerRotation += shortestP * 0.2;
     }
   } else {
+    const isLeft = inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA') || (inputManager.keys.TouchMove && inputManager.joystickVector.x < -0.3);
+    const isRight = inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD') || (inputManager.keys.TouchMove && inputManager.joystickVector.x > 0.3);
+    const isUp = inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW') || (inputManager.keys.TouchMove && inputManager.joystickVector.y < -0.3);
+    const isDown = inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS') || (inputManager.keys.TouchMove && inputManager.joystickVector.y > 0.3);
+
+    // Dynamic Player Aim Calculation
+    let pAimYaw = 0;
+    let pAimPitch = 0;
+    if (isLeft) pAimYaw = -Math.PI / 5;
+    if (isRight) pAimYaw = Math.PI / 5;
+    if (isUp) pAimPitch = Math.PI / 8; // Lob aim
+    if (isDown) pAimPitch = -Math.PI / 12; // Slice aim
+    state.playerAimYaw = pAimYaw;
+    state.playerAimPitch = pAimPitch;
+
     let playerMoveX = 0;
     let playerMoveY = 0;
 
@@ -737,6 +750,12 @@ function update(dt) {
       state.npcRotation += shortestN * 0.2;
     }
   } else {
+    // Simple procedural NPC Aim
+    if (state.ballOffsetX < 0 && state.npcOffsetX > 0) state.npcAimYaw = Math.PI/6;
+    else if (state.ballOffsetX > 0 && state.npcOffsetX < 0) state.npcAimYaw = -Math.PI/6;
+    else state.npcAimYaw = 0;
+    state.npcAimPitch = 0;
+
     if (state.ballVY < 0) {
       if (!state.npcHasTarget) {
         // Because the NPC physically holds the racket in their right hand, but faces DOWN (90 degrees) when swinging,
@@ -933,17 +952,23 @@ function update(dt) {
     let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
     let targetY = COURT_INNER_BOUNDS.y + Math.random() * (COURT_INNER_BOUNDS.height / 2);
 
-    // Apply slight directional spin off center hits
+    // Dynamically drive ball trajectory via spatial aiming limits
+    if (state.playerAimYaw < 0) targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.15 + (Math.random() * 20); // Aim left sideline
+    else if (state.playerAimYaw > 0) targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.85 - (Math.random() * 20); // Aim right sideline
+    
+    // Slight directional spin to reward center hits
     const hitOffset = state.ballOffsetX - playerRacketPos.x;
     targetX += hitOffset * 1.5;
+
+    if (state.playerAimPitch > 0) targetY = COURT_INNER_BOUNDS.y + 20; // Aim deep lob
+    else if (state.playerAimPitch < 0) targetY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height/2 - 20; // Aim short smash
 
     // Standard baseline rally acceleration
     let returnSpeed = state.ballCurrentVelocity * 1.05;
 
-    // Power Shot Mechanic: If the player leans left (rotating the racket forward into the ball's incoming trajectory) exactly at the point of impact
-    const isLeaningLeft = inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA') || (inputManager.keys.TouchMove && inputManager.joystickVector.x < -0.3);
-    if (isLeaningLeft) {
-      returnSpeed *= 1.4; // 40% velocity boost!
+    // Power Shot Mechanic: If the player aims laterally or heavily steps into the shot
+    if (Math.abs(state.playerAimYaw) > 0 || state.playerAimPitch < 0) {
+      returnSpeed *= 1.35; // Power boost!
     }
 
     state.rallyCount++;
@@ -976,8 +1001,12 @@ function update(dt) {
     (Math.pow(nLocalDx, 2) / Math.pow(npcRacketPos.w + BALL_RADIUS, 2)) +
     (Math.pow(nLocalDy, 2) / Math.pow(npcRacketPos.h + BALL_RADIUS, 2)) <= 1
   ) {
-    const targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
-    const targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+    let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
+    let targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+
+    // NPC procedural aim application
+    if (state.npcAimYaw < 0) targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.15;
+    else if (state.npcAimYaw > 0) targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.85;
 
     const returnSpeed = state.ballCurrentVelocity * 1.1;
     state.rallyCount++;
@@ -1028,27 +1057,32 @@ function update(dt) {
  * @param {Object} limbs - Current Limb positions. 
  * @param {number} swingAngle - Rotational swing adjustment.
  */
-function drawRacket(ctx, limbs, swingAngle = 0, roll = 1.0, transformData = null) {
+function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = null) {
+  const pitchMult = Math.cos(pitch);
   const rx = Math.max(1, 8 * roll);
   
   if (ctx && limbs) {
     ctx.save();
     ctx.translate(limbs.rightArmX, limbs.rightArmY);
 
-    ctx.rotate(Math.PI / 2 + 1.0 + swingAngle);
+    // Point the racket purely using the target yaw vector!
+    ctx.rotate(yaw);
 
     // Draw handle
     ctx.fillStyle = '#2c3e50';
-    ctx.fillRect(-2, -10, 4, 15);
+    const handleLen = 15 * pitchMult;
+    ctx.fillRect(-2, -handleLen + 5 * pitchMult, 4, handleLen);
 
     // Draw structural frame
     ctx.strokeStyle = '#e74c3c';
     ctx.lineWidth = 2;
     ctx.beginPath();
+    const headCy = -18 * pitchMult;
+    const headRy = 12 * pitchMult;
     if (ctx.ellipse) {
-      ctx.ellipse(0, -18, rx, 12, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, headCy, rx, Math.max(1, headRy), 0, 0, Math.PI * 2);
     } else {
-      ctx.arc(0, -18, Math.max(rx, 10), 0, Math.PI * 2);
+      ctx.arc(0, headCy, Math.max(rx, 10 * pitchMult), 0, Math.PI * 2);
     }
     ctx.stroke();
 
@@ -1057,20 +1091,22 @@ function drawRacket(ctx, limbs, swingAngle = 0, roll = 1.0, transformData = null
     ctx.lineWidth = 0.5;
     ctx.beginPath();
 
+    // Horizontal strings (across the width of the face)
     for (let i = -5; i <= 5; i += 3) {
-      ctx.moveTo(i * roll, -28);
-      ctx.lineTo(i * roll, -8);
+      ctx.moveTo(i * roll, headCy - headRy + 2);
+      ctx.lineTo(i * roll, headCy + headRy - 2);
     }
-    for (let i = -26; i <= -10; i += 3) {
-      ctx.moveTo(-rx, i);
-      ctx.lineTo(rx, i);
+    // Vertical strings (down the length of the face)
+    for (let i = headCy - headRy + 2; i <= headCy + headRy - 2; i += 4 * pitchMult) {
+      ctx.moveTo(-rx + 1, i);
+      ctx.lineTo(rx - 1, i);
     }
     ctx.stroke();
 
     // Extract raw rendering matrix transformations natively
     if (transformData && ctx.getTransform) {
       const transform = ctx.getTransform();
-      const pt = transform.transformPoint(new DOMPoint(0, -18));
+      const pt = transform.transformPoint(new DOMPoint(0, headCy));
       
       // Invert the canvas viewport scaling to save pure internal game engine coordinates
       const gameX = ((pt.x - transformData.offsetX) / transformData.scale) - transformData.centerX;
@@ -1079,23 +1115,23 @@ function drawRacket(ctx, limbs, swingAngle = 0, roll = 1.0, transformData = null
       transformData.targetStateObj.x = gameX;
       transformData.targetStateObj.y = gameY;
       transformData.targetStateObj.groundY = gameY + transformData.elevateZ;
-      transformData.targetStateObj.z = transformData.elevateZ;
+      transformData.targetStateObj.z = transformData.elevateZ + (20 * Math.sin(pitch)); // Raise structural bounds via arm pitch altitude!
       transformData.targetStateObj.w = Math.max(1, rx * camera.zoom);
-      transformData.targetStateObj.h = 12 * camera.zoom;
-      transformData.targetStateObj.angle = transformData.baseRotation * (Math.PI / 180) + (Math.PI / 2 + 1.0 + swingAngle);
+      transformData.targetStateObj.h = Math.max(1, headRy * camera.zoom);
+      transformData.targetStateObj.angle = transformData.baseRotation * (Math.PI / 180) + yaw;
     }
 
     ctx.restore();
   }
 
   // Always mathematically inform caller of the exact ellipse bounds rendered if they care
-  return { w: rx, h: 12 };
+  return { w: rx, h: 12 * pitchMult };
 }
 
 /**
  * Calculates generic structural offsets for limbs based on leg animation and arm reach.
  */
-function getLimbs(legTimer, directionX = 1, directionY = 1, reach, sideReach) {
+function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY) {
   const legSwing = Math.sin(legTimer || 0);
   const legStride = 9;
   const armStride = 8;
@@ -1103,7 +1139,7 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, reach, sideReach) {
   const safeDirY = directionY || 1;
   return {
     leftArmX: 4 - legSwing * armStride, leftArmY: -14,
-    rightArmX: reach, rightArmY: sideReach,
+    rightArmX: rightArmX, rightArmY: rightArmY,
     leftLegStartX: -2 + (safeDirY * legSwing * legStride), leftLegStartY: -6 + (-safeDirX * legSwing * legStride),
     leftLegEndX: -2 + (safeDirY * legSwing * legStride), leftLegEndY: -6 + (-safeDirX * legSwing * legStride),
     rightLegStartX: -2 - (safeDirY * legSwing * legStride), rightLegStartY: 6 - (-safeDirX * legSwing * legStride),
@@ -1155,14 +1191,16 @@ function draw() {
   const isPlayerApproaching = state.ballVY > 0 && !state.playerHasSwung && Math.abs(state.ballOffsetX - state.playerOffsetX) < 150 && (playerY - state.ballY) > 0 && (playerY - state.ballY) < 150;
   const isNpcApproaching = state.ballVY < 0 && !state.npcHasSwung && Math.abs(state.ballOffsetX - state.npcOffsetX) < 150 && (state.ballY - npcY) > 0 && (state.ballY - npcY) < 150;
 
-  const npcSwing = getSwingState(state.npcSwingTimer, isNpcApproaching);
-  const playerSwing = getSwingState(state.playerSwingTimer, isPlayerApproaching);
+  const npcSwing = getSwingState(state.npcSwingTimer, isNpcApproaching, state.npcAimYaw, state.npcAimPitch);
+  const playerSwing = getSwingState(state.playerSwingTimer, isPlayerApproaching, state.playerAimYaw, state.playerAimPitch);
 
-  const pTargetOffset = state.ballOffsetX - state.playerOffsetX;
-  const playerSideReach = 14 + (isPlayerApproaching || state.playerSwingTimer > 0 ? clamp(pTargetOffset - 14, -12, 12) : 0);
+  const pArmL = 16 * Math.cos(playerSwing.pitch);
+  const pRightArmX = 6 + pArmL * Math.sin(playerSwing.yaw);
+  const pRightArmY = -pArmL * Math.cos(playerSwing.yaw);
 
-  const nTargetOffset = -(state.ballOffsetX - state.npcOffsetX);
-  const npcSideReach = 14 + (isNpcApproaching || state.npcSwingTimer > 0 ? clamp(nTargetOffset - 14, -12, 12) : 0);
+  const nArmL = 16 * Math.cos(npcSwing.pitch);
+  const nRightArmX = 6 + nArmL * Math.sin(-npcSwing.yaw); // NPC faces screen so we mirror graphical yaw
+  const nRightArmY = -nArmL * Math.cos(npcSwing.yaw);
 
   // 1. Render NPC
   ctx.save();
@@ -1176,7 +1214,7 @@ function draw() {
   ctx.fill();
 
   ctx.rotate(state.npcRotation * (Math.PI / 180));
-  const npcLimbs = getLimbs(state.npcLegTimer, state.npcDirection, state.npcDirectionY, npcSwing.reach, npcSideReach);
+  const npcLimbs = getLimbs(state.npcLegTimer, state.npcDirection, state.npcDirectionY, nRightArmX, nRightArmY);
   characterManager.drawShoe(ctx, npcLimbs.leftLegEndX, npcLimbs.leftLegEndY, npc.shoeColor || '#1a252f', true);
   characterManager.drawShoe(ctx, npcLimbs.rightLegEndX, npcLimbs.rightLegEndY, npc.shoeColor || '#1a252f', false);
 
@@ -1186,7 +1224,7 @@ function draw() {
   ctx.rotate(state.npcRotation * (Math.PI / 180));
 
   const transformN = { offsetX, offsetY, scale, centerX, baseRotation: state.npcRotation, elevateZ: state.npcElevateZ, targetStateObj: state.npcRacketPos };
-  drawRacket(ctx, npcLimbs, npcSwing.angle, npcSwing.roll, transformN);
+  drawRacket(ctx, npcLimbs, npcSwing.pitch, npcSwing.yaw, npcSwing.roll, transformN);
   characterManager.drawHumanoidUpperBody(ctx, { ...npc, rotation: state.npcRotation, x: 0, y: 0 }, npcLimbs);
   ctx.restore();
 
@@ -1252,7 +1290,7 @@ function draw() {
 
   ctx.rotate(state.playerRotation * (Math.PI / 180));
   let playerCharacter = window.init.myCharacter;
-  const playerLimbs = getLimbs(state.playerLegTimer, state.playerDirection, state.playerDirectionY, playerSwing.reach, playerSideReach);
+  const playerLimbs = getLimbs(state.playerLegTimer, state.playerDirection, state.playerDirectionY, pRightArmX, pRightArmY);
   playerCharacter.rotation = state.playerRotation;
   characterManager.drawShoe(ctx, playerLimbs.leftLegEndX, playerLimbs.leftLegEndY, playerCharacter.shoeColor || '#1a252f', true);
   characterManager.drawShoe(ctx, playerLimbs.rightLegEndX, playerLimbs.rightLegEndY, playerCharacter.shoeColor || '#1a252f', false);
@@ -1262,7 +1300,7 @@ function draw() {
   ctx.rotate(state.playerRotation * (Math.PI / 180));
 
   const transformP = { offsetX, offsetY, scale, centerX, baseRotation: state.playerRotation, elevateZ: state.playerElevateZ, targetStateObj: state.playerRacketPos };
-  drawRacket(ctx, playerLimbs, playerSwing.angle, playerSwing.roll, transformP);
+  drawRacket(ctx, playerLimbs, playerSwing.pitch, playerSwing.yaw, playerSwing.roll, transformP);
   characterManager.drawHumanoidUpperBody(ctx, playerCharacter, playerLimbs);
   ctx.restore();
 
