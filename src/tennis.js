@@ -30,8 +30,9 @@ let state = {
   npcSwingTimer: 0,
   playerLegTimer: 0,
   npcLegTimer: 0,
-  targetX: 0,
-  targetY: 0,
+  ballCurrentVelocity: BALL_SPEED * 0.7,
+  ballCurrentPitchAngle: 0,
+  ballCurrentHeight: 0,
 };
 
 // Player bounds
@@ -63,7 +64,7 @@ export function initMinigame() {
   state.playerLegTimer = 0;
   state.npcLegTimer = 0;
 
-  serveBall(true); // Player serves first
+  serveBall(false); // NPC serves first
 
   // Set camera roughly over the arena
   camera.x = 0;
@@ -125,18 +126,30 @@ function serveBall(playerServing) {
 
   // Pick a random spot in the designated inner court target
   const targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
-  const targetY = COURT_INNER_BOUNDS.y + Math.random() * COURT_INNER_BOUNDS.height;
+  let targetY;
+  if (playerServing) {
+    // Player serves to NPC side (top half)
+    targetY = COURT_INNER_BOUNDS.y + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+  } else {
+    // NPC serves to Player side (bottom half)
+    targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+  }
 
   // Calculate velocity to hit target
+  state.ballCurrentHeight = 40; // Serve from waist height
+  state.ballCurrentVelocity = BALL_SPEED * 0.7;
+
   const dx = targetX - state.ballOffsetX;
   const dy = targetY - state.ballY;
   const dist = Math.sqrt(dx * dx + dy * dy);
 
-  state.targetX = targetX;
-  state.targetY = targetY;
+  const timeToTarget = dist / state.ballCurrentVelocity;
+  const gravity = 800; // pixels per second squared
+  const vZ = (0.5 * gravity * timeToTarget * timeToTarget - state.ballCurrentHeight) / timeToTarget;
+  state.ballCurrentPitchAngle = Math.atan2(vZ, state.ballCurrentVelocity);
 
-  state.ballVX = (dx / dist) * BALL_SPEED * 0.7;
-  state.ballVY = (dy / dist) * BALL_SPEED * 0.7;
+  state.ballVX = (dx / dist) * state.ballCurrentVelocity;
+  state.ballVY = (dy / dist) * state.ballCurrentVelocity;
 
   // Trigger swing animation visually showing the serve
   if (playerServing) {
@@ -293,11 +306,20 @@ function update(dt) {
   state.npcOffsetX = Math.max(-PLAYABLE_HALF_WIDTH + 50, Math.min(PLAYABLE_HALF_WIDTH - 50, state.npcOffsetX));
 
   // --- Ball Physics ---
+  const gravity = 800;
+  const vZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
+  
+  state.ballCurrentHeight += vZ * dt;
+  state.ballCurrentPitchAngle = Math.atan2(vZ - gravity * dt, state.ballCurrentVelocity);
+
+  if (state.ballCurrentHeight < 0) {
+    state.ballCurrentHeight = 0;
+    // Visually bounce the ball upon striking the floor court
+    state.ballCurrentPitchAngle = Math.atan2(Math.abs(vZ - gravity * dt) * 0.6, state.ballCurrentVelocity);
+  }
+
   state.ballOffsetX += state.ballVX * dt;
   state.ballY += state.ballVY * dt;
-
-  // Court bounds (Left/Right)
-  // Ball no longer bounces off the bound, letting it travel wide.
 
   // Racket Collisions (Player - Bottom)
   if (
@@ -318,11 +340,15 @@ function update(dt) {
     const dy = targetY - state.ballY;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    state.targetX = targetX;
-    state.targetY = targetY;
+    state.ballCurrentVelocity = BALL_SPEED * 0.9;
+    state.ballCurrentHeight = Math.max(10, state.ballCurrentHeight);
+    
+    const timeToTarget = dist / state.ballCurrentVelocity;
+    const vZTarget = (0.5 * gravity * timeToTarget * timeToTarget - state.ballCurrentHeight) / timeToTarget;
+    state.ballCurrentPitchAngle = Math.atan2(vZTarget, state.ballCurrentVelocity);
 
-    state.ballVX = (dx / dist) * BALL_SPEED * 0.9;
-    state.ballVY = (dy / dist) * BALL_SPEED * 0.9;
+    state.ballVX = (dx / dist) * state.ballCurrentVelocity;
+    state.ballVY = (dy / dist) * state.ballCurrentVelocity;
   }
 
   // Racket Collisions (NPC - Top)
@@ -341,11 +367,15 @@ function update(dt) {
     const dy = targetY - state.ballY;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    state.targetX = targetX;
-    state.targetY = targetY;
+    state.ballCurrentVelocity = BALL_SPEED * 0.9;
+    state.ballCurrentHeight = Math.max(10, state.ballCurrentHeight);
 
-    state.ballVX = (dx / dist) * BALL_SPEED * 0.9;
-    state.ballVY = (dy / dist) * BALL_SPEED * 0.9;
+    const timeToTarget = dist / state.ballCurrentVelocity;
+    const vZTarget = (0.5 * gravity * timeToTarget * timeToTarget - state.ballCurrentHeight) / timeToTarget;
+    state.ballCurrentPitchAngle = Math.atan2(vZTarget, state.ballCurrentVelocity);
+
+    state.ballVX = (dx / dist) * state.ballCurrentVelocity;
+    state.ballVY = (dy / dist) * state.ballCurrentVelocity;
   }
 
   // Scoring/Reset (Top/Bottom Walls)
@@ -458,13 +488,21 @@ function draw() {
   characterManager.drawHumanoid(ctx, player, playerLimbs);
   ctx.restore();
 
-  // Draw Ball
+  // Draw Ball Shadow
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  const shadowRadius = Math.max(2, BALL_RADIUS * 2 - state.ballCurrentHeight * 0.05);
+  ctx.arc(centerX + state.ballOffsetX, state.ballY, shadowRadius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Draw Ball (Elevated along true Z-axis natively)
   ctx.save();
   ctx.font = `${BALL_RADIUS * 3}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  // A bit of spin based on its X position
-  ctx.translate(centerX + state.ballOffsetX, state.ballY);
+  ctx.translate(centerX + state.ballOffsetX, state.ballY - state.ballCurrentHeight);
   ctx.rotate(state.ballOffsetX * 0.05);
   ctx.fillText('🎾', 0, 0);
   ctx.restore();
@@ -494,12 +532,22 @@ function draw() {
     ctx.strokeRect(centerX + pHitbox.x - racketHitHalfWidth, pHitbox.y - racketHitDepth, racketHitHalfWidth * 2, racketHitDepth * 2);
     ctx.strokeRect(centerX + nHitbox.x - racketHitHalfWidth, nHitbox.y - racketHitDepth, racketHitHalfWidth * 2, racketHitDepth * 2);
     
-    // Draw target X
+    // Draw target X exactly where trajectory intercepts the Z-axis natively
+    const gravity = 800;
+    const vZTargetCheck = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
+    const det = vZTargetCheck * vZTargetCheck + 2 * gravity * state.ballCurrentHeight;
+    let tLand = 0;
+    if (det >= 0) {
+        tLand = (vZTargetCheck + Math.sqrt(det)) / gravity;
+    }
+    const landX = centerX + state.ballOffsetX + state.ballVX * tLand;
+    const landY = state.ballY + state.ballVY * tLand;
+
     ctx.beginPath();
-    ctx.moveTo(centerX + state.targetX - 5, state.targetY - 5);
-    ctx.lineTo(centerX + state.targetX + 5, state.targetY + 5);
-    ctx.moveTo(centerX + state.targetX + 5, state.targetY - 5);
-    ctx.lineTo(centerX + state.targetX - 5, state.targetY + 5);
+    ctx.moveTo(landX - 5, landY - 5);
+    ctx.lineTo(landX + 5, landY + 5);
+    ctx.moveTo(landX + 5, landY - 5);
+    ctx.lineTo(landX - 5, landY + 5);
     ctx.stroke();
 
     ctx.restore();
