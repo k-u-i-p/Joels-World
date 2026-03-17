@@ -127,6 +127,7 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0) {
   let yaw = 0;
   let pitch = 0;
   let roll = 0;
+  let reach = 4;
 
   if (timer > 0) {
     const progress = 1 - (timer / SWING_DURATION); // 0.0 to 1.0
@@ -138,17 +139,20 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0) {
     yaw = baseYaw + aimYaw;
     pitch = aimPitch;
     roll = Math.max(0.1, Math.abs(Math.cos(progress * Math.PI)));
+    reach = 4 + Math.sin(progress * Math.PI) * 12; // Fully extend dynamically through the swing arc center
   } else if (isApproaching) {
     yaw = Math.PI * 0.4 + aimYaw;
     pitch = aimPitch;
     roll = 0.8;
+    reach = 4; // Cocked back elbow bent
   } else {
-    yaw = Math.PI * 0.2; // Idle slightly right
+    yaw = Math.PI * 0.35; // Idle rotated backwards slightly
     pitch = 0.1;
     roll = 0.3;
+    reach = 4; // Relaxed elbow bent
   }
 
-  return { pitch, yaw, roll };
+  return { pitch, yaw, roll, reach };
 }
 
 /**
@@ -1065,8 +1069,8 @@ function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = 
     ctx.save();
     ctx.translate(limbs.rightArmX, limbs.rightArmY);
 
-    // Point the racket purely using the target yaw vector!
-    ctx.rotate(yaw);
+    // Align the racket 90 degrees to point along the +X forward vector natively
+    ctx.rotate(yaw + Math.PI / 2);
 
     // Draw handle
     ctx.fillStyle = '#2c3e50';
@@ -1118,7 +1122,7 @@ function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = 
       transformData.targetStateObj.z = transformData.elevateZ + (20 * Math.sin(pitch)); // Raise structural bounds via arm pitch altitude!
       transformData.targetStateObj.w = Math.max(1, rx * camera.zoom);
       transformData.targetStateObj.h = Math.max(1, headRy * camera.zoom);
-      transformData.targetStateObj.angle = transformData.baseRotation * (Math.PI / 180) + yaw;
+      transformData.targetStateObj.angle = transformData.baseRotation * (Math.PI / 180) + yaw + Math.PI / 2;
     }
 
     ctx.restore();
@@ -1194,13 +1198,13 @@ function draw() {
   const npcSwing = getSwingState(state.npcSwingTimer, isNpcApproaching, state.npcAimYaw, state.npcAimPitch);
   const playerSwing = getSwingState(state.playerSwingTimer, isPlayerApproaching, state.playerAimYaw, state.playerAimPitch);
 
-  const pArmL = 16 * Math.cos(playerSwing.pitch);
-  const pRightArmX = 6 + pArmL * Math.sin(playerSwing.yaw);
-  const pRightArmY = -pArmL * Math.cos(playerSwing.yaw);
+  const pArmL = playerSwing.reach * Math.cos(playerSwing.pitch);
+  const pRightArmX = 4 + pArmL * Math.cos(playerSwing.yaw);
+  const pRightArmY = 14 + pArmL * Math.sin(playerSwing.yaw);
 
-  const nArmL = 16 * Math.cos(npcSwing.pitch);
-  const nRightArmX = 6 + nArmL * Math.sin(-npcSwing.yaw); // NPC faces screen so we mirror graphical yaw
-  const nRightArmY = -nArmL * Math.cos(npcSwing.yaw);
+  const nArmL = npcSwing.reach * Math.cos(npcSwing.pitch);
+  const nRightArmX = 4 + nArmL * Math.cos(npcSwing.yaw);
+  const nRightArmY = 14 + nArmL * Math.sin(npcSwing.yaw);
 
   // 1. Render NPC
   ctx.save();
