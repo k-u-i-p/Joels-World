@@ -149,24 +149,24 @@ export class CharacterManager {
     const getRaycastEnd = (startX, startY, targetX, targetY) => {
       let dx = targetX - startX;
       let dy = targetY - startY;
-      let dist = Math.sqrt(dx*dx + dy*dy);
+      let dist = Math.sqrt(dx * dx + dy * dy);
       if (dist === 0) return { x: targetX, y: targetY, hit: !isVisible(targetX, targetY) };
-      
+
       let stepX = dx / dist;
       let stepY = dy / dist;
-      
+
       let currentX = startX;
       let currentY = startY;
-      
+
       // Step pixel by pixel along the visual length of the arm
       for (let i = 0; i < dist; i += 1) {
         if (!isVisible(currentX, currentY)) {
-           return { x: currentX, y: currentY, hit: true };
+          return { x: currentX, y: currentY, hit: true };
         }
         currentX += stepX;
         currentY += stepY;
       }
-      
+
       // Reached the hand target without hitting the mask
       return { x: targetX, y: targetY, hit: !isVisible(targetX, targetY) };
     };
@@ -183,7 +183,7 @@ export class CharacterManager {
 
 
     const armOffset = 11; // Restore normal wide shoulder anchors
-    
+
     // Raycast both arms to determine exactly where they should physically truncate
     const leftArmEnd = getRaycastEnd(0, -armOffset, limbs.leftArmX, limbs.leftArmY);
     const rightArmEnd = getRaycastEnd(0, armOffset, limbs.rightArmX, limbs.rightArmY);
@@ -625,7 +625,7 @@ export const characterManager = new CharacterManager();
  * Calculates local NPC movement and wandering behavior per-frame using Delta Time.
  * Completely replaces the old Server-side waypoint and roam patrol loops to eliminate network latency.
  */
-function updateLocalNPCs(dt) {
+export function updateLocalNPCs(dt) {
   if (!window.init || !window.init.npcs) return;
 
   const npcs = window.init.npcs;
@@ -730,6 +730,3 @@ function updateLocalNPCs(dt) {
     }
   }
 }
-
-import { gameLoop } from './gameloop.js';
-gameLoop.registerFunction(updateLocalNPCs);

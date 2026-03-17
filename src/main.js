@@ -2,7 +2,7 @@ import { initSound, soundManager } from './sound.js';
 import { emotes, getEmoteMessage } from './emotes.js';
 import { processEvents } from './events.js';
 import { mapManager } from './maps.js';
-import { characterManager } from './characters.js';
+import { characterManager, updateLocalNPCs } from './characters.js';
 import { physicsEngine } from './physics.js';
 import { inputManager } from './input.js';
 import { networkClient } from './network.js';
@@ -497,16 +497,41 @@ function handleInitData(data) {
 
     const wasRunning = gameLoop.isRunning();
 
-    if (!wasRunning) {
-      if (window.init.mapData && window.init.mapData.on_enter) {
-        executeEvents(window.init.mapData, window.init.mapData.on_enter);
+    console.log('[Main] wasRunning: ' + wasRunning);
+    console.log('[Main] window.init.mapData: ' + JSON.stringify(window.init.mapData));
+
+    gameLoop.clear();
+
+    if (window.init.mapData && window.init.mapData.import) {
+      console.log('[Main] Importing minigame: ' + window.init.mapData.import);
+
+      const topUi = document.getElementById('top-center-ui');
+      if (topUi) topUi.style.display = 'none';
+      const joystick = document.getElementById('joystick-move-container');
+      if (joystick) joystick.style.display = 'none';
+
+      import(window.init.mapData.import).then(module => {
+        module.initMinigame();
+      });
+    } else {
+      if (!wasRunning) {
+        console.log('[Main] Game loop rendering started for the first time.');
+        if (window.init.mapData && window.init.mapData.on_enter && !window.init.mapData.import) {
+          executeEvents(window.init.mapData, window.init.mapData.on_enter);
+        }
       }
-      checkInitialSpawn();
-      console.log('[Main] Game loop rendering started for the first time.');
+
+      const topUi = document.getElementById('top-center-ui');
+      if (topUi) topUi.style.display = 'flex';
+      const joystick = document.getElementById('joystick-move-container');
+      if (joystick) joystick.style.display = 'flex';
+
+      gameLoop.registerFunction(updateLocalNPCs);
       gameLoop.registerFunction(update);
       gameLoop.registerFunction(draw);
-      gameLoop.start();
     }
+
+    gameLoop.start();
 
     const avatarsContainer = uiManager.avatarsContainer;
     if (avatarsContainer) {
@@ -556,7 +581,6 @@ function handleInitData(data) {
         } else {
           soundManager.stopBackground();
         }
-        setTimeout(checkInitialSpawn, 100);
       }
     }
 
@@ -575,31 +599,5 @@ function handleInitData(data) {
       startBtn.style.color = "red";
     }
     console.error(err);
-  }
-}
-
-/**
- * Verifies upon map initialization whether the player's initial coordinate payload
- * places them directly over overlapping trigger zones like a Spawn Area. Instantly 
- * initiates any actions on their entries if so.
- */
-function checkInitialSpawn() {
-  if (!gameLoop.isRunning() || !window.init) return;
-  const playerRadius = 15;
-  const possibleOverlaps = window.init.objects ? window.init.objects.filter(o =>
-    Math.hypot(player.x - o.x, player.y - o.y) < Math.max(o.width, o.length) + playerRadius
-  ) : [];
-  if (possibleOverlaps.length > 0) {
-    exactCoords[0].x = player.x;
-    exactCoords[0].y = player.y;
-    const actuallyInObject = physicsEngine.findObjectsAt(possibleOverlaps, exactCoords, 0);
-    const newBuilding = actuallyInObject.length > 0 ? actuallyInObject[0].id : null;
-    if (newBuilding) {
-      player.activeBuilding = newBuilding;
-      const matchedObj = actuallyInObject[0];
-      if (matchedObj.on_enter && (typeof matchedObj.on_enter === 'number' || matchedObj.on_enter.length > 0)) {
-        executeEvents(matchedObj, matchedObj.on_enter);
-      }
-    }
   }
 }

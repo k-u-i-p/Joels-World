@@ -38,6 +38,14 @@ export class GameLoop {
   }
 
   /**
+   * Clears all registered functions from the game loop.
+   */
+  clear() {
+    this.functions = [];
+    this.postFunctions = [];
+  }
+
+  /**
    * Starts the internal `requestAnimationFrame` render loop if it's not already running.
    */
   start() {
