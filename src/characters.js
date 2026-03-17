@@ -171,6 +171,16 @@ export class CharacterManager {
       return { x: targetX, y: targetY, hit: !isVisible(targetX, targetY) };
     };
 
+    this.drawHumanoidLowerBody(ctx, c, limbs, isVisible);
+    this.drawHumanoidUpperBody(ctx, c, limbs, isVisible, getRaycastEnd);
+  }
+
+  /**
+   * Renders only the legs and shoes of the character.
+   */
+  drawHumanoidLowerBody(ctx, c, limbs, isVisible) {
+    if (!isVisible) isVisible = () => true;
+
     if (!c.emote || (c.emote.name !== 'sit' && c.emote.name !== 'lunch' && c.emote.name !== 'write')) {
       const shoeColor = c.shoeColor || '#1a252f';
       if (isVisible(limbs.leftLegEndX, limbs.leftLegEndY)) {
@@ -180,7 +190,14 @@ export class CharacterManager {
         this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
       }
     }
+  }
 
+  /**
+   * Renders the torso, arms, and head of the character.
+   */
+  drawHumanoidUpperBody(ctx, c, limbs, isVisible, getRaycastEnd) {
+    if (!isVisible) isVisible = () => true;
+    if (!getRaycastEnd) getRaycastEnd = (sx, sy, tx, ty) => ({ x: tx, y: ty, hit: false });
 
     const armOffset = 11; // Restore normal wide shoulder anchors
 
