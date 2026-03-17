@@ -26,6 +26,7 @@ const MAXIMUM_BALL_SPEED = 300;  // Absolute engine speed ceiling for rallying
 const BALL_RADIUS = 3;           // Collision and drawing radius of the ball
 const GRAVITY = 800;             // Gravity affecting the ball Z-axis (pixels/s^2)
 const SWING_DURATION = 0.25;     // Duration of a racket swing in seconds
+const NET_HEIGHT = 45;           // Minimum Z-altitude required to cross the court
 
 const COURT_INNER_BOUNDS = { x: -78, y: 264, width: 100, height: 272 };
 
@@ -140,7 +141,7 @@ function getSwingState(timer, isApproaching) {
  * @param {number} sideReach - Current lateral extension of the arm.
  * @returns {{x: number, y: number}} The precise structural center of the racket strings.
  */
-function getRacketWorldPos(offsetX, y, swingState, sideReach, baseRotation) {
+function getRacketWorldPos(offsetX, y, swingState, sideReach, baseRotation, elevateZ = 0) {
   // Baseline graphic rotation (Math.PI / 2) + idle rotation (1.0) + dynamic swing angle
   const racketAngle = Math.PI / 2 + 1.0 + swingState.angle;
 
@@ -166,7 +167,8 @@ function getRacketWorldPos(offsetX, y, swingState, sideReach, baseRotation) {
 
   return {
     x: offsetX + worldOffsetX,
-    y: y + worldOffsetY,
+    y: y + worldOffsetY - elevateZ,
+    groundY: y + worldOffsetY,
     w: Math.max(1, hitWidth),
     h: hitDepth,
     angle: rotRad + racketAngle
@@ -190,8 +192,35 @@ function hitBallToTarget(targetX, targetY, velocity) {
   const dist = Math.sqrt(dx * dx + dy * dy);
 
   // Parabolic Physics calculation establishing the necessary starting vertical Z velocity (vZ)
-  const timeToTarget = dist / state.ballCurrentVelocity;
-  const vZ = (0.5 * GRAVITY * timeToTarget * timeToTarget - state.ballCurrentHeight) / timeToTarget;
+  let timeToTarget = dist / state.ballCurrentVelocity;
+
+  // Cap the flight time to prevent extreme "moonball" lobs. 
+  // If the target requires a longer flight, we forcefully drive the ball harder and flatter to reach it.
+  const maxFlightTime = 1.3;
+  if (timeToTarget > maxFlightTime) {
+    timeToTarget = maxFlightTime;
+    // Boost the 2D planar velocity to cover the distance in the compressed time frame
+    state.ballCurrentVelocity = dist / timeToTarget;
+  }
+
+  let vZ = (0.5 * GRAVITY * timeToTarget * timeToTarget - state.ballCurrentHeight) / timeToTarget;
+
+  // Ensure the ball arcs high enough to clear the physical net structure if the target crosses the net
+  const netY = GAME_HEIGHT / 2;
+  const crossesNet = (state.ballY < netY && targetY > netY) || (state.ballY > netY && targetY < netY);
+  
+  if (crossesNet) {
+    // Rough estimation of how long it takes to reach the net
+    const timeToNet = (Math.abs(netY - state.ballY) / Math.abs(dy)) * timeToTarget;
+    // Calculate the minimum Z-velocity needed to be exactly above NET_HEIGHT when t = timeToNet
+    const requiredClearanceHeight = NET_HEIGHT + BALL_RADIUS + 5; // adding 5px buffer
+    const minVZ = (requiredClearanceHeight - state.ballCurrentHeight + 0.5 * GRAVITY * timeToNet * timeToNet) / timeToNet;
+    
+    // If the flat stroke calculations predict crashing into the net, boost the arc
+    if (vZ < minVZ) {
+      vZ = minVZ;
+    }
+  }
 
   // Derive new spatial pitch vector
   state.ballCurrentPitchAngle = Math.atan2(vZ, state.ballCurrentVelocity);
@@ -229,6 +258,8 @@ export function initMinigame() {
   state.npcSwingTimer = 0;
   state.playerLegTimer = 0;
   state.npcLegTimer = 0;
+  state.playerElevateZ = 0;
+  state.npcElevateZ = 0;
   state.npcTargetX = 0;
   state.npcTargetY = NPC_BASE_Y;
   state.npcHasTarget = false;
@@ -330,9 +361,18 @@ function update(dt) {
   const playerSideReach = 14 + (isPlayerApproaching || state.playerSwingTimer > 0 ? clamp(state.ballOffsetX - state.playerOffsetX, -12, 12) : 0);
   const npcSideReach = 14 + (isNpcApproaching || state.npcSwingTimer > 0 ? clamp(-(state.ballOffsetX - state.npcOffsetX), -12, 12) : 0);
 
+  // Compute Z-axis reach elevation for high-bouncing shots only when ball in Y-proximity
+  const playerDistY = Math.abs(state.ballY - playerY);
+  const playerZMult = clamp(1 - (playerDistY / 80), 0, 1);
+  state.playerElevateZ = (isPlayerApproaching || state.playerSwingTimer > 0) ? clamp(state.ballCurrentHeight - 20, 0, 70) * playerZMult : 0;
+
+  const npcDistY = Math.abs(state.ballY - npcY);
+  const npcZMult = clamp(1 - (npcDistY / 80), 0, 1);
+  state.npcElevateZ = (isNpcApproaching || state.npcSwingTimer > 0) ? clamp(state.ballCurrentHeight - 20, 0, 70) * npcZMult : 0;
+
   // Absolute world coordinates of both racket hitboxes
-  const playerRacketPos = getRacketWorldPos(state.playerOffsetX, playerY, playerSwing, playerSideReach, state.playerRotation);
-  const npcRacketPos = getRacketWorldPos(state.npcOffsetX, npcY, npcSwing, npcSideReach, state.npcRotation);
+  const playerRacketPos = getRacketWorldPos(state.playerOffsetX, playerY, playerSwing, playerSideReach, state.playerRotation, state.playerElevateZ);
+  const npcRacketPos = getRacketWorldPos(state.npcOffsetX, npcY, npcSwing, npcSideReach, state.npcRotation, state.npcElevateZ);
 
   // The actual collision checks test against visually elevated (Z-adjusted) Y coord 
   const visualBallY = state.ballY - state.ballCurrentHeight;
@@ -340,19 +380,22 @@ function update(dt) {
   // Calculate specific collision boundaries
   const playerTriggerW = playerRacketPos.w + 30 * camera.zoom;
   const playerTriggerH = playerRacketPos.h + 15 * camera.zoom;
-  
+
   const npcTriggerW = npcRacketPos.w + 30 * camera.zoom;
   const npcTriggerH = npcRacketPos.h + 15 * camera.zoom;
 
   // 2. Automated Swing Triggers
-  // Swing initiates only if the racket will successfully intersect the ball's trajectory
+  // Swing initiates only if the racket will successfully intersect the ball's trajectory, and it is physically in reach
   if (!state.resetting && state.ballVY > 0 && state.playerSwingTimer === 0 && !state.playerHasSwung) {
     const dx = state.ballOffsetX - playerRacketPos.x;
     const dy = visualBallY - playerRacketPos.y;
     const localDx = dx * Math.cos(-playerRacketPos.angle) - dy * Math.sin(-playerRacketPos.angle);
     const localDy = dx * Math.sin(-playerRacketPos.angle) + dy * Math.cos(-playerRacketPos.angle);
 
-    if (Math.pow(localDx, 2) / Math.pow(playerTriggerW, 2) + Math.pow(localDy, 2) / Math.pow(playerTriggerH, 2) <= 1) {
+    if (
+      Math.abs(state.ballY - playerRacketPos.groundY) < 50 && state.ballCurrentHeight < 100 &&
+      Math.pow(localDx, 2) / Math.pow(playerTriggerW, 2) + Math.pow(localDy, 2) / Math.pow(playerTriggerH, 2) <= 1
+    ) {
       state.playerSwingTimer = SWING_DURATION;
       state.playerHasSwung = true;
     }
@@ -364,7 +407,10 @@ function update(dt) {
     const localDx = dx * Math.cos(-npcRacketPos.angle) - dy * Math.sin(-npcRacketPos.angle);
     const localDy = dx * Math.sin(-npcRacketPos.angle) + dy * Math.cos(-npcRacketPos.angle);
 
-    if (Math.pow(localDx, 2) / Math.pow(npcTriggerW, 2) + Math.pow(localDy, 2) / Math.pow(npcTriggerH, 2) <= 1) {
+    if (
+      Math.abs(state.ballY - npcRacketPos.groundY) < 50 && state.ballCurrentHeight < 100 &&
+      Math.pow(localDx, 2) / Math.pow(npcTriggerW, 2) + Math.pow(localDy, 2) / Math.pow(npcTriggerH, 2) <= 1
+    ) {
       state.npcSwingTimer = SWING_DURATION;
       state.npcHasSwung = true;
     }
@@ -483,7 +529,7 @@ function update(dt) {
 
         // Calculate intercept trajectory when ball crosses that specific Y-depth plane
         const timeToIntercept = Math.abs((targetY - state.ballY) / state.ballVY);
-        
+
         state.npcTargetX = state.ballOffsetX + (state.ballVX * timeToIntercept) - approximatedRacketOffset;
         state.npcTargetY = targetY;
         state.npcHasTarget = true;
@@ -496,7 +542,7 @@ function update(dt) {
     }
 
     const distToTarget = state.npcTargetX - state.npcOffsetX;
-    
+
     // Use a soft deadzone and prevent overshooting frame-by-frame
     if (Math.abs(distToTarget) > 2) {
       const moveStep = Math.min(NPC_SPEED * dt, Math.abs(distToTarget));
@@ -575,11 +621,24 @@ function update(dt) {
     state.ballCurrentPitchAngle = Math.atan2(Math.abs(vZ - GRAVITY * dt) * 0.6, state.ballCurrentVelocity);
   }
 
-  // Handle Planar XY movement
+  // 6. Handle Planar XY movement and Structural Net Collision
   state.ballOffsetX += state.ballVX * dt;
+  
+  const prevBallY = state.ballY;
   state.ballY += state.ballVY * dt;
 
-  // 6. Racket Deflections
+  // Check if ball mathematically crossed the Y-center of the court during this frame
+  const netY = GAME_HEIGHT / 2;
+  if ((prevBallY < netY && state.ballY >= netY) || (prevBallY >= netY && state.ballY < netY)) {
+    if (state.ballCurrentHeight < NET_HEIGHT) {
+      // Ball hit the physical net structure!
+      state.ballVY *= -0.3; // Rebound weakly back towards the hitter
+      state.ballCurrentVelocity *= 0.3; // Kill most kinetic energy
+      state.ballY = netY + Math.sign(state.ballVY) * 5; // Snap off the net
+    }
+  }
+
+  // 7. Racket Deflections
 
   const pDx = state.ballOffsetX - playerRacketPos.x;
   const pDy = visualBallY - playerRacketPos.y;
@@ -590,6 +649,7 @@ function update(dt) {
     !state.resetting &&
     state.ballVY > 0 &&
     state.playerSwingTimer > 0 &&
+    Math.abs(state.ballY - playerRacketPos.groundY) < 50 && state.ballCurrentHeight < 100 &&
     // Strict Elliptical Intersection Boolean Matrix Check over standard Box Radius Check
     (Math.pow(pLocalDx, 2) / Math.pow(playerRacketPos.w + BALL_RADIUS, 2)) +
     (Math.pow(pLocalDy, 2) / Math.pow(playerRacketPos.h + BALL_RADIUS, 2)) <= 1
@@ -620,6 +680,7 @@ function update(dt) {
     !state.resetting &&
     state.ballVY < 0 &&
     state.npcSwingTimer > 0 &&
+    Math.abs(state.ballY - npcRacketPos.groundY) < 50 && state.ballCurrentHeight < 100 &&
     (Math.pow(nLocalDx, 2) / Math.pow(npcRacketPos.w + BALL_RADIUS, 2)) +
     (Math.pow(nLocalDy, 2) / Math.pow(npcRacketPos.h + BALL_RADIUS, 2)) <= 1
   ) {
@@ -634,7 +695,7 @@ function update(dt) {
     state.playerHasSwung = false;
   }
 
-  // 7. Bounds Checking / Out Checks
+  // 8. Bounds Checking / Out Checks
   // Point resolving (scoring logic) automatically triggers walkback
   if (!state.resetting) {
     const isOffScreenX = Math.abs(state.ballOffsetX) > PLAYABLE_HALF_WIDTH + 150;
@@ -780,9 +841,15 @@ function draw() {
 
   ctx.rotate(state.npcRotation * (Math.PI / 180));
   const npcLimbs = getLimbs(state.npcLegTimer, state.npcDirection, state.npcDirectionY, npcSwing.reach, npcSideReach);
-  drawRacket(ctx, npcLimbs, npcSwing.angle, npcSwing.roll);
   characterManager.drawShoe(ctx, npcLimbs.leftLegEndX, npcLimbs.leftLegEndY, npc.shoeColor || '#1a252f', true);
   characterManager.drawShoe(ctx, npcLimbs.rightLegEndX, npcLimbs.rightLegEndY, npc.shoeColor || '#1a252f', false);
+
+  // Evaluate visual translation mapping spatial Z elevation to the World -Y axis natively
+  ctx.rotate(-state.npcRotation * (Math.PI / 180));
+  ctx.translate(0, -state.npcElevateZ / camera.zoom);
+  ctx.rotate(state.npcRotation * (Math.PI / 180));
+
+  drawRacket(ctx, npcLimbs, npcSwing.angle, npcSwing.roll);
   characterManager.drawHumanoidUpperBody(ctx, { ...npc, rotation: state.npcRotation, x: 0, y: 0 }, npcLimbs);
   ctx.restore();
 
@@ -801,9 +868,14 @@ function draw() {
   let playerCharacter = window.init.myCharacter;
   const playerLimbs = getLimbs(state.playerLegTimer, state.playerDirection, state.playerDirectionY, playerSwing.reach, playerSideReach);
   playerCharacter.rotation = state.playerRotation;
-  drawRacket(ctx, playerLimbs, playerSwing.angle, playerSwing.roll);
   characterManager.drawShoe(ctx, playerLimbs.leftLegEndX, playerLimbs.leftLegEndY, playerCharacter.shoeColor || '#1a252f', true);
   characterManager.drawShoe(ctx, playerLimbs.rightLegEndX, playerLimbs.rightLegEndY, playerCharacter.shoeColor || '#1a252f', false);
+
+  ctx.rotate(-state.playerRotation * (Math.PI / 180));
+  ctx.translate(0, -state.playerElevateZ / camera.zoom);
+  ctx.rotate(state.playerRotation * (Math.PI / 180));
+
+  drawRacket(ctx, playerLimbs, playerSwing.angle, playerSwing.roll);
   characterManager.drawHumanoidUpperBody(ctx, playerCharacter, playerLimbs);
   ctx.restore();
 
@@ -832,8 +904,8 @@ function draw() {
 
   // 4. Admin Hitbox Diagnostic Visualization Overlay
   if (window.isAdmin) {
-    const pHitbox = getRacketWorldPos(state.playerOffsetX, playerY, playerSwing, playerSideReach, state.playerRotation);
-    const nHitbox = getRacketWorldPos(state.npcOffsetX, npcY, npcSwing, npcSideReach, state.npcRotation);
+    const pHitbox = getRacketWorldPos(state.playerOffsetX, playerY, playerSwing, playerSideReach, state.playerRotation, state.playerElevateZ);
+    const nHitbox = getRacketWorldPos(state.npcOffsetX, npcY, npcSwing, npcSideReach, state.npcRotation, state.npcElevateZ);
 
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
