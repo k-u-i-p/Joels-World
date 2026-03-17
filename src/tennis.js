@@ -202,6 +202,9 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0, maxDurati
 
   // Differentiate between an overhead smash/serve and a low groundstroke/lob
   const isOverhead = aimPitch > 0.4;
+  
+  // Differentiate between forehand (right) and backhand (cross body left)
+  const isBackhand = aimYaw < -0.1;
 
   // Calculate dynamic wide reach for tracking incoming balls
   const lateralStretch = Math.abs(aimYaw) * 10;
@@ -210,9 +213,10 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0, maxDurati
     let progress = 1 - (timer / maxDuration); // 0.0 to 1.0
     // Apply an ease-in-out cubic curve to simulate authentic swing snap/acceleration
     progress = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-    // Core sweep: Cocked back to crossing the body
-    const sweepStart = Math.PI * 0.45;
-    const sweepEnd = -Math.PI * 0.45;
+    
+    // Core sweep: Forehand cocks right and swings left. Backhand crosses left and swings outward right!
+    const sweepStart = isBackhand ? -Math.PI * 0.45 : Math.PI * 0.45;
+    const sweepEnd = isBackhand ? Math.PI * 0.45 : -Math.PI * 0.45;
     let baseYaw = sweepStart + (sweepEnd - sweepStart) * progress;
     yaw = baseYaw + aimYaw;
 
@@ -235,9 +239,8 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0, maxDurati
       reach = 8 + lateralStretch + Math.sin(progress * Math.PI) * 12 - (progress * 4); // Cocks, hits, pulls in
     }
   } else if (isApproaching) {
-    // Keep racket in neutral ready posture, but dynamically stretch it outward for wide shots
-    yaw = Math.PI * 0.35;
-    if (Math.abs(aimYaw) > 0.1) yaw += Math.abs(aimYaw);
+    // Keep racket in neutral ready posture, but dynamically stretch it outward for wide shots or cross body for backhands
+    yaw = isBackhand ? aimYaw - 0.2 : Math.PI * 0.35 + Math.max(0, aimYaw - 0.1);
     if (isOverhead) {
       pitch = aimPitch + 0.8; // Racket raised high preparatory
       reach = 8 + lateralStretch; // Dynamically reach out proportionally to how wide the ball is!
