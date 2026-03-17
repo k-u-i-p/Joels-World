@@ -89,6 +89,8 @@ let state = {
   introTimer: 0,
   nextServerIsPlayer: false,
   serveSide: -1,
+  playerScore: 0,
+  npcScore: 0,
 };
 
 // ==========================================
@@ -288,6 +290,10 @@ export function initMinigame() {
   camera.y = GAME_HEIGHT / 2;
   camera.zoom = 1.8;
 
+  const scoreboard = document.getElementById('tennis-scoreboard');
+  if (scoreboard) scoreboard.style.display = 'flex';
+  updateScoreboardDOM();
+
   gameLoop.registerFunction(update);
   gameLoop.registerFunction(draw);
 }
@@ -341,6 +347,26 @@ function serveBall(playerServing) {
   }
 }
 
+/** Formats numerical points into tennis scoring phrases. Returns object with { playerStr, npcStr, winner } */
+function getTennisScore(p, n) {
+  const points = ['Love', '15', '30', '40'];
+  if (p >= 4 || n >= 4) {
+    if (Math.abs(p - n) >= 2) return { winner: p > n ? 'player' : 'npc' };
+    if (p === n) return { playerStr: 'Deuce', npcStr: 'Deuce' };
+    return { playerStr: p > n ? 'Ad' : '-', npcStr: n > p ? 'Ad' : '-' };
+  }
+  if (p === 3 && n === 3) return { playerStr: 'Deuce', npcStr: 'Deuce' };
+  return { playerStr: points[p], npcStr: points[n] };
+}
+
+function updateScoreboardDOM() {
+  const currentScore = getTennisScore(state.playerScore, state.npcScore);
+  const npcEl = document.getElementById('tennis-score-npc');
+  const playerEl = document.getElementById('tennis-score-player');
+  if (npcEl) npcEl.innerText = 'NPC: ' + (currentScore.npcStr || '');
+  if (playerEl) playerEl.innerText = 'YOU: ' + (currentScore.playerStr || '');
+}
+
 /**
  * Triggers the end of a point, forcing characters to automatically
  * walk back to their default service baseline coordinates.
@@ -350,6 +376,22 @@ function serveBall(playerServing) {
 function triggerPointReset(nextPlayerServing) {
   if (state.resetting) return;
   state.resetting = true;
+  
+  // Award point based on who is serving next (loser of the rally serves)
+  if (nextPlayerServing) {
+    state.npcScore++;
+  } else {
+    state.playerScore++;
+  }
+
+  const scoreData = getTennisScore(state.playerScore, state.npcScore);
+  if (scoreData.winner) {
+    // Game won, reset points for the next game
+    state.playerScore = 0;
+    state.npcScore = 0;
+  }
+  updateScoreboardDOM();
+
   state.nextServerIsPlayer = nextPlayerServing;
   state.serveSide *= -1;
   state.resetDelayTimer = 1.5; // Brief intermission before next serve
@@ -1007,33 +1049,7 @@ function draw() {
   characterManager.drawHumanoidUpperBody(ctx, { ...npc, rotation: state.npcRotation, x: 0, y: 0 }, npcLimbs);
   ctx.restore();
 
-  // 2. Render Player
-  ctx.save();
-  ctx.translate(centerX + state.playerOffsetX, playerY);
-  ctx.scale(camera.zoom, camera.zoom);
-
-  // Drop shadow
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-  ctx.beginPath();
-  ctx.arc(2, 4, 14, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.rotate(state.playerRotation * (Math.PI / 180));
-  let playerCharacter = window.init.myCharacter;
-  const playerLimbs = getLimbs(state.playerLegTimer, state.playerDirection, state.playerDirectionY, playerSwing.reach, playerSideReach);
-  playerCharacter.rotation = state.playerRotation;
-  characterManager.drawShoe(ctx, playerLimbs.leftLegEndX, playerLimbs.leftLegEndY, playerCharacter.shoeColor || '#1a252f', true);
-  characterManager.drawShoe(ctx, playerLimbs.rightLegEndX, playerLimbs.rightLegEndY, playerCharacter.shoeColor || '#1a252f', false);
-
-  ctx.rotate(-state.playerRotation * (Math.PI / 180));
-  ctx.translate(0, -state.playerElevateZ / camera.zoom);
-  ctx.rotate(state.playerRotation * (Math.PI / 180));
-
-  drawRacket(ctx, playerLimbs, playerSwing.angle, playerSwing.roll);
-  characterManager.drawHumanoidUpperBody(ctx, playerCharacter, playerLimbs);
-  ctx.restore();
-
-  // 3. Render Ball Physics Elements
+  // 2. Render Ball Physics Elements (Drawn before player to prevent top-overlap)
 
   // Ball's vertical Ground Shadow
   ctx.save();
@@ -1082,7 +1098,33 @@ function draw() {
     ctx.restore();
   }
 
-  // 4. Admin Hitbox Diagnostic Visualization Overlay
+  // 3. Render Player
+  ctx.save();
+  ctx.translate(centerX + state.playerOffsetX, playerY);
+  ctx.scale(camera.zoom, camera.zoom);
+
+  // Drop shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  ctx.arc(2, 4, 14, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.rotate(state.playerRotation * (Math.PI / 180));
+  let playerCharacter = window.init.myCharacter;
+  const playerLimbs = getLimbs(state.playerLegTimer, state.playerDirection, state.playerDirectionY, playerSwing.reach, playerSideReach);
+  playerCharacter.rotation = state.playerRotation;
+  characterManager.drawShoe(ctx, playerLimbs.leftLegEndX, playerLimbs.leftLegEndY, playerCharacter.shoeColor || '#1a252f', true);
+  characterManager.drawShoe(ctx, playerLimbs.rightLegEndX, playerLimbs.rightLegEndY, playerCharacter.shoeColor || '#1a252f', false);
+
+  ctx.rotate(-state.playerRotation * (Math.PI / 180));
+  ctx.translate(0, -state.playerElevateZ / camera.zoom);
+  ctx.rotate(state.playerRotation * (Math.PI / 180));
+
+  drawRacket(ctx, playerLimbs, playerSwing.angle, playerSwing.roll);
+  characterManager.drawHumanoidUpperBody(ctx, playerCharacter, playerLimbs);
+  ctx.restore();
+
+  // 3. Admin Hitbox Diagnostic Visualization Overlay
   if (window.isAdmin) {
     const pHitbox = getRacketWorldPos(state.playerOffsetX, playerY, playerSwing, playerSideReach, state.playerRotation, state.playerElevateZ);
     const nHitbox = getRacketWorldPos(state.npcOffsetX, npcY, npcSwing, npcSideReach, state.npcRotation, state.npcElevateZ);
@@ -1103,5 +1145,5 @@ function draw() {
     ctx.restore();
   }
 
-  ctx.restore();
+  ctx.restore(); // Restore from world/camera zoom and offset
 }

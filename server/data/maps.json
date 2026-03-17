@@ -112,11 +112,11 @@
         {
           "alpha": 1,
           "chunked": true,
-          "source_image": "/main_building/background.png",
+          "source_image": "/main_building/new_background.png",
           "chunk_size": 512,
           "grid_w": 11,
-          "grid_h": 6,
-          "path_template": "/main_building/chunks/background_{x}_{y}.png"
+          "grid_h": 7,
+          "path_template": "/main_building/chunks/new_background_{x}_{y}.png"
         }
       ],
       [
@@ -124,11 +124,11 @@
           "alpha": 0.9,
           "overlay": true,
           "chunked": true,
-          "source_image": "/main_building/background_overlay.png",
+          "source_image": "/main_building/new_background_overlay.png",
           "chunk_size": 512,
           "grid_w": 11,
-          "grid_h": 6,
-          "path_template": "/main_building/chunks/background_overlay_{x}_{y}.png"
+          "grid_h": 7,
+          "path_template": "/main_building/chunks/new_background_overlay_{x}_{y}.png"
         }
       ]
     ],
