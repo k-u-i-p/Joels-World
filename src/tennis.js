@@ -33,6 +33,8 @@ let state = {
   ballCurrentVelocity: BALL_SPEED * 0.7,
   ballCurrentPitchAngle: 0,
   ballCurrentHeight: 0,
+  playerHasSwung: false,
+  npcHasSwung: false,
 };
 
 // Player bounds
@@ -131,13 +133,13 @@ function serveBall(playerServing) {
     // Player serves to NPC side (top half)
     targetY = COURT_INNER_BOUNDS.y + Math.random() * (COURT_INNER_BOUNDS.height / 2);
   } else {
-    // NPC serves to Player side (bottom half)
-    targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+    // NPC serves to Player side (front part of bottom half)
+    targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 3);
   }
 
   // Calculate velocity to hit target
   state.ballCurrentHeight = 40; // Serve from waist height
-  state.ballCurrentVelocity = BALL_SPEED * 0.7;
+  state.ballCurrentVelocity = playerServing ? BALL_SPEED * 0.7 : BALL_SPEED * 0.65;
 
   const dx = targetX - state.ballOffsetX;
   const dy = targetY - state.ballY;
@@ -151,11 +153,17 @@ function serveBall(playerServing) {
   state.ballVX = (dx / dist) * state.ballCurrentVelocity;
   state.ballVY = (dy / dist) * state.ballCurrentVelocity;
 
+  // Reset swing locks for the new volley
+  state.playerHasSwung = false;
+  state.npcHasSwung = false;
+
   // Trigger swing animation visually showing the serve
   if (playerServing) {
     state.playerSwingTimer = 0.25;
+    state.playerHasSwung = true;
   } else {
     state.npcSwingTimer = 0.25;
+    state.npcHasSwung = true;
   }
 }
 
@@ -232,16 +240,22 @@ function update(dt) {
   const visualBallY = state.ballY - state.ballCurrentHeight;
 
   // Trigger player swing
-  if (state.ballVY > 0 && state.playerSwingTimer === 0) {
-    if (playerRacketPos.y - visualBallY < 45 * camera.zoom && playerRacketPos.y - visualBallY > -10 * camera.zoom && Math.abs(state.ballOffsetX - playerRacketPos.x) < racketHitHalfWidth + 30 * camera.zoom) {
+  if (state.ballVY > 0 && state.playerSwingTimer === 0 && !state.playerHasSwung) {
+    const triggerW = racketHitHalfWidth + 30 * camera.zoom;
+    const triggerH = 25 * camera.zoom;
+    if (Math.pow(state.ballOffsetX - playerRacketPos.x, 2) / Math.pow(triggerW, 2) + Math.pow(visualBallY - playerRacketPos.y, 2) / Math.pow(triggerH, 2) <= 1) {
       state.playerSwingTimer = SWING_DURATION;
+      state.playerHasSwung = true;
     }
   }
 
   // Trigger NPC swing
-  if (state.ballVY < 0 && state.npcSwingTimer === 0) {
-    if (visualBallY - npcRacketPos.y < 45 * camera.zoom && visualBallY - npcRacketPos.y > -10 * camera.zoom && Math.abs(state.ballOffsetX - npcRacketPos.x) < racketHitHalfWidth + 30 * camera.zoom) {
+  if (state.ballVY < 0 && state.npcSwingTimer === 0 && !state.npcHasSwung) {
+    const triggerW = racketHitHalfWidth + 30 * camera.zoom;
+    const triggerH = 25 * camera.zoom;
+    if (Math.pow(state.ballOffsetX - npcRacketPos.x, 2) / Math.pow(triggerW, 2) + Math.pow(visualBallY - npcRacketPos.y, 2) / Math.pow(triggerH, 2) <= 1) {
       state.npcSwingTimer = SWING_DURATION;
+      state.npcHasSwung = true;
     }
   }
 
@@ -318,10 +332,8 @@ function update(dt) {
   // Racket Collisions (Player - Bottom)
   if (
     state.ballVY > 0 &&
-    visualBallY + BALL_RADIUS >= playerRacketPos.y - racketHitDepth &&
-    visualBallY - BALL_RADIUS <= playerRacketPos.y + racketHitDepth &&
-    state.ballOffsetX >= playerRacketPos.x - racketHitHalfWidth &&
-    state.ballOffsetX <= playerRacketPos.x + racketHitHalfWidth
+    (Math.pow(state.ballOffsetX - playerRacketPos.x, 2) / Math.pow(racketHitHalfWidth + BALL_RADIUS, 2)) +
+    (Math.pow(visualBallY - playerRacketPos.y, 2) / Math.pow(racketHitDepth + BALL_RADIUS, 2)) <= 1
   ) {
     // Player returns to the NPC side (top half of inner bounds)
     let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
@@ -337,6 +349,9 @@ function update(dt) {
     state.ballCurrentVelocity = BALL_SPEED * 0.9;
     state.ballCurrentHeight = Math.max(10, state.ballCurrentHeight);
     
+    // Unlock NPC for their returning swing
+    state.npcHasSwung = false;
+    
     const timeToTarget = dist / state.ballCurrentVelocity;
     const vZTarget = (0.5 * gravity * timeToTarget * timeToTarget - state.ballCurrentHeight) / timeToTarget;
     state.ballCurrentPitchAngle = Math.atan2(vZTarget, state.ballCurrentVelocity);
@@ -348,10 +363,8 @@ function update(dt) {
   // Racket Collisions (NPC - Top)
   if (
     state.ballVY < 0 &&
-    visualBallY - BALL_RADIUS <= npcRacketPos.y + racketHitDepth &&
-    visualBallY + BALL_RADIUS >= npcRacketPos.y - racketHitDepth &&
-    state.ballOffsetX >= npcRacketPos.x - racketHitHalfWidth &&
-    state.ballOffsetX <= npcRacketPos.x + racketHitHalfWidth
+    (Math.pow(state.ballOffsetX - npcRacketPos.x, 2) / Math.pow(racketHitHalfWidth + BALL_RADIUS, 2)) +
+    (Math.pow(visualBallY - npcRacketPos.y, 2) / Math.pow(racketHitDepth + BALL_RADIUS, 2)) <= 1
   ) {
     // NPC returns to the Player side (bottom half of inner bounds)
     const targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
@@ -363,6 +376,9 @@ function update(dt) {
 
     state.ballCurrentVelocity = BALL_SPEED * 0.9;
     state.ballCurrentHeight = Math.max(10, state.ballCurrentHeight);
+
+    // Unlock Player for their returning swing
+    state.playerHasSwung = false;
 
     const timeToTarget = dist / state.ballCurrentVelocity;
     const vZTarget = (0.5 * gravity * timeToTarget * timeToTarget - state.ballCurrentHeight) / timeToTarget;
@@ -523,8 +539,14 @@ function draw() {
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(centerX + pHitbox.x - racketHitHalfWidth, pHitbox.y - racketHitDepth, racketHitHalfWidth * 2, racketHitDepth * 2);
-    ctx.strokeRect(centerX + nHitbox.x - racketHitHalfWidth, nHitbox.y - racketHitDepth, racketHitHalfWidth * 2, racketHitDepth * 2);
+    
+    ctx.beginPath();
+    ctx.ellipse(centerX + pHitbox.x, pHitbox.y, racketHitHalfWidth, racketHitDepth, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(centerX + nHitbox.x, nHitbox.y, racketHitHalfWidth, racketHitDepth, 0, 0, Math.PI * 2);
+    ctx.stroke();
     
     // Draw target X exactly where trajectory intercepts the Z-axis natively
     const gravity = 800;
