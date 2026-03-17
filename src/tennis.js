@@ -510,11 +510,12 @@ function update(dt) {
       if (Math.abs(distToY) > 2) state.npcOffsetY += Math.sign(distToY) * Math.min(moveStepN, Math.abs(distToY));
     }
   } else {
-    // Account for the distance between the NPC's center and its actual racket's sweet spot.
-    const approximatedRacketOffset = -28 * camera.zoom;
-
     if (state.ballVY < 0) {
       if (!state.npcHasTarget) {
+        // Because the NPC physically holds the racket in their right hand, but faces DOWN (90 degrees) when swinging,
+        // their racket sweeps dynamically from their screen-left (-X) towards their center body over the SWING_DURATION arc.
+        // Therefore, the NPC must mathematically target slightly to the screen-right (+X) of the ball's incoming trajectory.
+        const approximatedRacketOffset = 40 * camera.zoom;
         // Predict trajectory where ball lands based on vertical physics
         let predictedLandY = NPC_BASE_Y;
         const vZTargetCheck = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
@@ -529,8 +530,19 @@ function update(dt) {
 
         // Calculate intercept trajectory when ball crosses that specific Y-depth plane
         const timeToIntercept = Math.abs((targetY - state.ballY) / state.ballVY);
-
-        state.npcTargetX = state.ballOffsetX + (state.ballVX * timeToIntercept) - approximatedRacketOffset;
+        
+        // Calculate raw X trajectory without walls
+        let absoluteTargetX = state.ballOffsetX + (state.ballVX * timeToIntercept);
+        
+        // Mathematically fold the X-coordinate if the trajectory ricochets off a side wall
+        const X_BOUND = PLAYABLE_HALF_WIDTH + 150;
+        if (absoluteTargetX > X_BOUND) {
+          absoluteTargetX = X_BOUND - (absoluteTargetX - X_BOUND);
+        } else if (absoluteTargetX < -X_BOUND) {
+          absoluteTargetX = -X_BOUND + (-X_BOUND - absoluteTargetX);
+        }
+        
+        state.npcTargetX = absoluteTargetX + approximatedRacketOffset;
         state.npcTargetY = targetY;
         state.npcHasTarget = true;
       }
