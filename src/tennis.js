@@ -258,9 +258,10 @@ export function initMinigame() {
 
   // Reset core tracking values
   state.serveSide = -1;
-  state.playerOffsetX = state.serveSide * -80;
+  const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
+  state.playerOffsetX = state.serveSide * -serveOffset;
   state.playerOffsetY = 0;
-  state.npcOffsetX = state.serveSide * 80;
+  state.npcOffsetX = state.serveSide * serveOffset;
   state.npcOffsetY = 0;
   state.npcSwingTimer = 0;
   state.playerLegTimer = 0;
@@ -467,8 +468,9 @@ function update(dt) {
         state.introPhase = 'walkToBaseline';
       }
     } else if (state.introPhase === 'walkToBaseline') {
-      const targetPX = state.nextServerIsPlayer ? state.serveSide * 80 : state.serveSide * -80;
-      const targetNX = state.nextServerIsPlayer ? state.serveSide * -80 : state.serveSide * 80;
+      const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
+      const targetPX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
+      const targetNX = state.nextServerIsPlayer ? state.serveSide * -serveOffset : state.serveSide * serveOffset;
 
       const pDistY = -state.playerOffsetY; // target 0
       const pDistX = targetPX - state.playerOffsetX;
@@ -607,13 +609,38 @@ function update(dt) {
   const prevPlayerY = state.playerOffsetY;
 
   if (state.resetting) {
-    const targetX = state.nextServerIsPlayer ? state.serveSide * 80 : state.serveSide * -80;
+    const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
+    const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
     const distToX = targetX - state.playerOffsetX;
     const distToY = -state.playerOffsetY;
     if (Math.abs(distToX) > 2 || Math.abs(distToY) > 2) {
       const moveStepP = PADDLE_SPEED * dt;
-      if (Math.abs(distToX) > 2) state.playerOffsetX += Math.sign(distToX) * Math.min(moveStepP, Math.abs(distToX));
-      if (Math.abs(distToY) > 2) state.playerOffsetY += Math.sign(distToY) * Math.min(moveStepP, Math.abs(distToY));
+      let pMovedX = 0, pMovedY = 0;
+      if (Math.abs(distToX) > 2) {
+        pMovedX = Math.sign(distToX) * Math.min(moveStepP, Math.abs(distToX));
+        state.playerOffsetX += pMovedX;
+      }
+      if (Math.abs(distToY) > 2) {
+        pMovedY = Math.sign(distToY) * Math.min(moveStepP, Math.abs(distToY));
+        state.playerOffsetY += pMovedY;
+      }
+
+      let targetRot = 270;
+      if (pMovedX > 0 && pMovedY === 0) targetRot = 0;
+      else if (pMovedX < 0 && pMovedY === 0) targetRot = 180;
+      else if (pMovedX > 0 && pMovedY < 0) targetRot = 315;
+      else if (pMovedX < 0 && pMovedY < 0) targetRot = 225;
+      else if (pMovedX > 0 && pMovedY > 0) targetRot = 45;
+      else if (pMovedX < 0 && pMovedY > 0) targetRot = 135;
+      else if (pMovedX === 0 && pMovedY > 0) targetRot = 90;
+
+      const diffP = targetRot - state.playerRotation;
+      let shortestP = (diffP + 540) % 360 - 180;
+      state.playerRotation += shortestP * 0.2;
+    } else {
+      const diffP = 270 - state.playerRotation;
+      let shortestP = (diffP + 540) % 360 - 180;
+      state.playerRotation += shortestP * 0.2;
     }
   } else {
     let playerMoveX = 0;
@@ -699,17 +726,39 @@ function update(dt) {
   const prevNpcY = state.npcOffsetY;
 
   if (state.resetting) {
-    const targetX = state.nextServerIsPlayer ? state.serveSide * -80 : state.serveSide * 80;
+    const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
+    const targetX = state.nextServerIsPlayer ? state.serveSide * -serveOffset : state.serveSide * serveOffset;
     const distToX = targetX - state.npcOffsetX;
     const distToY = -state.npcOffsetY;
     if (Math.abs(distToX) > 2 || Math.abs(distToY) > 2) {
       const moveStepN = NPC_SPEED * dt;
+      let nMovedX = 0, nMovedY = 0;
       if (Math.abs(distToX) > 2) {
-        let stepX = Math.sign(distToX) * Math.min(moveStepN, Math.abs(distToX));
-        state.npcOffsetX += stepX;
-        state.npcDirection = Math.sign(stepX);
+        nMovedX = Math.sign(distToX) * Math.min(moveStepN, Math.abs(distToX));
+        state.npcOffsetX += nMovedX;
+        state.npcDirection = Math.sign(nMovedX);
       }
-      if (Math.abs(distToY) > 2) state.npcOffsetY += Math.sign(distToY) * Math.min(moveStepN, Math.abs(distToY));
+      if (Math.abs(distToY) > 2) {
+        nMovedY = Math.sign(distToY) * Math.min(moveStepN, Math.abs(distToY));
+        state.npcOffsetY += nMovedY;
+      }
+
+      let targetRot = 90;
+      if (nMovedX > 0 && nMovedY === 0) targetRot = 0;
+      else if (nMovedX < 0 && nMovedY === 0) targetRot = 180;
+      else if (nMovedX > 0 && nMovedY < 0) targetRot = 315;
+      else if (nMovedX < 0 && nMovedY < 0) targetRot = 225;
+      else if (nMovedX > 0 && nMovedY > 0) targetRot = 45;
+      else if (nMovedX < 0 && nMovedY > 0) targetRot = 135;
+      else if (nMovedX === 0 && nMovedY < 0) targetRot = 270;
+
+      const diffN = targetRot - state.npcRotation;
+      let shortestN = (diffN + 540) % 360 - 180;
+      state.npcRotation += shortestN * 0.2;
+    } else {
+      const diffN = 90 - state.npcRotation;
+      let shortestN = (diffN + 540) % 360 - 180;
+      state.npcRotation += shortestN * 0.2;
     }
   } else {
     if (state.ballVY < 0) {
@@ -767,8 +816,18 @@ function update(dt) {
 
     // Smoothly rotate NPC based on movement
     let targetNpcRotation = 90; // Default facing net
-    if (Math.abs(distToTarget) > 2) {
-      targetNpcRotation = state.npcDirection > 0 ? 0 : 180;
+
+    // Determine movement intent
+    const isMovingX = Math.abs(distToTarget) > 2;
+    const isMovingY = Math.abs(distToTargetY) > 2;
+
+    if (isMovingX && !isMovingY) targetNpcRotation = state.npcDirection > 0 ? 0 : 180;
+    else if (!isMovingX && isMovingY) targetNpcRotation = state.npcDirectionY > 0 ? 90 : 270;
+    else if (isMovingX && isMovingY) {
+      if (state.npcDirection > 0 && state.npcDirectionY > 0) targetNpcRotation = 45;
+      else if (state.npcDirection < 0 && state.npcDirectionY > 0) targetNpcRotation = 135;
+      else if (state.npcDirection < 0 && state.npcDirectionY < 0) targetNpcRotation = 225;
+      else if (state.npcDirection > 0 && state.npcDirectionY < 0) targetNpcRotation = 315;
     }
 
     const diffN = targetNpcRotation - state.npcRotation;
@@ -819,13 +878,19 @@ function update(dt) {
     state.bounceCount++;
 
     if (state.bounceCount === 1 && !state.resetting && state.lastHitter) {
-      const inBoundsX = state.ballOffsetX >= -78 && state.ballOffsetX <= 78;
+      const minX = COURT_INNER_BOUNDS.x;
+      const maxX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width;
+      const minY = COURT_INNER_BOUNDS.y;
+      const maxY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height;
+      const netY = GAME_HEIGHT / 2;
+
+      const inBoundsX = state.ballOffsetX >= minX && state.ballOffsetX <= maxX;
       let validBounce = false;
 
       if (state.lastHitter === 'player') {
-        validBounce = inBoundsX && state.ballY >= 264 && state.ballY <= 400; // NPC's half
+        validBounce = inBoundsX && state.ballY >= minY && state.ballY <= netY; // NPC's half
       } else if (state.lastHitter === 'npc') {
-        validBounce = inBoundsX && state.ballY >= 400 && state.ballY <= 536; // Player's half
+        validBounce = inBoundsX && state.ballY >= netY && state.ballY <= maxY; // Player's half
       } else {
         validBounce = true;
       }
