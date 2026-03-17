@@ -29,7 +29,7 @@ const SWING_DURATION = 0.25;     // Duration of a racket swing in seconds
 const NET_HEIGHT = 45;           // Minimum Z-altitude required to cross the court
 
 const COURT_INNER_BOUNDS = { x: -125, y: 180, width: 255, height: 440 };
-const PLAYABLE_OVERSHOOT = 100; // How far characters can physically run out of bounds beyond the court lines
+const PLAYABLE_OVERSHOOT = 75; // How far characters can physically run out of bounds beyond the court lines
 const PLAYABLE_HALF_WIDTH = (COURT_INNER_BOUNDS.width / 2) + PLAYABLE_OVERSHOOT; // Lateral character bounds naturally scale with the court
 
 // Character specific positioning
@@ -92,7 +92,6 @@ let state = {
   playerScore: 0,
   npcScore: 0,
   lastHitter: null,
-  faultFlag: false,
   playerRacketPos: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
   npcRacketPos: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
   playerAimYaw: 0,
@@ -220,9 +219,22 @@ function hitBallToTarget(targetX, targetY, velocity) {
     const requiredClearanceHeight = NET_HEIGHT + BALL_RADIUS + 5; // adding 5px buffer
     const minVZ = (requiredClearanceHeight - state.ballCurrentHeight + 0.5 * GRAVITY * timeToNet * timeToNet) / timeToNet;
 
-    // If the flat stroke calculations predict crashing into the net, boost the arc
+    // If the flat stroke calculations predict crashing into the net, boost the arc!
+    // However, if the ball is hit very low to the ground, or driven very fast and flat, we reduce the "auto-clearance" assist
+    // naturally allowing the ball to smash into the net!
     if (vZ < minVZ) {
-      vZ = minVZ;
+      let assist = 1.0;
+
+      // Hard flat shots resist upward correction
+      if (state.ballCurrentVelocity > 250) assist -= 0.2;
+
+      // Balls hit late/low to the ground are physically harder to scoop over the net
+      if (state.ballCurrentHeight < 20) assist -= 0.4;
+
+      // Add slight organic variance (+/- 10%)
+      assist = clamp(assist + (Math.random() * 0.2 - 0.1), 0, 1);
+
+      vZ = vZ + (minVZ - vZ) * assist;
     }
   }
 
@@ -322,7 +334,7 @@ function serveBall(playerServing) {
 
   state.lastHitter = playerServing ? 'player' : 'npc';
   state.ballCurrentHeight = 40; // Characters throw the ball to waist height for serve
-  let serveVelocity = playerServing ? BALL_SPEED * 0.7 : BALL_SPEED * 0.65;
+  let serveVelocity = playerServing ? BALL_SPEED * 0.8 : BALL_SPEED * 0.65;
   hitBallToTarget(targetX, targetY, serveVelocity);
 
   // Add random variance to volume and pitch for organic audio
@@ -335,7 +347,6 @@ function serveBall(playerServing) {
   state.npcHasSwung = false;
   state.bounceCount = 0;
   state.rallyCount = 0;
-  state.faultFlag = false;
 
   // Force character to animate hitting the serve
   if (playerServing) {
@@ -932,24 +943,18 @@ function update(dt) {
         validBounce = true;
       }
 
-      // If the first bounce is out of bounds, flag it as a fault, but let the point continue in case the opponent still returns it
+      // If the first bounce is out of bounds, the point is instantly dead!
       if (!validBounce) {
-        state.faultFlag = true;
+        triggerPointReset(state.lastHitter === 'player');
       }
     }
 
-    // Double-bounce rule: If it lands twice before being intercepted, the point is over
+    // Double-bounce rule: If it lands twice validly before being intercepted, the person who failed to return it loses
     if (state.bounceCount === 2 && !state.resetting) {
-      if (state.faultFlag) {
-        // The first bounce was out of bounds, so the last hitter loses
-        triggerPointReset(state.lastHitter === 'player');
+      if (state.ballY > GAME_HEIGHT / 2) {
+        triggerPointReset(true);  // Bounced twice on Player's side -> NPC scored
       } else {
-        // The first bounce was IN bounds, so the person who failed to return it loses
-        if (state.ballY > GAME_HEIGHT / 2) {
-          triggerPointReset(true);  // Bounced twice on Player's side -> NPC scored
-        } else {
-          triggerPointReset(false); // Bounced twice on NPC's side -> Player scored
-        }
+        triggerPointReset(false); // Bounced twice on NPC's side -> Player scored
       }
     }
 
@@ -1027,7 +1032,6 @@ function update(dt) {
     state.rallyCount++;
     state.lastHitter = 'player';
     state.bounceCount = 0; // Hitting the ball rests the bounce count
-    state.faultFlag = false;
     hitBallToTarget(targetX, targetY, returnSpeed);
 
     // Add random variance to volume and pitch for organic audio
@@ -1065,7 +1069,6 @@ function update(dt) {
     state.rallyCount++;
     state.lastHitter = 'npc';
     state.bounceCount = 0; // Hitting the ball resets bounce count
-    state.faultFlag = false;
     hitBallToTarget(targetX, targetY, returnSpeed);
 
     // Add random variance to volume and pitch for organic audio
@@ -1088,13 +1091,8 @@ function update(dt) {
         // Flew off-screen without ever bouncing (Out of bounds)
         triggerPointReset(state.lastHitter === 'player');
       } else if (state.bounceCount === 1) {
-        if (state.faultFlag) {
-          // Bounced out of bounds, then flew off screen
-          triggerPointReset(state.lastHitter === 'player');
-        } else {
-          // Bounced validly in the opponent's court, then went completely off-screen (Winner)
-          triggerPointReset(state.lastHitter === 'npc');
-        }
+        // Bounced validly in the opponent's court, then went completely off-screen (Winner)
+        triggerPointReset(state.lastHitter === 'npc');
       }
     }
   }
@@ -1263,7 +1261,7 @@ function draw() {
   ctx.fill();
 
   ctx.rotate(state.npcRotation * (Math.PI / 180));
-  
+
   const npcLimbs = getLimbs(state.npcLegTimer, state.npcDirection, state.npcDirectionY, nRightArmX, nRightArmY);
 
   characterManager.drawShoe(ctx, npcLimbs.leftLegEndX, npcLimbs.leftLegEndY, npc.shoeColor || '#1a252f', true);
