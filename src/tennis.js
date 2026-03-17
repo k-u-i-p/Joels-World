@@ -1559,6 +1559,69 @@ function draw() {
     ctx.textAlign = 'center';
     ctx.fillText('SIDE PROFILE', panelX + panelW / 2, panelY + 15);
 
+    // Racket Stance Diagnostic Widget
+    const stanceW = 100;
+    const stanceH = 100;
+    const stanceX = panelX - stanceW - 10;
+    const stanceY = panelY;
+
+    // Background
+    ctx.fillStyle = 'rgba(25, 30, 40, 0.7)';
+    ctx.beginPath();
+    ctx.roundRect(stanceX, stanceY, stanceW, stanceH, 12);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Title
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('RACKET STANCE', stanceX + stanceW / 2, stanceY + 15);
+
+    // Racket Diagram
+    const pSwing = state.playerSwingAnim;
+    const dCenterX = stanceX + stanceW / 2;
+    const dCenterY = stanceY + stanceH / 2 + 5;
+
+    ctx.save();
+    ctx.translate(dCenterX, dCenterY);
+    // 1st Person Perspective:
+    // - Roll translates directly to 2D graphic rotation (twisting wrist side to side)
+    // - Pitch translates to vertical squash (tilting racket forward/backward)
+    // - Yaw translates to a slight horizontal squash (turning racket left/right)
+    ctx.rotate((pSwing.roll - 1) * Math.PI); // Roll is 0.5 to 1.5, map 1.0 to 0 degrees rotation
+
+    // Calculate ellipse boundaries based on dynamic physics stance
+    const pitchMult = Math.max(0.1, Math.abs(Math.sin(pSwing.pitch)));
+    const yawMult = Math.max(0.1, Math.abs(Math.cos(pSwing.yaw)));
+
+    const rx = 20 * yawMult;
+    const ry = 30 * pitchMult;
+
+    // Draw handle
+    ctx.fillStyle = '#2c3e50';
+    ctx.fillRect(-3, ry + 2, 6, 25);
+
+    // Draw Face
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Draw Cross Strings
+    ctx.strokeStyle = 'rgba(236, 240, 241, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -ry + 2);
+    ctx.lineTo(0, ry - 2);
+    ctx.moveTo(-rx + 2, 0);
+    ctx.lineTo(rx - 2, 0);
+    ctx.stroke();
+
+    ctx.restore();
+
     ctx.restore();
   }
 }
