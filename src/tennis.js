@@ -137,12 +137,17 @@ function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0) {
     let baseYaw = sweepStart + (sweepEnd - sweepStart) * progress;
 
     yaw = baseYaw + aimYaw;
-    pitch = aimPitch;
+    
+    // Vertical Swoop: Stroke from low to high
+    const pitchStart = aimPitch - 0.4;
+    const pitchEnd = aimPitch + 0.4;
+    pitch = pitchStart + (pitchEnd - pitchStart) * progress;
+    
     roll = Math.max(0.1, Math.abs(Math.cos(progress * Math.PI)));
     reach = 4 + Math.sin(progress * Math.PI) * 12; // Fully extend dynamically through the swing arc center
   } else if (isApproaching) {
     yaw = Math.PI * 0.4 + aimYaw;
-    pitch = aimPitch;
+    pitch = aimPitch - 0.4; // Cocked lower ready to swoop up
     roll = 0.8;
     reach = 4; // Cocked back elbow bent
   } else {
@@ -621,20 +626,21 @@ function update(dt) {
       state.playerRotation += shortestP * 0.2;
     }
   } else {
-    const isLeft = inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA') || (inputManager.keys.TouchMove && inputManager.joystickVector.x < -0.3);
-    const isRight = inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD') || (inputManager.keys.TouchMove && inputManager.joystickVector.x > 0.3);
-    const isUp = inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW') || (inputManager.keys.TouchMove && inputManager.joystickVector.y < -0.3);
-    const isDown = inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS') || (inputManager.keys.TouchMove && inputManager.joystickVector.y > 0.3);
+    // Procedurally Auto-Aim the Player's racket to physically intercept the ball's 3D coordinates!
+    if (state.playerSwingTimer > 0) {
+      // Calculate Yaw (lateral reach)
+      const diffX = state.ballOffsetX - state.playerOffsetX;
+      state.playerAimYaw = clamp(diffX * 0.015, -Math.PI / 4, Math.PI / 4);
 
-    // Dynamic Player Aim Calculation
-    let pAimYaw = 0;
-    let pAimPitch = 0;
-    if (isLeft) pAimYaw = -Math.PI / 5;
-    if (isRight) pAimYaw = Math.PI / 5;
-    if (isUp) pAimPitch = Math.PI / 8; // Lob aim
-    if (isDown) pAimPitch = -Math.PI / 12; // Slice aim
-    state.playerAimYaw = pAimYaw;
-    state.playerAimPitch = pAimPitch;
+      // Calculate Pitch (vertical reach)
+      // Player's shoulder is roughly 20px off the ground.
+      const trueZDiff = state.ballCurrentHeight - 20;
+      state.playerAimPitch = clamp(trueZDiff * 0.015, -Math.PI / 3, Math.PI / 4);
+    } else {
+      // Relax back to neutral when not actively swinging
+      state.playerAimYaw *= 0.8;
+      state.playerAimPitch *= 0.8;
+    }
 
     let playerMoveX = 0;
     let playerMoveY = 0;
@@ -754,11 +760,19 @@ function update(dt) {
       state.npcRotation += shortestN * 0.2;
     }
   } else {
-    // Simple procedural NPC Aim
-    if (state.ballOffsetX < 0 && state.npcOffsetX > 0) state.npcAimYaw = Math.PI/6;
-    else if (state.ballOffsetX > 0 && state.npcOffsetX < 0) state.npcAimYaw = -Math.PI/6;
-    else state.npcAimYaw = 0;
-    state.npcAimPitch = 0;
+    // Procedurally Auto-Aim the NPC's racket to physically intercept the ball's 3D coordinates!
+    if (state.npcSwingTimer > 0) {
+      // Calculate Yaw (lateral reach) Note: NPC faces opposite direction so diff is inverted
+      const diffX = state.npcOffsetX - state.ballOffsetX;
+      state.npcAimYaw = clamp(diffX * 0.015, -Math.PI / 4, Math.PI / 4);
+
+      // Calculate Pitch (vertical reach)
+      const trueZDiff = state.ballCurrentHeight - 20;
+      state.npcAimPitch = clamp(trueZDiff * 0.015, -Math.PI / 3, Math.PI / 4);
+    } else {
+      state.npcAimYaw *= 0.8;
+      state.npcAimPitch *= 0.8;
+    }
 
     if (state.ballVY < 0) {
       if (!state.npcHasTarget) {
@@ -956,23 +970,34 @@ function update(dt) {
     let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
     let targetY = COURT_INNER_BOUNDS.y + Math.random() * (COURT_INNER_BOUNDS.height / 2);
 
-    // Dynamically drive ball trajectory via spatial aiming limits
-    if (state.playerAimYaw < 0) targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.15 + (Math.random() * 20); // Aim left sideline
-    else if (state.playerAimYaw > 0) targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.85 - (Math.random() * 20); // Aim right sideline
-    
-    // Slight directional spin to reward center hits
-    const hitOffset = state.ballOffsetX - playerRacketPos.x;
-    targetX += hitOffset * 1.5;
-
-    if (state.playerAimPitch > 0) targetY = COURT_INNER_BOUNDS.y + 20; // Aim deep lob
-    else if (state.playerAimPitch < 0) targetY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height/2 - 20; // Aim short smash
-
     // Standard baseline rally acceleration
     let returnSpeed = state.ballCurrentVelocity * 1.05;
 
-    // Power Shot Mechanic: If the player aims laterally or heavily steps into the shot
-    if (Math.abs(state.playerAimYaw) > 0 || state.playerAimPitch < 0) {
-      returnSpeed *= 1.35; // Power boost!
+    // Apply slight directional spin off center hits manually controlled by the player leaning into the ball
+    const isLeaningLeft = inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA') || (inputManager.keys.TouchMove && inputManager.joystickVector.x < -0.3);
+    const isLeaningRight = inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD') || (inputManager.keys.TouchMove && inputManager.joystickVector.x > 0.3);
+    
+    if (isLeaningLeft) {
+      targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.15 + (Math.random() * 20); // Aim left sideline
+      returnSpeed *= 1.2; // Power boost!
+    } else if (isLeaningRight) {
+      targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.85 - (Math.random() * 20); // Aim right sideline
+      returnSpeed *= 1.2; // Power boost!
+    } else {
+      // Organic center hit variance
+      const hitOffset = state.ballOffsetX - playerRacketPos.x;
+      targetX += hitOffset * 1.5;
+    }
+
+    const isAimingUp = inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW') || (inputManager.keys.TouchMove && inputManager.joystickVector.y < -0.3);
+    const isAimingDown = inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS') || (inputManager.keys.TouchMove && inputManager.joystickVector.y > 0.3);
+
+    if (isAimingUp) {
+      targetY = COURT_INNER_BOUNDS.y + 20; // Aim deep lob
+      returnSpeed *= 0.9;
+    } else if (isAimingDown) {
+      targetY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height/2 - 20; // Aim short smash
+      returnSpeed *= 1.3;
     }
 
     state.rallyCount++;
@@ -1009,8 +1034,8 @@ function update(dt) {
     let targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
 
     // NPC procedural aim application
-    if (state.npcAimYaw < 0) targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.15;
-    else if (state.npcAimYaw > 0) targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.85;
+    if (state.ballOffsetX < 0) targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.85; // Hit away
+    else targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.15;
 
     const returnSpeed = state.ballCurrentVelocity * 1.1;
     state.rallyCount++;
