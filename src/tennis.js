@@ -130,67 +130,90 @@ function getNpcY() {
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
 /**
- * Procedurally tracks and calculates the exact 3D Cartesian rotation required 
- * for a character's shoulder to point their arm directly at an incoming ball's trajectory.
+ * Procedurally calculates the exact 3D Cartesian rotation required 
+ * for a character's shoulder to point their arm directly at a given target point.
  * 
  * @param {number} charX - Current X map coordinate of the character.
- * @param {number} charY - Current Y map coordinate of the character.
  * @param {number} charElevZ - Current Z physical altitude of the character's feet.
+ * @param {{x: number, y: number, z: number}} targetPoint - The pre-calculated optimal intercept target.
  * @param {boolean} isPlayer - True if calculating for the bottom-court player.
  * @returns {{aimYaw: number, aimPitch: number}}
  */
-function calculateAimAngles(charX, charY, charElevZ, isPlayer) {
-  let tIntercept = 0;
-
-  // Calculate precise intercept time mapped to the character's forward extended racket plane
-  const hitPlaneY = isPlayer ? charY - 15 : charY + 15;
-  if (isPlayer && state.ballVY > 0) {
-    tIntercept = (hitPlaneY - state.ballY) / state.ballVY;
-  } else if (!isPlayer && state.ballVY < 0) {
-    tIntercept = (hitPlaneY - state.ballY) / state.ballVY;
-  }
-
-  let predictedX = state.ballOffsetX;
-  let predictedZ = state.ballCurrentHeight;
-
-  // Project future Cartesian coordinates!
-  if (tIntercept > 0) {
-    predictedX += state.ballVX * tIntercept;
-
-    // Run a deterministic micro-physics simulation to perfectly trace the bounce arc!
-    let simZ = state.ballCurrentHeight;
-    let simVZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
-    let timeRemaining = tIntercept;
-    const simDt = 0.016; // Simulate at 60fps resolution
-
-    while (timeRemaining > 0) {
-      const step = Math.min(simDt, timeRemaining);
-      simVZ -= GRAVITY * step;
-      simZ += simVZ * step;
-
-      // Handle perfect floor bounce physics matching the main update loop
-      if (simZ < 0) {
-        simZ = 0;
-        simVZ = -simVZ * 0.6; // 0.6 dampening multiplier
-      }
-      timeRemaining -= step;
-    }
-    predictedZ = simZ;
-  }
-
+function calculateAimAngles(charX, charElevZ, targetPoint, isPlayer) {
   // Map coordinates relative to exactly where the character's physical shoulder socket is attached
   const shoulderX = charX;
   const shoulderZ = charElevZ + 30; // Shoulder is essentially 30px off the physical floor height
 
   // Diff absolute Cartesian distances (NPC mirror handles X inversion natively)
-  const dx = isPlayer ? (predictedX - shoulderX) : (shoulderX - predictedX);
-  const dz = predictedZ - shoulderZ;
+  const dx = isPlayer ? (targetPoint.x - shoulderX) : (shoulderX - targetPoint.x);
+  const dz = targetPoint.z - shoulderZ;
 
   // Calculate exact anatomical rotation angles required to point the 20-pixel arm towards the delta!
   const targetYaw = clamp(Math.atan2(dx, 40), -Math.PI / 2.5, Math.PI / 2.5);
   const targetPitch = clamp(Math.asin(clamp(dz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
 
   return { aimYaw: targetYaw, aimPitch: targetPitch };
+}
+
+/**
+ * Predicts the optimal intercept point along the ball's current trajectory 
+ * relative to a specific 3D target coordinate.
+ * 
+ * @param {{x: number, y: number, z: number}} target - The target 3D Cartesian coordinates.
+ * @returns {{x: number, y: number, z: number, t: number}} - The closest trajectory coordinate and its timestamp.
+ */
+function calculateOptimalInterceptPoint(target) {
+  let simX = state.ballOffsetX;
+  let simY = state.ballY;
+  let simZ = state.ballCurrentHeight;
+  let simVX = state.ballVX;
+  let simVY = state.ballVY;
+  let simVZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
+
+  let closestDistSq = Infinity;
+  let bestT = 0;
+  let bestX = simX;
+  let bestY = simY;
+  let bestZ = simZ;
+
+  let currentT = 0;
+  const simDt = 0.016; // 60fps procedural resolution
+  const maxT = 2.0;    // Cap prediction strictly at 2.0 seconds
+
+  while (currentT <= maxT) {
+    const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
+
+    if (distSq < closestDistSq) {
+      closestDistSq = distSq;
+      bestT = currentT;
+      bestX = simX;
+      bestY = simY;
+      bestZ = simZ;
+    }
+
+    // Step the deterministic physics model natively by one slice
+    simX += simVX * simDt;
+    simY += simVY * simDt;
+    simVZ -= GRAVITY * simDt;
+    simZ += simVZ * simDt;
+
+    // Process procedural floor deflections
+    if (simZ < 0) {
+      simZ = 0;
+      simVZ = -simVZ * 0.6; // 0.6 standard court dampening multiplier
+    }
+
+    currentT += simDt;
+
+    // Prune evaluation loop immediately if ball mechanically escapes active bounding volume
+    if (Math.abs(simX) > PLAYABLE_HALF_WIDTH + 50 ||
+      simY < COURT_INNER_BOUNDS.y - 100 ||
+      simY > COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height + 100) {
+      break;
+    }
+  }
+
+  return { x: bestX, y: bestY, z: bestZ, t: bestT };
 }
 
 /**
@@ -201,6 +224,7 @@ function calculateAimAngles(charX, charY, charElevZ, isPlayer) {
  * @returns {{pitch: number, yaw: number, roll: number}}
  */
 function getSwingState(timer, isApproaching, aimYaw = 0, aimPitch = 0, maxDuration = 0.15) {
+  return { pitch: 0, yaw: 0, roll: 0, reach: 0 };
   let yaw = 0;
   let pitch = 0;
   let roll = 0.8; // Native roll: 0.0 = edge-on top-down (strings facing ball)
@@ -294,11 +318,11 @@ function getRacketWorldPos(isPlayer) {
 function hitBallToTarget(targetX, targetY, velocity) {
   state.ballCurrentVelocity = Math.min(velocity, MAXIMUM_BALL_SPEED);
   state.bounceCount = 0;
-  
+
   if (!state.isServe) {
     state.trajectoryPoints = []; // Clear history on physical strike during a live rally
   }
-  
+
   state.trajectoryFrozen = false; // Unfreeze tracking
 
   const dx = targetX - state.ballOffsetX;
@@ -481,29 +505,48 @@ function serveBall(playerServing) {
   state.serverReturnSpeed = playerServing ? BALL_SPEED * 0.8 : BALL_SPEED * 0.65;
 
   // Transition cleanly into the organic physics simulation!
-  throwBall(playerServing);
+  const sideDir = state.serveSide * (playerServing ? -1 : 1);
+  const tossTarget = {
+    x: (playerServing ? state.playerOffsetX : state.npcOffsetX) + (sideDir * 20 * GAME_SCALE),
+    y: playerServing ? (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height - (10 * GAME_SCALE)) : (COURT_INNER_BOUNDS.y + (10 * GAME_SCALE)),
+    z: 85 * GAME_SCALE
+  };
+
+  throwBall(playerServing, tossTarget);
 }
 
 /**
  * Physically throws the ball organically from the character's hand using true gravity.
  * @param {boolean} playerServing - True if player serves, false if NPC serves.
+ * @param {{x: number, y: number, z: number}} tossTarget - The target apex coordinates.
  */
-function throwBall(playerServing) {
-  state.servePhase = 'live'; 
+function throwBall(playerServing, tossTarget) {
+  state.servePhase = 'live';
   state.servePhaseTimer = 0;
-  
+  state.tossTarget = tossTarget;
+
   // Physically start the ball strictly inside the pre-calculated left hand geometry over the baseline!
   state.ballCurrentHeight = 25;
-  
-  // Toss slightly forward and to the character's designated right side allowing them to organically step into it!
-  state.ballCurrentVelocity = 15;
-  state.ballVX = playerServing ? 12 : -12;
-  state.ballVY = playerServing ? -12 : 12;
-  
-  // High vertical kinetic lift (vZ = 245) produces an apex exactly ~85px high (v^2/2g) against the 500p/s GRAVITY block!
-  const vZ = 245; 
+
+  const startX = playerServing ? state.playerOffsetX : state.npcOffsetX;
+  const startY = playerServing ? getPlayerY() : getNpcY();
+
+  // Shift ball physically to the server body to prevent visual snapping
+  state.ballOffsetX = startX;
+  state.ballY = startY;
+
+  // Calculate the physics required to apex perfectly at tossTarget.z
+  const dz = Math.max(1, tossTarget.z - state.ballCurrentHeight);
+  const vZ = Math.sqrt(2 * GRAVITY * dz);
+  const tApex = vZ / GRAVITY;
+
+  // Assign planar velocity to span the horizontal gap exactly during tApex
+  state.ballVX = (tossTarget.x - startX) / tApex;
+  state.ballVY = (tossTarget.y - startY) / tApex;
+
+  state.ballCurrentVelocity = Math.max(0.1, Math.sqrt(state.ballVX * state.ballVX + state.ballVY * state.ballVY));
   state.ballCurrentPitchAngle = Math.atan2(vZ, state.ballCurrentVelocity);
-  
+
   state.trajectoryFrozen = false; // Ignite the tracker immediately
 
   // Renew collision locks cleanly, allowing the organic update loop to natively schedule exactly one swing per volley!
@@ -787,16 +830,16 @@ function update(dt) {
 
   if (!state.resetting && state.playerSwingTimer === 0 && !state.playerHasSwung && (state.ballVY > 0 || playerServing)) {
     let tIntercept = -1;
-    
+
     if (playerServing) {
       // Solve gravity quadratic: 0.5*g*t^2 - vZ*t + (Z_target - Z_start) = 0
       const a = 0.5 * GRAVITY;
       const vZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
       const b = -vZ;
       const c = 75 - state.ballCurrentHeight; // Target overhead strike zone ~75px
-      const discriminant = b*b - 4*a*c;
+      const discriminant = b * b - 4 * a * c;
       // We take the positive square root to find the timestamp when the ball falls BACK DOWN into the strike zone
-      if (discriminant >= 0) tIntercept = (-b + Math.sqrt(discriminant)) / (2*a);
+      if (discriminant >= 0) tIntercept = (-b + Math.sqrt(discriminant)) / (2 * a);
     } else {
       // Intercept target is the racket plane, physically out in front!
       tIntercept = (playerY - 15 - state.ballY) / state.ballVY;
@@ -830,14 +873,14 @@ function update(dt) {
 
   if (!state.resetting && state.npcSwingTimer === 0 && !state.npcHasSwung && (state.ballVY < 0 || npcServing)) {
     let tIntercept = -1;
-    
+
     if (npcServing) {
       const a = 0.5 * GRAVITY;
       const vZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
       const b = -vZ;
       const c = 75 - state.ballCurrentHeight;
-      const discriminant = b*b - 4*a*c;
-      if (discriminant >= 0) tIntercept = (-b + Math.sqrt(discriminant)) / (2*a);
+      const discriminant = b * b - 4 * a * c;
+      if (discriminant >= 0) tIntercept = (-b + Math.sqrt(discriminant)) / (2 * a);
     } else {
       tIntercept = (npcY + 15 - state.ballY) / state.ballVY;
     }
@@ -894,7 +937,8 @@ function update(dt) {
     // Track either when actively swinging, or when the ball is incoming defensively!
     if (state.playerSwingTimer > 0 || state.ballVY > 0) {
       // Procedurally Auto-Aim the Player's racket using unified physics tracking!
-      const tracking = calculateAimAngles(state.playerOffsetX, playerY, state.playerElevateZ, true);
+      const intercept = calculateOptimalInterceptPoint({ x: state.playerOffsetX, y: playerY - 15, z: state.playerElevateZ + 30 });
+      const tracking = calculateAimAngles(state.playerOffsetX, state.playerElevateZ, intercept, true);
       state.playerAimYaw = tracking.aimYaw;
       state.playerAimPitch = tracking.aimPitch;
     } else {
@@ -1025,7 +1069,8 @@ function update(dt) {
     // Track either when actively swinging, or when the ball is incoming defensively!
     if (state.npcSwingTimer > 0 || state.ballVY < 0) {
       // Procedurally Auto-Aim the NPC's racket using unified physics tracking!
-      const tracking = calculateAimAngles(state.npcOffsetX, npcY, state.npcElevateZ, false);
+      const intercept = calculateOptimalInterceptPoint({ x: state.npcOffsetX, y: npcY + 15, z: state.npcElevateZ + 30 });
+      const tracking = calculateAimAngles(state.npcOffsetX, state.npcElevateZ, intercept, false);
       state.npcAimYaw = tracking.aimYaw;
       state.npcAimPitch = tracking.aimPitch;
     } else {
@@ -1203,7 +1248,7 @@ function update(dt) {
 
   const prevBallY = state.ballY;
   state.ballY += state.ballVY * dt;
-  
+
   // Progress global point timer monotonically (freeze while waiting for serves to start)
   if (state.resetDelayTimer <= 0) state.totalElapsedTime += dt;
 
@@ -1616,6 +1661,59 @@ function draw() {
     ctx.lineTo(landX + crossSize, landY + crossSize);
     ctx.moveTo(landX + crossSize, landY - crossSize);
     ctx.lineTo(landX - crossSize, landY + crossSize);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // Draw the optimal 3D intercept prediction as a Green X
+  if (state.ballVY !== 0) {
+    let interceptTarget;
+    if (state.ballVY > 0) {
+      interceptTarget = { x: state.playerOffsetX, y: playerY - 15, z: state.playerElevateZ + 30 };
+    } else {
+      interceptTarget = { x: state.npcOffsetX, y: npcY + 15, z: state.npcElevateZ + 30 };
+    }
+
+    const bestPoint = calculateOptimalInterceptPoint(interceptTarget);
+
+    // Only draw the visual if it securely predicts an approach within 1 second
+    if (bestPoint.t > 0 && bestPoint.t < 1.0) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(46, 204, 113, 0.9)'; // Vibrant Green
+      ctx.lineWidth = Math.max(1, 2 * COURT_SCALE); // Consistent with the Red X
+
+      const hitX = centerX + bestPoint.x;
+      // Map the 3D 'Z' altitude physically to the screen's vertical 'Y' axis to match the ball's rendering height exactly
+      const hitY = bestPoint.y - bestPoint.z;
+
+      ctx.beginPath();
+      const hitSize = 5 * COURT_SCALE; // Consistent with the Red X
+      ctx.moveTo(hitX - hitSize, hitY - hitSize);
+      ctx.lineTo(hitX + hitSize, hitY + hitSize);
+      ctx.moveTo(hitX + hitSize, hitY - hitSize);
+      ctx.lineTo(hitX - hitSize, hitY + hitSize);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+  }
+
+  // Draw the yellow X for the Toss Target
+  if (state.isServe && state.tossTarget) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(241, 196, 15, 0.9)'; // Bright Yellow
+    ctx.lineWidth = Math.max(1, 2 * COURT_SCALE);
+
+    const hitX = centerX + state.tossTarget.x;
+    const hitY = state.tossTarget.y - state.tossTarget.z; // Match the visual altitude tracking!
+
+    ctx.beginPath();
+    const hitSize = 5 * COURT_SCALE;
+    ctx.moveTo(hitX - hitSize, hitY - hitSize);
+    ctx.lineTo(hitX + hitSize, hitY + hitSize);
+    ctx.moveTo(hitX + hitSize, hitY - hitSize);
+    ctx.lineTo(hitX - hitSize, hitY + hitSize);
     ctx.stroke();
 
     ctx.restore();
