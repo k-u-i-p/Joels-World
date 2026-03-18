@@ -92,7 +92,7 @@ let state = {
   nextServerIsPlayer: false,
   lastHitter: null,
   isServe: 'in_play', // 'player_serve', 'npc_serve', 'in_play'
-  servePhase: 'idle', // 'idle', 'live'
+  servePhase: 'idle', // 'idle', 'just_thrown', 'live'
   faults: 0,
   trajectoryPoints: [],
   totalElapsedTime: 0,
@@ -103,15 +103,6 @@ let state = {
 // UTILITIES & PURE FUNCTIONS
 // ==========================================
 
-/** Calculates player Y position including their vertical movement offset. */
-function getPlayerY() {
-  return PLAYER_BASE_Y + state.player.y;
-}
-
-/** Calculates NPC Y position including their vertical movement offset. */
-function getNpcY() {
-  return NPC_BASE_Y + state.npc.y;
-}
 
 /** Standard numeric clamp function. */
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
@@ -126,7 +117,7 @@ const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
  */
 function calculateArmReach(player, interceptPoint) {
   const isPlayer = player === state.player;
-  const worldY = isPlayer ? getPlayerY() : getNpcY();
+  const worldY = player.y;
 
   const dx = interceptPoint.x - player.x;
   const dy = interceptPoint.y - worldY;
@@ -419,9 +410,9 @@ export function initMinigame() {
   state.serveSide = -1;
   const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
   state.player.x = state.serveSide * -serveOffset;
-  state.player.y = 0;
+  state.player.y = PLAYER_BASE_Y;
   state.npc.x = state.serveSide * serveOffset;
-  state.npc.y = 0;
+  state.npc.y = NPC_BASE_Y;
   state.resetDelayTimer = 0;
   state.player.z = 0;
   state.npc.z = 0;
@@ -433,8 +424,8 @@ export function initMinigame() {
   state.introPhase = 'walkToNet';
   state.introTimer = 0;
   // Place characters far back initially
-  state.player.y = 30;
-  state.npc.y = -30;
+  state.player.y = PLAYER_BASE_Y + 30;
+  state.npc.y = NPC_BASE_Y - 30;
   // Put the ball somewhere hidden temporarily
   state.ball.z = -100;
   state.ball.vx = 0;
@@ -508,7 +499,7 @@ function serveBall(playerObj) {
   // Automatically lock precisely securely directly onto the launching coordinate recursively cleanly functionally exclusively
   moveBall({
     x: playerObj.x + armWorldX,
-    y: (isPlayer ? getPlayerY() : getNpcY()) + armWorldY,
+    y: playerObj.y + armWorldY,
     z: playerObj.z // The exact Z accurately cleanly rationally naturally mechanically securely seamlessly effectively optimally natively intelligently efficiently functionally smoothly elegantly logically smartly confidently creatively organically brilliantly flawlessly physically securely intelligently uniquely authentically rationally reliably identically neatly safely effectively authentically precisely implicitly intelligently creatively logically natively gracefully logically successfully physically mathematically intelligently elegantly conceptually identically authentically exactly automatically smartly cleanly cleanly correctly purely optimally organically gracefully safely identically smoothly naturally nicely purely natively symmetrically precisely natively optimally exactly identical automatically gracefully magically geometrically ideally mathematically elegantly organically uniquely magically
   });
 
@@ -550,7 +541,7 @@ function serveBall(playerObj) {
  */
 function throwBall(playerObj) {
   const isPlayer = playerObj === state.player;
-  state.servePhase = 'live';
+  state.servePhase = 'just_thrown';
 
   // State.ball physics are identically continuously synchronized tightly sequentially inside run(dt) prior to executing toss dynamically!
   const startX = state.ball.x;
@@ -587,6 +578,10 @@ function throwBall(playerObj) {
 
   state.bounceCount = 0;
   state.rallyCount = 0;
+
+  setTimeout(() => {
+    state.servePhase = 'live';
+  }, 100);
 }
 
 /** Formats numerical points into tennis scoring phrases. Returns object with { playerStr, npcStr, winner } */
@@ -732,7 +727,7 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
 /**
  * Interface to manually command the movement subsystem to target specific local offsets.
  */
-function moveCharacterToLocal(charState, targetX, targetY) {
+function moveCharacterTo(charState, targetX, targetY) {
   charState.moveTarget.x = targetX;
   charState.moveTarget.y = targetY;
   // Let the immediate execution context evaluate if they've practically arrived
@@ -749,11 +744,8 @@ function handleIntroSequence(dt) {
     const targetPlayerY = netY + 25;
     const targetNpcY = netY - 25;
 
-    const targetPlayerLocalY = targetPlayerY - PLAYER_BASE_Y;
-    const targetNpcLocalY = targetNpcY - NPC_BASE_Y;
-
-    const pMoving = moveCharacterToLocal(state.player, 0, targetPlayerLocalY);
-    const nMoving = moveCharacterToLocal(state.npc, 0, targetNpcLocalY);
+    const pMoving = moveCharacterTo(state.player, 0, targetPlayerY);
+    const nMoving = moveCharacterTo(state.npc, 0, targetNpcY);
 
     convergePhysics(state.player, dt, true, state.player.x, state.player.y, 0.5);
     convergePhysics(state.npc, dt, false, state.npc.x, state.npc.y, 0.5);
@@ -782,8 +774,8 @@ function handleIntroSequence(dt) {
     const targetPX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
     const targetNX = state.nextServerIsPlayer ? state.serveSide * -serveOffset : state.serveSide * serveOffset;
 
-    const pFar = moveCharacterToLocal(state.player, targetPX, 0);
-    const nFar = moveCharacterToLocal(state.npc, targetNX, 0);
+    const pFar = moveCharacterTo(state.player, targetPX, PLAYER_BASE_Y);
+    const nFar = moveCharacterTo(state.npc, targetNX, NPC_BASE_Y);
 
     convergePhysics(state.player, dt, true, state.player.x, state.player.y, 0.6);
     convergePhysics(state.npc, dt, false, state.npc.x, state.npc.y, 0.6);
@@ -845,10 +837,10 @@ function convergePhysics(charState, dt, isPlayer, prevX, prevY, speedMult = 1.0)
 /**
  * Handles aim tracking, boundary logic, Z-leaps, and walk animation timers identically for characters.
  */
-function processCharacter(charState, isPlayer, prevX, prevY, dt, charY) {
+function processCharacter(charState, isPlayer, prevX, prevY, dt) {
   // 1. Process Approach Proximities & Leaps Target
   const isApproaching = isPlayer ? (state.ball.vy > 0) : (state.ball.vy < 0);
-  const distY = Math.abs(state.ball.y - charY);
+  const distY = Math.abs(state.ball.y - charState.y);
   const zMult = clamp(1 - (distY / 80), 0, 1);
 
   if (isApproaching) {
@@ -861,9 +853,9 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt, charY) {
   // 2. Converge constraints!
   charState.moveTarget.x = clamp(charState.moveTarget.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
   if (isPlayer) {
-    charState.moveTarget.y = clamp(charState.moveTarget.y, -(COURT_INNER_BOUNDS.height / 2 + 10), PLAYABLE_OVERSHOOT - 10);
+    charState.moveTarget.y = clamp(charState.moveTarget.y, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) + 10, PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10);
   } else {
-    charState.moveTarget.y = clamp(charState.moveTarget.y, -(PLAYABLE_OVERSHOOT - 10), (COURT_INNER_BOUNDS.height / 2) + 10);
+    charState.moveTarget.y = clamp(charState.moveTarget.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
   }
 
   const charMoved = convergePhysics(charState, dt, isPlayer, prevX, prevY);
@@ -874,7 +866,10 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt, charY) {
   let targetPitch = 0.0;
   let targetYaw = Math.PI * 0.25;
 
-  if (isApproaching || state.isServe === (isPlayer ? 'player_serve' : 'npc_serve')) {
+  const isActiveServe = state.isServe === (isPlayer ? 'player_serve' : 'npc_serve');
+  const lockAimDuringToss = isActiveServe && state.servePhase !== 'live';
+
+  if (!lockAimDuringToss && (isApproaching || isActiveServe)) {
     const centerPoint = calculateCenterPointOfRacket(charState.racketPosition);
     const intercept = calculateOptimalInterceptPoint(centerPoint);
     const reach = calculateArmReach(charState, intercept);
@@ -903,8 +898,6 @@ function run(dt) {
     return; // Block the rest of the game update loop during intro
   }
 
-  const playerY = getPlayerY();
-  const npcY = getNpcY();
 
   // Track coordinates BEFORE movement processes run
   const prevPlayerX = state.player.x;
@@ -915,7 +908,7 @@ function run(dt) {
   if (state.resetting) {
     const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
     const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
-    moveCharacterToLocal(state.player, targetX, 0);
+    moveCharacterTo(state.player, targetX, PLAYER_BASE_Y);
   } else {
     let moveIntentX = 0;
     let moveIntentY = 0;
@@ -946,7 +939,8 @@ function run(dt) {
     }
   }
 
-  const pAim = processCharacter(state.player, true, prevPlayerX, prevPlayerY, dt, playerY);
+
+  const pAim = processCharacter(state.player, true, prevPlayerX, prevPlayerY, dt);
   const playerMoved = pAim.moved;
 
   if (!playerMoved) {
@@ -971,29 +965,25 @@ function run(dt) {
     const optimalPosition = calculateOptimalInterceptPosition(interceptPoint, false);
 
 
-    console.log('moveCharacterToLocal()', optimalPosition);
+    console.log('moveCharacterTo()', optimalPosition);
 
-    moveCharacterToLocal(state.npc, optimalPosition.x, optimalPosition.y - NPC_BASE_Y);
+    moveCharacterTo(state.npc, optimalPosition.x, optimalPosition.y);
   }
 
   if (state.resetting) {
     const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
     const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
-    moveCharacterToLocal(state.npc, targetX, 0);
+    moveCharacterTo(state.npc, targetX, NPC_BASE_Y);
   } else {
     if (state.isServe === 'in_play') {
-      console.log('state.isServe === in_play');
-
       if (state.ball.vy < 0) {
-        console.log('state.ball.vy < 0 || state.servePhase === live');
-
         if (!state.npc.hasTarget) {
           moveToIntercept();
           state.npc.hasTarget = true;
         }
       } else {
         // Ball is moving away toward player, reset to center gracefully
-        moveCharacterToLocal(state.npc, 0, 0);
+        moveCharacterTo(state.npc, 0, NPC_BASE_Y);
         state.npc.hasTarget = false;
       }
     } else if (state.isServe === 'npc_serve' && state.servePhase === 'live') {
@@ -1005,7 +995,7 @@ function run(dt) {
     }
   }
 
-  const nAim = processCharacter(state.npc, false, prevNpcX, prevNpcY, dt, npcY);
+  const nAim = processCharacter(state.npc, false, prevNpcX, prevNpcY, dt);
 
   if (!nAim.moved) {
     state.npc.moveTarget.rotation = 90;
@@ -1031,17 +1021,56 @@ function run(dt) {
   }
 
 
-  // 5. 3D Spatial Ball Physics Processing
+  // 5. 3D Spatial Ball Physics Processing (Movement)
   const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
 
-  if (state.servePhase !== 'idle') {
-    // Elevate ball
+  if (state.servePhase !== 'idle') { // Securely halt execution implicitly organically enforcing holding state nativelyservePhase
+    // Elevate ball linearly
     state.ball.z += vZ * dt;
     // Rotate velocity downward due to continuous gravity
     state.ball.pitchAngle = Math.atan2(vZ - GRAVITY * dt, state.ball.velocity);
   }
 
-  // Handle floor bounce
+  const prevBallY = state.ball.y;
+
+  // Handle Planar XY movement
+  state.ball.x += state.ball.vx * dt;
+  state.ball.y += state.ball.vy * dt;
+
+  // Progress global point timer monotonically (freeze while waiting for serves to start)
+  if (state.resetDelayTimer <= 0) state.totalElapsedTime += dt;
+
+  // Explicitly permit tracking during live gameplay
+  if (minigameActive && !state.trajectoryFrozen) {
+    state.trajectoryPoints.push({
+      x: state.ball.x,
+      y: state.ball.y,
+      t: state.totalElapsedTime,
+      z: state.ball.z,
+      pZ: playerRacketPos.z + 25, // Align to physical shoulder height (25px above floor)
+      nZ: npcRacketPos.z + 25
+    });
+    // Keep array from growing infinitely if the ball gets stuck out of bounds
+    if (state.trajectoryPoints.length > 300) state.trajectoryPoints.shift();
+  }
+
+  // 6. Structural Net Collision
+  // Check if ball mathematically crossed the Y-center of the court during this frame
+  const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
+  if ((prevBallY < netY && state.ball.y >= netY) || (prevBallY >= netY && state.ball.y < netY)) {
+    if (state.ball.z < NET_HEIGHT) {
+      // Ball hit the physical net structure!
+      state.ball.vy *= -0.3; // Rebound weakly back towards the hitter
+      state.ball.velocity *= 0.3; // Kill most kinetic energy
+      state.ball.y = netY + Math.sign(state.ball.vy) * 5; // Snap off the net
+    }
+  }
+
+  // 7. Racket Deflections
+  // Process racket scoops BEFORE the floor formally terminates the rally if they collide on the exact same frame!
+  processRacketDeflections(playerRacketPos, npcRacketPos, state.ball.y - state.ball.z);
+
+  // 8. Handle floor bounce and Scoring Logic
   if (state.ball.z < 0 && state.servePhase !== 'idle') {
     state.ball.z = 0;
     state.bounceCount++;
@@ -1051,7 +1080,6 @@ function run(dt) {
       const maxX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width;
       const minY = COURT_INNER_BOUNDS.y;
       const maxY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height;
-      const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
 
       const inBoundsX = state.ball.x >= minX && state.ball.x <= maxX;
       let validBounce = false;
@@ -1094,47 +1122,13 @@ function run(dt) {
     }
 
     // Reflect vertical kinetic energy mathematically and absorb 40% (0.6 multiplier) into the court
-    state.ball.pitchAngle = Math.atan2(Math.abs(vZ - GRAVITY * dt) * 0.6, state.ball.velocity);
+    // (We read state.ball.pitchAngle fresh from current kinetic vector)
+    const currentVZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+    // Reverse the VZ mechanically
+    state.ball.pitchAngle = Math.atan2(Math.abs(currentVZ) * 0.6, state.ball.velocity);
   }
 
-  // 6. Handle Planar XY movement and Structural Net Collision
-  state.ball.x += state.ball.vx * dt;
-
-  const prevBallY = state.ball.y;
-  state.ball.y += state.ball.vy * dt;
-
-  // Progress global point timer monotonically (freeze while waiting for serves to start)
-  if (state.resetDelayTimer <= 0) state.totalElapsedTime += dt;
-
-  // Explicitly permit tracking during live gameplay
-  if (minigameActive && !state.trajectoryFrozen) {
-    state.trajectoryPoints.push({
-      x: state.ball.x,
-      y: state.ball.y,
-      t: state.totalElapsedTime,
-      z: state.ball.z,
-      pZ: playerRacketPos.z + 25, // Align to physical shoulder height (25px above floor)
-      nZ: npcRacketPos.z + 25
-    });
-    // Keep array from growing infinitely if the ball gets stuck out of bounds
-    if (state.trajectoryPoints.length > 300) state.trajectoryPoints.shift();
-  }
-
-  // Check if ball mathematically crossed the Y-center of the court during this frame
-  const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
-  if ((prevBallY < netY && state.ball.y >= netY) || (prevBallY >= netY && state.ball.y < netY)) {
-    if (state.ball.z < NET_HEIGHT) {
-      // Ball hit the physical net structure!
-      state.ball.vy *= -0.3; // Rebound weakly back towards the hitter
-      state.ball.velocity *= 0.3; // Kill most kinetic energy
-      state.ball.y = netY + Math.sign(state.ball.vy) * 5; // Snap off the net
-    }
-  }
-
-  // 7. Racket Deflections
-  processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY);
-
-  // 8. Bounds Checking / Out Checks
+  // 9. Bounds Checking / Out Checks
   // Point resolving (scoring logic) automatically triggers walkback
   if (!state.resetting) {
     const isOffScreenX = Math.abs(state.ball.x) > PLAYABLE_HALF_WIDTH + 150;
@@ -1279,9 +1273,9 @@ function run(dt) {
   const npcLimbs = getLimbs(state.npc, nArmX, nArmY);
   const playerLimbs = getLimbs(state.player, pArmX, pArmY);
 
-  function drawCharacterShadowed(ctx, characterData, charState, worldY, limbs, aimPitch, aimYaw) {
+  function drawCharacterShadowed(ctx, characterData, charState, limbs, aimPitch, aimYaw) {
     ctx.save();
-    ctx.translate(centerX + charState.x, worldY);
+    ctx.translate(centerX + charState.x, charState.y);
     ctx.scale(camera.zoom * COURT_SCALE, camera.zoom * COURT_SCALE);
 
     // Drop shadow
@@ -1309,7 +1303,7 @@ function run(dt) {
   }
 
   // 1. Render NPC
-  drawCharacterShadowed(ctx, { ...npc, x: 0, y: 0 }, state.npc, npcY, npcLimbs, nAimPitch, nAimYaw);
+  drawCharacterShadowed(ctx, { ...npc, x: 0, y: 0 }, state.npc, npcLimbs, nAimPitch, nAimYaw);
 
   // 2. Render Ball Physics Elements (Drawn before player to prevent top-overlap)
   function drawBall(ctx, ballState, cx, courtScale) {
@@ -1395,7 +1389,7 @@ function run(dt) {
   }
 
   // 3. Render Player
-  drawCharacterShadowed(ctx, window.init.myCharacter, state.player, playerY, playerLimbs, pAimPitch, pAimYaw);
+  drawCharacterShadowed(ctx, window.init.myCharacter, state.player, playerLimbs, pAimPitch, pAimYaw);
 
   drawBall(ctx, state.ball, centerX, COURT_SCALE);
 
