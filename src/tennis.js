@@ -723,8 +723,8 @@ function run(dt) {
     }
   } else {
     // Procedurally Auto-Aim the Player's racket to physically intercept the ball's 3D coordinates!
-    // Track either when actively swinging, or when the ball is incoming defensively!
-    if (state.ballVY > 0) {
+    // Track either when actively approaching or when tossing a serve!
+    if (state.ballVY > 0 || (state.isServe && state.lastHitter === 'player')) {
       // Procedurally Auto-Aim the Player's racket using unified physics tracking!
       const intercept = calculateOptimalInterceptPoint({ x: state.playerOffsetX, y: playerY - 15, z: state.playerElevateZ + 30 });
       const tracking = calculateAimAngles(state.playerOffsetX, state.playerElevateZ, intercept, true);
@@ -853,8 +853,8 @@ function run(dt) {
     }
   } else {
     // Procedurally Auto-Aim the NPC's racket to physically intercept the ball's 3D coordinates!
-    // Track either when actively swinging, or when the ball is incoming defensively!
-    if (state.ballVY < 0) {
+    // Track either when actively approaching or when tossing a serve!
+    if (state.ballVY < 0 || (state.isServe && state.lastHitter === 'npc')) {
       // Procedurally Auto-Aim the NPC's racket using unified physics tracking!
       const intercept = calculateOptimalInterceptPoint({ x: state.npcOffsetX, y: npcY + 15, z: state.npcElevateZ + 30 });
       const tracking = calculateAimAngles(state.npcOffsetX, state.npcElevateZ, intercept, false);
@@ -1068,9 +1068,13 @@ function run(dt) {
   const pLocalDx = pDx * Math.cos(-playerRacketPos.angle) - pDy * Math.sin(-playerRacketPos.angle);
   const pLocalDy = pDx * Math.sin(-playerRacketPos.angle) + pDy * Math.cos(-playerRacketPos.angle);
 
+  // Calculate spatial velocity to enforce valid serve drop heights
+  const currentVZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
+
+  // Only permit serving hits if the ball has crested the apex of the toss and is falling (currentVZ <= 0)
   if (
     !state.resetting &&
-    (state.ballVY > 0 || (state.isServe && state.lastHitter === 'player')) &&
+    (state.ballVY > 0 || (state.isServe && state.lastHitter === 'player' && currentVZ <= 0)) &&
     Math.abs(state.ballY - playerRacketPos.groundY) < 50 &&
     state.ballCurrentHeight >= playerRacketPos.z - 15 && state.ballCurrentHeight <= playerRacketPos.z + 50 &&
     // Strict Elliptical Intersection Boolean Matrix Check over standard Box Radius Check
@@ -1112,7 +1116,7 @@ function run(dt) {
 
   if (
     !state.resetting &&
-    (state.ballVY < 0 || (state.isServe && state.lastHitter === 'npc')) &&
+    (state.ballVY < 0 || (state.isServe && state.lastHitter === 'npc' && currentVZ <= 0)) &&
     Math.abs(state.ballY - npcRacketPos.groundY) < 50 &&
     state.ballCurrentHeight >= npcRacketPos.z - 15 && state.ballCurrentHeight <= npcRacketPos.z + 50 &&
     (Math.pow(nLocalDx, 2) / Math.pow(npcRacketPos.w + BALL_RADIUS, 2)) +
@@ -1529,7 +1533,15 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY
   ctx.restore(); // Restore from world/camera zoom and offset
 
   // 4. Draw HUD Overlays (Mapped directly to absolute canvas container size)
+  drawDiagnosticsOverlay(pAimPitch, pAimYaw);
+}
 
+/**
+ * Renders the diagnostic graphs and HUD panels over the 3D court.
+ * @param {number} pAimPitch - Raw mathematical aim pitch for the diagram context.
+ * @param {number} pAimYaw - Raw mathematical aim yaw for the diagram context.
+ */
+function drawDiagnosticsOverlay(pAimPitch, pAimYaw) {
   // Trajectory Profile Panel (Bottom Center)
   if (state.trajectoryPoints.length > 1) {
     ctx.save();
