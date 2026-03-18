@@ -202,6 +202,37 @@ function calculateOptimalInterceptPoint(target) {
   return { x: bestX, y: bestY, z: bestZ, t: bestT };
 }
 
+/**
+ * Maps a 3D ball trajectory coordinate back to the physical 2D floor positioning 
+ * where a character must stand to naturally intercept it with their racket hand.
+ * 
+ * @param {{x: number, y: number, z: number}} trajectoryPoint - The predicted 3D ball location.
+ * @param {boolean} isPlayer - True if calculating for the bottom-court player.
+ * @returns {{x: number, y: number}} - Absolute engine coordinates where the character's feet should be.
+ */
+function calculateOptimalInterceptPosition(trajectoryPoint, isPlayer) {
+  // Lateral bracket offset representing distance from shoulder center to racket head natively in pixels
+  const racketOffsetX = 40 * camera.zoom * GAME_SCALE;
+  // Depth offset based on arm extension radius natively in pixels
+  const racketOffsetY = 15;
+
+  if (isPlayer) {
+    // Player faces UP (270 degrees). Racket hand is +X visual radius.
+    // They must plant their body -X and +Y relative to the incoming ball.
+    return {
+      x: clamp(trajectoryPoint.x - racketOffsetX, -PLAYABLE_HALF_WIDTH + 10, PLAYABLE_HALF_WIDTH - 10),
+      y: clamp(trajectoryPoint.y + racketOffsetY, -(COURT_INNER_BOUNDS.height / 2 + 10), PLAYABLE_OVERSHOOT - 10)
+    };
+  } else {
+    // NPC faces DOWN (90 degrees). Racket hand is -X visual radius from the camera's perspective.
+    // They must plant their body +X and -Y relative to the incoming ball.
+    return {
+      x: clamp(trajectoryPoint.x + racketOffsetX, -PLAYABLE_HALF_WIDTH + 10, PLAYABLE_HALF_WIDTH - 10),
+      y: clamp(trajectoryPoint.y - racketOffsetY, -(PLAYABLE_OVERSHOOT - 10), COURT_INNER_BOUNDS.height / 2 + 10)
+    };
+  }
+}
+
 
 
 /**
@@ -709,7 +740,7 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt, charY) {
   const isApproaching = isPlayer ? (state.ball.vy > 0) : (state.ball.vy < 0);
   const distY = Math.abs(state.ball.y - charY);
   const zMult = clamp(1 - (distY / 80), 0, 1);
-  
+
   if (isApproaching) {
     const requiredJump = Math.max(0, state.ball.z - 35);
     charState.moveTarget.z = clamp(requiredJump, 0, 70) * zMult;
@@ -730,7 +761,7 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt, charY) {
   // 3. Procedural Auto-Aim tracking
   let aimYaw = Math.PI * 0.25;
   let aimPitch = 0.0;
-  
+
   if (isApproaching || (state.isServe && state.lastHitter === (isPlayer ? 'player' : 'npc'))) {
     const intercept = calculateOptimalInterceptPoint({ x: charState.x, y: charY + (isPlayer ? -15 : 15), z: charState.z + 30 });
     const tracking = calculateAimAngles(charState.x, charState.z, intercept, isPlayer);
@@ -819,28 +850,12 @@ function run(dt) {
   } else {
     if (state.ball.vy < 0) {
       if (!state.npc.hasTarget) {
-        // Because the NPC physically holds the racket in their right hand, but faces DOWN (90 degrees) when swinging,
-        // their racket sweeps dynamically from their screen-left (-X) towards their center body over the SWING_DURATION arc.
-        // Therefore, the NPC must mathematically target slightly to the screen-right (+X) of the ball's incoming trajectory.
-        const approximatedRacketOffset = 40 * camera.zoom * GAME_SCALE;
-        // Predict trajectory where ball lands based on vertical physics
-        let predictedLandY = NPC_BASE_Y;
-        let tLand = 0;
-        const vZTargetCheck = state.ball.velocity * Math.tan(state.ball.pitchAngle);
-        const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ball.z;
-        if (det >= 0) {
-          tLand = (vZTargetCheck + Math.sqrt(det)) / GRAVITY;
-          predictedLandY = state.ball.y + state.ball.vy * tLand;
-        }
+        // Formulate a nominal target tracking point dynamically around the actual rendered position of the racket head
+        const nominalTarget = { x: state.npc.racketPosition.x, y: state.npc.racketPosition.y, z: state.npc.racketPosition.z };
+        const interceptPoint = calculateOptimalInterceptPoint(nominalTarget);
+        const optimalPosition = calculateOptimalInterceptPosition(interceptPoint, false);
 
-        // Position NPC physically behind the ball's bounce depth, clamped to their playable half-court area
-        const targetY = clamp(predictedLandY - (15 * GAME_SCALE), NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, COURT_INNER_BOUNDS.y + 10);
-
-        // Calculate raw X trajectory directly from physics air-time!
-        let absoluteTargetX = state.ball.x + (state.ball.vx * tLand);
-
-        const aimX = clamp(absoluteTargetX + approximatedRacketOffset, -PLAYABLE_HALF_WIDTH + 10, PLAYABLE_HALF_WIDTH - 10);
-        moveCharacterToLocal(state.npc, aimX, targetY - NPC_BASE_Y);
+        moveCharacterToLocal(state.npc, optimalPosition.x, optimalPosition.y - NPC_BASE_Y);
         state.npc.hasTarget = true;
       }
     } else {
@@ -1247,7 +1262,8 @@ function run(dt) {
 
   // Only show the landing X to non-admins if the ball is moving towards the player
   if (window.isAdmin || state.ball.vy > 0) {
-    drawCrosshair(ctx, landX, landY, 'rgba(255, 0, 0, 0.8)');
+    const crosshairColor = state.resetting ? 'rgba(128, 128, 128, 0.8)' : 'rgba(255, 0, 0, 0.8)';
+    drawCrosshair(ctx, landX, landY, crosshairColor);
   }
 
   // Draw the optimal 3D intercept prediction as a Green X
@@ -1262,7 +1278,7 @@ function run(dt) {
     const bestPoint = calculateOptimalInterceptPoint(interceptTarget);
 
     // Only draw the visual if it securely predicts an approach within 1 second
-    if (bestPoint.t > 0 && bestPoint.t < 1.0) {
+    if (bestPoint.t > 0) {
       const hitX = centerX + bestPoint.x;
       // Map the 3D 'Z' altitude physically to the screen's vertical 'Y' axis to match the ball's rendering height exactly
       const hitY = bestPoint.y - bestPoint.z;
