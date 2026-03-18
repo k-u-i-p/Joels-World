@@ -27,7 +27,6 @@ const BALL_SPEED = 220 * GAME_SCALE;          // Base horizontal ball speed
 const MAXIMUM_BALL_SPEED = 300 * GAME_SCALE;  // Absolute engine speed ceiling for rallying
 const BALL_RADIUS = 3;                        // Collision and drawing radius of the ball
 const GRAVITY = 800 * GAME_SCALE;             // Gravity affecting the ball Z-axis (pixels/s^2)
-const SWING_DURATION = 0.25;                  // Duration of a racket swing in seconds
 const NET_HEIGHT = 45 * GAME_SCALE;           // Minimum Z-altitude required to cross the court
 
 const PLAYABLE_OVERSHOOT = 75; // How far characters can physically run out of bounds beyond the court lines
@@ -50,32 +49,39 @@ bgImage.src = '/minigames/tennis/map.svg';
  * positions, and animation timings.
  */
 let state = {
-  // Ball planar (2D) coordinates
-  ballOffsetX: 0,
-  ballY: COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2,
-  ballVX: BALL_SPEED * 0.7,
-  ballVY: BALL_SPEED * 0.7,
+  player: {
+    x: 0,
+    y: 0,
+    z: 0,
+    rotation: 270,
+    score: 0,
+    movementDirection: { x: 1, y: 1 },
+    racketPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
+    legTimer: 0
+  },
+  npc: {
+    x: 0,
+    y: 0,
+    z: 0,
+    rotation: 90,
+    score: 0,
+    movementDirection: { x: 1, y: 1 },
+    racketPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
+    legTimer: 0,
+    targetX: 0,
+    targetY: COURT_INNER_BOUNDS.y - 10,
+    hasTarget: false
+  },
+  ball: {
+    x: 0,
+    y: COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2,
+    z: 0,
+    vx: BALL_SPEED * 0.7,
+    vy: BALL_SPEED * 0.7,
+    velocity: BALL_SPEED * 0.7,
+    pitchAngle: 0
+  },
 
-  // Ball spatial (Z-axis) physics
-  ballCurrentVelocity: BALL_SPEED * 0.7,
-  ballCurrentPitchAngle: 0,
-  ballCurrentHeight: 0,
-
-  playerOffsetX: 0,
-  playerOffsetY: 0,
-  npcOffsetX: 0,
-  npcOffsetY: 0,
-
-  playerDirection: 1, // Default direction for player (e.g., facing right)
-  npcDirection: 1,    // Default direction for NPC
-  playerDirectionY: 1, // Default Y direction for player (e.g., facing down)
-  npcDirectionY: 1,    // Default Y direction for NPC
-
-  playerRotation: 270, // Initial player rotation (facing up)
-  npcRotation: 90,     // Initial NPC rotation (facing down)
-
-  playerLegTimer: 0,
-  npcLegTimer: 0,
   bounceCount: 0,
   resetting: false,
   resetDelayTimer: 0,
@@ -83,21 +89,13 @@ let state = {
   introPhase: 'walkToNet',
   introTimer: 0,
   nextServerIsPlayer: false,
-  playerScore: 0,
-  npcScore: 0,
   lastHitter: null,
   isServe: false,
-  servePhase: 'idle', // 'idle', 'toss', 'jump', 'strike'
-  servePhaseTimer: 0,
-  serverTargetX: 0,
-  serverTargetY: 0,
-  serverReturnSpeed: 0,
+  servePhase: 'idle', // 'idle', 'live'
   faults: 0,
   trajectoryPoints: [],
   totalElapsedTime: 0,
-  trajectoryFrozen: false,
-  playerRacketPos: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
-  npcRacketPos: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 }
+  trajectoryFrozen: false
 };
 
 // ==========================================
@@ -106,12 +104,12 @@ let state = {
 
 /** Calculates player Y position including their vertical movement offset. */
 function getPlayerY() {
-  return PLAYER_BASE_Y + state.playerOffsetY;
+  return PLAYER_BASE_Y + state.player.y;
 }
 
 /** Calculates NPC Y position including their vertical movement offset. */
 function getNpcY() {
-  return NPC_BASE_Y + state.npcOffsetY;
+  return NPC_BASE_Y + state.npc.y;
 }
 
 /** Standard numeric clamp function. */
@@ -151,12 +149,12 @@ function calculateAimAngles(charX, charElevZ, targetPoint, isPlayer) {
  * @returns {{x: number, y: number, z: number, t: number}} - The closest trajectory coordinate and its timestamp.
  */
 function calculateOptimalInterceptPoint(target) {
-  let simX = state.ballOffsetX;
-  let simY = state.ballY;
-  let simZ = state.ballCurrentHeight;
-  let simVX = state.ballVX;
-  let simVY = state.ballVY;
-  let simVZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
+  let simX = state.ball.x;
+  let simY = state.ball.y;
+  let simZ = state.ball.z;
+  let simVX = state.ball.vx;
+  let simVY = state.ball.vy;
+  let simVZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
 
   let closestDistSq = Infinity;
   let bestT = 0;
@@ -218,7 +216,7 @@ function calculateOptimalInterceptPoint(target) {
 function getRacketWorldPos(isPlayer) {
   // Return the statically cached hitbox matrix derived natively from the canvas renderer
   // This guarantees 100% parity between physics boundaries and painted pixels!
-  return isPlayer ? state.playerRacketPos : state.npcRacketPos;
+  return isPlayer ? state.player.racketPosition : state.npc.racketPosition;
 }
 
 /**
@@ -230,7 +228,7 @@ function getRacketWorldPos(isPlayer) {
  * @param {number} velocity - The driving physical 3D velocity of the ball.
  */
 function hitBallToTarget(targetX, targetY, velocity) {
-  state.ballCurrentVelocity = Math.min(velocity, MAXIMUM_BALL_SPEED);
+  state.ball.velocity = Math.min(velocity, MAXIMUM_BALL_SPEED);
   state.bounceCount = 0;
 
   if (!state.isServe) {
@@ -239,12 +237,12 @@ function hitBallToTarget(targetX, targetY, velocity) {
 
   state.trajectoryFrozen = false; // Unfreeze tracking
 
-  const dx = targetX - state.ballOffsetX;
-  const dy = targetY - state.ballY;
+  const dx = targetX - state.ball.x;
+  const dy = targetY - state.ball.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
 
   // Parabolic Physics calculation establishing the necessary starting vertical Z velocity (vZ)
-  let timeToTarget = dist / state.ballCurrentVelocity;
+  let timeToTarget = dist / state.ball.velocity;
 
   // Cap the flight time to prevent extreme "moonball" lobs. 
   // If the target requires a longer flight, we forcefully drive the ball harder and flatter to reach it.
@@ -252,21 +250,21 @@ function hitBallToTarget(targetX, targetY, velocity) {
   if (timeToTarget > maxFlightTime) {
     timeToTarget = maxFlightTime;
     // Boost the 2D planar velocity to cover the distance in the compressed time frame
-    state.ballCurrentVelocity = dist / timeToTarget;
+    state.ball.velocity = dist / timeToTarget;
   }
 
-  let vZ = (0.5 * GRAVITY * timeToTarget * timeToTarget - state.ballCurrentHeight) / timeToTarget;
+  let vZ = (0.5 * GRAVITY * timeToTarget * timeToTarget - state.ball.z) / timeToTarget;
 
   // Ensure the ball arcs high enough to clear the physical net structure if the target crosses the net
   const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
-  const crossesNet = (state.ballY < netY && targetY > netY) || (state.ballY > netY && targetY < netY);
+  const crossesNet = (state.ball.y < netY && targetY > netY) || (state.ball.y > netY && targetY < netY);
 
   if (crossesNet) {
     // Rough estimation of how long it takes to reach the net
-    const timeToNet = (Math.abs(netY - state.ballY) / Math.abs(dy)) * timeToTarget;
+    const timeToNet = (Math.abs(netY - state.ball.y) / Math.abs(dy)) * timeToTarget;
     // Calculate the minimum Z-velocity needed to be exactly above NET_HEIGHT when t = timeToNet
     const requiredClearanceHeight = NET_HEIGHT + BALL_RADIUS + 5; // adding 5px buffer
-    const minVZ = (requiredClearanceHeight - state.ballCurrentHeight + 0.5 * GRAVITY * timeToNet * timeToNet) / timeToNet;
+    const minVZ = (requiredClearanceHeight - state.ball.z + 0.5 * GRAVITY * timeToNet * timeToNet) / timeToNet;
 
     // If the flat stroke calculations predict crashing into the net, boost the arc!
     // However, if the ball is hit very low to the ground, or driven very fast and flat, we reduce the "auto-clearance" assist
@@ -275,10 +273,10 @@ function hitBallToTarget(targetX, targetY, velocity) {
       let assist = 1.0;
 
       // Hard flat shots resist upward correction
-      if (state.ballCurrentVelocity > 250) assist -= 0.2;
+      if (state.ball.velocity > 250) assist -= 0.2;
 
       // Balls hit late/low to the ground are physically harder to scoop over the net
-      if (state.ballCurrentHeight < 20) assist -= 0.4;
+      if (state.ball.z < 20) assist -= 0.4;
 
       // Add slight organic variance (+/- 10%)
       assist = clamp(assist + (Math.random() * 0.2 - 0.1), 0, 1);
@@ -288,11 +286,11 @@ function hitBallToTarget(targetX, targetY, velocity) {
   }
 
   // Derive new spatial pitch vector
-  state.ballCurrentPitchAngle = Math.atan2(vZ, state.ballCurrentVelocity);
+  state.ball.pitchAngle = Math.atan2(vZ, state.ball.velocity);
 
   // Set normalized 2D movement planar slice
-  state.ballVX = (dx / dist) * state.ballCurrentVelocity;
-  state.ballVY = (dy / dist) * state.ballCurrentVelocity;
+  state.ball.vx = (dx / dist) * state.ball.velocity;
+  state.ball.vy = (dy / dist) * state.ball.velocity;
 }
 
 // ==========================================
@@ -316,27 +314,27 @@ export function initMinigame() {
   // Reset core tracking values
   state.serveSide = -1;
   const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
-  state.playerOffsetX = state.serveSide * -serveOffset;
-  state.playerOffsetY = 0;
-  state.npcOffsetX = state.serveSide * serveOffset;
-  state.npcOffsetY = 0;
+  state.player.x = state.serveSide * -serveOffset;
+  state.player.y = 0;
+  state.npc.x = state.serveSide * serveOffset;
+  state.npc.y = 0;
   state.resetDelayTimer = 0;
-  state.playerElevateZ = 0;
-  state.npcElevateZ = 0;
-  state.npcTargetX = 0;
-  state.npcTargetY = NPC_BASE_Y;
+  state.player.z = 0;
+  state.npc.z = 0;
+  state.npc.targetX = 0;
+  state.npc.targetY = NPC_BASE_Y;
   state.resetting = false;
 
   // Start cinematic intro instead of immediately serving
   state.introPhase = 'walkToNet';
   state.introTimer = 0;
   // Place characters far back initially
-  state.playerOffsetY = 30;
-  state.npcOffsetY = -30;
+  state.player.y = 30;
+  state.npc.y = -30;
   // Put the ball somewhere hidden temporarily
-  state.ballCurrentHeight = -100;
-  state.ballVX = 0;
-  state.ballVY = 0;
+  state.ball.z = -100;
+  state.ball.vx = 0;
+  state.ball.vy = 0;
 
   // Start background music
   soundManager.playBackground('/media/hushed_crowd.mp3', 0.5);
@@ -351,6 +349,34 @@ export function initMinigame() {
   updateScoreboardDOM();
 
   gameLoop.registerFunction(run);
+}
+
+/**
+ * Calculates a valid or purely random fault service box coordinate organically.
+ */
+function calculateServeTarget(isPlayer) {
+  const box = state.activeServiceBox;
+  if (!box) return { x: 0, y: 0 };
+
+  if (Math.random() < 0.9) {
+    const aimWide = Math.random() > 0.5;
+    const safeLeft = box.minX + 15;
+    const safeRight = box.maxX - 15;
+    const safeY = isPlayer ? box.minY + 20 : box.maxY - 20;
+
+    let tx = aimWide ? safeLeft : safeRight;
+    let ty = safeY;
+
+    tx += (Math.random() * 10 - 5);
+    ty += (Math.random() * 10 - 5);
+    return { x: tx, y: ty };
+  } else {
+    // 10% chance: Hit a fault!
+    return {
+      x: box.minX + Math.random() * (box.maxX - box.minX) + (Math.random() * 60 - 30),
+      y: box.minY + Math.random() * (box.maxY - box.minY) + (isPlayer ? -40 : 40)
+    };
+  }
 }
 
 /**
@@ -384,40 +410,15 @@ function serveBall(playerServing) {
 
   state.activeServiceBox = { minX: boxMinX, maxX: boxMaxX, minY: boxMinY, maxY: boxMaxY };
 
-  let targetX, targetY;
-  if (Math.random() < 0.9) {
-    // 90% chance: serve successfully hits the box, clustered organically to the T or Wide corners!
-    const aimWide = Math.random() > 0.5;
-    const safeLeft = boxMinX + 15;
-    const safeRight = boxMaxX - 15;
-    const safeY = playerServing ? boxMinY + 20 : boxMaxY - 20; // Deep towards the service line
-
-    targetX = aimWide ? safeLeft : safeRight;
-    targetY = safeY;
-
-    // Very slight organic variance for human error
-    targetX += (Math.random() * 10 - 5);
-    targetY += (Math.random() * 10 - 5);
-  } else {
-    // 10% chance: Hit a fault! (Hits the net, long, wide, or completely the wrong box)
-    targetX = boxMinX + Math.random() * (boxMaxX - boxMinX) + (Math.random() * 60 - 30);
-    targetY = boxMinY + Math.random() * (boxMaxY - boxMinY) + (playerServing ? -40 : 40);
-  }
-
   state.lastHitter = playerServing ? 'player' : 'npc';
 
   // Wipe the graph array so the new serve correctly starts a blank trajectory chart
   state.trajectoryPoints = [];
 
-  // Pre-compute and cache the serve target coordinates for when the strike phase triggers!
-  state.serverTargetX = targetX;
-  state.serverTargetY = targetY;
-  state.serverReturnSpeed = playerServing ? BALL_SPEED * 0.8 : BALL_SPEED * 0.65;
-
   // Transition cleanly into the organic physics simulation!
   const sideDir = state.serveSide * (playerServing ? -1 : 1);
   const tossTarget = {
-    x: (playerServing ? state.playerOffsetX : state.npcOffsetX) + (sideDir * 20 * GAME_SCALE),
+    x: (playerServing ? state.player.x : state.npc.x) + (sideDir * 20 * GAME_SCALE),
     y: playerServing ? (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height - (10 * GAME_SCALE)) : (COURT_INNER_BOUNDS.y + (10 * GAME_SCALE)),
     z: 85 * GAME_SCALE
   };
@@ -432,30 +433,29 @@ function serveBall(playerServing) {
  */
 function throwBall(playerServing, tossTarget) {
   state.servePhase = 'live';
-  state.servePhaseTimer = 0;
   state.tossTarget = tossTarget;
 
   // Physically start the ball strictly inside the pre-calculated left hand geometry over the baseline!
-  state.ballCurrentHeight = 25;
+  state.ball.z = 25;
 
-  const startX = playerServing ? state.playerOffsetX : state.npcOffsetX;
+  const startX = playerServing ? state.player.x : state.npc.x;
   const startY = playerServing ? getPlayerY() : getNpcY();
 
   // Shift ball physically to the server body to prevent visual snapping
-  state.ballOffsetX = startX;
-  state.ballY = startY;
+  state.ball.x = startX;
+  state.ball.y = startY;
 
   // Calculate the physics required to apex perfectly at tossTarget.z
-  const dz = Math.max(1, tossTarget.z - state.ballCurrentHeight);
+  const dz = Math.max(1, tossTarget.z - state.ball.z);
   const vZ = Math.sqrt(2 * GRAVITY * dz);
   const tApex = vZ / GRAVITY;
 
   // Assign planar velocity to span the horizontal gap exactly during tApex
-  state.ballVX = (tossTarget.x - startX) / tApex;
-  state.ballVY = (tossTarget.y - startY) / tApex;
+  state.ball.vx = (tossTarget.x - startX) / tApex;
+  state.ball.vy = (tossTarget.y - startY) / tApex;
 
-  state.ballCurrentVelocity = Math.max(0.1, Math.sqrt(state.ballVX * state.ballVX + state.ballVY * state.ballVY));
-  state.ballCurrentPitchAngle = Math.atan2(vZ, state.ballCurrentVelocity);
+  state.ball.velocity = Math.max(0.1, Math.sqrt(state.ball.vx * state.ball.vx + state.ball.vy * state.ball.vy));
+  state.ball.pitchAngle = Math.atan2(vZ, state.ball.velocity);
 
   state.trajectoryFrozen = false; // Ignite the tracker immediately
 
@@ -476,7 +476,7 @@ function getTennisScore(p, n) {
 }
 
 function updateScoreboardDOM() {
-  const currentScore = getTennisScore(state.playerScore, state.npcScore);
+  const currentScore = getTennisScore(state.player.score, state.npc.score);
   const npcEl = document.getElementById('tennis-score-npc');
   const playerEl = document.getElementById('tennis-score-player');
   if (npcEl) npcEl.innerText = 'NPC: ' + (currentScore.npcStr || '');
@@ -513,29 +513,279 @@ function triggerPointReset(nextPlayerServing) {
 
   // Award point based on who is serving next (loser of the rally serves)
   if (nextPlayerServing) {
-    state.npcScore++;
+    state.npc.score++;
   } else {
-    state.playerScore++;
+    state.player.score++;
   }
 
   // Clear faults for the next point
   state.faults = 0;
 
-  const scoreData = getTennisScore(state.playerScore, state.npcScore);
+  const scoreData = getTennisScore(state.player.score, state.npc.score);
   if (scoreData.winner) {
     // Game won, reset points for the next game
-    state.playerScore = 0;
-    state.npcScore = 0;
+    state.player.score = 0;
+    state.npc.score = 0;
   }
   updateScoreboardDOM();
 
   state.nextServerIsPlayer = nextPlayerServing;
   // Always serve from Deuce (-1) on Even total points, Ad (1) on Odd total points
-  state.serveSide = ((state.playerScore + state.npcScore) % 2 === 0) ? -1 : 1;
+  state.serveSide = ((state.player.score + state.npc.score) % 2 === 0) ? -1 : 1;
   state.resetDelayTimer = 1.5; // Brief intermission before next serve
   if (state.rallyCount >= 4) {
     soundManager.playPooled('/media/clap.mp3', 0.8);
   }
+}
+
+function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
+  if (state.resetting) return;
+
+  // Inner abstract helper to condense and document the dense spatial 3D bounds and boolean logic
+  function evaluateHit(racketPos, isPlayer) {
+    const dx = state.ball.x - racketPos.x;
+    const dy = visualBallY - racketPos.y;
+    const localDx = dx * Math.cos(-racketPos.angle) - dy * Math.sin(-racketPos.angle);
+    const localDy = dx * Math.sin(-racketPos.angle) + dy * Math.cos(-racketPos.angle);
+
+    const isCorrectDirection = isPlayer
+      ? (state.ball.vy > 0 || (state.isServe && state.lastHitter === 'player'))
+      : (state.ball.vy < 0 || (state.isServe && state.lastHitter === 'npc'));
+
+    const isWithinReach = Math.abs(state.ball.y - racketPos.groundY) < 50;
+    const isCorrectHeight = state.ball.z >= racketPos.z - 15 && state.ball.z <= racketPos.z + 50;
+
+    // Strict Elliptical Intersection Boolean Matrix Check over standard Box Radius Check
+    const isInHitbox = (Math.pow(localDx, 2) / Math.pow(racketPos.w + BALL_RADIUS, 2)) +
+      (Math.pow(localDy, 2) / Math.pow(racketPos.h + BALL_RADIUS, 2)) <= 1;
+
+    return isCorrectDirection && isWithinReach && isCorrectHeight && isInHitbox;
+  }
+
+  if (evaluateHit(playerRacketPos, true)) {
+    let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
+    let targetY = COURT_INNER_BOUNDS.y + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+    let returnSpeed = state.ball.velocity * 1.05;
+
+    if (state.isServe) {
+      const serveTarget = calculateServeTarget(true);
+      targetX = serveTarget.x;
+      targetY = serveTarget.y;
+      returnSpeed = BALL_SPEED * 0.8;
+    } else {
+      targetX += (state.ball.x - playerRacketPos.x) * 1.5; // Organic center hit variance
+    }
+
+    state.rallyCount++;
+    state.lastHitter = 'player';
+    state.bounceCount = 0; // Hitting the ball resets the bounce count
+    state.isServe = false; // The rally is live!
+    hitBallToTarget(targetX, targetY, returnSpeed);
+
+    // Add random variance to volume and pitch for organic audio
+    let soundP = soundManager.playPooled('/media/hit_tennis_ball.mp3', 0.7 + Math.random() * 0.5);
+    soundP.setRate(0.85 + Math.random() * 0.3);
+
+    state.ball.z = Math.max(10, state.ball.z); // Simulate ground strike lift 
+
+  } else if (evaluateHit(npcRacketPos, false)) {
+    let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
+    let targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+    let returnSpeed = state.ball.velocity * 1.1;
+
+    if (state.isServe) {
+      const serveTarget = calculateServeTarget(false);
+      targetX = serveTarget.x;
+      targetY = serveTarget.y;
+      returnSpeed = BALL_SPEED * 0.65;
+    } else {
+      // NPC procedural aim application
+      targetX = COURT_INNER_BOUNDS.x + (state.ball.x < 0 ? COURT_INNER_BOUNDS.width * 0.85 : COURT_INNER_BOUNDS.width * 0.15);
+    }
+
+    state.rallyCount++;
+    state.lastHitter = 'npc';
+    state.bounceCount = 0; // Hitting the ball resets bounce count
+    state.isServe = false; // The rally is live!
+    hitBallToTarget(targetX, targetY, returnSpeed);
+
+    // Add random variance to volume and pitch for organic audio
+    let soundN = soundManager.playPooled('/media/hit_tennis_ball2.mp3', 0.7 + Math.random() * 0.5);
+    soundN.setRate(0.85 + Math.random() * 0.3);
+
+    state.ball.z = Math.max(10, state.ball.z);
+  }
+}
+
+/**
+ * Drives character movement explicitly towards local offset coordinates.
+ * Handles bounds, distance interpolation, vector math, and compass rotation!
+ * 
+ * @param {Object} charState - The character state tracking object (e.g. state.player)
+ * @param {number} targetX - Destination X component. 
+ * @param {number} targetY - Destination Y component (local offset).
+ * @param {number} speed - The max velocity allowed this tick.
+ * @returns {boolean} True if the character mathematically moved this frame.
+ */
+function moveCharacterToLocal(charState, targetX, targetY, speed) {
+  const distX = targetX - charState.x;
+  const distY = targetY - charState.y;
+  let movedX = 0, movedY = 0;
+  let moved = false;
+
+  if (Math.abs(distX) > 2) {
+    movedX = Math.sign(distX) * Math.min(speed, Math.abs(distX));
+    charState.x += movedX;
+    charState.movementDirection.x = Math.sign(movedX);
+    moved = true;
+  }
+
+  if (Math.abs(distY) > 2) {
+    movedY = Math.sign(distY) * Math.min(speed, Math.abs(distY));
+    charState.y += movedY;
+    charState.movementDirection.y = Math.sign(movedY);
+    moved = true;
+  }
+
+  if (moved) {
+    let targetRot = charState.rotation;
+    if (movedX > 0 && movedY === 0) targetRot = 0;
+    else if (movedX < 0 && movedY === 0) targetRot = 180;
+    else if (movedX > 0 && movedY < 0) targetRot = 315;
+    else if (movedX < 0 && movedY < 0) targetRot = 225;
+    else if (movedX > 0 && movedY > 0) targetRot = 45;
+    else if (movedX < 0 && movedY > 0) targetRot = 135;
+    else if (movedX === 0 && movedY < 0) targetRot = 270;
+    else if (movedX === 0 && movedY > 0) targetRot = 90;
+
+    let shortest = ((targetRot - charState.rotation) + 540) % 360 - 180;
+    charState.rotation += shortest * 0.2;
+  }
+  return moved;
+}
+
+/**
+ * Handles the animated walk-to-net handshake sequence before serving begins.
+ * @param {number} dt Delta time.
+ */
+function handleIntroSequence(dt) {
+  if (state.introPhase === 'walkToNet') {
+    const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
+    const targetPlayerY = netY + 25;
+    const targetNpcY = netY - 25;
+
+    const targetPlayerLocalY = targetPlayerY - PLAYER_BASE_Y;
+    const targetNpcLocalY = targetNpcY - NPC_BASE_Y;
+
+    const speed = PADDLE_SPEED * dt * 0.5;
+    const pMoved = moveCharacterToLocal(state.player, 0, targetPlayerLocalY, speed);
+    const nMoved = moveCharacterToLocal(state.npc, 0, targetNpcLocalY, speed);
+
+    if (pMoved) state.player.legTimer += speed * 0.1;
+    if (nMoved) state.npc.legTimer += speed * 0.1;
+
+    // Face each other tightly
+    state.player.rotation = 270;
+    state.npc.rotation = 90;
+
+    if (!pMoved && !nMoved) {
+      state.introPhase = 'shakeHands';
+      state.introTimer = 2.0; // 2 seconds of shaking hands
+      state.player.legTimer = 0;
+      state.npc.legTimer = 0;
+    }
+  } else if (state.introPhase === 'shakeHands') {
+    state.introTimer -= dt;
+    // Simulate hand shake by oscillating rotation slightly
+    state.player.rotation = 270 + Math.sin(state.introTimer * 20) * 10;
+    state.npc.rotation = 90 - Math.sin(state.introTimer * 20) * 10;
+
+    if (state.introTimer <= 0) {
+      state.introPhase = 'walkToBaseline';
+    }
+  } else if (state.introPhase === 'walkToBaseline') {
+    const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
+    const targetPX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
+    const targetNX = state.nextServerIsPlayer ? state.serveSide * -serveOffset : state.serveSide * serveOffset;
+
+    const speed = PADDLE_SPEED * dt * 0.6;
+    const pMoved = moveCharacterToLocal(state.player, targetPX, 0, speed);
+    const nMoved = moveCharacterToLocal(state.npc, targetNX, 0, speed);
+
+    if (pMoved) {
+      state.player.legTimer += speed * 0.1;
+      state.player.rotation = 90; // Face away while walking back
+    } else {
+      state.player.rotation = 270; // Turn around when at baseline
+    }
+
+    if (nMoved) {
+      state.npc.legTimer += speed * 0.1;
+      state.npc.rotation = 270; // Face away while walking back
+    } else {
+      state.npc.rotation = 90; // Turn around when at baseline
+    }
+
+    if (!pMoved && !nMoved) {
+      state.player.legTimer = 0;
+      state.npc.legTimer = 0;
+      state.introPhase = 'playing';
+      serveBall(state.nextServerIsPlayer);
+    }
+  }
+}
+
+/**
+ * Handles aim tracking, boundary logic, Z-leaps, and walk animation timers identically for characters.
+ */
+function processCharacter(charState, isPlayer, prevX, prevY, dt, charY) {
+  // 1. Process Approach Proximities & Leaps
+  const isApproaching = isPlayer ? (state.ball.vy > 0) : (state.ball.vy < 0);
+  const distY = Math.abs(state.ball.y - charY);
+  const zMult = clamp(1 - (distY / 80), 0, 1);
+  
+  if (isApproaching) {
+    const requiredJump = Math.max(0, state.ball.z - 35);
+    charState.z = clamp(requiredJump, 0, 70) * zMult;
+  } else {
+    charState.z = 0;
+  }
+
+  // 2. Procedural Auto-Aim tracking
+  let aimYaw = Math.PI * 0.25;
+  let aimPitch = 0.0;
+  
+  if (isApproaching || (state.isServe && state.lastHitter === (isPlayer ? 'player' : 'npc'))) {
+    const intercept = calculateOptimalInterceptPoint({ x: charState.x, y: charY + (isPlayer ? -15 : 15), z: charState.z + 30 });
+    const tracking = calculateAimAngles(charState.x, charState.z, intercept, isPlayer);
+    aimYaw = tracking.aimYaw;
+    aimPitch = tracking.aimPitch;
+  }
+
+  // 3. Enforce structural court bounds
+  charState.x = clamp(charState.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
+  if (isPlayer) {
+    charState.y = clamp(charState.y, -(COURT_INNER_BOUNDS.height / 2 + 10), PLAYABLE_OVERSHOOT - 10);
+  } else {
+    charState.y = clamp(charState.y, -(PLAYABLE_OVERSHOOT - 10), (COURT_INNER_BOUNDS.height / 2) + 10);
+  }
+
+  // 4. Update organic animation loops (walk cycles)
+  const charMoved = (charState.x !== prevX) || (charState.y !== prevY);
+  const strideSpeed = (isPlayer ? PADDLE_SPEED : NPC_SPEED) * dt * 0.05;
+
+  if (charMoved) {
+    charState.legTimer += strideSpeed;
+  } else if (charState.legTimer > 0) {
+    const phase = charState.legTimer % Math.PI;
+    if (phase > 0.1 && phase < Math.PI - 0.1) {
+      charState.legTimer += strideSpeed;
+    } else {
+      charState.legTimer = 0;
+    }
+  }
+
+  return { yaw: aimYaw, pitch: aimPitch, moved: charMoved };
 }
 
 /**
@@ -548,190 +798,27 @@ function run(dt) {
 
   // Cinematic Intro Sequence
   if (state.introPhase && state.introPhase !== 'playing') {
-    if (state.introPhase === 'walkToNet') {
-      const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
-      const targetPlayerY = netY + 25;
-      const targetNpcY = netY - 25;
-
-      const pDist = targetPlayerY - getPlayerY();
-      const nDist = targetNpcY - getNpcY();
-      const pDistX = 0 - state.playerOffsetX;
-      const nDistX = 0 - state.npcOffsetX;
-
-      const speed = PADDLE_SPEED * dt * 0.5;
-
-      if (Math.abs(pDist) > 2) {
-        state.playerOffsetY += Math.sign(pDist) * speed;
-        state.playerLegTimer += speed * 0.1;
-      }
-      if (Math.abs(pDistX) > 2) {
-        state.playerOffsetX += Math.sign(pDistX) * speed;
-        state.playerLegTimer += speed * 0.1;
-      } else {
-        state.playerOffsetX = 0;
-      }
-
-      if (Math.abs(nDist) > 2) {
-        state.npcOffsetY += Math.sign(nDist) * speed;
-        state.npcLegTimer += speed * 0.1;
-      }
-      if (Math.abs(nDistX) > 2) {
-        state.npcOffsetX += Math.sign(nDistX) * speed;
-        state.npcLegTimer += speed * 0.1;
-      } else {
-        state.npcOffsetX = 0;
-      }
-
-      // Face each other
-      state.playerRotation = 270;
-      state.npcRotation = 90;
-
-      if (Math.abs(pDist) <= 2 && Math.abs(nDist) <= 2 && Math.abs(pDistX) <= 2 && Math.abs(nDistX) <= 2) {
-        state.introPhase = 'shakeHands';
-        state.introTimer = 2.0; // 2 seconds of shaking hands
-        state.playerLegTimer = 0;
-        state.npcLegTimer = 0;
-      }
-    } else if (state.introPhase === 'shakeHands') {
-      state.introTimer -= dt;
-      // Simulate hand shake by oscillating rotation slightly
-      state.playerRotation = 270 + Math.sin(state.introTimer * 20) * 10;
-      state.npcRotation = 90 - Math.sin(state.introTimer * 20) * 10;
-
-      if (state.introTimer <= 0) {
-        state.introPhase = 'walkToBaseline';
-      }
-    } else if (state.introPhase === 'walkToBaseline') {
-      const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
-      const targetPX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
-      const targetNX = state.nextServerIsPlayer ? state.serveSide * -serveOffset : state.serveSide * serveOffset;
-
-      const pDistY = -state.playerOffsetY; // target 0
-      const pDistX = targetPX - state.playerOffsetX;
-      const nDistY = -state.npcOffsetY; // target 0
-      const nDistX = targetNX - state.npcOffsetX;
-
-      const speed = PADDLE_SPEED * dt * 0.6;
-      let pMoved = false;
-      let nMoved = false;
-
-      if (Math.abs(pDistY) > 2) {
-        state.playerOffsetY += Math.sign(pDistY) * speed;
-        pMoved = true;
-      }
-      if (Math.abs(pDistX) > 2) {
-        state.playerOffsetX += Math.sign(pDistX) * speed;
-        pMoved = true;
-      }
-
-      if (pMoved) {
-        state.playerLegTimer += speed * 0.1;
-        state.playerRotation = 90; // Face away while walking back
-      } else {
-        state.playerRotation = 270; // Turn around when at baseline
-        state.playerOffsetX = targetPX;
-        state.playerOffsetY = 0;
-      }
-
-      if (Math.abs(nDistY) > 2) {
-        state.npcOffsetY += Math.sign(nDistY) * speed;
-        nMoved = true;
-      }
-      if (Math.abs(nDistX) > 2) {
-        state.npcOffsetX += Math.sign(nDistX) * speed;
-        nMoved = true;
-      }
-
-      if (nMoved) {
-        state.npcLegTimer += speed * 0.1;
-        state.npcRotation = 270; // Face away while walking back
-      } else {
-        state.npcRotation = 90; // Turn around when at baseline
-        state.npcOffsetX = targetNX;
-        state.npcOffsetY = 0;
-      }
-
-      if (!pMoved && !nMoved) {
-        state.playerLegTimer = 0;
-        state.npcLegTimer = 0;
-        state.introPhase = 'playing';
-        serveBall(state.nextServerIsPlayer);
-      }
-    }
+    handleIntroSequence(dt);
     return; // Block the rest of the game update loop during intro
   }
 
   const playerY = getPlayerY();
   const npcY = getNpcY();
 
-  // 1. Process Approach Proximities
-  const isPlayerApproaching = state.ballVY > 0;
-  const isNpcApproaching = state.ballVY < 0;
+  // Track coordinates BEFORE movement processes run
+  const prevPlayerX = state.player.x;
+  const prevPlayerY = state.player.y;
 
-  // Compute Z-axis leaps only for high lobs that exceed standing arm reach (> 40px altitude)
-  const playerDistY = Math.abs(state.ballY - playerY);
-  const playerZMult = clamp(1 - (playerDistY / 80), 0, 1);
-  if (isPlayerApproaching) {
-    const requiredJump = Math.max(0, state.ballCurrentHeight - 35);
-    state.playerElevateZ = clamp(requiredJump, 0, 70) * playerZMult;
-  } else {
-    state.playerElevateZ = 0;
-  }
-
-  const npcDistY = Math.abs(state.ballY - npcY);
-  const npcZMult = clamp(1 - (npcDistY / 80), 0, 1);
-  if (isNpcApproaching) {
-    const requiredJump = Math.max(0, state.ballCurrentHeight - 35);
-    state.npcElevateZ = clamp(requiredJump, 0, 70) * npcZMult;
-  } else {
-    state.npcElevateZ = 0;
-  }
-
-  // Absolute world coordinates of both racket hitboxes (calculated strictly from canvas renderer payload)
-  const playerRacketPos = getRacketWorldPos(true);
-  const npcRacketPos = getRacketWorldPos(false);
-
-  // The actual collision checks test against visually elevated (Z-adjusted) Y coord 
-  const visualBallY = state.ballY - state.ballCurrentHeight;
-
-  // 3. Process Player Inputs & Movement
-  let pAimYaw = Math.PI * 0.25;
-  let pAimPitch = 0.0;
-  const prevPlayerX = state.playerOffsetX;
-  const prevPlayerY = state.playerOffsetY;
+  // 1. Process Player Inputs & Movement
 
   if (state.resetting) {
     const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
     const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
-    const distToX = targetX - state.playerOffsetX;
-    const distToY = -state.playerOffsetY;
-    if (Math.abs(distToX) > 2 || Math.abs(distToY) > 2) {
-      const moveStepP = PADDLE_SPEED * dt;
-      let pMovedX = 0, pMovedY = 0;
-      if (Math.abs(distToX) > 2) {
-        pMovedX = Math.sign(distToX) * Math.min(moveStepP, Math.abs(distToX));
-        state.playerOffsetX += pMovedX;
-      }
-      if (Math.abs(distToY) > 2) {
-        pMovedY = Math.sign(distToY) * Math.min(moveStepP, Math.abs(distToY));
-        state.playerOffsetY += pMovedY;
-      }
-    } else {
-      const diffP = 270 - state.playerRotation;
-      let shortestP = (diffP + 540) % 360 - 180;
-      state.playerRotation += shortestP * 0.2;
+    if (!moveCharacterToLocal(state.player, targetX, 0, PADDLE_SPEED * dt)) {
+      const diffP = 270 - state.player.rotation;
+      state.player.rotation += ((diffP + 540) % 360 - 180) * 0.2;
     }
   } else {
-    // Procedurally Auto-Aim the Player's racket to physically intercept the ball's 3D coordinates!
-    // Track either when actively approaching or when tossing a serve!
-    if (state.ballVY > 0 || (state.isServe && state.lastHitter === 'player')) {
-      // Procedurally Auto-Aim the Player's racket using unified physics tracking!
-      const intercept = calculateOptimalInterceptPoint({ x: state.playerOffsetX, y: playerY - 15, z: state.playerElevateZ + 30 });
-      const tracking = calculateAimAngles(state.playerOffsetX, state.playerElevateZ, intercept, true);
-      pAimYaw = tracking.aimYaw;
-      pAimPitch = tracking.aimPitch;
-    }
-
     let playerMoveX = 0;
     let playerMoveY = 0;
 
@@ -763,12 +850,12 @@ function run(dt) {
       }
 
       if (playerMoveX !== 0) {
-        state.playerOffsetX += playerMoveX;
-        state.playerDirection = Math.sign(playerMoveX);
+        state.player.x += playerMoveX;
+        state.player.movementDirection.x = Math.sign(playerMoveX);
       }
       if (playerMoveY !== 0) {
-        state.playerOffsetY += playerMoveY;
-        state.playerDirectionY = Math.sign(playerMoveY);
+        state.player.y += playerMoveY;
+        state.player.movementDirection.y = Math.sign(playerMoveY);
       }
     }
 
@@ -782,87 +869,31 @@ function run(dt) {
     else if (playerMoveX < 0 && playerMoveY > 0) targetPlayerRotation = 135;
 
     // Soft angular interpolation
-    const diffP = targetPlayerRotation - state.playerRotation;
+    const diffP = targetPlayerRotation - state.player.rotation;
     // Normalize shortest path
     let shortestP = (diffP + 540) % 360 - 180;
-    state.playerRotation += shortestP * 0.2;
+    state.player.rotation += shortestP * 0.2;
   }
 
-  // Enforce rigid physical boundaries (100px past court lines)
-  state.playerOffsetX = clamp(state.playerOffsetX, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
-  // Vertical bounds (to the net, and outside baseline)
-  state.playerOffsetY = clamp(state.playerOffsetY, -(COURT_INNER_BOUNDS.height / 2 + 10), PLAYABLE_OVERSHOOT - 10);
+  const pAim = processCharacter(state.player, true, prevPlayerX, prevPlayerY, dt, playerY);
+  const pAimYaw = pAim.yaw;
+  const pAimPitch = pAim.pitch;
+  const playerMoved = pAim.moved;
 
-  // Character legs only animate if they mathematically changed coordinate after clamping
-  const playerMoved = (state.playerOffsetX !== prevPlayerX) || (state.playerOffsetY !== prevPlayerY);
-
-  // Update local animation timers specifically decoupled from generic engine
-  const playerStrideSpeed = PADDLE_SPEED * dt * 0.05;
-  if (playerMoved) {
-    state.playerLegTimer += playerStrideSpeed;
-  } else if (state.playerLegTimer > 0) {
-    // Allow legs to gracefully finish their stride loop back to a neutral stance
-    const phase = state.playerLegTimer % Math.PI;
-    if (phase > 0.1 && phase < Math.PI - 0.1) {
-      state.playerLegTimer += playerStrideSpeed;
-    } else {
-      state.playerLegTimer = 0;
-    }
-  }
-
-  // 4. Process Simple AI NPC Movement
-  let nAimYaw = Math.PI * 0.25;
-  let nAimPitch = 0.0;
-  const prevNpcX = state.npcOffsetX;
-  const prevNpcY = state.npcOffsetY;
+  // 2. Process Simple AI NPC Movement
+  const prevNpcX = state.npc.x;
+  const prevNpcY = state.npc.y;
 
   if (state.resetting) {
     const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
     const targetX = state.nextServerIsPlayer ? state.serveSide * -serveOffset : state.serveSide * serveOffset;
-    const distToX = targetX - state.npcOffsetX;
-    const distToY = -state.npcOffsetY;
-    if (Math.abs(distToX) > 2 || Math.abs(distToY) > 2) {
-      const moveStepN = NPC_SPEED * dt;
-      let nMovedX = 0, nMovedY = 0;
-      if (Math.abs(distToX) > 2) {
-        nMovedX = Math.sign(distToX) * Math.min(moveStepN, Math.abs(distToX));
-        state.npcOffsetX += nMovedX;
-        state.npcDirection = Math.sign(nMovedX);
-      }
-      if (Math.abs(distToY) > 2) {
-        nMovedY = Math.sign(distToY) * Math.min(moveStepN, Math.abs(distToY));
-        state.npcOffsetY += nMovedY;
-      }
-
-      let targetRot = 90;
-      if (nMovedX > 0 && nMovedY === 0) targetRot = 0;
-      else if (nMovedX < 0 && nMovedY === 0) targetRot = 180;
-      else if (nMovedX > 0 && nMovedY < 0) targetRot = 315;
-      else if (nMovedX < 0 && nMovedY < 0) targetRot = 225;
-      else if (nMovedX > 0 && nMovedY > 0) targetRot = 45;
-      else if (nMovedX < 0 && nMovedY > 0) targetRot = 135;
-      else if (nMovedX === 0 && nMovedY < 0) targetRot = 270;
-
-      const diffN = targetRot - state.npcRotation;
-      let shortestN = (diffN + 540) % 360 - 180;
-      state.npcRotation += shortestN * 0.2;
-    } else {
-      const diffN = 90 - state.npcRotation;
-      let shortestN = (diffN + 540) % 360 - 180;
-      state.npcRotation += shortestN * 0.2;
+    if (!moveCharacterToLocal(state.npc, targetX, 0, NPC_SPEED * dt)) {
+      const diffN = 90 - state.npc.rotation;
+      state.npc.rotation += ((diffN + 540) % 360 - 180) * 0.2;
     }
   } else {
-    // Procedurally Auto-Aim the NPC's racket to physically intercept the ball's 3D coordinates!
-    // Track either when actively approaching or when tossing a serve!
-    if (state.ballVY < 0 || (state.isServe && state.lastHitter === 'npc')) {
-      // Procedurally Auto-Aim the NPC's racket using unified physics tracking!
-      const intercept = calculateOptimalInterceptPoint({ x: state.npcOffsetX, y: npcY + 15, z: state.npcElevateZ + 30 });
-      const tracking = calculateAimAngles(state.npcOffsetX, state.npcElevateZ, intercept, false);
-      nAimYaw = tracking.aimYaw;
-      nAimPitch = tracking.aimPitch;
-    }
-    if (state.ballVY < 0) {
-      if (!state.npcHasTarget) {
+    if (state.ball.vy < 0) {
+      if (!state.npc.hasTarget) {
         // Because the NPC physically holds the racket in their right hand, but faces DOWN (90 degrees) when swinging,
         // their racket sweeps dynamically from their screen-left (-X) towards their center body over the SWING_DURATION arc.
         // Therefore, the NPC must mathematically target slightly to the screen-right (+X) of the ball's incoming trajectory.
@@ -870,88 +901,46 @@ function run(dt) {
         // Predict trajectory where ball lands based on vertical physics
         let predictedLandY = NPC_BASE_Y;
         let tLand = 0;
-        const vZTargetCheck = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
-        const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ballCurrentHeight;
+        const vZTargetCheck = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+        const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ball.z;
         if (det >= 0) {
           tLand = (vZTargetCheck + Math.sqrt(det)) / GRAVITY;
-          predictedLandY = state.ballY + state.ballVY * tLand;
+          predictedLandY = state.ball.y + state.ball.vy * tLand;
         }
 
         // Position NPC physically behind the ball's bounce depth, clamped to their playable half-court area
         const targetY = clamp(predictedLandY - (15 * GAME_SCALE), NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, COURT_INNER_BOUNDS.y + 10);
 
         // Calculate raw X trajectory directly from physics air-time!
-        let absoluteTargetX = state.ballOffsetX + (state.ballVX * tLand);
+        let absoluteTargetX = state.ball.x + (state.ball.vx * tLand);
 
-        state.npcTargetX = clamp(absoluteTargetX + approximatedRacketOffset, -PLAYABLE_HALF_WIDTH + 10, PLAYABLE_HALF_WIDTH - 10);
-        state.npcTargetY = targetY;
-        state.npcHasTarget = true;
+        state.npc.targetX = clamp(absoluteTargetX + approximatedRacketOffset, -PLAYABLE_HALF_WIDTH + 10, PLAYABLE_HALF_WIDTH - 10);
+        state.npc.targetY = targetY;
+        state.npc.hasTarget = true;
       }
     } else {
       // Ball is moving away toward player, reset to center gracefully
-      state.npcTargetX = 0;
-      state.npcTargetY = NPC_BASE_Y;
-      state.npcHasTarget = false;
+      state.npc.targetX = 0;
+      state.npc.targetY = NPC_BASE_Y;
+      state.npc.hasTarget = false;
     }
 
-    const distToTarget = state.npcTargetX - state.npcOffsetX;
-
-    // Use a soft deadzone and prevent overshooting frame-by-frame
-    if (Math.abs(distToTarget) > 2) {
-      const moveStep = Math.min(NPC_SPEED * dt, Math.abs(distToTarget));
-      state.npcOffsetX += Math.sign(distToTarget) * moveStep;
-      state.npcDirection = Math.sign(distToTarget);
-    }
-
-    // Track dynamically on the Y axis
-    const distToTargetY = state.npcTargetY - npcY;
-
-    if (Math.abs(distToTargetY) > 2) {
-      const moveStepY = Math.min(NPC_SPEED * dt, Math.abs(distToTargetY));
-      state.npcOffsetY += Math.sign(distToTargetY) * moveStepY;
-      state.npcDirectionY = Math.sign(distToTargetY);
-    }
-
-    // Smoothly rotate NPC based on movement
-    let targetNpcRotation = 90; // Default facing net
-
-    // Determine movement intent
-    const isMovingX = Math.abs(distToTarget) > 2;
-    const isMovingY = Math.abs(distToTargetY) > 2;
-
-    if (isMovingX && !isMovingY) targetNpcRotation = state.npcDirection > 0 ? 0 : 180;
-    else if (!isMovingX && isMovingY) targetNpcRotation = state.npcDirectionY > 0 ? 90 : 270;
-    else if (isMovingX && isMovingY) {
-      if (state.npcDirection > 0 && state.npcDirectionY > 0) targetNpcRotation = 45;
-      else if (state.npcDirection < 0 && state.npcDirectionY > 0) targetNpcRotation = 135;
-      else if (state.npcDirection < 0 && state.npcDirectionY < 0) targetNpcRotation = 225;
-      else if (state.npcDirection > 0 && state.npcDirectionY < 0) targetNpcRotation = 315;
-    }
-
-    const diffN = targetNpcRotation - state.npcRotation;
-    let shortestN = (diffN + 540) % 360 - 180;
-    state.npcRotation += shortestN * 0.2;
-  }
-
-  // Enforce rigid physical boundaries (100px past court lines)
-  state.npcOffsetX = clamp(state.npcOffsetX, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
-  // Vertical bounds (outside baseline, to the net)
-  state.npcOffsetY = clamp(state.npcOffsetY, -(PLAYABLE_OVERSHOOT - 10), (COURT_INNER_BOUNDS.height / 2) + 10);
-
-  // Character legs only animate if they mathematically changed coordinate after clamping
-  const npcMoved = (state.npcOffsetX !== prevNpcX) || (state.npcOffsetY !== prevNpcY);
-
-  const npcStrideSpeed = NPC_SPEED * dt * 0.05;
-  if (npcMoved) {
-    state.npcLegTimer += npcStrideSpeed;
-  } else if (state.npcLegTimer > 0) {
-    const phase = state.npcLegTimer % Math.PI;
-    if (phase > 0.1 && phase < Math.PI - 0.1) {
-      state.npcLegTimer += npcStrideSpeed;
-    } else {
-      state.npcLegTimer = 0;
+    const targetLocalY = state.npc.targetY - NPC_BASE_Y;
+    if (!moveCharacterToLocal(state.npc, state.npc.targetX, targetLocalY, NPC_SPEED * dt)) {
+      const diffN = 90 - state.npc.rotation;
+      state.npc.rotation += ((diffN + 540) % 360 - 180) * 0.2;
     }
   }
+
+  const nAim = processCharacter(state.npc, false, prevNpcX, prevNpcY, dt, npcY);
+  const nAimYaw = nAim.yaw;
+  const nAimPitch = nAim.pitch;
+  const npcMoved = nAim.moved;
+
+  // Ensure logical collision trackers properly pull the latest bounds exactly here
+  const playerRacketPos = getRacketWorldPos(true);
+  const npcRacketPos = getRacketWorldPos(false);
+  const visualBallY = state.ball.y - state.ball.z;
 
   if (state.resetting && !playerMoved && !npcMoved) {
     if (state.resetDelayTimer > 0) {
@@ -963,16 +952,16 @@ function run(dt) {
   }
 
   // 5. 3D Spatial Ball Physics Processing
-  const vZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
+  const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
 
   // Elevate ball
-  state.ballCurrentHeight += vZ * dt;
+  state.ball.z += vZ * dt;
   // Rotate velocity downward due to continuous gravity
-  state.ballCurrentPitchAngle = Math.atan2(vZ - GRAVITY * dt, state.ballCurrentVelocity);
+  state.ball.pitchAngle = Math.atan2(vZ - GRAVITY * dt, state.ball.velocity);
 
   // Handle floor bounce
-  if (state.ballCurrentHeight < 0) {
-    state.ballCurrentHeight = 0;
+  if (state.ball.z < 0) {
+    state.ball.z = 0;
     state.bounceCount++;
 
     if (state.bounceCount === 1 && !state.resetting && state.lastHitter) {
@@ -982,22 +971,22 @@ function run(dt) {
       const maxY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height;
       const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
 
-      const inBoundsX = state.ballOffsetX >= minX && state.ballOffsetX <= maxX;
+      const inBoundsX = state.ball.x >= minX && state.ball.x <= maxX;
       let validBounce = false;
 
       if (state.isServe) {
         // Enforce rigid Service Box intersections!
         const box = state.activeServiceBox;
-        if (state.ballOffsetX >= box.minX && state.ballOffsetX <= box.maxX && state.ballY >= box.minY && state.ballY <= box.maxY) {
+        if (state.ball.x >= box.minX && state.ball.x <= box.maxX && state.ball.y >= box.minY && state.ball.y <= box.maxY) {
           validBounce = true;
           state.isServe = false; // Valid serve, rally is now organically open
         }
       } else {
         // Enforce total half-court bounds!
         if (state.lastHitter === 'player') {
-          validBounce = inBoundsX && state.ballY >= minY && state.ballY <= netY; // NPC's half
+          validBounce = inBoundsX && state.ball.y >= minY && state.ball.y <= netY; // NPC's half
         } else if (state.lastHitter === 'npc') {
-          validBounce = inBoundsX && state.ballY >= netY && state.ballY <= maxY; // Player's half
+          validBounce = inBoundsX && state.ball.y >= netY && state.ball.y <= maxY; // Player's half
         } else {
           validBounce = true;
         }
@@ -1015,7 +1004,7 @@ function run(dt) {
 
     // Double-bounce rule: If it lands twice validly before being intercepted, the person who failed to return it loses
     if (state.bounceCount === 2 && !state.resetting) {
-      if (state.ballY > COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) {
+      if (state.ball.y > COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) {
         triggerPointReset(true);  // Bounced twice on Player's side -> NPC scored
       } else {
         triggerPointReset(false); // Bounced twice on NPC's side -> Player scored
@@ -1023,26 +1012,25 @@ function run(dt) {
     }
 
     // Reflect vertical kinetic energy mathematically and absorb 40% (0.6 multiplier) into the court
-    state.ballCurrentPitchAngle = Math.atan2(Math.abs(vZ - GRAVITY * dt) * 0.6, state.ballCurrentVelocity);
+    state.ball.pitchAngle = Math.atan2(Math.abs(vZ - GRAVITY * dt) * 0.6, state.ball.velocity);
   }
 
   // 6. Handle Planar XY movement and Structural Net Collision
-  state.ballOffsetX += state.ballVX * dt;
+  state.ball.x += state.ball.vx * dt;
 
-  const prevBallY = state.ballY;
-  state.ballY += state.ballVY * dt;
+  const prevBallY = state.ball.y;
+  state.ball.y += state.ball.vy * dt;
 
   // Progress global point timer monotonically (freeze while waiting for serves to start)
   if (state.resetDelayTimer <= 0) state.totalElapsedTime += dt;
 
-  // Explicitly permit tracking during the pre-strike serve animations
-  const trackingServe = state.isServe && (state.servePhase === 'toss' || state.servePhase === 'jump');
-  if ((minigameActive && !state.trajectoryFrozen) || trackingServe) {
+  // Explicitly permit tracking during live gameplay
+  if (minigameActive && !state.trajectoryFrozen) {
     state.trajectoryPoints.push({
-      x: state.ballOffsetX,
-      y: state.ballY,
+      x: state.ball.x,
+      y: state.ball.y,
       t: state.totalElapsedTime,
-      z: state.ballCurrentHeight,
+      z: state.ball.z,
       pZ: playerRacketPos.z + 25, // Align to physical shoulder height (25px above floor)
       nZ: npcRacketPos.z + 25
     });
@@ -1052,108 +1040,24 @@ function run(dt) {
 
   // Check if ball mathematically crossed the Y-center of the court during this frame
   const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
-  if ((prevBallY < netY && state.ballY >= netY) || (prevBallY >= netY && state.ballY < netY)) {
-    if (state.ballCurrentHeight < NET_HEIGHT) {
+  if ((prevBallY < netY && state.ball.y >= netY) || (prevBallY >= netY && state.ball.y < netY)) {
+    if (state.ball.z < NET_HEIGHT) {
       // Ball hit the physical net structure!
-      state.ballVY *= -0.3; // Rebound weakly back towards the hitter
-      state.ballCurrentVelocity *= 0.3; // Kill most kinetic energy
-      state.ballY = netY + Math.sign(state.ballVY) * 5; // Snap off the net
+      state.ball.vy *= -0.3; // Rebound weakly back towards the hitter
+      state.ball.velocity *= 0.3; // Kill most kinetic energy
+      state.ball.y = netY + Math.sign(state.ball.vy) * 5; // Snap off the net
     }
   }
 
   // 7. Racket Deflections
-
-  const pDx = state.ballOffsetX - playerRacketPos.x;
-  const pDy = visualBallY - playerRacketPos.y;
-  const pLocalDx = pDx * Math.cos(-playerRacketPos.angle) - pDy * Math.sin(-playerRacketPos.angle);
-  const pLocalDy = pDx * Math.sin(-playerRacketPos.angle) + pDy * Math.cos(-playerRacketPos.angle);
-
-  // Calculate spatial velocity to enforce valid serve drop heights
-  const currentVZ = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
-
-  // Only permit serving hits if the ball has crested the apex of the toss and is falling (currentVZ <= 0)
-  if (
-    !state.resetting &&
-    (state.ballVY > 0 || (state.isServe && state.lastHitter === 'player' && currentVZ <= 0)) &&
-    Math.abs(state.ballY - playerRacketPos.groundY) < 50 &&
-    state.ballCurrentHeight >= playerRacketPos.z - 15 && state.ballCurrentHeight <= playerRacketPos.z + 50 &&
-    // Strict Elliptical Intersection Boolean Matrix Check over standard Box Radius Check
-    (Math.pow(pLocalDx, 2) / Math.pow(playerRacketPos.w + BALL_RADIUS, 2)) +
-    (Math.pow(pLocalDy, 2) / Math.pow(playerRacketPos.h + BALL_RADIUS, 2)) <= 1
-  ) {
-    let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
-    let targetY = COURT_INNER_BOUNDS.y + Math.random() * (COURT_INNER_BOUNDS.height / 2);
-    let returnSpeed = state.ballCurrentVelocity * 1.05;
-
-    if (state.isServe) {
-      targetX = state.serverTargetX;
-      targetY = state.serverTargetY;
-      returnSpeed = state.serverReturnSpeed;
-    } else {
-      // Organic center hit variance
-      const hitOffset = state.ballOffsetX - playerRacketPos.x;
-      targetX += hitOffset * 1.5;
-    }
-
-    state.rallyCount++;
-    state.lastHitter = 'player';
-    state.bounceCount = 0; // Hitting the ball rests the bounce count
-    state.isServe = false; // The rally is live!
-    hitBallToTarget(targetX, targetY, returnSpeed);
-
-    // Add random variance to volume and pitch for organic audio
-    let soundP = soundManager.playPooled('/media/hit_tennis_ball.mp3', 0.7 + Math.random() * 0.5);
-    soundP.setRate(0.85 + Math.random() * 0.3);
-
-    state.ballCurrentHeight = Math.max(10, state.ballCurrentHeight); // Simulate ground strike lift 
-
-  }
-
-  const nDx = state.ballOffsetX - npcRacketPos.x;
-  const nDy = visualBallY - npcRacketPos.y;
-  const nLocalDx = nDx * Math.cos(-npcRacketPos.angle) - nDy * Math.sin(-npcRacketPos.angle);
-  const nLocalDy = nDx * Math.sin(-npcRacketPos.angle) + nDy * Math.cos(-npcRacketPos.angle);
-
-  if (
-    !state.resetting &&
-    (state.ballVY < 0 || (state.isServe && state.lastHitter === 'npc' && currentVZ <= 0)) &&
-    Math.abs(state.ballY - npcRacketPos.groundY) < 50 &&
-    state.ballCurrentHeight >= npcRacketPos.z - 15 && state.ballCurrentHeight <= npcRacketPos.z + 50 &&
-    (Math.pow(nLocalDx, 2) / Math.pow(npcRacketPos.w + BALL_RADIUS, 2)) +
-    (Math.pow(nLocalDy, 2) / Math.pow(npcRacketPos.h + BALL_RADIUS, 2)) <= 1
-  ) {
-    let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
-    let targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
-    let returnSpeed = state.ballCurrentVelocity * 1.1;
-
-    if (state.isServe) {
-      targetX = state.serverTargetX;
-      targetY = state.serverTargetY;
-      returnSpeed = state.serverReturnSpeed;
-    } else {
-      // NPC procedural aim application
-      if (state.ballOffsetX < 0) targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.85; // Hit away
-      else targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * 0.15;
-    }
-    state.rallyCount++;
-    state.lastHitter = 'npc';
-    state.bounceCount = 0; // Hitting the ball resets bounce count
-    state.isServe = false; // The rally is live!
-    hitBallToTarget(targetX, targetY, returnSpeed);
-
-    // Add random variance to volume and pitch for organic audio
-    let soundN = soundManager.playPooled('/media/hit_tennis_ball2.mp3', 0.7 + Math.random() * 0.5);
-    soundN.setRate(0.85 + Math.random() * 0.3);
-
-    state.ballCurrentHeight = Math.max(10, state.ballCurrentHeight);
-  }
+  processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY);
 
   // 8. Bounds Checking / Out Checks
   // Point resolving (scoring logic) automatically triggers walkback
   if (!state.resetting) {
-    const isOffScreenX = Math.abs(state.ballOffsetX) > PLAYABLE_HALF_WIDTH + 150;
+    const isOffScreenX = Math.abs(state.ball.x) > PLAYABLE_HALF_WIDTH + 150;
     const courtMaxY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height;
-    const isOffScreenY = state.ballY < COURT_INNER_BOUNDS.y - 150 || state.ballY > courtMaxY + 150;
+    const isOffScreenY = state.ball.y < COURT_INNER_BOUNDS.y - 150 || state.ball.y > courtMaxY + 150;
 
     if (isOffScreenX || isOffScreenY) {
       if (state.bounceCount === 0) {
@@ -1167,105 +1071,105 @@ function run(dt) {
     }
   }
 
-// ==========================================
-// RENDERING
-// ==========================================
+  // ==========================================
+  // RENDERING
+  // ==========================================
 
-/**
- * Procedurally draws a tennis racket starting from the wrist location.
- * @param {CanvasRenderingContext2D} ctx - Canvas context.
- * @param {Object} limbs - Current Limb positions. 
- * @param {number} swingAngle - Rotational swing adjustment.
- */
-function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = null) {
-  const pitchMult = Math.max(0.05, Math.abs(Math.cos(pitch)));
-  const rx = Math.max(1, 8 * roll);
+  /**
+   * Procedurally draws a tennis racket starting from the wrist location.
+   * @param {CanvasRenderingContext2D} ctx - Canvas context.
+   * @param {Object} limbs - Current Limb positions. 
+   * @param {number} swingAngle - Rotational swing adjustment.
+   */
+  function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = null) {
+    const pitchMult = Math.max(0.05, Math.abs(Math.cos(pitch)));
+    const rx = Math.max(1, 8 * roll);
 
-  if (ctx && limbs) {
-    ctx.save();
-    ctx.translate(limbs.rightArmX, limbs.rightArmY);
+    if (ctx && limbs) {
+      ctx.save();
+      ctx.translate(limbs.rightArmX, limbs.rightArmY);
 
-    // Align the racket 90 degrees to point along the +X forward vector natively
-    ctx.rotate(yaw + Math.PI / 2);
+      // Align the racket 90 degrees to point along the +X forward vector natively
+      ctx.rotate(yaw + Math.PI / 2);
 
-    // Draw handle
-    ctx.fillStyle = '#2c3e50';
-    const handleLen = 15 * pitchMult;
-    ctx.fillRect(-2, -handleLen + 5 * pitchMult, 4, handleLen);
+      // Draw handle
+      ctx.fillStyle = '#2c3e50';
+      const handleLen = 15 * pitchMult;
+      ctx.fillRect(-2, -handleLen + 5 * pitchMult, 4, handleLen);
 
-    // Draw structural frame
-    ctx.strokeStyle = '#e74c3c';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    const headCy = -18 * pitchMult;
-    const headRy = 12 * pitchMult;
-    if (ctx.ellipse) {
-      ctx.ellipse(0, headCy, rx, Math.max(1, headRy), 0, 0, Math.PI * 2);
-    } else {
-      ctx.arc(0, headCy, Math.max(rx, 10 * pitchMult), 0, Math.PI * 2);
+      // Draw structural frame
+      ctx.strokeStyle = '#e74c3c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const headCy = -18 * pitchMult;
+      const headRy = 12 * pitchMult;
+      if (ctx.ellipse) {
+        ctx.ellipse(0, headCy, rx, Math.max(1, headRy), 0, 0, Math.PI * 2);
+      } else {
+        ctx.arc(0, headCy, Math.max(rx, 10 * pitchMult), 0, Math.PI * 2);
+      }
+      ctx.stroke();
+
+      // Draw strings
+      ctx.strokeStyle = 'rgba(236, 240, 241, 0.5)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+
+      // Horizontal strings (across the width of the face)
+      for (let i = -5; i <= 5; i += 3) {
+        ctx.moveTo(i * roll, headCy - headRy + 2);
+        ctx.lineTo(i * roll, headCy + headRy - 2);
+      }
+      // Vertical strings (down the length of the face)
+      for (let i = headCy - headRy + 2; i <= headCy + headRy - 2; i += 4 * pitchMult) {
+        ctx.moveTo(-rx + 1, i);
+        ctx.lineTo(rx - 1, i);
+      }
+      ctx.stroke();
+
+      // Extract raw rendering matrix transformations natively
+      if (transformData && ctx.getTransform) {
+        const transform = ctx.getTransform();
+        const pt = transform.transformPoint(new DOMPoint(0, headCy));
+
+        // Invert the canvas viewport scaling to save pure internal game engine coordinates
+        const gameX = ((pt.x - transformData.offsetX) / transformData.scale) - transformData.centerX;
+        const gameY = (pt.y - transformData.offsetY) / transformData.scale;
+
+        transformData.targetStateObj.x = gameX;
+        transformData.targetStateObj.y = gameY;
+        transformData.targetStateObj.groundY = gameY + transformData.elevateZ;
+        transformData.targetStateObj.z = transformData.elevateZ + (20 * Math.sin(pitch)); // Raise structural bounds via arm pitch altitude!
+        transformData.targetStateObj.w = Math.max(1, rx * camera.zoom * (transformData.courtScale || 1));
+        transformData.targetStateObj.h = Math.max(1, headRy * camera.zoom * (transformData.courtScale || 1));
+        transformData.targetStateObj.angle = transformData.baseRotation * (Math.PI / 180) + yaw + Math.PI / 2;
+      }
+
+      ctx.restore();
     }
-    ctx.stroke();
 
-    // Draw strings
-    ctx.strokeStyle = 'rgba(236, 240, 241, 0.5)';
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-
-    // Horizontal strings (across the width of the face)
-    for (let i = -5; i <= 5; i += 3) {
-      ctx.moveTo(i * roll, headCy - headRy + 2);
-      ctx.lineTo(i * roll, headCy + headRy - 2);
-    }
-    // Vertical strings (down the length of the face)
-    for (let i = headCy - headRy + 2; i <= headCy + headRy - 2; i += 4 * pitchMult) {
-      ctx.moveTo(-rx + 1, i);
-      ctx.lineTo(rx - 1, i);
-    }
-    ctx.stroke();
-
-    // Extract raw rendering matrix transformations natively
-    if (transformData && ctx.getTransform) {
-      const transform = ctx.getTransform();
-      const pt = transform.transformPoint(new DOMPoint(0, headCy));
-
-      // Invert the canvas viewport scaling to save pure internal game engine coordinates
-      const gameX = ((pt.x - transformData.offsetX) / transformData.scale) - transformData.centerX;
-      const gameY = (pt.y - transformData.offsetY) / transformData.scale;
-
-      transformData.targetStateObj.x = gameX;
-      transformData.targetStateObj.y = gameY;
-      transformData.targetStateObj.groundY = gameY + transformData.elevateZ;
-      transformData.targetStateObj.z = transformData.elevateZ + (20 * Math.sin(pitch)); // Raise structural bounds via arm pitch altitude!
-      transformData.targetStateObj.w = Math.max(1, rx * camera.zoom * (transformData.courtScale || 1));
-      transformData.targetStateObj.h = Math.max(1, headRy * camera.zoom * (transformData.courtScale || 1));
-      transformData.targetStateObj.angle = transformData.baseRotation * (Math.PI / 180) + yaw + Math.PI / 2;
-    }
-
-    ctx.restore();
+    // Always mathematically inform caller of the exact ellipse bounds rendered if they care
+    return { w: rx, h: 12 * pitchMult };
   }
 
-  // Always mathematically inform caller of the exact ellipse bounds rendered if they care
-  return { w: rx, h: 12 * pitchMult };
-}
-
-/**
- * Calculates generic structural offsets for limbs based on leg animation and arm reach.
- */
-function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY) {
-  const legSwing = Math.sin(legTimer || 0);
-  const legStride = 9;
-  const armStride = 8;
-  const safeDirX = directionX || 1;
-  const safeDirY = directionY || 1;
-  return {
-    leftArmX: -2 - legSwing * armStride, leftArmY: -14,
-    rightArmX: rightArmX, rightArmY: rightArmY,
-    leftLegStartX: -2 + (safeDirY * legSwing * legStride), leftLegStartY: -6 + (-safeDirX * legSwing * legStride),
-    leftLegEndX: -2 + (safeDirY * legSwing * legStride), leftLegEndY: -6 + (-safeDirX * legSwing * legStride),
-    rightLegStartX: -2 - (safeDirY * legSwing * legStride), rightLegStartY: 6 - (-safeDirX * legSwing * legStride),
-    rightLegEndX: -2 - (safeDirY * legSwing * legStride), rightLegEndY: 6 - (-safeDirX * legSwing * legStride)
-  };
-}
+  /**
+   * Calculates generic structural offsets for limbs based on leg animation and arm reach.
+   */
+  function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY) {
+    const legSwing = Math.sin(legTimer || 0);
+    const legStride = 9;
+    const armStride = 8;
+    const safeDirX = directionX || 1;
+    const safeDirY = directionY || 1;
+    return {
+      leftArmX: -2 - legSwing * armStride, leftArmY: -14,
+      rightArmX: rightArmX, rightArmY: rightArmY,
+      leftLegStartX: -2 + (safeDirY * legSwing * legStride), leftLegStartY: -6 + (-safeDirX * legSwing * legStride),
+      leftLegEndX: -2 + (safeDirY * legSwing * legStride), leftLegEndY: -6 + (-safeDirX * legSwing * legStride),
+      rightLegStartX: -2 - (safeDirY * legSwing * legStride), rightLegStartY: 6 - (-safeDirX * legSwing * legStride),
+      rightLegEndX: -2 - (safeDirY * legSwing * legStride), rightLegEndY: 6 - (-safeDirX * legSwing * legStride)
+    };
+  }
 
   // ==========================================
   // RENDERING PHASE
@@ -1319,7 +1223,7 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY
 
   // 1. Render NPC
   ctx.save();
-  ctx.translate(centerX + state.npcOffsetX, npcY);
+  ctx.translate(centerX + state.npc.x, npcY);
   ctx.scale(camera.zoom * COURT_SCALE, camera.zoom * COURT_SCALE);
 
   // Drop shadow
@@ -1328,21 +1232,21 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY
   ctx.arc(2, 4, 14, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.rotate(state.npcRotation * (Math.PI / 180));
+  ctx.rotate(state.npc.rotation * (Math.PI / 180));
 
-  const npcLimbs = getLimbs(state.npcLegTimer, state.npcDirection, state.npcDirectionY, nRightArmX, nRightArmY);
+  const npcLimbs = getLimbs(state.npc.legTimer, state.npc.movementDirection.x, state.npc.movementDirection.y, nRightArmX, nRightArmY);
 
   characterManager.drawShoe(ctx, npcLimbs.leftLegEndX, npcLimbs.leftLegEndY, npc.shoeColor || '#1a252f', true);
   characterManager.drawShoe(ctx, npcLimbs.rightLegEndX, npcLimbs.rightLegEndY, npc.shoeColor || '#1a252f', false);
 
   // Evaluate visual translation mapping spatial Z elevation to the World -Y axis natively
-  ctx.rotate(-state.npcRotation * (Math.PI / 180));
-  ctx.translate(0, -state.npcElevateZ / camera.zoom);
-  ctx.rotate(state.npcRotation * (Math.PI / 180));
+  ctx.rotate(-state.npc.rotation * (Math.PI / 180));
+  ctx.translate(0, -state.npc.z / camera.zoom);
+  ctx.rotate(state.npc.rotation * (Math.PI / 180));
 
-  const transformN = { offsetX, offsetY, scale, centerX, baseRotation: state.npcRotation, elevateZ: state.npcElevateZ, targetStateObj: state.npcRacketPos, courtScale: COURT_SCALE };
+  const transformN = { offsetX, offsetY, scale, centerX, baseRotation: state.npc.rotation, elevateZ: state.npc.z, targetStateObj: state.npc.racketPosition, courtScale: COURT_SCALE };
   if (!window.isAdmin) drawRacket(ctx, npcLimbs, nAimPitch, nAimYaw, 0.3, transformN);
-  characterManager.drawHumanoidUpperBody(ctx, { ...npc, rotation: state.npcRotation, x: 0, y: 0 }, npcLimbs);
+  characterManager.drawHumanoidUpperBody(ctx, { ...npc, rotation: state.npc.rotation, x: 0, y: 0 }, npcLimbs);
   if (window.isAdmin) drawRacket(ctx, npcLimbs, nAimPitch, nAimYaw, 0.3, transformN);
   ctx.restore();
 
@@ -1353,8 +1257,8 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
   ctx.beginPath();
   // Shrink shadow exponentially based on elevation altitude
-  const shadowRadius = Math.max(2 * COURT_SCALE, (BALL_RADIUS * 2 - state.ballCurrentHeight * 0.05) * COURT_SCALE);
-  ctx.arc(centerX + state.ballOffsetX, state.ballY, shadowRadius, 0, Math.PI * 2);
+  const shadowRadius = Math.max(2 * COURT_SCALE, (BALL_RADIUS * 2 - state.ball.z * 0.05) * COURT_SCALE);
+  ctx.arc(centerX + state.ball.x, state.ball.y, shadowRadius, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
@@ -1367,12 +1271,12 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY
   if (state.isServe && state.servePhase === 'idle') {
     // If waiting to serve, geometrically track the ball to the localized left hand of the server!
     const isPlayerServing = state.nextServerIsPlayer;
-    const baseRotation = isPlayerServing ? state.playerRotation : state.npcRotation;
+    const baseRotation = isPlayerServing ? state.player.rotation : state.npc.rotation;
     const rotRad = baseRotation * (Math.PI / 180);
     const limbs = isPlayerServing ? playerLimbs : npcLimbs;
-    const serverX = isPlayerServing ? state.playerOffsetX : state.npcOffsetX;
+    const serverX = isPlayerServing ? state.player.x : state.npc.x;
     const serverY = isPlayerServing ? getPlayerY() : getNpcY();
-    const serverZ = isPlayerServing ? state.playerElevateZ : state.npcElevateZ;
+    const serverZ = isPlayerServing ? state.player.z : state.npc.z;
 
     // Map local leftArm coordinates exactly how `drawHumanoidUpperBody` does natively
     const armWorldX = (limbs.leftArmX * Math.cos(rotRad) - limbs.leftArmY * Math.sin(rotRad)) * camera.zoom * COURT_SCALE;
@@ -1382,25 +1286,25 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY
     ctx.rotate(rotRad); // Spin with their localized body rotation while held
   } else {
     // Translate ball spatially along actual true Z-axis
-    ctx.translate(centerX + state.ballOffsetX, state.ballY - state.ballCurrentHeight);
-    ctx.rotate(state.ballOffsetX * 0.05); // Cosmetic spin based on horizontal slice 
+    ctx.translate(centerX + state.ball.x, state.ball.y - state.ball.z);
+    ctx.rotate(state.ball.x * 0.05); // Cosmetic spin based on horizontal slice 
   }
 
   ctx.fillText('🎾', 0, 0);
   ctx.restore();
 
   // Calculate and render crosshairs onto the destination surface exactly where ball's geometry will collide
-  const vZTargetCheck = state.ballCurrentVelocity * Math.tan(state.ballCurrentPitchAngle);
-  const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ballCurrentHeight;
+  const vZTargetCheck = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+  const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ball.z;
   let tLand = 0;
   if (det >= 0) {
     tLand = (vZTargetCheck + Math.sqrt(det)) / GRAVITY;
   }
-  const landX = centerX + state.ballOffsetX + state.ballVX * tLand;
-  const landY = state.ballY + state.ballVY * tLand;
+  const landX = centerX + state.ball.x + state.ball.vx * tLand;
+  const landY = state.ball.y + state.ball.vy * tLand;
 
   // Only show the landing X to non-admins if the ball is moving towards the player
-  if (window.isAdmin || state.ballVY > 0) {
+  if (window.isAdmin || state.ball.vy > 0) {
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
     ctx.lineWidth = Math.max(1, 2 * COURT_SCALE); // Scale thickness
@@ -1417,12 +1321,12 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY
   }
 
   // Draw the optimal 3D intercept prediction as a Green X
-  if (state.ballVY !== 0) {
+  if (state.ball.vy !== 0) {
     let interceptTarget;
-    if (state.ballVY > 0) {
-      interceptTarget = { x: state.playerOffsetX, y: playerY - 15, z: state.playerElevateZ + 30 };
+    if (state.ball.vy > 0) {
+      interceptTarget = { x: state.player.x, y: playerY - 15, z: state.player.z + 30 };
     } else {
-      interceptTarget = { x: state.npcOffsetX, y: npcY + 15, z: state.npcElevateZ + 30 };
+      interceptTarget = { x: state.npc.x, y: npcY + 15, z: state.npc.z + 30 };
     }
 
     const bestPoint = calculateOptimalInterceptPoint(interceptTarget);
@@ -1471,7 +1375,7 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY
 
   // 3. Render Player
   ctx.save();
-  ctx.translate(centerX + state.playerOffsetX, playerY);
+  ctx.translate(centerX + state.player.x, playerY);
   ctx.scale(camera.zoom * COURT_SCALE, camera.zoom * COURT_SCALE);
 
   // Drop shadow
@@ -1480,18 +1384,18 @@ function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY
   ctx.arc(2, 4, 14, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.rotate(state.playerRotation * (Math.PI / 180));
+  ctx.rotate(state.player.rotation * (Math.PI / 180));
   let playerCharacter = window.init.myCharacter;
-  const playerLimbs = getLimbs(state.playerLegTimer, state.playerDirection, state.playerDirectionY, pRightArmX, pRightArmY);
-  playerCharacter.rotation = state.playerRotation;
+  const playerLimbs = getLimbs(state.player.legTimer, state.player.movementDirection.x, state.player.movementDirection.y, pRightArmX, pRightArmY);
+  playerCharacter.rotation = state.player.rotation;
   characterManager.drawShoe(ctx, playerLimbs.leftLegEndX, playerLimbs.leftLegEndY, playerCharacter.shoeColor || '#1a252f', true);
   characterManager.drawShoe(ctx, playerLimbs.rightLegEndX, playerLimbs.rightLegEndY, playerCharacter.shoeColor || '#1a252f', false);
 
-  ctx.rotate(-state.playerRotation * (Math.PI / 180));
-  ctx.translate(0, -state.playerElevateZ / camera.zoom);
-  ctx.rotate(state.playerRotation * (Math.PI / 180));
+  ctx.rotate(-state.player.rotation * (Math.PI / 180));
+  ctx.translate(0, -state.player.z / camera.zoom);
+  ctx.rotate(state.player.rotation * (Math.PI / 180));
 
-  const transformP = { offsetX, offsetY, scale, centerX, baseRotation: state.playerRotation, elevateZ: state.playerElevateZ, targetStateObj: state.playerRacketPos, courtScale: COURT_SCALE };
+  const transformP = { offsetX, offsetY, scale, centerX, baseRotation: state.player.rotation, elevateZ: state.player.z, targetStateObj: state.player.racketPosition, courtScale: COURT_SCALE };
   if (!window.isAdmin) drawRacket(ctx, playerLimbs, pAimPitch, pAimYaw, 0.3, transformP);
   characterManager.drawHumanoidUpperBody(ctx, playerCharacter, playerLimbs);
   if (window.isAdmin) drawRacket(ctx, playerLimbs, pAimPitch, pAimYaw, 0.3, transformP);
