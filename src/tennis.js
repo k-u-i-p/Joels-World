@@ -116,29 +116,91 @@ function getNpcY() {
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
 /**
- * Procedurally calculates the exact 3D Cartesian rotation required 
- * for a character's shoulder to point their arm directly at a given target point.
+ * Mathematically determines the required 2D limb offset (rightArmX, rightArmY) 
+ * for a character to reach out to an intercept point relative to their rotation.
  * 
- * @param {number} charX - Current X map coordinate of the character.
- * @param {number} charElevZ - Current Z physical altitude of the character's feet.
- * @param {{x: number, y: number, z: number}} targetPoint - The pre-calculated optimal intercept target.
- * @param {boolean} isPlayer - True if calculating for the bottom-court player.
- * @returns {{aimYaw: number, aimPitch: number}}
+ * @param {Object} player - The character state tracking object.
+ * @param {{x: number, y: number, z: number}} interceptPoint - Expected ball collision point.
+ * @returns {{x: number, y: number, pitch: number}} The calculated rightArm offsets and pitch.
  */
-function calculateAimAngles(charX, charElevZ, targetPoint, isPlayer) {
-  // Map coordinates relative to exactly where the character's physical shoulder socket is attached
-  const shoulderX = charX;
-  const shoulderZ = charElevZ + 30; // Shoulder is essentially 30px off the physical floor height
+function calculateArmReach(player, interceptPoint) {
+  const isPlayer = player === state.player;
+  const worldY = isPlayer ? getPlayerY() : getNpcY();
 
-  // Diff absolute Cartesian distances (NPC mirror handles X inversion natively)
-  const dx = isPlayer ? (targetPoint.x - shoulderX) : (shoulderX - targetPoint.x);
-  const dz = targetPoint.z - shoulderZ;
+  const dx = interceptPoint.x - player.x;
+  const dy = interceptPoint.y - worldY;
+  const dz = interceptPoint.z - (player.z + 30); // 30 is shoulder height
 
-  // Calculate exact anatomical rotation angles required to point the 20-pixel arm towards the delta!
-  const targetYaw = clamp(Math.atan2(dx, 40), -Math.PI / 2.5, Math.PI / 2.5);
+  const dist2D = Math.sqrt(dx * dx + dy * dy);
+
+  // Angle to target in 2D space
+  const angleToBall = Math.atan2(dy, dx);
+  // Angle up/down in 3D space
+  const pitchAngle = clamp(Math.asin(clamp(dz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
+
+  const charFacingRad = player.rotation * (Math.PI / 180);
+
+  // Angle relative to character body
+  const localAngle = angleToBall - charFacingRad;
+
+  // Normal visual arm length physically reaching into Euclidean depth natively
+  const armReachLength = 12 * Math.cos(pitchAngle);
+
+  return {
+    x: -2 + armReachLength * Math.cos(localAngle),
+    y: 14 + armReachLength * Math.sin(localAngle),
+    pitch: pitchAngle,
+    yaw: localAngle,
+    worldX: player.x,
+    worldY: worldY,
+    worldZ: player.z + 30
+  };
+}
+
+/**
+ * Procedurally calculates the exact 3D Cartesian rotation required 
+ * for a character's shoulder to point their racket center directly at a given target point.
+ * 
+ * @param {Object} reach - The generated tracking outputs dynamically bridging structural limbs.
+ * @param {{x: number, y: number, z: number}} interceptPoint - The pre-calculated optimal intercept target.
+ * @returns {{roll: number, pitch: number, yaw: number}}
+ */
+function calculateRacketAimAngle(reach, interceptPoint) {
+  // Extract strictly absolute local geometrical mappings statically saved through character tracking
+  const dx = interceptPoint.x - reach.worldX;
+  const dy = interceptPoint.y - reach.worldY;
+  const dz = interceptPoint.z - reach.worldZ;
+
+  // Use raw trigonometric Cartesian evaluation projecting dynamically straight onto the target!
+  const targetYaw = Math.atan2(dy, dx);
   const targetPitch = clamp(Math.asin(clamp(dz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
 
-  return { aimYaw: targetYaw, aimPitch: targetPitch };
+  // Return explicit orientation array mapping roll flawlessly alongside default target matrices
+  return { roll: 1.0, pitch: targetPitch, yaw: targetYaw };
+}
+
+/**
+ * Calculates generic structural offsets for limbs based on leg animation and arm reach natively referencing the character state organically.
+ */
+function getLimbs(playerObj, rightArmX, rightArmY) {
+  const legTimer = playerObj.legTimer || 0;
+  const directionX = playerObj.movementDirection ? playerObj.movementDirection.x : 1;
+  const directionY = playerObj.movementDirection ? playerObj.movementDirection.y : 1;
+
+  const legSwing = Math.sin(legTimer);
+  const legStride = 9;
+  const armStride = 8;
+  const safeDirX = directionX || 1;
+  const safeDirY = directionY || 1;
+
+  return {
+    leftArmX: -2 - legSwing * armStride, leftArmY: -14,
+    rightArmX: rightArmX, rightArmY: rightArmY,
+    leftLegStartX: -2 + (safeDirY * legSwing * legStride), leftLegStartY: -6 + (-safeDirX * legSwing * legStride),
+    leftLegEndX: -2 + (safeDirY * legSwing * legStride), leftLegEndY: -6 + (-safeDirX * legSwing * legStride),
+    rightLegStartX: -2 - (safeDirY * legSwing * legStride), rightLegStartY: 6 - (-safeDirX * legSwing * legStride),
+    rightLegEndX: -2 - (safeDirY * legSwing * legStride), rightLegEndY: 6 - (-safeDirX * legSwing * legStride)
+  };
 }
 
 /**
@@ -155,6 +217,7 @@ function calculateOptimalInterceptPoint(target) {
   let simVX = state.ball.vx;
   let simVY = state.ball.vy;
   let simVZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+  let simBounces = state.bounceCount;
 
   let closestDistSq = Infinity;
   let bestT = 0;
@@ -185,6 +248,10 @@ function calculateOptimalInterceptPoint(target) {
 
     // Process procedural floor deflections
     if (simZ < 0) {
+      simBounces++;
+      if (simBounces > 1) {
+        break; // A second bounce fundamentally kills the rally, prune prediction immediately
+      }
       simZ = 0;
       simVZ = -simVZ * 0.6; // 0.6 standard court dampening multiplier
     }
@@ -432,43 +499,61 @@ function serveBall(playerServing) {
   state.trajectoryPoints = [];
 
   // Transition cleanly into the organic physics simulation!
-  const sideDir = state.serveSide * (playerServing ? -1 : 1);
-  const tossTarget = {
-    x: (playerServing ? state.player.x : state.npc.x) + (sideDir * 20 * GAME_SCALE),
-    y: playerServing ? (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height - (10 * GAME_SCALE)) : (COURT_INNER_BOUNDS.y + (10 * GAME_SCALE)),
-    z: 85 * GAME_SCALE
-  };
-
-  throwBall(playerServing, tossTarget);
+  throwBall(playerServing);
 }
 
 /**
  * Physically throws the ball organically from the character's hand using true gravity.
  * @param {boolean} playerServing - True if player serves, false if NPC serves.
- * @param {{x: number, y: number, z: number}} tossTarget - The target apex coordinates.
  */
-function throwBall(playerServing, tossTarget) {
+function throwBall(playerServing) {
   state.servePhase = 'live';
-  state.tossTarget = tossTarget;
 
-  // Physically start the ball strictly inside the pre-calculated left hand geometry over the baseline!
+  // Physically start the ball securely anchored to the left-hand geometry over the baseline natively!
   state.ball.z = 25;
 
-  const startX = playerServing ? state.player.x : state.npc.x;
-  const startY = playerServing ? getPlayerY() : getNpcY();
+  const playerObj = playerServing ? state.player : state.npc;
+  const rotRad = playerObj.rotation * (Math.PI / 180);
 
-  // Shift ball physically to the server body to prevent visual snapping
+  // Dynamically extract the exact left-arm structural coordinate physically directly from the literal rendering matrix statically!
+  const limbs = getLimbs(playerObj, 0, 0);
+  const leftArmX = limbs.leftArmX;
+  const leftArmY = limbs.leftArmY;
+
+  const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
+  const armWorldX = (leftArmX * Math.cos(rotRad) - leftArmY * Math.sin(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
+  const armWorldY = (leftArmX * Math.sin(rotRad) + leftArmY * Math.cos(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
+
+  const startX = playerObj.x + armWorldX;
+  const startY = (playerServing ? getPlayerY() : getNpcY()) + armWorldY;
+
+  // Shift ball physically seamlessly aligning perfectly mapped to the exact rendering hand voxel natively without mid-air teleportation!
   state.ball.x = startX;
   state.ball.y = startY;
 
-  // Calculate the physics required to apex perfectly at tossTarget.z
-  const dz = Math.max(1, tossTarget.z - state.ball.z);
+  // Establish the literal 2D ground coordinate where the ball intrinsically strictly lands naturally
+  state.tossTarget = {
+    x: startX + (playerServing ? 5 * GAME_SCALE : -5 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
+    y: startY + (playerServing ? -25 * GAME_SCALE : 25 * GAME_SCALE), // Land slightly linearly natively into the court
+    z: 85 * GAME_SCALE // Encodes explicit physical apex altitude mathematically
+  };
+
+  // 1. Calculate the initial vertical velocity required mathematically spanning to the tossTarget.z securely organically
+  const dz = Math.max(1, state.tossTarget.z - state.ball.z);
   const vZ = Math.sqrt(2 * GRAVITY * dz);
+
+  // 2. Map precisely exactly how long it takes to intrinsically rise dynamically into the apex computationally 
   const tApex = vZ / GRAVITY;
 
-  // Assign planar velocity to span the horizontal gap exactly during tApex
-  state.ball.vx = (tossTarget.x - startX) / tApex;
-  state.ball.vy = (tossTarget.y - startY) / tApex;
+  // 3. Map precisely exactly how long it takes to naturally fall exactly down sequentially from the apex computationally to the ground (Z=0)
+  const tFall = Math.sqrt((2 * state.tossTarget.z) / GRAVITY);
+
+  // 4. Derive total trajectory flight duration explicitly spanning physics functionally algebraically 
+  const tTotalFlight = tApex + tFall;
+
+  // 5. Synthesize exactly accurate constant trajectory velocity bridging start sequentially onto targeting gap exactly structurally
+  state.ball.vx = (state.tossTarget.x - startX) / tTotalFlight;
+  state.ball.vy = (state.tossTarget.y - startY) / tTotalFlight;
 
   state.ball.velocity = Math.max(0.1, Math.sqrt(state.ball.vx * state.ball.vx + state.ball.vy * state.ball.vy));
   state.ball.pitchAngle = Math.atan2(vZ, state.ball.velocity);
@@ -758,18 +843,24 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt, charY) {
 
   const charMoved = convergePhysics(charState, dt, isPlayer, prevX, prevY);
 
-  // 3. Procedural Auto-Aim tracking
-  let aimYaw = Math.PI * 0.25;
-  let aimPitch = 0.0;
+  // 3. Dynamic Limb Target Tracking
+  let armX = -2 + 4 * Math.cos(Math.PI * 0.25);
+  let armY = 14 + 4 * Math.sin(Math.PI * 0.25);
+  let targetPitch = 0.0;
+  let targetYaw = Math.PI * 0.25;
 
   if (isApproaching || (state.isServe && state.lastHitter === (isPlayer ? 'player' : 'npc'))) {
     const intercept = calculateOptimalInterceptPoint({ x: charState.x, y: charY + (isPlayer ? -15 : 15), z: charState.z + 30 });
-    const tracking = calculateAimAngles(charState.x, charState.z, intercept, isPlayer);
-    aimYaw = tracking.aimYaw;
-    aimPitch = tracking.aimPitch;
+    const reach = calculateArmReach(charState, intercept);
+    armX = reach.x;
+    armY = reach.y;
+
+    const aim = calculateRacketAimAngle(reach, intercept);
+    targetPitch = aim.pitch;
+    targetYaw = aim.yaw;
   }
 
-  return { yaw: aimYaw, pitch: aimPitch, moved: charMoved };
+  return { armX, armY, pitch: targetPitch, yaw: targetYaw, moved: charMoved };
 }
 
 /**
@@ -836,8 +927,10 @@ function run(dt) {
     state.player.moveTarget.rotation = 270;
   }
 
-  const pAimYaw = pAim.yaw;
+  const pArmX = pAim.armX;
+  const pArmY = pAim.armY;
   const pAimPitch = pAim.pitch;
+  const pAimYaw = pAim.yaw;
 
   // 2. Process Simple AI NPC Movement
   const prevNpcX = state.npc.x;
@@ -871,8 +964,10 @@ function run(dt) {
   if (!nAim.moved) {
     state.npc.moveTarget.rotation = 90;
   }
-  const nAimYaw = nAim.yaw;
+  const nArmX = nAim.armX;
+  const nArmY = nAim.armY;
   const nAimPitch = nAim.pitch;
+  const nAimYaw = nAim.yaw;
   const npcMoved = nAim.moved;
 
   // Ensure logical collision trackers properly pull the latest bounds exactly here
@@ -1090,25 +1185,6 @@ function run(dt) {
     return { w: rx, h: 12 * pitchMult };
   }
 
-  /**
-   * Calculates generic structural offsets for limbs based on leg animation and arm reach.
-   */
-  function getLimbs(legTimer, directionX = 1, directionY = 1, rightArmX, rightArmY) {
-    const legSwing = Math.sin(legTimer || 0);
-    const legStride = 9;
-    const armStride = 8;
-    const safeDirX = directionX || 1;
-    const safeDirY = directionY || 1;
-    return {
-      leftArmX: -2 - legSwing * armStride, leftArmY: -14,
-      rightArmX: rightArmX, rightArmY: rightArmY,
-      leftLegStartX: -2 + (safeDirY * legSwing * legStride), leftLegStartY: -6 + (-safeDirX * legSwing * legStride),
-      leftLegEndX: -2 + (safeDirY * legSwing * legStride), leftLegEndY: -6 + (-safeDirX * legSwing * legStride),
-      rightLegStartX: -2 - (safeDirY * legSwing * legStride), rightLegStartY: 6 - (-safeDirX * legSwing * legStride),
-      rightLegEndX: -2 - (safeDirY * legSwing * legStride), rightLegEndY: 6 - (-safeDirX * legSwing * legStride)
-    };
-  }
-
   // ==========================================
   // RENDERING PHASE
   // ==========================================
@@ -1151,16 +1227,8 @@ function run(dt) {
   // Derive visual scaling metric from the customized bounding area
   const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
 
-  const pArmL = 4 * Math.cos(pAimPitch);
-  const pRightArmX = -2 + pArmL * Math.cos(pAimYaw);
-  const pRightArmY = 14 + pArmL * Math.sin(pAimYaw);
-
-  const nArmL = 4 * Math.cos(nAimPitch);
-  const nRightArmX = -2 + nArmL * Math.cos(nAimYaw);
-  const nRightArmY = 14 + nArmL * Math.sin(nAimYaw);
-
-  const npcLimbs = getLimbs(state.npc.legTimer, state.npc.movementDirection.x, state.npc.movementDirection.y, nRightArmX, nRightArmY);
-  const playerLimbs = getLimbs(state.player.legTimer, state.player.movementDirection.x, state.player.movementDirection.y, pRightArmX, pRightArmY);
+  const npcLimbs = getLimbs(state.npc, nArmX, nArmY);
+  const playerLimbs = getLimbs(state.player, pArmX, pArmY);
 
   function drawCharacterShadowed(ctx, characterData, charState, worldY, limbs, aimPitch, aimYaw) {
     ctx.save();
@@ -1268,7 +1336,7 @@ function run(dt) {
   }
 
   // Draw the optimal 3D intercept prediction as a Green X
-  if (state.ball.vy !== 0) {
+  if (state.ball.vy !== 0 && !state.resetting) {
     let interceptTarget;
     if (state.ball.vy > 0) {
       interceptTarget = { x: state.player.x, y: playerY - 15, z: state.player.z + 30 };
@@ -1278,7 +1346,7 @@ function run(dt) {
 
     const bestPoint = calculateOptimalInterceptPoint(interceptTarget);
 
-    // Only draw the visual if it securely predicts an approach within 1 second
+    // Only draw the visual if it securely predicts an approach
     if (bestPoint.t > 0) {
       const hitX = centerX + bestPoint.x;
       // Map the 3D 'Z' altitude physically to the screen's vertical 'Y' axis to match the ball's rendering height exactly
@@ -1287,10 +1355,10 @@ function run(dt) {
     }
   }
 
-  // Draw the yellow X for the Toss Target
-  if (state.isServe && state.tossTarget) {
+  // Draw the yellow X for the Toss Ground Target
+  if (state.isServe && state.tossTarget && !state.resetting) {
     const hitX = centerX + state.tossTarget.x;
-    const hitY = state.tossTarget.y - state.tossTarget.z; // Match the visual altitude tracking!
+    const hitY = state.tossTarget.y; // The tossTarget mathematically identically mirrors the literal ground geometry!
     drawCrosshair(ctx, hitX, hitY, 'rgba(241, 196, 15, 0.9)');
   }
 
