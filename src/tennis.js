@@ -166,18 +166,21 @@ function calculateArmReach(player, interceptPoint) {
  * @param {{x: number, y: number, z: number}} interceptPoint - The pre-calculated optimal intercept target.
  * @returns {{roll: number, pitch: number, yaw: number}}
  */
-function calculateRacketAimAngle(reach, interceptPoint) {
+function calculateRacketAimAngle(reach, interceptPoint, charState) {
   // Extract strictly absolute local geometrical mappings statically saved through character tracking
   const dx = interceptPoint.x - reach.worldX;
   const dy = interceptPoint.y - reach.worldY;
   const dz = interceptPoint.z - reach.worldZ;
 
   // Use raw trigonometric Cartesian evaluation projecting dynamically straight onto the target!
-  const targetYaw = Math.atan2(dy, dx);
+  const absoluteYaw = Math.atan2(dy, dx);
   const targetPitch = clamp(Math.asin(clamp(dz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
 
+  const charFacingRad = charState.rotation * (Math.PI / 180);
+  const localYaw = absoluteYaw - charFacingRad;
+
   // Return explicit orientation array mapping roll flawlessly alongside default target matrices
-  return { roll: 1.0, pitch: targetPitch, yaw: targetYaw };
+  return { roll: 1.0, pitch: targetPitch, yaw: localYaw };
 }
 
 /**
@@ -268,6 +271,16 @@ function calculateOptimalInterceptPoint(target) {
   }
 
   return { x: bestX, y: bestY, z: bestZ, t: bestT };
+}
+
+/**
+ * Extracts and returns the precise 3D center point of a given racket position state matrix.
+ * 
+ * @param {Object} racketPosition - The state tracker's generic racket position mapping.
+ * @returns {{x: number, y: number, z: number}} - Formatted 3D geometrical center point.
+ */
+function calculateCenterPointOfRacket(racketPosition) {
+  return { x: racketPosition.x, y: racketPosition.y, z: racketPosition.z };
 }
 
 /**
@@ -868,12 +881,13 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt, charY) {
   let targetYaw = Math.PI * 0.25;
 
   if (isApproaching || state.isServe === (isPlayer ? 'player_serve' : 'npc_serve')) {
-    const intercept = calculateOptimalInterceptPoint({ x: charState.x, y: charY + (isPlayer ? -15 : 15), z: charState.z + 30 });
+    const centerPoint = calculateCenterPointOfRacket(charState.racketPosition);
+    const intercept = calculateOptimalInterceptPoint(centerPoint);
     const reach = calculateArmReach(charState, intercept);
     armX = reach.x;
     armY = reach.y;
 
-    const aim = calculateRacketAimAngle(reach, intercept);
+    const aim = calculateRacketAimAngle(reach, intercept, charState);
     targetPitch = aim.pitch;
     targetYaw = aim.yaw;
   }
@@ -958,7 +972,7 @@ function run(dt) {
   function moveToIntercept() {
     // Ensure the NPC purposefully ignores tracking early physics data natively cascading from localized serve tosses
     // Formulate a nominal target tracking point dynamically around the actual rendered position of the racket head
-    const nominalTarget = { x: state.npc.racketPosition.x, y: state.npc.racketPosition.y, z: state.npc.racketPosition.z };
+    const nominalTarget = calculateCenterPointOfRacket(state.npc.racketPosition);
     const interceptPoint = calculateOptimalInterceptPoint(nominalTarget);
     const optimalPosition = calculateOptimalInterceptPosition(interceptPoint, false);
 
@@ -1361,10 +1375,11 @@ function run(dt) {
   // Draw the optimal 3D intercept prediction as a Green X
   if (state.ball.vy !== 0 && !state.resetting) {
     let interceptTarget;
-    if (state.ball.vy > 0) {
-      interceptTarget = { x: state.player.x, y: playerY - 15, z: state.player.z + 30 };
+    // Target the RECIEVER's racket to predict where they will intercept the ball
+    if (state.lastHitter === 'npc' || state.isServe === 'npc_serve') {
+      interceptTarget = calculateCenterPointOfRacket(state.player.racketPosition);
     } else {
-      interceptTarget = { x: state.npc.x, y: npcY + 15, z: state.npc.z + 30 };
+      interceptTarget = calculateCenterPointOfRacket(state.npc.racketPosition);
     }
 
     const bestPoint = calculateOptimalInterceptPoint(interceptTarget);
