@@ -428,11 +428,6 @@ export function initMinigame() {
 function serveBall(playerServing) {
   state.resetting = false;
   state.isServe = true;
-  const playerY = getPlayerY();
-
-  state.ballOffsetX = playerServing ? state.playerOffsetX : state.npcOffsetX;
-  state.ballY = playerServing ? playerY : getNpcY();
-
   // Calculate strict service box zones (Tennis Service line is approx 53.8% of the 39ft half-court distance)
   const centerX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width / 2;
   const serviceBoxDepth = COURT_INNER_BOUNDS.height * 0.27; // ~118.8
@@ -485,40 +480,37 @@ function serveBall(playerServing) {
   state.serverTargetY = targetY;
   state.serverReturnSpeed = playerServing ? BALL_SPEED * 0.8 : BALL_SPEED * 0.65;
 
-  // Physically launch the ball out of the hand into a true gravitational arc!
+  // Transition cleanly into the organic physics simulation!
+  throwBall(playerServing);
+}
+
+/**
+ * Physically throws the ball organically from the character's hand using true gravity.
+ * @param {boolean} playerServing - True if player serves, false if NPC serves.
+ */
+function throwBall(playerServing) {
   state.servePhase = 'live'; 
   state.servePhaseTimer = 0;
   
-  state.ballCurrentHeight = 25; // Release from hand
+  // Physically start the ball strictly inside the pre-calculated left hand geometry over the baseline!
+  state.ballCurrentHeight = 25;
   
-  // Toss slightly forward and to the character's right side (so they can step into it)
+  // Toss slightly forward and to the character's designated right side allowing them to organically step into it!
   state.ballCurrentVelocity = 15;
   state.ballVX = playerServing ? 12 : -12;
   state.ballVY = playerServing ? -12 : 12;
   
-  // High vertical lift (vZ = 245) produces an apex exactly ~85px high (v^2/2g) at 500 GRAVITY!
+  // High vertical kinetic lift (vZ = 245) produces an apex exactly ~85px high (v^2/2g) against the 500p/s GRAVITY block!
   const vZ = 245; 
   state.ballCurrentPitchAngle = Math.atan2(vZ, state.ballCurrentVelocity);
   
-  state.trajectoryFrozen = false; // Start tracking immediately
+  state.trajectoryFrozen = false; // Ignite the tracker immediately
 
-  // Start the ball low (in the non-dominant hand)
-  state.ballCurrentHeight = 25;
-
-  // Renew locks allowing exactly one swing per volley
+  // Renew collision locks cleanly, allowing the organic update loop to natively schedule exactly one swing per volley!
   state.playerHasSwung = false;
   state.npcHasSwung = false;
   state.bounceCount = 0;
   state.rallyCount = 0;
-
-  // Force character to animate hitting the serve
-  if (playerServing) {
-    state.playerSwingTimer = SWING_DURATION;
-    state.playerHasSwung = true;
-  } else {
-    state.npcSwingTimer = SWING_DURATION;
-    state.npcHasSwung = true;
-  }
 }
 
 /** Formats numerical points into tennis scoring phrases. Returns object with { playerStr, npcStr, winner } */
