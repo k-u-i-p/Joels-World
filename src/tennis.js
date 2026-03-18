@@ -58,7 +58,8 @@ let state = {
     movementDirection: { x: 1, y: 1 },
     racketPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
     legTimer: 0,
-    moveTarget: { x: 0, y: 0, z: 0, rotation: 270 }
+    moveTarget: { x: 0, y: 0, z: 0, rotation: 270 },
+    hasTarget: false
   },
   npc: {
     x: 0,
@@ -479,16 +480,17 @@ function calculateServeTarget(isPlayer) {
  * Mechanically serves the ball from the respective character towards a valid court zone.
  * Automatically computes 3D pitch/velocity required to lob into the target destination.
  * 
- * @param {boolean} playerServing - True if player serves, false if NPC serves.
+ * @param {Object} playerObj - The character object serving.
  */
-function serveBall(playerServing) {
+function serveBall(playerObj) {
+  const isPlayer = playerObj === state.player;
   state.resetting = false;
-  state.isServe = playerServing ? 'player_serve' : 'npc_serve';
+  state.isServe = isPlayer ? 'player_serve' : 'npc_serve';
+  playerObj.hasTarget = false;
   state.servePhase = 'idle'; // Securely halt execution implicitly organically enforcing holding state natively
 
-  console.log("Serving ball for " + (playerServing ? "player" : "npc"));
+  console.log("Serving ball for " + (isPlayer ? "player" : "npc"));
 
-  const playerObj = playerServing ? state.player : state.npc;
   const rotRad = playerObj.rotation * (Math.PI / 180);
   const limbs = getLimbs(playerObj, 0, 0);
 
@@ -499,7 +501,7 @@ function serveBall(playerServing) {
   // Automatically lock precisely securely directly onto the launching coordinate recursively cleanly functionally exclusively
   moveBall({
     x: playerObj.x + armWorldX,
-    y: (playerServing ? getPlayerY() : getNpcY()) + armWorldY,
+    y: (isPlayer ? getPlayerY() : getNpcY()) + armWorldY,
     z: playerObj.z // The exact Z accurately cleanly rationally naturally mechanically securely seamlessly effectively optimally natively intelligently efficiently functionally smoothly elegantly logically smartly confidently creatively organically brilliantly flawlessly physically securely intelligently uniquely authentically rationally reliably identically neatly safely effectively authentically precisely implicitly intelligently creatively logically natively gracefully logically successfully physically mathematically intelligently elegantly conceptually identically authentically exactly automatically smartly cleanly cleanly correctly purely optimally organically gracefully safely identically smoothly naturally nicely purely natively symmetrically precisely natively optimally exactly identical automatically gracefully magically geometrically ideally mathematically elegantly organically uniquely magically
   });
 
@@ -511,7 +513,7 @@ function serveBall(playerServing) {
   let boxMinX, boxMaxX, boxMinY, boxMaxY;
 
   // Serves are strictly cross-court
-  if (playerServing) {
+  if (isPlayer) {
     boxMinY = netY - serviceBoxDepth;
     boxMaxY = netY;
     boxMinX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x : centerX;
@@ -525,21 +527,22 @@ function serveBall(playerServing) {
 
   state.activeServiceBox = { minX: boxMinX, maxX: boxMaxX, minY: boxMinY, maxY: boxMaxY };
 
-  state.lastHitter = playerServing ? 'player' : 'npc';
+  state.lastHitter = isPlayer ? 'player' : 'npc';
 
   // Wipe the graph array so the new serve correctly starts a blank trajectory chart
   state.trajectoryPoints = [];
 
   setTimeout(() => {
-    throwBall(playerServing);
+    throwBall(playerObj);
   }, 1000);
 }
 
 /**
  * Physically throws the ball organically from the character's hand using true gravity.
- * @param {boolean} playerServing - True if player serves, false if NPC serves.
+ * @param {Object} playerObj - The character object serving.
  */
-function throwBall(playerServing) {
+function throwBall(playerObj) {
+  const isPlayer = playerObj === state.player;
   state.servePhase = 'live';
 
   // State.ball physics are identically continuously synchronized tightly sequentially inside run(dt) prior to executing toss dynamically!
@@ -548,8 +551,8 @@ function throwBall(playerServing) {
 
   // Establish the literal 2D ground coordinate where the ball intrinsically strictly lands naturally
   state.tossTarget = {
-    x: startX + (playerServing ? 5 * GAME_SCALE : -5 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
-    y: startY + (playerServing ? -25 * GAME_SCALE : 25 * GAME_SCALE), // Land slightly linearly natively into the court
+    x: startX + (isPlayer ? 5 * GAME_SCALE : -5 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
+    y: startY + (isPlayer ? -25 * GAME_SCALE : 25 * GAME_SCALE), // Land slightly linearly natively into the court
     z: 85 * GAME_SCALE // Encodes explicit physical apex altitude mathematically
   };
 
@@ -786,7 +789,7 @@ function handleIntroSequence(dt) {
       state.player.legTimer = 0;
       state.npc.legTimer = 0;
       state.introPhase = 'playing';
-      serveBall(state.nextServerIsPlayer);
+      serveBall(state.nextServerIsPlayer ? state.player : state.npc);
     }
   }
 }
@@ -951,25 +954,45 @@ function run(dt) {
   const prevNpcX = state.npc.x;
   const prevNpcY = state.npc.y;
 
+
+  function moveToIntercept() {
+    // Ensure the NPC purposefully ignores tracking early physics data natively cascading from localized serve tosses
+    // Formulate a nominal target tracking point dynamically around the actual rendered position of the racket head
+    const nominalTarget = { x: state.npc.racketPosition.x, y: state.npc.racketPosition.y, z: state.npc.racketPosition.z };
+    const interceptPoint = calculateOptimalInterceptPoint(nominalTarget);
+    const optimalPosition = calculateOptimalInterceptPosition(interceptPoint, false);
+
+
+    console.log('moveCharacterToLocal()', optimalPosition);
+
+    moveCharacterToLocal(state.npc, optimalPosition.x, optimalPosition.y - NPC_BASE_Y);
+  }
+
   if (state.resetting) {
     const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
     const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
     moveCharacterToLocal(state.npc, targetX, 0);
   } else {
     if (state.isServe === 'in_play') {
-      if (state.ball.vy < 0) {
-        // Ensure the NPC purposefully ignores tracking early physics data natively cascading from localized serve tosses
-        // Formulate a nominal target tracking point dynamically around the actual rendered position of the racket head
-        const nominalTarget = { x: state.npc.racketPosition.x, y: state.npc.racketPosition.y, z: state.npc.racketPosition.z };
-        const interceptPoint = calculateOptimalInterceptPoint(nominalTarget);
-        const optimalPosition = calculateOptimalInterceptPosition(interceptPoint, false);
+      console.log('state.isServe === in_play');
 
-        moveCharacterToLocal(state.npc, optimalPosition.x, optimalPosition.y - NPC_BASE_Y);
-        state.npc.hasTarget = true;
+      if (state.ball.vy < 0) {
+        console.log('state.ball.vy < 0 || state.servePhase === live');
+
+        if (!state.npc.hasTarget) {
+          moveToIntercept();
+          state.npc.hasTarget = true;
+        }
       } else {
         // Ball is moving away toward player, reset to center gracefully
         moveCharacterToLocal(state.npc, 0, 0);
         state.npc.hasTarget = false;
+      }
+    } else if (state.isServe === 'npc_serve' && state.servePhase === 'live') {
+      //Mve to stike thrown ball after serve
+      if (!state.npc.hasTarget) {
+        moveToIntercept();
+        state.npc.hasTarget = true;
       }
     }
   }
@@ -994,16 +1017,16 @@ function run(dt) {
     if (state.resetDelayTimer > 0) {
       state.resetDelayTimer -= dt;
     } else {
-      serveBall(state.nextServerIsPlayer);
+      serveBall(state.nextServerIsPlayer ? state.player : state.npc);
     }
     // Allow physics payload to execute while anticipating serve!
   }
 
 
   // 5. 3D Spatial Ball Physics Processing
-  if (state.servePhase !== 'idle') {
-    const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+  const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
 
+  if (state.servePhase !== 'idle') {
     // Elevate ball
     state.ball.z += vZ * dt;
     // Rotate velocity downward due to continuous gravity
