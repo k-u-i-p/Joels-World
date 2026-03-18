@@ -122,7 +122,7 @@ const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
  * 
  * @param {Object} player - The character state tracking object.
  * @param {{x: number, y: number, z: number}} interceptPoint - Expected ball collision point.
- * @returns {{x: number, y: number, pitch: number}} The calculated rightArm offsets and pitch.
+ * @returns {{x: number, y: number, worldX: number, worldY: number, worldZ: number}} The calculated rightArm 2D offsets and absolute world position bindings.
  */
 function calculateArmReach(player, interceptPoint) {
   const isPlayer = player === state.player;
@@ -150,8 +150,6 @@ function calculateArmReach(player, interceptPoint) {
   return {
     x: -2 + armReachLength * Math.cos(localAngle),
     y: 14 + armReachLength * Math.sin(localAngle),
-    pitch: pitchAngle,
-    yaw: localAngle,
     worldX: player.x,
     worldY: worldY,
     worldZ: player.z + 30
@@ -167,22 +165,18 @@ function calculateArmReach(player, interceptPoint) {
  * @returns {{roll: number, pitch: number, yaw: number}}
  */
 function calculateRacketAimAngle(reach, interceptPoint, charState) {
-  // Extract strictly absolute local geometrical mappings statically saved through character tracking
   const dx = interceptPoint.x - reach.worldX;
   const dy = interceptPoint.y - reach.worldY;
   const dz = interceptPoint.z - reach.worldZ;
 
-  // Use raw trigonometric Cartesian evaluation projecting dynamically straight onto the target!
   const absoluteYaw = Math.atan2(dy, dx);
   const targetPitch = clamp(Math.asin(clamp(dz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
 
   const charFacingRad = charState.rotation * (Math.PI / 180);
   const localYaw = absoluteYaw - charFacingRad;
 
-  // Return explicit orientation array mapping roll flawlessly alongside default target matrices
   return { roll: 1.0, pitch: targetPitch, yaw: localYaw };
 }
-
 /**
  * Calculates generic structural offsets for limbs based on leg animation and arm reach natively referencing the character state organically.
  */
