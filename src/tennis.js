@@ -220,15 +220,15 @@ function calculateOptimalInterceptPosition(trajectoryPoint, isPlayer) {
     // Player faces UP (270 degrees). Racket hand is +X visual radius.
     // They must plant their body -X and +Y relative to the incoming ball.
     return {
-      x: clamp(trajectoryPoint.x - racketOffsetX, -PLAYABLE_HALF_WIDTH + 10, PLAYABLE_HALF_WIDTH - 10),
-      y: clamp(trajectoryPoint.y + racketOffsetY, -(COURT_INNER_BOUNDS.height / 2 + 10), PLAYABLE_OVERSHOOT - 10)
+      x: trajectoryPoint.x - racketOffsetX,
+      y: trajectoryPoint.y + racketOffsetY
     };
   } else {
     // NPC faces DOWN (90 degrees). Racket hand is -X visual radius from the camera's perspective.
     // They must plant their body +X and -Y relative to the incoming ball.
     return {
-      x: clamp(trajectoryPoint.x + racketOffsetX, -PLAYABLE_HALF_WIDTH + 10, PLAYABLE_HALF_WIDTH - 10),
-      y: clamp(trajectoryPoint.y - racketOffsetY, -(PLAYABLE_OVERSHOOT - 10), COURT_INNER_BOUNDS.height / 2 + 10)
+      x: trajectoryPoint.x + racketOffsetX,
+      y: trajectoryPoint.y - racketOffsetY
     };
   }
 }
@@ -849,7 +849,8 @@ function run(dt) {
     moveCharacterToLocal(state.npc, targetX, 0);
   } else {
     if (state.ball.vy < 0) {
-      if (!state.npc.hasTarget) {
+      // Ensure the NPC purposefully ignores tracking early physics data natively cascading from localized serve tosses
+      if (!state.isServe && !state.npc.hasTarget) {
         // Formulate a nominal target tracking point dynamically around the actual rendered position of the racket head
         const nominalTarget = { x: state.npc.racketPosition.x, y: state.npc.racketPosition.y, z: state.npc.racketPosition.z };
         const interceptPoint = calculateOptimalInterceptPoint(nominalTarget);
