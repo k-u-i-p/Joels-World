@@ -57,7 +57,8 @@ let state = {
     score: 0,
     movementDirection: { x: 1, y: 1 },
     racketPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
-    legTimer: 0
+    legTimer: 0,
+    moveTarget: { x: 0, y: 0, z: 0, rotation: 270 }
   },
   npc: {
     x: 0,
@@ -68,8 +69,7 @@ let state = {
     movementDirection: { x: 1, y: 1 },
     racketPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
     legTimer: 0,
-    targetX: 0,
-    targetY: COURT_INNER_BOUNDS.y - 10,
+    moveTarget: { x: 0, y: COURT_INNER_BOUNDS.y - 10, z: 0, rotation: 90 },
     hasTarget: false
   },
   ball: {
@@ -202,22 +202,7 @@ function calculateOptimalInterceptPoint(target) {
   return { x: bestX, y: bestY, z: bestZ, t: bestT };
 }
 
-/**
- * Mathematically determines the exact world coordinates of the tennis racket head,
- * taking into account local hand position, arm reach, swing rotation, and camera zoom.
- * 
- * @param {boolean} isPlayer - Whether calculating for the player or the NPC.
- * @param {number} offsetX - Current X offset of the character.
- * @param {number} y - Current Y position of the character.
- * @param {object} swingState - Current {angle, reach} from getSwingState().
- * @param {number} sideReach - Current lateral extension of the arm.
- * @returns {{x: number, y: number}} The precise structural center of the racket strings.
- */
-function getRacketWorldPos(isPlayer) {
-  // Return the statically cached hitbox matrix derived natively from the canvas renderer
-  // This guarantees 100% parity between physics boundaries and painted pixels!
-  return isPlayer ? state.player.racketPosition : state.npc.racketPosition;
-}
+
 
 /**
  * Mathematically derives the required trajectory angles and speeds to land 
@@ -321,8 +306,8 @@ export function initMinigame() {
   state.resetDelayTimer = 0;
   state.player.z = 0;
   state.npc.z = 0;
-  state.npc.targetX = 0;
-  state.npc.targetY = NPC_BASE_Y;
+  state.npc.moveTarget = { x: state.npc.x, y: state.npc.y, z: 0, rotation: 90 };
+  state.player.moveTarget = { x: state.player.x, y: state.player.y, z: 0, rotation: 270 };
   state.resetting = false;
 
   // Start cinematic intro instead of immediately serving
@@ -562,106 +547,55 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
     return isCorrectDirection && isWithinReach && isCorrectHeight && isInHitbox;
   }
 
-  if (evaluateHit(playerRacketPos, true)) {
+  function processHit(isPlayer) {
     let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
-    let targetY = COURT_INNER_BOUNDS.y + Math.random() * (COURT_INNER_BOUNDS.height / 2);
-    let returnSpeed = state.ball.velocity * 1.05;
+    // Player hits to front half (0 to height/2), NPC hits to back half (height/2 to height)
+    let targetY = COURT_INNER_BOUNDS.y + (isPlayer ? 0 : COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+    let returnSpeed = state.ball.velocity * (isPlayer ? 1.05 : 1.1);
 
     if (state.isServe) {
-      const serveTarget = calculateServeTarget(true);
+      const serveTarget = calculateServeTarget(isPlayer);
       targetX = serveTarget.x;
       targetY = serveTarget.y;
-      returnSpeed = BALL_SPEED * 0.8;
+      returnSpeed = BALL_SPEED * (isPlayer ? 0.8 : 0.65);
     } else {
-      targetX += (state.ball.x - playerRacketPos.x) * 1.5; // Organic center hit variance
+      if (isPlayer) {
+        targetX += (state.ball.x - playerRacketPos.x) * 1.5; // Organic center hit variance
+      } else {
+        // NPC procedural aim application
+        targetX = COURT_INNER_BOUNDS.x + (state.ball.x < 0 ? COURT_INNER_BOUNDS.width * 0.85 : COURT_INNER_BOUNDS.width * 0.15);
+      }
     }
 
     state.rallyCount++;
-    state.lastHitter = 'player';
-    state.bounceCount = 0; // Hitting the ball resets the bounce count
+    state.lastHitter = isPlayer ? 'player' : 'npc';
+    state.bounceCount = 0;
     state.isServe = false; // The rally is live!
     hitBallToTarget(targetX, targetY, returnSpeed);
 
-    // Add random variance to volume and pitch for organic audio
-    let soundP = soundManager.playPooled('/media/hit_tennis_ball.mp3', 0.7 + Math.random() * 0.5);
-    soundP.setRate(0.85 + Math.random() * 0.3);
+    // Organic audio
+    const soundFile = isPlayer ? '/media/hit_tennis_ball.mp3' : '/media/hit_tennis_ball2.mp3';
+    let sound = soundManager.playPooled(soundFile, 0.7 + Math.random() * 0.5);
+    sound.setRate(0.85 + Math.random() * 0.3);
 
     state.ball.z = Math.max(10, state.ball.z); // Simulate ground strike lift 
+  }
 
+  if (evaluateHit(playerRacketPos, true)) {
+    processHit(true);
   } else if (evaluateHit(npcRacketPos, false)) {
-    let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
-    let targetY = COURT_INNER_BOUNDS.y + (COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
-    let returnSpeed = state.ball.velocity * 1.1;
-
-    if (state.isServe) {
-      const serveTarget = calculateServeTarget(false);
-      targetX = serveTarget.x;
-      targetY = serveTarget.y;
-      returnSpeed = BALL_SPEED * 0.65;
-    } else {
-      // NPC procedural aim application
-      targetX = COURT_INNER_BOUNDS.x + (state.ball.x < 0 ? COURT_INNER_BOUNDS.width * 0.85 : COURT_INNER_BOUNDS.width * 0.15);
-    }
-
-    state.rallyCount++;
-    state.lastHitter = 'npc';
-    state.bounceCount = 0; // Hitting the ball resets bounce count
-    state.isServe = false; // The rally is live!
-    hitBallToTarget(targetX, targetY, returnSpeed);
-
-    // Add random variance to volume and pitch for organic audio
-    let soundN = soundManager.playPooled('/media/hit_tennis_ball2.mp3', 0.7 + Math.random() * 0.5);
-    soundN.setRate(0.85 + Math.random() * 0.3);
-
-    state.ball.z = Math.max(10, state.ball.z);
+    processHit(false);
   }
 }
 
 /**
- * Drives character movement explicitly towards local offset coordinates.
- * Handles bounds, distance interpolation, vector math, and compass rotation!
- * 
- * @param {Object} charState - The character state tracking object (e.g. state.player)
- * @param {number} targetX - Destination X component. 
- * @param {number} targetY - Destination Y component (local offset).
- * @param {number} speed - The max velocity allowed this tick.
- * @returns {boolean} True if the character mathematically moved this frame.
+ * Interface to manually command the movement subsystem to target specific local offsets.
  */
-function moveCharacterToLocal(charState, targetX, targetY, speed) {
-  const distX = targetX - charState.x;
-  const distY = targetY - charState.y;
-  let movedX = 0, movedY = 0;
-  let moved = false;
-
-  if (Math.abs(distX) > 2) {
-    movedX = Math.sign(distX) * Math.min(speed, Math.abs(distX));
-    charState.x += movedX;
-    charState.movementDirection.x = Math.sign(movedX);
-    moved = true;
-  }
-
-  if (Math.abs(distY) > 2) {
-    movedY = Math.sign(distY) * Math.min(speed, Math.abs(distY));
-    charState.y += movedY;
-    charState.movementDirection.y = Math.sign(movedY);
-    moved = true;
-  }
-
-  if (moved) {
-    let targetRot = charState.rotation;
-    if (movedX > 0 && movedY === 0) targetRot = 0;
-    else if (movedX < 0 && movedY === 0) targetRot = 180;
-    else if (movedX > 0 && movedY < 0) targetRot = 315;
-    else if (movedX < 0 && movedY < 0) targetRot = 225;
-    else if (movedX > 0 && movedY > 0) targetRot = 45;
-    else if (movedX < 0 && movedY > 0) targetRot = 135;
-    else if (movedX === 0 && movedY < 0) targetRot = 270;
-    else if (movedX === 0 && movedY > 0) targetRot = 90;
-
-    let shortest = ((targetRot - charState.rotation) + 540) % 360 - 180;
-    charState.rotation += shortest * 0.2;
-  }
-  return moved;
+function moveCharacterToLocal(charState, targetX, targetY) {
+  charState.moveTarget.x = targetX;
+  charState.moveTarget.y = targetY;
+  // Let the immediate execution context evaluate if they've practically arrived
+  return Math.abs(targetX - charState.x) > 2 || Math.abs(targetY - charState.y) > 2;
 }
 
 /**
@@ -677,18 +611,17 @@ function handleIntroSequence(dt) {
     const targetPlayerLocalY = targetPlayerY - PLAYER_BASE_Y;
     const targetNpcLocalY = targetNpcY - NPC_BASE_Y;
 
-    const speed = PADDLE_SPEED * dt * 0.5;
-    const pMoved = moveCharacterToLocal(state.player, 0, targetPlayerLocalY, speed);
-    const nMoved = moveCharacterToLocal(state.npc, 0, targetNpcLocalY, speed);
+    const pMoving = moveCharacterToLocal(state.player, 0, targetPlayerLocalY);
+    const nMoving = moveCharacterToLocal(state.npc, 0, targetNpcLocalY);
 
-    if (pMoved) state.player.legTimer += speed * 0.1;
-    if (nMoved) state.npc.legTimer += speed * 0.1;
+    convergePhysics(state.player, dt, true, state.player.x, state.player.y, 0.5);
+    convergePhysics(state.npc, dt, false, state.npc.x, state.npc.y, 0.5);
 
-    // Face each other tightly
-    state.player.rotation = 270;
-    state.npc.rotation = 90;
+    // Override generic convergence rotational intent to face each other tightly
+    state.player.moveTarget.rotation = 270;
+    state.npc.moveTarget.rotation = 90;
 
-    if (!pMoved && !nMoved) {
+    if (!pMoving && !nMoving) {
       state.introPhase = 'shakeHands';
       state.introTimer = 2.0; // 2 seconds of shaking hands
       state.player.legTimer = 0;
@@ -708,25 +641,17 @@ function handleIntroSequence(dt) {
     const targetPX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
     const targetNX = state.nextServerIsPlayer ? state.serveSide * -serveOffset : state.serveSide * serveOffset;
 
-    const speed = PADDLE_SPEED * dt * 0.6;
-    const pMoved = moveCharacterToLocal(state.player, targetPX, 0, speed);
-    const nMoved = moveCharacterToLocal(state.npc, targetNX, 0, speed);
+    const pFar = moveCharacterToLocal(state.player, targetPX, 0);
+    const nFar = moveCharacterToLocal(state.npc, targetNX, 0);
 
-    if (pMoved) {
-      state.player.legTimer += speed * 0.1;
-      state.player.rotation = 90; // Face away while walking back
-    } else {
-      state.player.rotation = 270; // Turn around when at baseline
-    }
+    convergePhysics(state.player, dt, true, state.player.x, state.player.y, 0.6);
+    convergePhysics(state.npc, dt, false, state.npc.x, state.npc.y, 0.6);
 
-    if (nMoved) {
-      state.npc.legTimer += speed * 0.1;
-      state.npc.rotation = 270; // Face away while walking back
-    } else {
-      state.npc.rotation = 90; // Turn around when at baseline
-    }
+    // If completely arrived back at baseline, organically turn to face the net utilizing standard defaults
+    if (!pFar) state.player.moveTarget.rotation = 270;
+    if (!nFar) state.npc.moveTarget.rotation = 90;
 
-    if (!pMoved && !nMoved) {
+    if (!pFar && !nFar) {
       state.player.legTimer = 0;
       state.npc.legTimer = 0;
       state.introPhase = 'playing';
@@ -735,23 +660,74 @@ function handleIntroSequence(dt) {
   }
 }
 
+function convergePhysics(charState, dt, isPlayer, prevX, prevY, speedMult = 1.0) {
+  const speed = (isPlayer ? PADDLE_SPEED : NPC_SPEED) * dt * speedMult;
+
+  const dx = charState.moveTarget.x - charState.x;
+  if (Math.abs(dx) > 1) {
+    const mx = Math.sign(dx) * Math.min(speed, Math.abs(dx));
+    charState.x += mx;
+    charState.movementDirection.x = Math.sign(mx);
+  } else charState.x = charState.moveTarget.x;
+
+  const dy = charState.moveTarget.y - charState.y;
+  if (Math.abs(dy) > 1) {
+    const my = Math.sign(dy) * Math.min(speed, Math.abs(dy));
+    charState.y += my;
+    charState.movementDirection.y = Math.sign(my);
+  } else charState.y = charState.moveTarget.y;
+
+  const dz = charState.moveTarget.z - charState.z;
+  if (Math.abs(dz) > 1) charState.z += Math.sign(dz) * Math.min(speed * 1.5, Math.abs(dz));
+  else charState.z = charState.moveTarget.z;
+
+  const charMoved = (charState.x !== prevX) || (charState.y !== prevY);
+
+  if (charMoved) {
+    charState.legTimer += speed * 0.1; // Progress leg run cycle organically!
+    let targetRot = Math.atan2(charState.y - prevY, charState.x - prevX) * (180 / Math.PI);
+    if (targetRot < 0) targetRot += 360;
+    charState.moveTarget.rotation = targetRot;
+  } else if (charState.legTimer > 0) {
+    const phase = charState.legTimer % Math.PI;
+    if (phase > 0.1 && phase < Math.PI - 0.1) charState.legTimer += speed * 0.1;
+    else charState.legTimer = 0;
+  }
+
+  // Soft angular physical interpolation to moveTarget.rotation via modular shortest-path
+  const diffRot = charState.moveTarget.rotation - charState.rotation;
+  charState.rotation += ((diffRot + 540) % 360 - 180) * 0.2;
+
+  return charMoved;
+}
+
 /**
  * Handles aim tracking, boundary logic, Z-leaps, and walk animation timers identically for characters.
  */
 function processCharacter(charState, isPlayer, prevX, prevY, dt, charY) {
-  // 1. Process Approach Proximities & Leaps
+  // 1. Process Approach Proximities & Leaps Target
   const isApproaching = isPlayer ? (state.ball.vy > 0) : (state.ball.vy < 0);
   const distY = Math.abs(state.ball.y - charY);
   const zMult = clamp(1 - (distY / 80), 0, 1);
   
   if (isApproaching) {
     const requiredJump = Math.max(0, state.ball.z - 35);
-    charState.z = clamp(requiredJump, 0, 70) * zMult;
+    charState.moveTarget.z = clamp(requiredJump, 0, 70) * zMult;
   } else {
-    charState.z = 0;
+    charState.moveTarget.z = 0;
   }
 
-  // 2. Procedural Auto-Aim tracking
+  // 2. Converge constraints!
+  charState.moveTarget.x = clamp(charState.moveTarget.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
+  if (isPlayer) {
+    charState.moveTarget.y = clamp(charState.moveTarget.y, -(COURT_INNER_BOUNDS.height / 2 + 10), PLAYABLE_OVERSHOOT - 10);
+  } else {
+    charState.moveTarget.y = clamp(charState.moveTarget.y, -(PLAYABLE_OVERSHOOT - 10), (COURT_INNER_BOUNDS.height / 2) + 10);
+  }
+
+  const charMoved = convergePhysics(charState, dt, isPlayer, prevX, prevY);
+
+  // 3. Procedural Auto-Aim tracking
   let aimYaw = Math.PI * 0.25;
   let aimPitch = 0.0;
   
@@ -760,29 +736,6 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt, charY) {
     const tracking = calculateAimAngles(charState.x, charState.z, intercept, isPlayer);
     aimYaw = tracking.aimYaw;
     aimPitch = tracking.aimPitch;
-  }
-
-  // 3. Enforce structural court bounds
-  charState.x = clamp(charState.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
-  if (isPlayer) {
-    charState.y = clamp(charState.y, -(COURT_INNER_BOUNDS.height / 2 + 10), PLAYABLE_OVERSHOOT - 10);
-  } else {
-    charState.y = clamp(charState.y, -(PLAYABLE_OVERSHOOT - 10), (COURT_INNER_BOUNDS.height / 2) + 10);
-  }
-
-  // 4. Update organic animation loops (walk cycles)
-  const charMoved = (charState.x !== prevX) || (charState.y !== prevY);
-  const strideSpeed = (isPlayer ? PADDLE_SPEED : NPC_SPEED) * dt * 0.05;
-
-  if (charMoved) {
-    charState.legTimer += strideSpeed;
-  } else if (charState.legTimer > 0) {
-    const phase = charState.legTimer % Math.PI;
-    if (phase > 0.1 && phase < Math.PI - 0.1) {
-      charState.legTimer += strideSpeed;
-    } else {
-      charState.legTimer = 0;
-    }
   }
 
   return { yaw: aimYaw, pitch: aimPitch, moved: charMoved };
@@ -814,71 +767,46 @@ function run(dt) {
   if (state.resetting) {
     const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
     const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
-    if (!moveCharacterToLocal(state.player, targetX, 0, PADDLE_SPEED * dt)) {
-      const diffP = 270 - state.player.rotation;
-      state.player.rotation += ((diffP + 540) % 360 - 180) * 0.2;
-    }
+    moveCharacterToLocal(state.player, targetX, 0);
   } else {
-    let playerMoveX = 0;
-    let playerMoveY = 0;
+    let moveIntentX = 0;
+    let moveIntentY = 0;
 
     // Read from analog mobile joystick first if active
     if (inputManager.keys.TouchMove) {
-      playerMoveX = inputManager.joystickVector.x * PADDLE_SPEED * dt;
-      playerMoveY = inputManager.joystickVector.y * PADDLE_SPEED * dt;
+      moveIntentX = inputManager.joystickVector.x;
+      moveIntentY = inputManager.joystickVector.y;
     } else {
-      if (inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW')) {
-        playerMoveY = -PADDLE_SPEED * dt;
-      }
-      if (inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS')) {
-        playerMoveY = PADDLE_SPEED * dt;
-      }
-      if (inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA')) {
-        playerMoveX = -PADDLE_SPEED * dt;
-      }
-      if (inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD')) {
-        playerMoveX = PADDLE_SPEED * dt;
-      }
+      if (inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW')) moveIntentY -= 1;
+      if (inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS')) moveIntentY += 1;
+      if (inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA')) moveIntentX -= 1;
+      if (inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD')) moveIntentX += 1;
     }
 
-    if (playerMoveX !== 0 || playerMoveY !== 0) {
-      // Normalize diagonal keyboard strafe speed so you don't move 1.41x faster
-      if (playerMoveX !== 0 && playerMoveY !== 0 && !inputManager.keys.TouchMove) {
-        const length = Math.sqrt(playerMoveX * playerMoveX + playerMoveY * playerMoveY);
-        playerMoveX = (playerMoveX / length) * PADDLE_SPEED * dt;
-        playerMoveY = (playerMoveY / length) * PADDLE_SPEED * dt;
-      }
+    if (moveIntentX !== 0 || moveIntentY !== 0) {
+      // Normalize diagonal vectors linearly 
+      const len = Math.sqrt(moveIntentX * moveIntentX + moveIntentY * moveIntentY);
+      moveIntentX /= len;
+      moveIntentY /= len;
 
-      if (playerMoveX !== 0) {
-        state.player.x += playerMoveX;
-        state.player.movementDirection.x = Math.sign(playerMoveX);
-      }
-      if (playerMoveY !== 0) {
-        state.player.y += playerMoveY;
-        state.player.movementDirection.y = Math.sign(playerMoveY);
-      }
+      state.player.moveTarget.x = state.player.x + moveIntentX * 50; // Extend convergence target
+      state.player.moveTarget.y = state.player.y + moveIntentY * 50;
+    } else {
+      // Release snaps moveTarget to perfectly match feet instantly halting physics loops
+      state.player.moveTarget.x = state.player.x;
+      state.player.moveTarget.y = state.player.y;
     }
-
-    // Smoothly rotate player based on movement
-    let targetPlayerRotation = 270; // Default facing net
-    if (playerMoveX > 0 && playerMoveY === 0) targetPlayerRotation = 0;
-    else if (playerMoveX < 0 && playerMoveY === 0) targetPlayerRotation = 180;
-    else if (playerMoveX > 0 && playerMoveY < 0) targetPlayerRotation = 315;
-    else if (playerMoveX < 0 && playerMoveY < 0) targetPlayerRotation = 225;
-    else if (playerMoveX > 0 && playerMoveY > 0) targetPlayerRotation = 45;
-    else if (playerMoveX < 0 && playerMoveY > 0) targetPlayerRotation = 135;
-
-    // Soft angular interpolation
-    const diffP = targetPlayerRotation - state.player.rotation;
-    // Normalize shortest path
-    let shortestP = (diffP + 540) % 360 - 180;
-    state.player.rotation += shortestP * 0.2;
   }
 
   const pAim = processCharacter(state.player, true, prevPlayerX, prevPlayerY, dt, playerY);
+  const playerMoved = pAim.moved;
+
+  if (!playerMoved) {
+    state.player.moveTarget.rotation = 270;
+  }
+
   const pAimYaw = pAim.yaw;
   const pAimPitch = pAim.pitch;
-  const playerMoved = pAim.moved;
 
   // 2. Process Simple AI NPC Movement
   const prevNpcX = state.npc.x;
@@ -886,11 +814,8 @@ function run(dt) {
 
   if (state.resetting) {
     const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
-    const targetX = state.nextServerIsPlayer ? state.serveSide * -serveOffset : state.serveSide * serveOffset;
-    if (!moveCharacterToLocal(state.npc, targetX, 0, NPC_SPEED * dt)) {
-      const diffN = 90 - state.npc.rotation;
-      state.npc.rotation += ((diffN + 540) % 360 - 180) * 0.2;
-    }
+    const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
+    moveCharacterToLocal(state.npc, targetX, 0);
   } else {
     if (state.ball.vy < 0) {
       if (!state.npc.hasTarget) {
@@ -914,32 +839,29 @@ function run(dt) {
         // Calculate raw X trajectory directly from physics air-time!
         let absoluteTargetX = state.ball.x + (state.ball.vx * tLand);
 
-        state.npc.targetX = clamp(absoluteTargetX + approximatedRacketOffset, -PLAYABLE_HALF_WIDTH + 10, PLAYABLE_HALF_WIDTH - 10);
-        state.npc.targetY = targetY;
+        const aimX = clamp(absoluteTargetX + approximatedRacketOffset, -PLAYABLE_HALF_WIDTH + 10, PLAYABLE_HALF_WIDTH - 10);
+        moveCharacterToLocal(state.npc, aimX, targetY - NPC_BASE_Y);
         state.npc.hasTarget = true;
       }
     } else {
       // Ball is moving away toward player, reset to center gracefully
-      state.npc.targetX = 0;
-      state.npc.targetY = NPC_BASE_Y;
+      moveCharacterToLocal(state.npc, 0, 0);
       state.npc.hasTarget = false;
-    }
-
-    const targetLocalY = state.npc.targetY - NPC_BASE_Y;
-    if (!moveCharacterToLocal(state.npc, state.npc.targetX, targetLocalY, NPC_SPEED * dt)) {
-      const diffN = 90 - state.npc.rotation;
-      state.npc.rotation += ((diffN + 540) % 360 - 180) * 0.2;
     }
   }
 
   const nAim = processCharacter(state.npc, false, prevNpcX, prevNpcY, dt, npcY);
+
+  if (!nAim.moved) {
+    state.npc.moveTarget.rotation = 90;
+  }
   const nAimYaw = nAim.yaw;
   const nAimPitch = nAim.pitch;
   const npcMoved = nAim.moved;
 
   // Ensure logical collision trackers properly pull the latest bounds exactly here
-  const playerRacketPos = getRacketWorldPos(true);
-  const npcRacketPos = getRacketWorldPos(false);
+  const playerRacketPos = state.player.racketPosition;
+  const npcRacketPos = state.npc.racketPosition;
   const visualBallY = state.ball.y - state.ball.z;
 
   if (state.resetting && !playerMoved && !npcMoved) {
@@ -1221,34 +1143,40 @@ function run(dt) {
   const nRightArmX = -2 + nArmL * Math.cos(nAimYaw);
   const nRightArmY = 14 + nArmL * Math.sin(nAimYaw);
 
-  // 1. Render NPC
-  ctx.save();
-  ctx.translate(centerX + state.npc.x, npcY);
-  ctx.scale(camera.zoom * COURT_SCALE, camera.zoom * COURT_SCALE);
-
-  // Drop shadow
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-  ctx.beginPath();
-  ctx.arc(2, 4, 14, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.rotate(state.npc.rotation * (Math.PI / 180));
-
   const npcLimbs = getLimbs(state.npc.legTimer, state.npc.movementDirection.x, state.npc.movementDirection.y, nRightArmX, nRightArmY);
+  const playerLimbs = getLimbs(state.player.legTimer, state.player.movementDirection.x, state.player.movementDirection.y, pRightArmX, pRightArmY);
 
-  characterManager.drawShoe(ctx, npcLimbs.leftLegEndX, npcLimbs.leftLegEndY, npc.shoeColor || '#1a252f', true);
-  characterManager.drawShoe(ctx, npcLimbs.rightLegEndX, npcLimbs.rightLegEndY, npc.shoeColor || '#1a252f', false);
+  function drawCharacterShadowed(ctx, characterData, charState, worldY, limbs, aimPitch, aimYaw) {
+    ctx.save();
+    ctx.translate(centerX + charState.x, worldY);
+    ctx.scale(camera.zoom * COURT_SCALE, camera.zoom * COURT_SCALE);
 
-  // Evaluate visual translation mapping spatial Z elevation to the World -Y axis natively
-  ctx.rotate(-state.npc.rotation * (Math.PI / 180));
-  ctx.translate(0, -state.npc.z / camera.zoom);
-  ctx.rotate(state.npc.rotation * (Math.PI / 180));
+    // Drop shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.beginPath();
+    ctx.arc(2, 4, 14, 0, Math.PI * 2);
+    ctx.fill();
 
-  const transformN = { offsetX, offsetY, scale, centerX, baseRotation: state.npc.rotation, elevateZ: state.npc.z, targetStateObj: state.npc.racketPosition, courtScale: COURT_SCALE };
-  if (!window.isAdmin) drawRacket(ctx, npcLimbs, nAimPitch, nAimYaw, 0.3, transformN);
-  characterManager.drawHumanoidUpperBody(ctx, { ...npc, rotation: state.npc.rotation, x: 0, y: 0 }, npcLimbs);
-  if (window.isAdmin) drawRacket(ctx, npcLimbs, nAimPitch, nAimYaw, 0.3, transformN);
-  ctx.restore();
+    ctx.rotate(charState.rotation * (Math.PI / 180));
+    characterData.rotation = charState.rotation;
+
+    characterManager.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
+    characterManager.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
+
+    // Evaluate visual translation mapping spatial Z elevation to the World -Y axis natively
+    ctx.rotate(-charState.rotation * (Math.PI / 180));
+    ctx.translate(0, -charState.z / camera.zoom);
+    ctx.rotate(charState.rotation * (Math.PI / 180));
+
+    const transform = { offsetX, offsetY, scale, centerX, baseRotation: charState.rotation, elevateZ: charState.z, targetStateObj: charState.racketPosition, courtScale: COURT_SCALE };
+    if (!window.isAdmin) drawRacket(ctx, limbs, aimPitch, aimYaw, 0.3, transform);
+    characterManager.drawHumanoidUpperBody(ctx, characterData, limbs);
+    if (window.isAdmin) drawRacket(ctx, limbs, aimPitch, aimYaw, 0.3, transform);
+    ctx.restore();
+  }
+
+  // 1. Render NPC
+  drawCharacterShadowed(ctx, { ...npc, x: 0, y: 0 }, state.npc, npcY, npcLimbs, nAimPitch, nAimYaw);
 
   // 2. Render Ball Physics Elements (Drawn before player to prevent top-overlap)
 
@@ -1293,6 +1221,20 @@ function run(dt) {
   ctx.fillText('🎾', 0, 0);
   ctx.restore();
 
+  function drawCrosshair(ctx, x, y, color) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, 2 * COURT_SCALE);
+    ctx.beginPath();
+    const size = 5 * COURT_SCALE;
+    ctx.moveTo(x - size, y - size);
+    ctx.lineTo(x + size, y + size);
+    ctx.moveTo(x + size, y - size);
+    ctx.lineTo(x - size, y + size);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // Calculate and render crosshairs onto the destination surface exactly where ball's geometry will collide
   const vZTargetCheck = state.ball.velocity * Math.tan(state.ball.pitchAngle);
   const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ball.z;
@@ -1305,19 +1247,7 @@ function run(dt) {
 
   // Only show the landing X to non-admins if the ball is moving towards the player
   if (window.isAdmin || state.ball.vy > 0) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
-    ctx.lineWidth = Math.max(1, 2 * COURT_SCALE); // Scale thickness
-
-    ctx.beginPath();
-    const crossSize = 5 * COURT_SCALE; // Scale crosshair structural size
-    ctx.moveTo(landX - crossSize, landY - crossSize);
-    ctx.lineTo(landX + crossSize, landY + crossSize);
-    ctx.moveTo(landX + crossSize, landY - crossSize);
-    ctx.lineTo(landX - crossSize, landY + crossSize);
-    ctx.stroke();
-
-    ctx.restore();
+    drawCrosshair(ctx, landX, landY, 'rgba(255, 0, 0, 0.8)');
   }
 
   // Draw the optimal 3D intercept prediction as a Green X
@@ -1333,78 +1263,27 @@ function run(dt) {
 
     // Only draw the visual if it securely predicts an approach within 1 second
     if (bestPoint.t > 0 && bestPoint.t < 1.0) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(46, 204, 113, 0.9)'; // Vibrant Green
-      ctx.lineWidth = Math.max(1, 2 * COURT_SCALE); // Consistent with the Red X
-
       const hitX = centerX + bestPoint.x;
       // Map the 3D 'Z' altitude physically to the screen's vertical 'Y' axis to match the ball's rendering height exactly
       const hitY = bestPoint.y - bestPoint.z;
-
-      ctx.beginPath();
-      const hitSize = 5 * COURT_SCALE; // Consistent with the Red X
-      ctx.moveTo(hitX - hitSize, hitY - hitSize);
-      ctx.lineTo(hitX + hitSize, hitY + hitSize);
-      ctx.moveTo(hitX + hitSize, hitY - hitSize);
-      ctx.lineTo(hitX - hitSize, hitY + hitSize);
-      ctx.stroke();
-
-      ctx.restore();
+      drawCrosshair(ctx, hitX, hitY, 'rgba(46, 204, 113, 0.9)');
     }
   }
 
   // Draw the yellow X for the Toss Target
   if (state.isServe && state.tossTarget) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(241, 196, 15, 0.9)'; // Bright Yellow
-    ctx.lineWidth = Math.max(1, 2 * COURT_SCALE);
-
     const hitX = centerX + state.tossTarget.x;
     const hitY = state.tossTarget.y - state.tossTarget.z; // Match the visual altitude tracking!
-
-    ctx.beginPath();
-    const hitSize = 5 * COURT_SCALE;
-    ctx.moveTo(hitX - hitSize, hitY - hitSize);
-    ctx.lineTo(hitX + hitSize, hitY + hitSize);
-    ctx.moveTo(hitX + hitSize, hitY - hitSize);
-    ctx.lineTo(hitX - hitSize, hitY + hitSize);
-    ctx.stroke();
-
-    ctx.restore();
+    drawCrosshair(ctx, hitX, hitY, 'rgba(241, 196, 15, 0.9)');
   }
 
   // 3. Render Player
-  ctx.save();
-  ctx.translate(centerX + state.player.x, playerY);
-  ctx.scale(camera.zoom * COURT_SCALE, camera.zoom * COURT_SCALE);
-
-  // Drop shadow
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-  ctx.beginPath();
-  ctx.arc(2, 4, 14, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.rotate(state.player.rotation * (Math.PI / 180));
-  let playerCharacter = window.init.myCharacter;
-  const playerLimbs = getLimbs(state.player.legTimer, state.player.movementDirection.x, state.player.movementDirection.y, pRightArmX, pRightArmY);
-  playerCharacter.rotation = state.player.rotation;
-  characterManager.drawShoe(ctx, playerLimbs.leftLegEndX, playerLimbs.leftLegEndY, playerCharacter.shoeColor || '#1a252f', true);
-  characterManager.drawShoe(ctx, playerLimbs.rightLegEndX, playerLimbs.rightLegEndY, playerCharacter.shoeColor || '#1a252f', false);
-
-  ctx.rotate(-state.player.rotation * (Math.PI / 180));
-  ctx.translate(0, -state.player.z / camera.zoom);
-  ctx.rotate(state.player.rotation * (Math.PI / 180));
-
-  const transformP = { offsetX, offsetY, scale, centerX, baseRotation: state.player.rotation, elevateZ: state.player.z, targetStateObj: state.player.racketPosition, courtScale: COURT_SCALE };
-  if (!window.isAdmin) drawRacket(ctx, playerLimbs, pAimPitch, pAimYaw, 0.3, transformP);
-  characterManager.drawHumanoidUpperBody(ctx, playerCharacter, playerLimbs);
-  if (window.isAdmin) drawRacket(ctx, playerLimbs, pAimPitch, pAimYaw, 0.3, transformP);
-  ctx.restore();
+  drawCharacterShadowed(ctx, window.init.myCharacter, state.player, playerY, playerLimbs, pAimPitch, pAimYaw);
 
   // 3. Admin Hitbox Diagnostic Visualization Overlay
   if (window.isAdmin) {
-    const pHitbox = getRacketWorldPos(true);
-    const nHitbox = getRacketWorldPos(false);
+    const pHitbox = state.player.racketPosition;
+    const nHitbox = state.npc.racketPosition;
 
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
