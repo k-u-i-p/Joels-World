@@ -83,7 +83,6 @@ let state = {
     velocity: BALL_SPEED * 0.7,
     pitchAngle: 0
   },
-
   bounceCount: 0,
   resetting: false,
   resetDelayTimer: 0,
@@ -499,7 +498,7 @@ function serveBall(playerObj) {
   state.isServe = isPlayer ? 'player_serve' : 'npc_serve';
   state.player.hasTarget = false;
   state.npc.hasTarget = false;
-  state.npc.lastInterceptPoint = null;
+  state.npc.lastMoveTarget = null;
   state.servePhase = 'idle'; // halt execution enforcing holding state 
 
   console.log("Serving ball for " + (isPlayer ? "player" : "npc"));
@@ -920,7 +919,7 @@ function processCharacter(charState, isPlayer, dt) {
 
   // 3. Dynamic Limb Target Tracking
   if (!state.resetting && (isApproaching || state.servePhase === 'live')) {
-    const intercept = calculateOptimalInterceptPoint(charState.racketCurrentPosition);
+    const intercept = charState.lastInterceptPoint;
     const reach = calculateArmReach(charState, intercept);
 
     // Limit the characters vertical movement to MIN_CROUCH and MAX_JUMP
@@ -971,10 +970,19 @@ function processCharacter(charState, isPlayer, dt) {
 function run(dt) {
   if (!minigameActive) return;
 
+  // 0. Cache intensive physics simulation trajectory natively exactly once per frame!
+  const canPlayerHit = state.introPhase === 'playing' && state.servePhase !== 'idle' && (state.lastHitter !== 'player' || state.isServe === 'player_serve');
+  const canNpcHit = state.introPhase === 'playing' && state.servePhase !== 'idle' && (state.lastHitter !== 'npc' || state.isServe === 'npc_serve');
+
   // Cinematic Intro Sequence
   if (state.introPhase && state.introPhase !== 'playing') {
     handleIntroSequence(dt);
   } else {
+    if (!state.resetting) {
+      if (canPlayerHit) state.player.lastInterceptPoint = calculateOptimalInterceptPoint(state.player.racketCurrentPosition);
+      if (canNpcHit) state.npc.lastInterceptPoint = calculateOptimalInterceptPoint(state.npc.racketCurrentPosition);
+    }
+
     // 1. Process Player Inputs & Movement
     if (state.resetting) {
       const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
@@ -1025,18 +1033,18 @@ function run(dt) {
 
     // 2. Process AI NPC Movement
     function moveToIntercept() {
-      const rawIntercept = calculateOptimalInterceptPoint(state.npc.racketCurrentPosition);
+      const rawIntercept = state.npc.lastInterceptPoint;
 
       // Hysteresis: only update footwork target if the intercept moved substantially (e.g. bouncing/new trajectory)
-      if (!state.npc.lastInterceptPoint) {
-        state.npc.lastInterceptPoint = rawIntercept;
+      if (!state.npc.lastMoveTarget) {
+        state.npc.lastMoveTarget = rawIntercept;
         moveCharacterTo(state.npc, rawIntercept.x + 30, rawIntercept.y - 20);
       } else {
-        const dx = rawIntercept.x - state.npc.lastInterceptPoint.x;
-        const dy = rawIntercept.y - state.npc.lastInterceptPoint.y;
+        const dx = rawIntercept.x - state.npc.lastMoveTarget.x;
+        const dy = rawIntercept.y - state.npc.lastMoveTarget.y;
 
         if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
-          state.npc.lastInterceptPoint = rawIntercept;
+          state.npc.lastMoveTarget = rawIntercept;
           moveCharacterTo(state.npc, rawIntercept.x + 30, rawIntercept.y - 20);
         }
       }
@@ -1474,25 +1482,29 @@ function run(dt) {
     drawCrosshair(ctx, landX, landY, crosshairColor);
   }
 
-  // Draw the 3D intercept prediction as a Green X
-  if (state.ball.vy !== 0 && !state.resetting) {
-    let interceptTarget;
-    // Target the RECIEVER's racket to predict where they will intercept the ball
-    if (state.lastHitter === 'npc' || state.isServe === 'npc_serve') {
-      interceptTarget = state.player.racketCurrentPosition;
-    } else {
-      interceptTarget = state.npc.racketCurrentPosition;
-    }
-
-    const bestPoint = calculateOptimalInterceptPoint(interceptTarget);
+  // Draw the interpolated intercept prediction as a Green X
+  if (canPlayerHit && state.ball.vy !== 0 && !state.resetting) {
+    const bestPoint = state.player.lastInterceptPoint;
 
     // Only draw the visual if it predicts an approach
-    if (bestPoint.t > 0) {
-      const hitX = centerX + bestPoint.x;
-      // Map the 3D 'Z' altitude physically to the screen's vertical 'Y' axis to match the ball's rendering height 
-      const hitY = bestPoint.y - bestPoint.z;
-      drawCrosshair(ctx, hitX, hitY, 'rgba(46, 204, 113, 0.9)');
+    if (bestPoint && bestPoint.t > 0) {
+      const targetHitX = centerX + bestPoint.x;
+      const targetHitY = bestPoint.y - bestPoint.z;
+
+      // Smoothly track the raw physics target explicitly
+      if (!state.player.visualInterceptTarget) {
+        state.player.visualInterceptTarget = { x: targetHitX, y: targetHitY };
+      } else {
+        state.player.visualInterceptTarget.x += (targetHitX - state.player.visualInterceptTarget.x) * 0.25;
+        state.player.visualInterceptTarget.y += (targetHitY - state.player.visualInterceptTarget.y) * 0.25;
+      }
+
+      drawCrosshair(ctx, state.player.visualInterceptTarget.x, state.player.visualInterceptTarget.y, 'rgba(46, 204, 113, 0.9)');
+    } else {
+      state.player.visualInterceptTarget = null;
     }
+  } else {
+    state.player.visualInterceptTarget = null;
   }
 
   // Draw the yellow X for the Toss Ground Target
@@ -1505,7 +1517,9 @@ function run(dt) {
   // 3. Render Player
   drawCharacterShadowed(ctx, window.init.myCharacter, state.player, playerLimbs, state.player.racketCurrentPosition.pitch, state.player.racketCurrentPosition.yaw, state.player.racketCurrentPosition.roll);
 
-  drawBall(ctx, state.ball, centerX, COURT_SCALE);
+  if (state.introPhase === 'playing') {
+    drawBall(ctx, state.ball, centerX, COURT_SCALE);
+  }
 
   // 3. Admin Hitbox Diagnostic Visualization Overlay
   if (window.isAdmin) {
