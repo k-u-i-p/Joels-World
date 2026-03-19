@@ -34,8 +34,9 @@ const SHOULDER_HEIGHT = 30;                   // Distance from ground to charact
 const MAX_JUMP = 80;                          // Maximum aerial leap height extension for rackets
 const MIN_CROUCH = -20;                       // Maximum downward racket crouch extension
 
-const PLAYABLE_OVERSHOOT = 50; // How far characters can physically run out of bounds beyond the court lines
-const PLAYABLE_HALF_WIDTH = (COURT_INNER_BOUNDS.width / 2) + PLAYABLE_OVERSHOOT; // Lateral character bounds naturally scale with the court
+const PLAYABLE_OVERSHOOT_X = 75; // How far characters can physically run laterally out of bounds
+const PLAYABLE_OVERSHOOT_Y = 50; // How far characters can physically run vertically past the baselines
+const PLAYABLE_HALF_WIDTH = (COURT_INNER_BOUNDS.width / 2) + PLAYABLE_OVERSHOOT_X; // Lateral character bounds naturally scale with the court
 
 // Character specific positioning
 const PLAYER_BASE_Y = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height + 10;
@@ -131,39 +132,32 @@ function canCharacterHit(isPlayer) {
 * @returns {{x: number, y: number, z: number}} The calculated rightArm 2D offsets and world position bindings.
 */
 function calculateArmReach(player, interceptPoint) {
-  const isPlayer = player === state.player;
   const worldY = player.currentPosition.y;
 
   const dx = interceptPoint.x - player.currentPosition.x;
   const dy = interceptPoint.y - worldY;
-  const dz = interceptPoint.z - (player.currentPosition.z + SHOULDER_HEIGHT);
 
   const dist2D = Math.sqrt(dx * dx + dy * dy);
 
-  // Angle to target in 2D space
+  // Angle to target in strictly 2D planar space
   const angleToBall = Math.atan2(dy, dx);
-  // Angle up/down in 3D space
-  const pitchAngle = Math.asin(clamp(dz / 40, -1, 1));
-
   const charFacingRad = player.currentPosition.rotation * (Math.PI / 180);
 
-  // Angle relative to character body
+  // Angle relative to character's facing orientation
   let localAngle = angleToBall - charFacingRad;
 
   // Normalize to [-PI, +PI] 
   while (localAngle <= -Math.PI) localAngle += Math.PI * 2;
   while (localAngle > Math.PI) localAngle -= Math.PI * 2;
 
-  // Normal visual arm length physically reaching into Euclidean depth 
-  const armReachLength = 12 * Math.cos(pitchAngle);
-
-  // Z target required to properly align the shoulder horizontally with the incoming intersection !
-  const targetZ = interceptPoint.z - SHOULDER_HEIGHT;
+  // Arm extends fully horizontally towards the target, capping organically at the maximum physical reach radius
+  const MAX_REACH = 14;
+  const actualReach = Math.min(dist2D, MAX_REACH);
 
   return {
-    x: -2 + armReachLength * Math.cos(localAngle),
-    y: 14 + armReachLength * Math.sin(localAngle),
-    z: targetZ
+    x: -2 + actualReach * Math.cos(localAngle),
+    y: 14 + actualReach * Math.sin(localAngle),
+    z: interceptPoint.z - SHOULDER_HEIGHT
   };
 }
 
@@ -276,15 +270,15 @@ function calculateOptimalInterceptPoint(target) {
 
   let currentT = 0;
   const simDt = 0.016; // 60fps procedural resolution
-  const maxT = 4.0;    // Cap prediction at 2.0 seconds
+  const maxT = 10.0;    // Cap prediction at 2.0 seconds
 
   while (currentT <= maxT) {
     // Only permit physics intercept tracking if the ball resolves physically inside valid playable geometry
     const isWithinCourtX = Math.abs(simX) <= PLAYABLE_HALF_WIDTH;
-    const isWithinCourtY = simY >= (NPC_BASE_Y - PLAYABLE_OVERSHOOT) && simY <= (PLAYER_BASE_Y + PLAYABLE_OVERSHOOT);
+    const isWithinCourtY = simY >= (NPC_BASE_Y - PLAYABLE_OVERSHOOT_Y) && simY <= (PLAYER_BASE_Y + PLAYABLE_OVERSHOOT_Y);
 
     // Crucially restrict tracking so characters only lock onto intercept coordinates falling within their physical leaping/crouching limitations!
-    const isWithinReachZ = (simZ - SHOULDER_HEIGHT) >= MIN_CROUCH && (simZ - SHOULDER_HEIGHT) <= MAX_JUMP - 5;
+    const isWithinReachZ = (simZ - SHOULDER_HEIGHT) >= MIN_CROUCH && (simZ - SHOULDER_HEIGHT) <= MAX_JUMP;
 
     if (isWithinCourtX && isWithinCourtY && isWithinReachZ) {
       const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
@@ -536,7 +530,7 @@ function serveBall(playerObj) {
   state.resetting = false;
   state.isServe = isPlayer ? 'player_serve' : 'npc_serve';
   state.player.hasTarget = false;
-  state.npc.lastMoveTarget = null;
+  state.npc.previousFrameInterceptPoint = null;
   state.servePhase = 'idle'; // halt execution enforcing holding state 
 
   console.log("Serving ball for " + (isPlayer ? "player" : "npc"));
@@ -563,7 +557,7 @@ function serveBall(playerObj) {
   let boxMinX, boxMaxX, boxMinY, boxMaxY;
 
   // Apply standard physical tennis spacing: Doubles alleys are exactly 12.5% of total width each side
-  const doublesAlleyWidth = COURT_INNER_BOUNDS.width * 0.125; 
+  const doublesAlleyWidth = COURT_INNER_BOUNDS.width * 0.125;
   const singlesMinX = COURT_INNER_BOUNDS.x + doublesAlleyWidth;
   const singlesMaxX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width - doublesAlleyWidth;
 
@@ -608,7 +602,7 @@ function throwBall(playerObj, apex) {
 
   // Establish the 2D ground coordinate where the ball lands naturally
   state.tossTarget = {
-    x: startX + (isPlayer ? 90 * GAME_SCALE : -25 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
+    x: startX + (isPlayer ? 85 * GAME_SCALE : -25 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
     y: startY + (isPlayer ? -15 * GAME_SCALE : 45 * GAME_SCALE), // Land slightly into the court
     z: 105 * GAME_SCALE // Encodes explicit physical apex altitude 
   };
@@ -642,9 +636,6 @@ function throwBall(playerObj, apex) {
     setTimeout(() => {
       apex();
     }, tApex * 1000);
-
-    console.log('tApex', tApex * 1000);
-
   }
 }
 
@@ -780,7 +771,31 @@ function moveCharacterTo(charState, targetX, targetY) {
   charState.targetPosition.x = targetX;
   charState.targetPosition.y = targetY;
   // Let the immediate execution context evaluate if they've practically arrived
-  return Math.abs(targetX - charState.currentPosition.x) > 5 || Math.abs(targetY - charState.currentPosition.y) > 5;
+  return Math.abs(targetX - charState.currentPosition.x) > 10 || Math.abs(targetY - charState.currentPosition.y) > 10;
+}
+
+// Point to position the characters body so the racket is at the intercept point
+function getOptimalInterceptPosition(playerObj, interceptPoint) {
+  const rotRad = playerObj.currentPosition.rotation * (Math.PI / 180);
+  const rcp = playerObj.racketCurrentPosition;
+
+  // Project the localized dynamic swinging arm bounds logically out into fixed world spatial coordinates
+  const armWorldX = rcp.armX * Math.cos(rotRad) - rcp.armY * Math.sin(rotRad);
+  const armWorldY = rcp.armX * Math.sin(rotRad) + rcp.armY * Math.cos(rotRad);
+
+  // The racket handle physically extends ~18 units statically past the wrist.
+  // Project this exact static handle length mathematically along the arm's true extended global vector!
+  const absoluteYaw = rcp.yaw + rotRad;
+  const handleWorldX = 18 * Math.cos(absoluteYaw);
+  const handleWorldY = 18 * Math.sin(absoluteYaw);
+
+  const stringbedWorldX = armWorldX + handleWorldX;
+  const stringbedWorldY = armWorldY + handleWorldY;
+
+  return {
+    x: interceptPoint.x - stringbedWorldX,
+    y: interceptPoint.y - stringbedWorldY
+  };
 }
 
 /**
@@ -863,28 +878,34 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
 
   charState.vz = charState.vz || 0; // Initialize if missing
 
-  // Triggers jumps dynamically waiting strictly until the optimum launch curve window relative to predicted collision time 
-  if (charState.targetPosition.z > 0 && charState.currentPosition.z === 0 && charState.vz === 0) {
+  // Triggers jump if target is above 10 and the unit is firmly resting at or below the 10px tippy-toe ceiling
+  if (charState.targetPosition.z > 10 && charState.currentPosition.z <= 10 && charState.vz === 0) {
     if (charState.lastInterceptPoint && charState.lastInterceptPoint.t > 0) {
-      const boundedZ = Math.min(50, charState.targetPosition.z); // MAX_JUMP bounds
-      const timeToApex = Math.sqrt((2 * boundedZ) / GRAVITY);
+      const boundedZ = Math.min(MAX_JUMP, charState.targetPosition.z);
+      const actualLeapDistance = boundedZ - 10; // Recalculate trajectory relative to the raised tippy-toe floor
+      const timeToApex = Math.sqrt((2 * actualLeapDistance) / GRAVITY);
       if (charState.lastInterceptPoint.t <= timeToApex + 0.05) {
-        charState.vz = Math.sqrt(2 * GRAVITY * boundedZ);
+        charState.vz = Math.sqrt(2 * GRAVITY * actualLeapDistance);
       }
     }
   }
-  if (charState.vz !== 0 || charState.currentPosition.z > 0) { // Airborne or launching
+
+  if (charState.vz !== 0 || charState.currentPosition.z > 10) { // Airborne or launching
     charState.vz -= GRAVITY * dt;
     charState.currentPosition.z += charState.vz * dt;
-    if (charState.currentPosition.z < 0) {
-      charState.currentPosition.z = 0;
-      charState.vz = 0;
+    if (charState.currentPosition.z <= 10) {
+      charState.currentPosition.z = 10;
+      charState.vz = 0; // Terminate freefall completely, transition smoothly identically to kinematics below
     }
   } else {
-    // Normal linear ground/crouch convergence for negative Z
-    const dz = charState.targetPosition.z - charState.currentPosition.z;
-    if (Math.abs(dz) > 1) charState.currentPosition.z += Math.sign(dz) * Math.min(speed * 1.5, Math.abs(dz));
-    else charState.currentPosition.z = charState.targetPosition.z;
+    // Kinematic "Tippy-Toe / Crouch" resolution natively handles low bounce targets safely!
+    const kinematicTarget = Math.min(10, charState.targetPosition.z);
+    const dz = kinematicTarget - charState.currentPosition.z;
+    if (Math.abs(dz) > 1) {
+      charState.currentPosition.z += Math.sign(dz) * Math.min(speed * 1.5, Math.abs(dz));
+    } else {
+      charState.currentPosition.z = charState.targetPosition.z;
+    }
   }
 
   // Only evaluate as 'moved' if the distance traveled is visually significant, 
@@ -956,9 +977,9 @@ function processCharacter(charState, isPlayer, dt) {
   // Clip characters to Court Bounds
   charState.targetPosition.x = clamp(charState.targetPosition.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
   if (isPlayer) {
-    charState.targetPosition.y = clamp(charState.targetPosition.y, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) + 10, PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10);
+    charState.targetPosition.y = clamp(charState.targetPosition.y, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) + 10, PLAYER_BASE_Y + PLAYABLE_OVERSHOOT_Y - 10);
   } else {
-    charState.targetPosition.y = clamp(charState.targetPosition.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
+    charState.targetPosition.y = clamp(charState.targetPosition.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT_Y + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
   }
 
   // 3. Dynamic Limb Target Tracking
@@ -968,6 +989,7 @@ function processCharacter(charState, isPlayer, dt) {
 
     // Limit the characters vertical movement natively locking negative altitudes
     charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP);
+
     charState.racketTargetPosition.armX = reach.x;
     charState.racketTargetPosition.armY = reach.y;
 
@@ -1048,19 +1070,14 @@ function run(dt) {
 
         // Touch Joystick Vector Magnetism Assist
         if (inputManager.keys.TouchMove && state.player.lastInterceptPoint && canCharacterHit(true)) {
-          const rotRad = state.player.currentPosition.rotation * (Math.PI / 180);
-          const rcp = state.player.racketCurrentPosition;
-
-          // Project the localized dynamic swinging arm bounds logically out into fixed world spatial coordinates
-          const armWorldX = rcp.armX * Math.cos(rotRad) - rcp.armY * Math.sin(rotRad);
-          const armWorldY = rcp.armX * Math.sin(rotRad) + rcp.armY * Math.cos(rotRad);
 
           // Establish the golden target footprint pulling the player to exactly the correct swinging distance horizontally!
-          const targetX = state.player.lastInterceptPoint.x - armWorldX;
-          const targetY = state.player.lastInterceptPoint.y - armWorldY;
+          const target = getOptimalInterceptPosition(state.player, state.player.lastInterceptPoint);
+          const targetX = target.x;
+          const targetY = target.y;
 
-          const dx = targetX - state.player.currentPosition.x;
-          const dy = targetY - state.player.currentPosition.y;
+          const dx = targetX - state.player.targetPosition.x;
+          const dy = targetY - state.player.targetPosition.y;
           const distToTarget = Math.sqrt(dx * dx + dy * dy);
 
           // Only physically redirect the unit if they aren't already essentially standing on the target coordinates
@@ -1104,17 +1121,19 @@ function run(dt) {
       const rawIntercept = state.npc.lastInterceptPoint;
 
       // Hysteresis: only update footwork target if the intercept moved substantially (e.g. bouncing/new trajectory)
-      if (!state.npc.lastMoveTarget) {
-        state.npc.lastMoveTarget = rawIntercept;
+      if (!state.npc.previousFrameInterceptPoint) {
+        state.npc.previousFrameInterceptPoint = rawIntercept;
 
-        moveCharacterTo(state.npc, rawIntercept.x + (14 - state.npc.racketCurrentPosition.armX) + 18, rawIntercept.y - state.npc.racketCurrentPosition.armY);
+        let target = getOptimalInterceptPosition(state.npc, rawIntercept);
+        moveCharacterTo(state.npc, target.x, target.y);
       } else {
-        const dx = rawIntercept.x - state.npc.lastMoveTarget.x;
-        const dy = rawIntercept.y - state.npc.lastMoveTarget.y;
+        const dx = rawIntercept.x - state.npc.previousFrameInterceptPoint.x;
+        const dy = rawIntercept.y - state.npc.previousFrameInterceptPoint.y;
 
-        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
-          state.npc.lastMoveTarget = rawIntercept;
-          moveCharacterTo(state.npc, rawIntercept.x + (14 - state.npc.racketCurrentPosition.armX) + 18, rawIntercept.y - state.npc.racketCurrentPosition.armY);
+        if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
+          state.npc.previousFrameInterceptPoint = rawIntercept;
+          let target = getOptimalInterceptPosition(state.npc, rawIntercept);
+          moveCharacterTo(state.npc, target.x, target.y);
         }
       }
     }
@@ -1623,8 +1642,8 @@ function run(dt) {
     // Draw Playable Overshoot Boundaries mapped exactly against physics clamps!
     ctx.strokeStyle = 'rgba(255, 165, 0, 0.5)'; // Orange dashed boundary 
     ctx.setLineDash([5, 5]);
-    const overMinY = NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10;
-    const overMaxY = PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10;
+    const overMinY = NPC_BASE_Y - PLAYABLE_OVERSHOOT_Y + 10;
+    const overMaxY = PLAYER_BASE_Y + PLAYABLE_OVERSHOOT_Y - 10;
     ctx.strokeRect(centerX - PLAYABLE_HALF_WIDTH, overMinY, PLAYABLE_HALF_WIDTH * 2, overMaxY - overMinY);
     ctx.setLineDash([]);
 
