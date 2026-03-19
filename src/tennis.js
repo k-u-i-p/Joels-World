@@ -268,7 +268,10 @@ function calculateOptimalInterceptPoint(target) {
     const isWithinCourtX = Math.abs(simX) <= PLAYABLE_HALF_WIDTH;
     const isWithinCourtY = simY >= (NPC_BASE_Y - PLAYABLE_OVERSHOOT) && simY <= (PLAYER_BASE_Y + PLAYABLE_OVERSHOOT);
 
-    if (isWithinCourtX && isWithinCourtY) {
+    // Crucially restrict tracking so characters only lock onto intercept coordinates explicitly falling within their physical leaping/crouching limitations!
+    const isWithinReachZ = (simZ - SHOULDER_HEIGHT) >= MIN_CROUCH && (simZ - SHOULDER_HEIGHT) <= MAX_JUMP;
+
+    if (isWithinCourtX && isWithinCourtY && isWithinReachZ) {
       const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
 
       if (distSq < closestDistSq) {
