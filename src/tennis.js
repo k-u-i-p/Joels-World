@@ -18,7 +18,7 @@ import { soundManager } from './sound.js';
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-const COURT_INNER_BOUNDS = { x: -59, y: 85, width: 120, height: 205 };
+const COURT_INNER_BOUNDS = { x: -60, y: 85, width: 120, height: 205 };
 const GAME_SCALE = COURT_INNER_BOUNDS.width / 255; // Used to normalize velocities against court shrinks
 
 const PADDLE_SPEED = 250 * GAME_SCALE;        // Player movement speed
@@ -560,24 +560,24 @@ function serveBall(playerObj) {
     z: playerObj.currentPosition.z
   });
 
-  // Calculate strict service box zones (Tennis Service line is approx 53.8% of the 39ft half-court distance)
+  // Calculate strict service box zones visually mapped to realistic canvas line artwork intrinsically
   const centerX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width / 2;
-  const serviceBoxDepth = COURT_INNER_BOUNDS.height * 0.27; // ~118.8
+  const serviceBoxDepth = COURT_INNER_BOUNDS.height * 0.22; // ~45.1
   const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
 
   let boxMinX, boxMaxX, boxMinY, boxMaxY;
 
-  // Serves are strictly cross-court
+  // Serves are strictly cross-court correctly mapped logically
   if (isPlayer) {
     boxMinY = netY - serviceBoxDepth;
     boxMaxY = netY;
-    boxMinX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x : centerX;
-    boxMaxX = (state.serveSide === -1) ? centerX : COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width;
+    boxMinX = (state.serveSide === -1) ? centerX : COURT_INNER_BOUNDS.x;
+    boxMaxX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width : centerX;
   } else {
     boxMinY = netY;
     boxMaxY = netY + serviceBoxDepth;
-    boxMinX = (state.serveSide === -1) ? centerX : COURT_INNER_BOUNDS.x;
-    boxMaxX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width : centerX;
+    boxMinX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x : centerX;
+    boxMaxX = (state.serveSide === -1) ? centerX : COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width;
   }
 
   state.activeServiceBox = { minX: boxMinX, maxX: boxMaxX, minY: boxMinY, maxY: boxMaxY };
@@ -641,7 +641,7 @@ function throwBall(playerObj, apex) {
   if (apex) {
     setTimeout(() => {
       apex();
-    }, tApex);
+    }, tApex * 1000);
   }
 }
 
@@ -1497,6 +1497,13 @@ function run(dt) {
     ctx.moveTo(centerX + COURT_INNER_BOUNDS.x, netY);
     ctx.lineTo(centerX + COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width, netY);
     ctx.stroke();
+
+    // Draw the active service box limits visually in purple
+    if (state.activeServiceBox && state.isServe !== 'in_play' && state.servePhase !== 'idle') {
+      const box = state.activeServiceBox;
+      ctx.fillStyle = 'rgba(155, 89, 182, 0.4)'; // Vibrant purple
+      ctx.fillRect(centerX + box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
+    }
 
     ctx.restore();
   }
