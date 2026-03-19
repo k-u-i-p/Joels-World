@@ -1,10 +1,10 @@
 /**
- * Joels World - Tennis Minigame
- * 
- * Handles the logic, physics, and rendering for the top-down 3D tennis minigame.
- * Features realistic 3D parabolic ball trajectories, elliptical racket collisions,
- * and AI opponent tracking.
- */
+* Joels World - Tennis Minigame
+* 
+* Handles the logic, physics, and rendering for the top-down 3D tennis minigame.
+* Features realistic 3D parabolic ball trajectories, elliptical racket collisions,
+* and AI opponent tracking.
+*/
 
 import { gameLoop } from './gameloop.js';
 import { inputManager } from './input.js';
@@ -24,7 +24,7 @@ const GAME_SCALE = COURT_INNER_BOUNDS.width / 255; // Used to normalize velociti
 const PADDLE_SPEED = 250 * GAME_SCALE;        // Player movement speed
 const NPC_SPEED = 200 * GAME_SCALE;           // NPC movement speed
 const BALL_SPEED = 220 * GAME_SCALE;          // Base horizontal ball speed
-const MAXIMUM_BALL_SPEED = 300 * GAME_SCALE;  // Absolute engine speed ceiling for rallying
+const MAXIMUM_BALL_SPEED = 300 * GAME_SCALE;  // engine speed ceiling for rallying
 const BALL_RADIUS = 3;                        // Collision and drawing radius of the ball
 const GRAVITY = 800 * GAME_SCALE;             // Gravity affecting the ball Z-axis (pixels/s^2)
 const NET_HEIGHT = 45 * GAME_SCALE;           // Minimum Z-altitude required to cross the court
@@ -50,9 +50,9 @@ let bgImage = new Image();
 bgImage.src = '/minigames/tennis/map.svg';
 
 /** 
- * Central state object tracking real-time mutable variables for physics, 
- * positions, and animation timings.
- */
+* Central state object tracking real-time mutable variables for physics, 
+* positions, and animation timings.
+*/
 let state = {
   player: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 270 },
@@ -100,22 +100,17 @@ let state = {
   trajectoryFrozen: false
 };
 
-// ==========================================
-// UTILITIES & PURE FUNCTIONS
-// ==========================================
-
-
 /** Standard numeric clamp function. */
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
 /**
- * Mathematically determines the required 2D limb offset (rightArmX, rightArmY) 
- * for a character to reach out to an intercept point relative to their rotation.
- * 
- * @param {Object} player - The character state tracking object.
- * @param {{x: number, y: number, z: number}} interceptPoint - Expected ball collision point.
- * @returns {{x: number, y: number, z: number}} The calculated rightArm 2D offsets and absolute world position bindings.
- */
+* determines the required 2D limb offset (rightArmX, rightArmY) 
+* for a character to reach out to an intercept point relative to their rotation.
+* 
+* @param {Object} player - The character state tracking object.
+* @param {{x: number, y: number, z: number}} interceptPoint - Expected ball collision point.
+* @returns {{x: number, y: number, z: number}} The calculated rightArm 2D offsets and world position bindings.
+*/
 function calculateArmReach(player, interceptPoint) {
   const isPlayer = player === state.player;
   const worldY = player.currentPosition.y;
@@ -136,14 +131,14 @@ function calculateArmReach(player, interceptPoint) {
   // Angle relative to character body
   let localAngle = angleToBall - charFacingRad;
 
-  // Normalize algebraically to strictly [-PI, +PI] securely
+  // Normalize to [-PI, +PI] 
   while (localAngle <= -Math.PI) localAngle += Math.PI * 2;
   while (localAngle > Math.PI) localAngle -= Math.PI * 2;
 
-  // Normal visual arm length physically reaching into Euclidean depth natively
+  // Normal visual arm length physically reaching into Euclidean depth 
   const armReachLength = 12 * Math.cos(pitchAngle);
 
-  // Z target required to properly align the shoulder horizontally with the incoming optimal intersection natively!
+  // Z target required to properly align the shoulder horizontally with the incoming intersection !
   const targetZ = interceptPoint.z - SHOULDER_HEIGHT;
 
   return {
@@ -154,25 +149,25 @@ function calculateArmReach(player, interceptPoint) {
 }
 
 /**
- * Procedurally calculates the 3D rotational vector required to hold the racket
- * perfectly perpendicular opposing the incoming velocity vector of the ball.
- * 
- * @param {Object} interceptPoint - The pre-calculated optimal intercept target containing accurately simulated arrival velocities.
- * @param {Object} charState - The character state.
- * @returns {{roll: number, pitch: number, yaw: number}}
- */
+* calculates the 3D rotational vector required to hold the racket
+* perpendicular opposing the incoming velocity vector of the ball.
+* 
+* @param {Object} interceptPoint - The pre-calculated intercept target containing accurately simulated arrival velocities.
+* @param {Object} charState - The character state.
+* @returns {{roll: number, pitch: number, yaw: number}}
+*/
 function calculateRacketReturnAimAngle(interceptPoint, charState, targetPoint) {
   const bx = interceptPoint.vx || 0;
   const by = interceptPoint.vy || 0;
   const bz = interceptPoint.vz || 0;
 
-  // Calculate normalized incoming kinetic vector safely preventing zero division
+  // Calculate normalized incoming kinetic vector preventing zero division
   const inLen = Math.sqrt(bx * bx + by * by + bz * bz) || 1;
   const vInX = bx / inLen;
   const vInY = by / inLen;
   const vInZ = bz / inLen;
 
-  // Calculate normalized outgoing targeting vector seamlessly bridging coordinates
+  // Calculate normalized outgoing targeting vector bridging coordinates
   const outDx = targetPoint.x - interceptPoint.x;
   const outDy = targetPoint.y - interceptPoint.y;
   const outDz = targetPoint.z - interceptPoint.z;
@@ -181,7 +176,7 @@ function calculateRacketReturnAimAngle(interceptPoint, charState, targetPoint) {
   const vOutY = outDy / outLen;
   const vOutZ = outDz / outLen;
 
-  // The perfect true deflection normal mathematically perfectly bisects the incoming and outgoing kinetic vectors natively!
+  // The perfect deflection normal bisects the incoming and outgoing kinetic vectors !
   let nx = vOutX - vInX;
   let ny = vOutY - vInY;
   let nz = vOutZ - vInZ;
@@ -190,17 +185,17 @@ function calculateRacketReturnAimAngle(interceptPoint, charState, targetPoint) {
   ny /= nLen;
   nz /= nLen;
 
-  // Align yaw to securely map purely parallel to the normal's horizontal layout perfectly tracking visually 
+  // Align yaw to map parallel to the normal's horizontal layout tracking 
   let absoluteYaw = Math.atan2(ny, nx);
 
-  // Rotate 90 degrees logically because the handle draws linearly perpendicular to the strings' pushing normal intrinsically!
+  // Rotate 90 degrees because the handle draws perpendicular to the strings' pushing normal !
   absoluteYaw += Math.PI / 2;
 
-  // Elevate handle to track pitch visually relative to the Z requirements natively 
+  // Elevate handle to track pitch relative to the Z requirements 
   const targetPitch = Math.asin(clamp(nz, -1, 1)) * 0.5;
 
   // Determine geometric roll scaling (0 makes the face vertical for linear low shots, 1 makes it completely horizontal/flat for upward scooping lobs)
-  // Perfectly maps the normal vector's Z axis completely securely organically mirroring true isometric rendering!
+  // maps the normal vector's Z axis completely mirroring isometric rendering!
   const roll = Math.abs(nz);
 
   const charFacingRad = charState.currentPosition.rotation * (Math.PI / 180);
@@ -212,8 +207,8 @@ function calculateRacketReturnAimAngle(interceptPoint, charState, targetPoint) {
   return { roll: roll, pitch: targetPitch, yaw: localYaw };
 }
 /**
- * Calculates generic structural offsets for limbs based on leg animation and arm reach natively referencing the character state organically.
- */
+* Calculates structural offsets for limbs based on leg animation and arm reach referencing the character state .
+*/
 function getLimbs(playerObj, rightArmX, rightArmY) {
   const legTimer = playerObj.legTimer || 0;
   const directionX = playerObj.movementDirection ? playerObj.movementDirection.x : 1;
@@ -236,12 +231,12 @@ function getLimbs(playerObj, rightArmX, rightArmY) {
 }
 
 /**
- * Predicts the optimal intercept point along the ball's current trajectory 
- * relative to a specific 3D target coordinate.
- * 
- * @param {{x: number, y: number, z: number}} target - The target 3D Cartesian coordinates.
- * @returns {{x: number, y: number, z: number, t: number}} - The closest trajectory coordinate and its timestamp.
- */
+* Predicts the intercept point along the ball's current trajectory 
+* relative to a specific 3D target coordinate.
+* 
+* @param {{x: number, y: number, z: number}} target - The target 3D Cartesian coordinates.
+* @returns {{x: number, y: number, z: number, t: number}} - The closest trajectory coordinate and its timestamp.
+*/
 function calculateOptimalInterceptPoint(target) {
   let simX = state.ball.x;
   let simY = state.ball.y;
@@ -262,14 +257,14 @@ function calculateOptimalInterceptPoint(target) {
 
   let currentT = 0;
   const simDt = 0.016; // 60fps procedural resolution
-  const maxT = 4.0;    // Cap prediction strictly at 2.0 seconds
+  const maxT = 4.0;    // Cap prediction at 2.0 seconds
 
   while (currentT <= maxT) {
-    // Only permit physics intercept tracking natively if the ball resolves physically inside valid playable geometry
+    // Only permit physics intercept tracking if the ball resolves physically inside valid playable geometry
     const isWithinCourtX = Math.abs(simX) <= PLAYABLE_HALF_WIDTH;
     const isWithinCourtY = simY >= (NPC_BASE_Y - PLAYABLE_OVERSHOOT) && simY <= (PLAYER_BASE_Y + PLAYABLE_OVERSHOOT);
 
-    // Crucially restrict tracking so characters only lock onto intercept coordinates explicitly falling within their physical leaping/crouching limitations!
+    // Crucially restrict tracking so characters only lock onto intercept coordinates falling within their physical leaping/crouching limitations!
     const isWithinReachZ = (simZ - SHOULDER_HEIGHT) >= MIN_CROUCH && (simZ - SHOULDER_HEIGHT) <= MAX_JUMP;
 
     if (isWithinCourtX && isWithinCourtY && isWithinReachZ) {
@@ -287,7 +282,7 @@ function calculateOptimalInterceptPoint(target) {
       }
     }
 
-    // Step the deterministic physics model natively by one slice
+    // Step the deterministic physics model by one slice
     simZ += simVZ * simDt;
     simVZ -= GRAVITY * simDt;
     simX += simVX * simDt;
@@ -305,7 +300,7 @@ function calculateOptimalInterceptPoint(target) {
 
     currentT += simDt;
 
-    // Prune evaluation loop immediately if ball mechanically escapes active bounding volume
+    // Prune evaluation loop immediately if ball escapes active bounding volume
     if (Math.abs(simX) > PLAYABLE_HALF_WIDTH + 50 ||
       simY < COURT_INNER_BOUNDS.y - 100 ||
       simY > COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height + 100) {
@@ -318,10 +313,10 @@ function calculateOptimalInterceptPoint(target) {
 
 
 /**
- * Halts all kinetic physics and geometrically forces the ball strictly onto a specific coordinate locally.
- * 
- * @param {{x: number, y: number, z: number}} target - Target spatial vector matrix 
- */
+* Halts all kinetic physics and geometrically forces the ball onto a specific coordinate locally.
+* 
+* @param {{x: number, y: number, z: number}} target - Target spatial vector matrix 
+*/
 function moveBall(target) {
   state.ball.x = target.x;
   state.ball.y = target.y;
@@ -333,13 +328,13 @@ function moveBall(target) {
 }
 
 /**
- * Mathematically derives the required trajectory angles and speeds to land 
- * the ball precisely at the given target coordinate, and sets the game state.
- * 
- * @param {number} targetX - Destination X coordinate.
- * @param {number} targetY - Destination Y coordinate.
- * @param {number} velocity - The driving physical 3D velocity of the ball.
- */
+* derives the required trajectory angles and speeds to land 
+* the ball precisely at the given target coordinate, and sets the game state.
+* 
+* @param {number} targetX - Destination X coordinate.
+* @param {number} targetY - Destination Y coordinate.
+* @param {number} velocity - The driving physical 3D velocity of the ball.
+*/
 function hitBallToTarget(targetX, targetY, velocity) {
   state.ball.velocity = Math.min(velocity, MAXIMUM_BALL_SPEED);
   state.bounceCount = 0;
@@ -375,7 +370,7 @@ function hitBallToTarget(targetX, targetY, velocity) {
   if (crossesNet) {
     // Rough estimation of how long it takes to reach the net
     const timeToNet = (Math.abs(netY - state.ball.y) / Math.abs(dy)) * timeToTarget;
-    // Calculate the minimum Z-velocity needed to be exactly above NET_HEIGHT when t = timeToNet
+    // Calculate the minimum Z-velocity needed to be above NET_HEIGHT when t = timeToNet
     const requiredClearanceHeight = NET_HEIGHT + BALL_RADIUS + 5; // adding 5px buffer
     const minVZ = (requiredClearanceHeight - state.ball.z + 0.5 * GRAVITY * timeToNet * timeToNet) / timeToNet;
 
@@ -391,7 +386,7 @@ function hitBallToTarget(targetX, targetY, velocity) {
       // Balls hit late/low to the ground are physically harder to scoop over the net
       if (state.ball.z < 20) assist -= 0.4;
 
-      // Add slight organic variance (+/- 10%)
+      // Add slight variance (+/- 10%)
       assist = clamp(assist + (Math.random() * 0.2 - 0.1), 0, 1);
 
       vZ = vZ + (minVZ - vZ) * assist;
@@ -411,9 +406,9 @@ function hitBallToTarget(targetX, targetY, velocity) {
 // ==========================================
 
 /**
- * Initializes and starts the Tennis Minigame.
- * Called externally when launching into the map.
- */
+* Initializes and starts the Tennis Minigame.
+* Called externally when launching into the map.
+*/
 export function initMinigame() {
   console.log('[Tennis] Initializing Minigame...');
   minigameActive = true;
@@ -465,8 +460,8 @@ export function initMinigame() {
 }
 
 /**
- * Calculates a valid or purely random fault service box coordinate organically.
- */
+* Calculates a valid or random fault service box coordinate .
+*/
 function calculateServeTarget(isPlayer) {
   const box = state.activeServiceBox;
   if (!box) return { x: 0, y: 0 };
@@ -493,17 +488,18 @@ function calculateServeTarget(isPlayer) {
 }
 
 /**
- * Mechanically serves the ball from the respective character towards a valid court zone.
- * Automatically computes 3D pitch/velocity required to lob into the target destination.
- * 
- * @param {Object} playerObj - The character object serving.
- */
+* serves the ball from the respective character towards a valid court zone.
+* Automatically computes 3D pitch/velocity required to lob into the target destination.
+* 
+* @param {Object} playerObj - The character object serving.
+*/
 function serveBall(playerObj) {
   const isPlayer = playerObj === state.player;
   state.resetting = false;
   state.isServe = isPlayer ? 'player_serve' : 'npc_serve';
-  playerObj.hasTarget = false;
-  state.servePhase = 'idle'; // Securely halt execution implicitly organically enforcing holding state natively
+  state.player.hasTarget = false;
+  state.npc.hasTarget = false;
+  state.servePhase = 'idle'; // halt execution enforcing holding state 
 
   console.log("Serving ball for " + (isPlayer ? "player" : "npc"));
 
@@ -521,14 +517,14 @@ function serveBall(playerObj) {
     z: playerObj.currentPosition.z
   });
 
-  // Calculate strict service box zones visually mapped to realistic canvas line artwork intrinsically
+  // Calculate strict service box zones mapped to realistic canvas line artwork 
   const centerX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width / 2;
-  const serviceBoxDepth = COURT_INNER_BOUNDS.height * 0.245; // ~50.2 (perfectly hitting custom SVG T-line)
+  const serviceBoxDepth = COURT_INNER_BOUNDS.height * 0.245; // ~50.2 ( hitting custom SVG T-line)
   const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
 
   let boxMinX, boxMaxX, boxMinY, boxMaxY;
 
-  // Serves are strictly cross-court correctly mapped logically
+  // Serves are cross-court correctly mapped 
   if (isPlayer) {
     boxMinY = netY - serviceBoxDepth;
     boxMaxY = netY;
@@ -556,38 +552,38 @@ function serveBall(playerObj) {
 }
 
 /**
- * Physically throws the ball organically from the character's hand using true gravity.
- * @param {Object} playerObj - The character object serving.
- */
+* Physically throws the ball from the character's hand using gravity.
+* @param {Object} playerObj - The character object serving.
+*/
 function throwBall(playerObj, apex) {
   const isPlayer = playerObj === state.player;
   state.servePhase = 'just_thrown';
 
-  // State.ball physics are identically continuously synchronized tightly sequentially inside run(dt) prior to executing toss dynamically!
+  // State.ball physics are identically continuously synchronized tightly sequentially inside run(dt) prior to executing toss !
   const startX = state.ball.x;
   const startY = state.ball.y;
 
-  // Establish the literal 2D ground coordinate where the ball intrinsically strictly lands naturally
+  // Establish the 2D ground coordinate where the ball lands naturally
   state.tossTarget = {
     x: startX + (isPlayer ? 5 * GAME_SCALE : -5 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
-    y: startY + (isPlayer ? -25 * GAME_SCALE : 25 * GAME_SCALE), // Land slightly linearly natively into the court
-    z: 105 * GAME_SCALE // Encodes explicit physical apex altitude mathematically
+    y: startY + (isPlayer ? -25 * GAME_SCALE : 25 * GAME_SCALE), // Land slightly into the court
+    z: 105 * GAME_SCALE // Encodes explicit physical apex altitude 
   };
 
-  // 1. Calculate the initial vertical velocity required mathematically spanning to the tossTarget.z securely organically
+  // 1. Calculate the initial vertical velocity required spanning to the tossTarget.z 
   const dz = Math.max(1, state.tossTarget.z - state.ball.z);
   const vZ = Math.sqrt(2 * GRAVITY * dz);
 
-  // 2. Map precisely exactly how long it takes to intrinsically rise dynamically into the apex computationally 
+  // 2. Map precisely how long it takes to rise into the apex 
   const tApex = vZ / GRAVITY;
 
-  // 3. Map precisely exactly how long it takes to naturally fall exactly down sequentially from the apex computationally to the ground (Z=0)
+  // 3. Map precisely how long it takes to naturally fall down sequentially from the apex to the ground (Z=0)
   const tFall = Math.sqrt((2 * state.tossTarget.z) / GRAVITY);
 
-  // 4. Derive total trajectory flight duration explicitly spanning physics functionally algebraically 
+  // 4. Derive total trajectory flight duration spanning physics 
   const tTotalFlight = tApex + tFall;
 
-  // 5. Synthesize exactly accurate constant trajectory velocity bridging start sequentially onto targeting gap exactly structurally
+  // 5. Synthesize accurate constant trajectory velocity bridging start sequentially onto targeting gap 
   state.ball.vx = (state.tossTarget.x - startX) / tTotalFlight;
   state.ball.vy = (state.tossTarget.y - startY) / tTotalFlight;
 
@@ -647,11 +643,11 @@ function triggerFault(playerServing) {
 }
 
 /**
- * Triggers the end of a point, forcing characters to automatically
- * walk back to their default service baseline coordinates.
- * 
- * @param {boolean} nextPlayerServing - True if player serves next.
- */
+* Triggers the end of a point, forcing characters to automatically
+* walk back to their default service baseline coordinates.
+* 
+* @param {boolean} nextPlayerServing - if player serves next.
+*/
 function triggerPointReset(nextPlayerServing) {
   if (state.resetting) return;
   state.resetting = true;
@@ -687,15 +683,15 @@ function triggerPointReset(nextPlayerServing) {
 function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
   if (state.resetting) return;
 
-  // Inner abstract helper to condense and document the dense spatial 3D bounds and boolean logic
-  function evaluateHit(racketPos, isPlayer) {
+  //Check if ball hits the racket bounding box
+  function evaluateHit(racketPos) {
     const dx = state.ball.x - racketPos.x;
     const dy = visualBallY - racketPos.y;
     const localDx = dx * Math.cos(-racketPos.angle) - dy * Math.sin(-racketPos.angle);
     const localDy = dx * Math.sin(-racketPos.angle) + dy * Math.cos(-racketPos.angle);
 
     // Strict Elliptical Intersection Boolean Matrix Check over standard Box Radius Check
-    // This implicitly intrinsically handles height/Z constraints dynamically natively due to visual bounds geometry overlap!
+    // This handles height/Z constraints due to visual bounds geometry overlap!
     return (Math.pow(localDx, 2) / Math.pow(racketPos.w + BALL_RADIUS, 2)) +
       (Math.pow(localDy, 2) / Math.pow(racketPos.h + BALL_RADIUS, 2)) <= 1;
   }
@@ -713,7 +709,7 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
       returnSpeed = BALL_SPEED * (isPlayer ? 0.8 : 0.65);
     } else {
       if (isPlayer) {
-        targetX += (state.ball.x - playerRacketPos.x) * 1.5; // Organic center hit variance
+        targetX += (state.ball.x - playerRacketPos.x) * 1.5; // center hit variance
       } else {
         // NPC procedural aim application
         targetX = COURT_INNER_BOUNDS.x + (state.ball.x < 0 ? COURT_INNER_BOUNDS.width * 0.85 : COURT_INNER_BOUNDS.width * 0.15);
@@ -726,7 +722,7 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
     state.isServe = 'in_play'; // The rally is live!
     hitBallToTarget(targetX, targetY, returnSpeed);
 
-    // Organic audio
+    // audio
     const soundFile = isPlayer ? '/media/hit_tennis_ball.mp3' : '/media/hit_tennis_ball2.mp3';
     let sound = soundManager.playPooled(soundFile, 0.7 + Math.random() * 0.5);
     sound.setRate(0.85 + Math.random() * 0.3);
@@ -737,16 +733,16 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
   const canPlayerHit = state.lastHitter !== 'player' || state.isServe === 'player_serve';
   const canNpcHit = state.lastHitter !== 'npc' || state.isServe === 'npc_serve';
 
-  if (canPlayerHit && evaluateHit(playerRacketPos, true)) {
+  if (canPlayerHit && evaluateHit(playerRacketPos)) {
     processHit(true);
-  } else if (canNpcHit && evaluateHit(npcRacketPos, false)) {
+  } else if (canNpcHit && evaluateHit(npcRacketPos)) {
     processHit(false);
   }
 }
 
 /**
- * Interface to manually command the movement subsystem to target specific local offsets.
- */
+* Interface to manually command the movement subsystem to target specific local offsets.
+*/
 function moveCharacterTo(charState, targetX, targetY) {
   charState.targetPosition.x = targetX;
   charState.targetPosition.y = targetY;
@@ -755,9 +751,9 @@ function moveCharacterTo(charState, targetX, targetY) {
 }
 
 /**
- * Handles the animated walk-to-net handshake sequence before serving begins.
- * @param {number} dt Delta time.
- */
+* Handles the animated walk-to-net handshake sequence before serving begins.
+* @param {number} dt Delta time.
+*/
 function handleIntroSequence(dt) {
   if (state.introPhase === 'walkToNet') {
     const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
@@ -770,7 +766,7 @@ function handleIntroSequence(dt) {
     convergePhysics(state.player, dt, true, 0.5);
     convergePhysics(state.npc, dt, false, 0.5);
 
-    // Override generic convergence rotational intent to face each other tightly
+    // Override convergence rotational intent to face each other tightly
     state.player.targetPosition.rotation = 270;
     state.npc.targetPosition.rotation = 90;
 
@@ -800,7 +796,7 @@ function handleIntroSequence(dt) {
     convergePhysics(state.player, dt, true, 0.6);
     convergePhysics(state.npc, dt, false, 0.6);
 
-    // If completely arrived back at baseline, organically turn to face the net utilizing standard defaults
+    // If completely arrived back at baseline, turn to face the net utilizing standard defaults
     if (!pFar) state.player.targetPosition.rotation = 270;
     if (!nFar) state.npc.targetPosition.rotation = 90;
 
@@ -832,22 +828,38 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
     charState.movementDirection.y = Math.sign(my);
   } else charState.currentPosition.y = charState.targetPosition.y;
 
-  const dz = charState.targetPosition.z - charState.currentPosition.z;
-  if (Math.abs(dz) > 1) charState.currentPosition.z += Math.sign(dz) * Math.min(speed * 1.5, Math.abs(dz));
-  else charState.currentPosition.z = charState.targetPosition.z;
+  charState.vz = charState.vz || 0; // Initialize if missing
+  if (charState.vz !== 0 || charState.currentPosition.z > 0) { // Airborne or launching
+    charState.vz -= GRAVITY * dt;
+    charState.currentPosition.z += charState.vz * dt;
+    if (charState.currentPosition.z < 0) {
+      charState.currentPosition.z = 0;
+      charState.vz = 0;
+    }
+  } else {
+    // Normal linear ground/crouch convergence for negative Z
+    const dz = charState.targetPosition.z - charState.currentPosition.z;
+    if (Math.abs(dz) > 1) charState.currentPosition.z += Math.sign(dz) * Math.min(speed * 1.5, Math.abs(dz));
+    else charState.currentPosition.z = charState.targetPosition.z;
+  }
 
   const charMoved = (charState.currentPosition.x !== prevX) || (charState.currentPosition.y !== prevY);
 
   if (charMoved) {
-    charState.legTimer += speed * 0.1; // Progress leg run cycle organically!
-    let moveRot = Math.atan2(charState.currentPosition.y - prevY, charState.currentPosition.x - prevX) * (180 / Math.PI);
-    if (moveRot < 0) moveRot += 360;
+    charState.legTimer += speed * 0.1; // Progress leg run cycle !
+    let targetRot = Math.atan2(charState.currentPosition.y - prevY, charState.currentPosition.x - prevX) * (180 / Math.PI);
+    if (targetRot < 0) targetRot += 360;
 
-    const forwardRot = isPlayer ? 270 : 90;
-    let angleDiff = ((moveRot - forwardRot + 540) % 360) - 180;
+    if (state.introPhase === 'playing') {
+      // Prevent characters from turning their backs to the net when moving backwards
+      if (isPlayer && targetRot > 0 && targetRot < 180) {
+        targetRot = 270;
+      } else if (!isPlayer && targetRot > 180 && targetRot < 360) {
+        targetRot = 90;
+      }
+    }
 
-    // Blend only 40% towards the movement vector so characters actively strafe while facing the net
-    charState.targetPosition.rotation = forwardRot + (angleDiff * 0.6);
+    charState.targetPosition.rotation = targetRot;
   } else if (charState.legTimer > 0) {
     const phase = charState.legTimer % Math.PI;
     if (phase > 0.1 && phase < Math.PI - 0.1) charState.legTimer += speed * 0.1;
@@ -858,7 +870,7 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
   const diffRot = charState.targetPosition.rotation - charState.currentPosition.rotation;
   charState.currentPosition.rotation += ((diffRot + 540) % 360 - 180) * 0.2;
 
-  // Converge racket positional aiming state independently natively
+  // Converge racket at target position
   if (charState.racketTargetPosition && charState.racketCurrentPosition) {
     const rcp = charState.racketCurrentPosition;
     const rtp = charState.racketTargetPosition;
@@ -876,7 +888,7 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
 }
 
 function resetRacketToNeutral(charState) {
-  // Reset to neutral statically mapped organically
+  // Reset to neutral statically mapped 
   charState.racketTargetPosition.armX = -2 + 4 * Math.cos(Math.PI * 0.25);
   charState.racketTargetPosition.armY = 14 + 4 * Math.sin(Math.PI * 0.25);
   charState.racketTargetPosition.pitch = 0.0;
@@ -885,23 +897,22 @@ function resetRacketToNeutral(charState) {
 }
 
 /**
- * Handles aim tracking, boundary logic, Z-leaps, and walk animation timers identically for characters.
- */
+* Handles aim tracking, boundary logic, Z-leaps, and walk animation timers identically for characters.
+*/
 function processCharacter(charState, isPlayer, dt) {
   // 1. Process Approach Proximities & Leaps Target
   const isApproaching = isPlayer ? (state.ball.vy > 0) : (state.ball.vy < 0);
   const distY = Math.abs(state.ball.y - charState.currentPosition.y);
   const zMult = clamp(1 - (distY / 80), 0, 1);
 
-  // Z-Leaps dynamically tracked below
+  // Z-Leaps tracked below
 
-  // 2. Converge constraints!
-  // Clip Court Bounds
-  // charState.targetPosition.x = clamp(charState.targetPosition.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
+  // Clip characters to Court Bounds
+  charState.targetPosition.x = clamp(charState.targetPosition.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
   if (isPlayer) {
-    //charState.targetPosition.y = clamp(charState.targetPosition.y, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) + 10, PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10);
+    charState.targetPosition.y = clamp(charState.targetPosition.y, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) + 10, PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10);
   } else {
-    //charState.targetPosition.y = clamp(charState.targetPosition.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
+    charState.targetPosition.y = clamp(charState.targetPosition.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
   }
 
   // 3. Dynamic Limb Target Tracking
@@ -910,11 +921,22 @@ function processCharacter(charState, isPlayer, dt) {
     const reach = calculateArmReach(charState, intercept);
 
     // Limit the characters vertical movement to MIN_CROUCH and MAX_JUMP
-    charState.targetPosition.z = reach.z; //clamp(reach.z, MIN_CROUCH, MAX_JUMP) * zMult;
+    if (reach.z > 0) {
+      charState.targetPosition.z = 0; // Disable linear floating up
+      if (charState.currentPosition.z === 0) { // Only launch from ground
+        const boundedZ = clamp(reach.z, 0, MAX_JUMP);
+        const timeToApex = Math.sqrt((2 * boundedZ) / GRAVITY);
+        if (intercept.t <= timeToApex + 0.05 && intercept.t > 0) {
+          charState.vz = Math.sqrt(2 * GRAVITY * boundedZ);
+        }
+      }
+    } else {
+      charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, 0);
+    }
     charState.racketTargetPosition.armX = reach.x;
     charState.racketTargetPosition.armY = reach.y;
 
-    // Direct racket targeting towards the center of the net strictly anticipating the deflection arc identically
+    // Direct racket targeting towards the center of the net anticipating the deflection arc identically
     const defaultTarget = {
       x: COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width / 2,
       y: COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2,
@@ -926,23 +948,23 @@ function processCharacter(charState, isPlayer, dt) {
     charState.racketTargetPosition.yaw = aim.yaw;
     charState.racketTargetPosition.roll = aim.roll;
   } else {
-    // Smoothly settle back down to the ground if safely idling natively!
+    // Smoothly settle back down to the ground if idling !
     charState.targetPosition.z = 0;
 
     resetRacketToNeutral(charState);
   }
 
-  // Safely execute physical coordinate translations AFTER final dynamic Z bindings!
+  // execute physical coordinate translations AFTER final dynamic Z bindings!
   const charMoved = convergePhysics(charState, dt, isPlayer);
 
   return { moved: charMoved };
 }
 
 /**
- * Core logical loop unifying Inputs, AI, Physics, Collision, and complete Scene Rasterization.
- * 
- * @param {number} dt - Delta time in seconds since last frame.
- */
+* Core logical loop unifying Inputs, AI, Physics, Collision, and complete Scene Rasterization.
+* 
+* @param {number} dt - Delta time in seconds since last frame.
+*/
 function run(dt) {
   if (!minigameActive) return;
 
@@ -959,7 +981,7 @@ function run(dt) {
       let moveIntentX = 0;
       let moveIntentY = 0;
 
-      // Restrict active movement strictly while idling awaiting the mechanical toss apex
+      // Restrict active movement while idling awaiting the mechanical toss apex
       const isServingAndAwaitingToss = state.servePhase === 'idle' && state.isServe === 'player_serve';
 
       if (!isServingAndAwaitingToss) {
@@ -976,15 +998,15 @@ function run(dt) {
       }
 
       if (moveIntentX !== 0 || moveIntentY !== 0) {
-        // Normalize diagonal vectors linearly 
+        // Normalize diagonal vectors 
         const len = Math.sqrt(moveIntentX * moveIntentX + moveIntentY * moveIntentY);
         moveIntentX /= len;
         moveIntentY /= len;
 
-        state.player.targetPosition.x = state.player.currentPosition.x + moveIntentX * 50 * GAME_SCALE; // Extend convergence target organically against camera mapping
+        state.player.targetPosition.x = state.player.currentPosition.x + moveIntentX * 50 * GAME_SCALE; // Extend convergence target against camera mapping
         state.player.targetPosition.y = state.player.currentPosition.y + moveIntentY * 50 * GAME_SCALE;
       } else {
-        // Release snaps targetPosition to perfectly match feet instantly halting physics loops
+        // Release snaps targetPosition to match feet instantly halting physics loops
         state.player.targetPosition.x = state.player.currentPosition.x;
         state.player.targetPosition.y = state.player.currentPosition.y;
       }
@@ -998,10 +1020,10 @@ function run(dt) {
       state.player.targetPosition.rotation = 270;
     }
 
-    // 2. Process Simple AI NPC Movement
+    // 2. Process AI NPC Movement
     function moveToIntercept() {
-      // Ensure the NPC purposefully ignores tracking early physics data natively cascading from localized serve tosses
-      // Formulate a nominal target tracking point dynamically around the actual rendered position of the racket head
+      // Ensure the NPC purposefully ignores tracking early physics data cascading from localized serve tosses
+      // Formulate a nominal target tracking point around the actual rendered position of the racket head
       const interceptPoint = calculateOptimalInterceptPoint(state.npc.racketCurrentPosition);
 
       moveCharacterTo(state.npc, interceptPoint.x + 30, interceptPoint.y - 20);
@@ -1014,21 +1036,17 @@ function run(dt) {
     } else {
       if (state.isServe === 'in_play') {
         if (state.ball.vy < 0) {
-          if (!state.npc.hasTarget) {
-            moveToIntercept();
-            state.npc.hasTarget = true;
-          }
+          moveToIntercept();
+          state.npc.hasTarget = true;
         } else {
           // Ball is moving away toward player, reset to center gracefully
           moveCharacterTo(state.npc, 0, NPC_BASE_Y);
           state.npc.hasTarget = false;
         }
       } else if (state.isServe === 'npc_serve' && state.servePhase !== 'idle') {
-        //Mve to stike thrown ball after serve
-        if (!state.npc.hasTarget) {
-          moveToIntercept();
-          state.npc.hasTarget = true;
-        }
+        //Move to strike thrown ball after serve
+        moveToIntercept();
+        state.npc.hasTarget = true;
       }
     }
 
@@ -1039,7 +1057,7 @@ function run(dt) {
       state.npc.targetPosition.rotation = 90;
     }
 
-    // Ensure logical collision trackers properly pull the latest bounds exactly here
+    // Ensure logical collision trackers properly pull the latest bounds here
     const playerRacketPos = state.player.racketCurrentPosition;
     const npcRacketPos = state.npc.racketCurrentPosition;
     const visualBallY = state.ball.y - state.ball.z;
@@ -1060,7 +1078,7 @@ function run(dt) {
     if (state.servePhase === 'idle' && state.isServe !== 'in_play') {
       const serverObj = state.isServe === 'player_serve' ? state.player : state.npc;
       const rotRad = serverObj.currentPosition.rotation * (Math.PI / 180);
-      const limbs = getLimbs(serverObj, 0, 0); // Explicitly track limb anchoring
+      const limbs = getLimbs(serverObj, 0, 0); // track limb anchoring
       const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
 
       const armWorldX = (limbs.leftArmX * Math.cos(rotRad) - limbs.leftArmY * Math.sin(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
@@ -1072,7 +1090,7 @@ function run(dt) {
     } else {
       const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
 
-      // Elevate ball linearly
+      // Elevate ball 
       state.ball.z += vZ * dt;
       // Rotate velocity downward due to continuous gravity
       state.ball.pitchAngle = Math.atan2(vZ - GRAVITY * dt, state.ball.velocity);
@@ -1085,7 +1103,7 @@ function run(dt) {
     // Progress global point timer monotonically (freeze while waiting for serves to start)
     if (state.resetDelayTimer <= 0) state.totalElapsedTime += dt;
 
-    // Explicitly permit tracking during live gameplay
+    // permit tracking during live gameplay
     if (minigameActive && !state.trajectoryFrozen) {
       state.trajectoryPoints.push({
         x: state.ball.x,
@@ -1100,7 +1118,7 @@ function run(dt) {
     }
 
     // 6. Structural Net Collision
-    // Check if ball mathematically crossed the Y-center of the court during this frame
+    // Check if ball crossed the Y-center of the court during this frame
     const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
     if ((prevBallY < netY && state.ball.y >= netY) || (prevBallY >= netY && state.ball.y < netY)) {
       if (state.ball.z < NET_HEIGHT) {
@@ -1134,7 +1152,7 @@ function run(dt) {
           const box = state.activeServiceBox;
           if (state.ball.x >= box.minX && state.ball.x <= box.maxX && state.ball.y >= box.minY && state.ball.y <= box.maxY) {
             validBounce = true;
-            state.isServe = 'in_play'; // Valid serve, rally is now organically open
+            state.isServe = 'in_play'; // Valid serve, rally is now open
           }
         } else {
           // Enforce total half-court bounds!
@@ -1197,11 +1215,11 @@ function run(dt) {
   // ==========================================
 
   /**
-   * Procedurally draws a tennis racket starting from the wrist location.
-   * @param {CanvasRenderingContext2D} ctx - Canvas context.
-   * @param {Object} limbs - Current Limb positions. 
-   * @param {number} swingAngle - Rotational swing adjustment.
-   */
+* draws a tennis racket starting from the wrist location.
+* @param {CanvasRenderingContext2D} ctx - Canvas context.
+* @param {Object} limbs - Current Limb positions. 
+* @param {number} swingAngle - Rotational swing adjustment.
+*/
   function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = null) {
     const pitchMult = Math.max(0.05, Math.abs(Math.cos(pitch)));
     const rx = Math.max(1, 8 * roll);
@@ -1210,7 +1228,7 @@ function run(dt) {
       ctx.save();
       ctx.translate(limbs.rightArmX, limbs.rightArmY);
 
-      // Align the racket 90 degrees to point along the +X forward vector natively
+      // Align the racket 90 degrees to point along the +X forward vector 
       ctx.rotate(yaw + Math.PI / 2);
 
       // Draw handle
@@ -1248,7 +1266,7 @@ function run(dt) {
       }
       ctx.stroke();
 
-      // Extract raw rendering matrix transformations natively
+      // Extract raw rendering matrix transformations 
       if (transformData && ctx.getTransform) {
         const transform = ctx.getTransform();
         const pt = transform.transformPoint(new DOMPoint(0, headCy));
@@ -1269,7 +1287,7 @@ function run(dt) {
       ctx.restore();
     }
 
-    // Always mathematically inform caller of the exact ellipse bounds rendered if they care
+    // Always inform caller of the exact ellipse bounds rendered if they care
     return { w: rx, h: 12 * pitchMult };
   }
 
@@ -1335,7 +1353,7 @@ function run(dt) {
     characterManager.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
     characterManager.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
 
-    // Evaluate visual translation mapping spatial Z elevation to the World -Y axis natively
+    // Evaluate visual translation mapping spatial Z elevation to the World -Y axis 
     ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
     ctx.translate(0, -charState.currentPosition.z / camera.zoom);
     ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
@@ -1356,7 +1374,7 @@ function run(dt) {
     ctx.save();
     ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
     ctx.beginPath();
-    // Shrink shadow exponentially based on elevation altitude natively
+    // Shrink shadow exponentially based on elevation altitude 
     const shadowRadius = Math.max(2 * courtScale, (BALL_RADIUS * 2 - ballState.z * 0.05) * courtScale);
     ctx.arc(cx + ballState.x, ballState.y, shadowRadius, 0, Math.PI * 2);
     ctx.fill();
@@ -1368,7 +1386,7 @@ function run(dt) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Translate ball organically explicitly purely from exactly wherever the physical robust mechanics pipeline dictates functionally
+    // Translate ball from wherever the physical mechanics pipeline dictates 
     ctx.translate(cx + ballState.x, ballState.y - ballState.z);
 
     ctx.fillText('🎾', 0, 0);
@@ -1389,7 +1407,7 @@ function run(dt) {
     ctx.restore();
   }
 
-  // Calculate and render crosshairs onto the destination surface exactly where ball's geometry will collide
+  // Calculate and render crosshairs onto the destination surface where ball's geometry will collide
   const vZTargetCheck = state.ball.velocity * Math.tan(state.ball.pitchAngle);
   const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ball.z;
   let tLand = 0;
@@ -1405,7 +1423,7 @@ function run(dt) {
     drawCrosshair(ctx, landX, landY, crosshairColor);
   }
 
-  // Draw the optimal 3D intercept prediction as a Green X
+  // Draw the 3D intercept prediction as a Green X
   if (state.ball.vy !== 0 && !state.resetting) {
     let interceptTarget;
     // Target the RECIEVER's racket to predict where they will intercept the ball
@@ -1417,10 +1435,10 @@ function run(dt) {
 
     const bestPoint = calculateOptimalInterceptPoint(interceptTarget);
 
-    // Only draw the visual if it securely predicts an approach
+    // Only draw the visual if it predicts an approach
     if (bestPoint.t > 0) {
       const hitX = centerX + bestPoint.x;
-      // Map the 3D 'Z' altitude physically to the screen's vertical 'Y' axis to match the ball's rendering height exactly
+      // Map the 3D 'Z' altitude physically to the screen's vertical 'Y' axis to match the ball's rendering height 
       const hitY = bestPoint.y - bestPoint.z;
       drawCrosshair(ctx, hitX, hitY, 'rgba(46, 204, 113, 0.9)');
     }
@@ -1429,7 +1447,7 @@ function run(dt) {
   // Draw the yellow X for the Toss Ground Target
   if (state.isServe !== 'in_play' && state.tossTarget && !state.resetting) {
     const hitX = centerX + state.tossTarget.x;
-    const hitY = state.tossTarget.y; // The tossTarget mathematically identically mirrors the literal ground geometry!
+    const hitY = state.tossTarget.y; // The tossTarget identically mirrors the ground geometry!
     drawCrosshair(ctx, hitX, hitY, 'rgba(241, 196, 15, 0.9)');
   }
 
@@ -1447,7 +1465,7 @@ function run(dt) {
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
     ctx.lineWidth = 1;
 
-    // Draw Elliptical Target Hitbox representations exactly identical to logic
+    // Draw Elliptical Target Hitbox representations identical to logic
     ctx.beginPath();
     ctx.ellipse(centerX + pHitbox.x, pHitbox.y, pHitbox.w, pHitbox.h, pHitbox.angle, 0, Math.PI * 2);
     ctx.stroke();
@@ -1468,7 +1486,7 @@ function run(dt) {
     ctx.lineTo(centerX + COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width, netY);
     ctx.stroke();
 
-    // Draw the active service box limits visually in purple
+    // Draw the active service box limits in purple
     if (state.activeServiceBox && state.isServe !== 'in_play' && state.servePhase !== 'idle') {
       const box = state.activeServiceBox;
       ctx.fillStyle = 'rgba(155, 89, 182, 0.4)'; // Vibrant purple
@@ -1480,16 +1498,16 @@ function run(dt) {
 
   ctx.restore(); // Restore from world/camera zoom and offset
 
-  // 4. Draw HUD Overlays (Mapped directly to absolute canvas container size)
+  // 4. Draw HUD Overlays (Mapped directly to canvas container size)
   drawDiagnosticsOverlay(state.player.racketCurrentPosition.pitch, state.player.racketCurrentPosition.yaw, state.player.racketCurrentPosition.roll);
 }
 
 /**
- * Renders the diagnostic graphs and HUD panels over the 3D court.
- * @param {number} pAimPitch - Raw mathematical aim pitch for the diagram context.
- * @param {number} pAimYaw - Raw mathematical aim yaw for the diagram context.
- * @param {number} pAimRoll - Raw mathematical aim roll for the diagram context.
- */
+* Renders the diagnostic graphs and HUD panels over the 3D court.
+* @param {number} pAimPitch - Raw mathematical aim pitch for the diagram context.
+* @param {number} pAimYaw - Raw mathematical aim yaw for the diagram context.
+* @param {number} pAimRoll - Raw mathematical aim roll for the diagram context.
+*/
 function drawDiagnosticsOverlay(pAimPitch, pAimYaw, pAimRoll) {
   // Trajectory Profile Panel (Bottom Center)
   if (state.trajectoryPoints.length > 1) {
@@ -1514,7 +1532,7 @@ function drawDiagnosticsOverlay(pAimPitch, pAimYaw, pAimRoll) {
     const pixelsPerSecond = 200; // Fixed horizontal plotting speed!
     const startT = state.trajectoryPoints[0].t;
 
-    // Confine graph lines strictly inside the glassmorphic panel!
+    // Confine graph lines inside the glassmorphic panel!
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(panelX, panelY, panelW, panelH, 12);
