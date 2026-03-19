@@ -28,6 +28,7 @@ const MAXIMUM_BALL_SPEED = 300 * GAME_SCALE;  // Absolute engine speed ceiling f
 const BALL_RADIUS = 3;                        // Collision and drawing radius of the ball
 const GRAVITY = 800 * GAME_SCALE;             // Gravity affecting the ball Z-axis (pixels/s^2)
 const NET_HEIGHT = 45 * GAME_SCALE;           // Minimum Z-altitude required to cross the court
+const DAMPING_MULTIPLIER = 0.6;               // Vertical velocity retained after a court bounce
 
 const SHOULDER_HEIGHT = 30;                   // Distance from ground to character shoulder joint
 const MAX_JUMP = 80;                          // Maximum aerial leap height extension for rackets
@@ -261,7 +262,7 @@ function calculateOptimalInterceptPoint(target) {
 
   let currentT = 0;
   const simDt = 0.016; // 60fps procedural resolution
-  const maxT = 2.0;    // Cap prediction strictly at 2.0 seconds
+  const maxT = 4.0;    // Cap prediction strictly at 2.0 seconds
 
   while (currentT <= maxT) {
     // Only permit physics intercept tracking natively if the ball resolves physically inside valid playable geometry
@@ -287,19 +288,19 @@ function calculateOptimalInterceptPoint(target) {
     }
 
     // Step the deterministic physics model natively by one slice
+    simZ += simVZ * simDt;
+    simVZ -= GRAVITY * simDt;
     simX += simVX * simDt;
     simY += simVY * simDt;
-    simVZ -= GRAVITY * simDt;
-    simZ += simVZ * simDt;
 
     // Process procedural floor deflections
     if (simZ < 0) {
       simBounces++;
-      if (simBounces > 1) {
+      if (simBounces + state.bounceCount > 1) {
         break; // A second bounce fundamentally kills the rally, prune prediction immediately
       }
       simZ = 0;
-      simVZ = -simVZ * 0.6; // 0.6 standard court dampening multiplier
+      simVZ = Math.abs(simVZ) * DAMPING_MULTIPLIER;
     }
 
     currentT += simDt;
@@ -839,9 +840,14 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
 
   if (charMoved) {
     charState.legTimer += speed * 0.1; // Progress leg run cycle organically!
-    let targetRot = Math.atan2(charState.currentPosition.y - prevY, charState.currentPosition.x - prevX) * (180 / Math.PI);
-    if (targetRot < 0) targetRot += 360;
-    charState.targetPosition.rotation = targetRot;
+    let moveRot = Math.atan2(charState.currentPosition.y - prevY, charState.currentPosition.x - prevX) * (180 / Math.PI);
+    if (moveRot < 0) moveRot += 360;
+
+    const forwardRot = isPlayer ? 270 : 90;
+    let angleDiff = ((moveRot - forwardRot + 540) % 360) - 180;
+
+    // Blend only 40% towards the movement vector so characters actively strafe while facing the net
+    charState.targetPosition.rotation = forwardRot + (angleDiff * 0.6);
   } else if (charState.legTimer > 0) {
     const phase = charState.legTimer % Math.PI;
     if (phase > 0.1 && phase < Math.PI - 0.1) charState.legTimer += speed * 0.1;
@@ -1160,11 +1166,9 @@ function run(dt) {
         }
       }
 
-      // Reflect vertical kinetic energy mathematically and absorb 40% (0.6 multiplier) into the court
-      // (We read state.ball.pitchAngle fresh from current kinetic vector)
+      // Handle Bounce
       const currentVZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
-      // Reverse the VZ mechanically
-      state.ball.pitchAngle = Math.atan2(Math.abs(currentVZ) * 0.6, state.ball.velocity);
+      state.ball.pitchAngle = Math.atan2(Math.abs(currentVZ) * DAMPING_MULTIPLIER, state.ball.velocity);
     }
 
     // 9. Bounds Checking / Out Checks
