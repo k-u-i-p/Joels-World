@@ -51,20 +51,20 @@ bgImage.src = '/minigames/tennis/map.svg';
 let state = {
   player: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 270 },
+    targetPosition: { x: 0, y: 0, z: 0, rotation: 270 },
+    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
     score: 0,
     movementDirection: { x: 1, y: 1 },
-    racketPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
     legTimer: 0,
-    targetPosition: { x: 0, y: 0, z: 0, rotation: 270 },
     hasTarget: false
   },
   npc: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 90 },
+    targetPosition: { x: 0, y: COURT_INNER_BOUNDS.y - 10, z: 0, rotation: 90 },
+    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
     score: 0,
     movementDirection: { x: 1, y: 1 },
-    racketPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
     legTimer: 0,
-    targetPosition: { x: 0, y: COURT_INNER_BOUNDS.y - 10, z: 0, rotation: 90 },
     hasTarget: false
   },
   ball: {
@@ -309,11 +309,11 @@ function calculateOptimalInterceptPoint(target) {
 /**
  * Extracts and returns the precise 3D center point of a given racket position state matrix.
  * 
- * @param {Object} racketPosition - The state tracker's generic racket position mapping.
+ * @param {Object} racketCurrentPosition - The state tracker's generic racket position mapping.
  * @returns {{x: number, y: number, z: number}} - Formatted 3D geometrical center point.
  */
-function calculateCenterPointOfRacket(racketPosition) {
-  return { x: racketPosition.x, y: racketPosition.y, z: racketPosition.z };
+function calculateCenterPointOfRacket(racketCurrentPosition) {
+  return { x: racketCurrentPosition.x, y: racketCurrentPosition.y, z: racketCurrentPosition.z };
 }
 
 /**
@@ -795,8 +795,8 @@ function handleIntroSequence(dt) {
     const pMoving = moveCharacterTo(state.player, 0, targetPlayerY);
     const nMoving = moveCharacterTo(state.npc, 0, targetNpcY);
 
-    convergePhysics(state.player, dt, true, state.player.currentPosition.x, state.player.currentPosition.y, 0.5);
-    convergePhysics(state.npc, dt, false, state.npc.currentPosition.x, state.npc.currentPosition.y, 0.5);
+    convergePhysics(state.player, dt, true, 0.5);
+    convergePhysics(state.npc, dt, false, 0.5);
 
     // Override generic convergence rotational intent to face each other tightly
     state.player.targetPosition.rotation = 270;
@@ -825,8 +825,8 @@ function handleIntroSequence(dt) {
     const pFar = moveCharacterTo(state.player, targetPX, PLAYER_BASE_Y);
     const nFar = moveCharacterTo(state.npc, targetNX, NPC_BASE_Y);
 
-    convergePhysics(state.player, dt, true, state.player.currentPosition.x, state.player.currentPosition.y, 0.6);
-    convergePhysics(state.npc, dt, false, state.npc.currentPosition.x, state.npc.currentPosition.y, 0.6);
+    convergePhysics(state.player, dt, true, 0.6);
+    convergePhysics(state.npc, dt, false, 0.6);
 
     // If completely arrived back at baseline, organically turn to face the net utilizing standard defaults
     if (!pFar) state.player.targetPosition.rotation = 270;
@@ -841,7 +841,9 @@ function handleIntroSequence(dt) {
   }
 }
 
-function convergePhysics(charState, dt, isPlayer, prevX, prevY, speedMult = 1.0) {
+function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
+  const prevX = charState.currentPosition.x;
+  const prevY = charState.currentPosition.y;
   const speed = (isPlayer ? PADDLE_SPEED : NPC_SPEED) * dt * speedMult;
 
   const dx = charState.targetPosition.x - charState.currentPosition.x;
@@ -885,7 +887,7 @@ function convergePhysics(charState, dt, isPlayer, prevX, prevY, speedMult = 1.0)
 /**
  * Handles aim tracking, boundary logic, Z-leaps, and walk animation timers identically for characters.
  */
-function processCharacter(charState, isPlayer, prevX, prevY, dt) {
+function processCharacter(charState, isPlayer, dt) {
   // 1. Process Approach Proximities & Leaps Target
   const isApproaching = isPlayer ? (state.ball.vy > 0) : (state.ball.vy < 0);
   const distY = Math.abs(state.ball.y - charState.currentPosition.y);
@@ -913,7 +915,7 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt) {
   const lockAimDuringThrow = isActiveServe && state.servePhase !== 'live';
 
   if (!lockAimDuringThrow && (isApproaching || isActiveServe)) {
-    const centerPoint = calculateCenterPointOfRacket(charState.racketPosition);
+    const centerPoint = calculateCenterPointOfRacket(charState.racketCurrentPosition);
     const intercept = calculateOptimalInterceptPoint(centerPoint);
     const reach = calculateArmReach(charState, intercept);
 
@@ -934,7 +936,7 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt) {
   }
 
   // Safely execute physical coordinate translations AFTER final dynamic Z bindings!
-  const charMoved = convergePhysics(charState, dt, isPlayer, prevX, prevY);
+  const charMoved = convergePhysics(charState, dt, isPlayer);
 
   return { armX, armY, targetRacket: { pitch: targetPitch, yaw: targetYaw, roll: targetRoll }, moved: charMoved };
 }
@@ -961,9 +963,6 @@ function run(dt) {
   } else {
 
 
-    // Track coordinates BEFORE movement processes run
-    const prevPlayerX = state.player.currentPosition.x;
-    const prevPlayerY = state.player.currentPosition.y;
 
     // 1. Process Player Inputs & Movement
 
@@ -1002,7 +1001,7 @@ function run(dt) {
     }
 
 
-    const pAim = processCharacter(state.player, true, prevPlayerX, prevPlayerY, dt);
+    const pAim = processCharacter(state.player, true, dt);
     const playerMoved = pAim.moved;
 
     pArmX = pAim.armX;
@@ -1012,14 +1011,12 @@ function run(dt) {
     pAimRoll = pAim.targetRacket.roll;
 
     // 2. Process Simple AI NPC Movement
-    const prevNpcX = state.npc.currentPosition.x;
-    const prevNpcY = state.npc.currentPosition.y;
 
 
     function moveToIntercept() {
       // Ensure the NPC purposefully ignores tracking early physics data natively cascading from localized serve tosses
       // Formulate a nominal target tracking point dynamically around the actual rendered position of the racket head
-      const nominalTarget = calculateCenterPointOfRacket(state.npc.racketPosition);
+      const nominalTarget = calculateCenterPointOfRacket(state.npc.racketCurrentPosition);
       const interceptPoint = calculateOptimalInterceptPoint(nominalTarget);
       const optimalPosition = calculateOptimalInterceptPosition(interceptPoint, false);
 
@@ -1055,7 +1052,7 @@ function run(dt) {
       }
     }
 
-    const nAim = processCharacter(state.npc, false, prevNpcX, prevNpcY, dt);
+    const nAim = processCharacter(state.npc, false, dt);
 
     if (!nAim.moved) {
       state.npc.targetPosition.rotation = 90;
@@ -1068,8 +1065,8 @@ function run(dt) {
     const npcMoved = nAim.moved;
 
     // Ensure logical collision trackers properly pull the latest bounds exactly here
-    const playerRacketPos = state.player.racketPosition;
-    const npcRacketPos = state.npc.racketPosition;
+    const playerRacketPos = state.player.racketCurrentPosition;
+    const npcRacketPos = state.npc.racketCurrentPosition;
     const visualBallY = state.ball.y - state.ball.z;
 
     if (state.resetting && !playerMoved && !npcMoved) {
@@ -1358,7 +1355,7 @@ function run(dt) {
     ctx.translate(0, -charState.currentPosition.z / camera.zoom);
     ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
 
-    const transform = { offsetX, offsetY, scale, centerX, baseRotation: charState.currentPosition.rotation, elevateZ: charState.currentPosition.z, targetStateObj: charState.racketPosition, courtScale: COURT_SCALE };
+    const transform = { offsetX, offsetY, scale, centerX, baseRotation: charState.currentPosition.rotation, elevateZ: charState.currentPosition.z, targetStateObj: charState.racketCurrentPosition, courtScale: COURT_SCALE };
     if (!window.isAdmin) drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
     characterManager.drawHumanoidUpperBody(ctx, characterData, limbs);
     if (window.isAdmin) drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
@@ -1428,9 +1425,9 @@ function run(dt) {
     let interceptTarget;
     // Target the RECIEVER's racket to predict where they will intercept the ball
     if (state.lastHitter === 'npc' || state.isServe === 'npc_serve') {
-      interceptTarget = calculateCenterPointOfRacket(state.player.racketPosition);
+      interceptTarget = calculateCenterPointOfRacket(state.player.racketCurrentPosition);
     } else {
-      interceptTarget = calculateCenterPointOfRacket(state.npc.racketPosition);
+      interceptTarget = calculateCenterPointOfRacket(state.npc.racketCurrentPosition);
     }
 
     const bestPoint = calculateOptimalInterceptPoint(interceptTarget);
@@ -1458,8 +1455,8 @@ function run(dt) {
 
   // 3. Admin Hitbox Diagnostic Visualization Overlay
   if (window.isAdmin) {
-    const pHitbox = state.player.racketPosition;
-    const nHitbox = state.npc.racketPosition;
+    const pHitbox = state.player.racketCurrentPosition;
+    const nHitbox = state.npc.racketCurrentPosition;
 
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
