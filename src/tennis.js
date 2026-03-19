@@ -124,7 +124,7 @@ function calculateArmReach(player, interceptPoint) {
   // Angle to target in 2D space
   const angleToBall = Math.atan2(dy, dx);
   // Angle up/down in 3D space
-  const pitchAngle = clamp(Math.asin(clamp(dz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
+  const pitchAngle = Math.asin(clamp(dz / 40, -1, 1));
 
   const charFacingRad = player.currentPosition.rotation * (Math.PI / 180);
 
@@ -135,15 +135,11 @@ function calculateArmReach(player, interceptPoint) {
   while (localAngle <= -Math.PI) localAngle += Math.PI * 2;
   while (localAngle > Math.PI) localAngle -= Math.PI * 2;
 
-  // Restrict right arm socket structurally from swinging backwards into impossible geometry 
-  // (-90deg across chest to +110deg outstretched behind right shoulder)
-  localAngle = clamp(localAngle, -Math.PI * 0.5, Math.PI * 0.6);
-
   // Normal visual arm length physically reaching into Euclidean depth natively
   const armReachLength = 12 * Math.cos(pitchAngle);
 
   // Z target required to properly align the shoulder horizontally with the incoming optimal intersection natively!
-  const targetZ = clamp(interceptPoint.z - 30, -20, 80); // Restrict to a deep crouch (-20) up to a max aerial leap (+80)
+  const targetZ = interceptPoint.z - 30;
 
   return {
     x: -2 + armReachLength * Math.cos(localAngle),
@@ -156,36 +152,6 @@ function calculateArmReach(player, interceptPoint) {
 }
 
 /**
- * Procedurally calculates the exact 3D Cartesian rotation required 
- * for a character's shoulder to point their racket center directly at a given target point.
- * 
- * @param {Object} reach - The generated tracking outputs dynamically bridging structural limbs.
- * @param {{x: number, y: number, z: number}} interceptPoint - The pre-calculated optimal intercept target.
- * @returns {{roll: number, pitch: number, yaw: number}}
- */
-function calculateRacketAimAngle(reach, interceptPoint, charState) {
-  const dx = interceptPoint.x - reach.worldX;
-  const dy = interceptPoint.y - reach.worldY;
-  const dz = interceptPoint.z - reach.worldZ;
-
-  const absoluteYaw = Math.atan2(dy, dx);
-  // Pitch is already realistically natively restricted explicitly between -60deg and +60deg vertical pitch!
-  const targetPitch = clamp(Math.asin(clamp(dz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
-
-  const charFacingRad = charState.currentPosition.rotation * (Math.PI / 180);
-  let localYaw = absoluteYaw - charFacingRad;
-
-  // Normalize algebraically
-  while (localYaw <= -Math.PI) localYaw += Math.PI * 2;
-  while (localYaw > Math.PI) localYaw -= Math.PI * 2;
-
-  // Rigid clamp structurally holding the racket face natively corresponding with shoulder restrictions
-  localYaw = clamp(localYaw, -Math.PI * 0.5, Math.PI * 0.6);
-
-  return { roll: 1.0, pitch: targetPitch, yaw: localYaw };
-}
-
-/**
  * Procedurally calculates the 3D rotational vector required to hold the racket
  * perfectly perpendicular opposing the incoming velocity vector of the ball.
  * 
@@ -193,31 +159,55 @@ function calculateRacketAimAngle(reach, interceptPoint, charState) {
  * @param {Object} charState - The character state.
  * @returns {{roll: number, pitch: number, yaw: number}}
  */
-function calculateRacketReturnAimAngle(interceptPoint, charState) {
-  // Directly extract the predicted momentum flawlessly simulated against native physics loops natively
+function calculateRacketReturnAimAngle(interceptPoint, charState, targetPoint) {
   const bx = interceptPoint.vx || 0;
   const by = interceptPoint.vy || 0;
+  const bz = interceptPoint.vz || 0;
 
-  // Extract the deterministic simulation's predicted vertical tracking trajectory intrinsically
-  const predictedVZ = interceptPoint.vz || 0;
+  // Calculate normalized incoming kinetic vector safely preventing zero division
+  const inLen = Math.sqrt(bx * bx + by * by + bz * bz) || 1;
+  const vInX = bx / inLen;
+  const vInY = by / inLen;
+  const vInZ = bz / inLen;
 
-  // Focus the racket's geographic yaw completely inverted to the ball's planar XY momentum 
-  const absoluteYaw = Math.atan2(-by, -bx);
+  // Calculate normalized outgoing targeting vector seamlessly bridging coordinates
+  const outDx = targetPoint.x - interceptPoint.x;
+  const outDy = targetPoint.y - interceptPoint.y;
+  const outDz = targetPoint.z - interceptPoint.z;
+  const outLen = Math.sqrt(outDx * outDx + outDy * outDy + outDz * outDz) || 1;
+  const vOutX = outDx / outLen;
+  const vOutY = outDy / outLen;
+  const vOutZ = outDz / outLen;
 
-  // Invert the predicted vertical momentum dynamically modeling the future falling state symmetrically
-  const targetPitch = clamp(Math.asin(clamp(-predictedVZ / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
+  // The perfect true deflection normal mathematically perfectly bisects the incoming and outgoing kinetic vectors natively!
+  let nx = vOutX - vInX;
+  let ny = vOutY - vInY;
+  let nz = vOutZ - vInZ;
+  const nLen = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+  nx /= nLen;
+  ny /= nLen;
+  nz /= nLen;
+
+  // Align yaw to securely map purely parallel to the normal's horizontal layout perfectly tracking visually 
+  let absoluteYaw = Math.atan2(ny, nx);
+
+  // Rotate 90 degrees logically because the handle draws linearly perpendicular to the strings' pushing normal intrinsically!
+  absoluteYaw += Math.PI / 2;
+
+  // Elevate handle to track pitch visually relative to the Z requirements natively 
+  const targetPitch = Math.asin(clamp(nz, -1, 1)) * 0.5;
+
+  // Determine geometric roll scaling (0 makes the face vertical for linear low shots, 1 makes it completely horizontal/flat for upward scooping lobs)
+  // Perfectly maps the normal vector's Z axis completely securely organically mirroring true isometric rendering!
+  const roll = Math.abs(nz);
 
   const charFacingRad = charState.currentPosition.rotation * (Math.PI / 180);
   let localYaw = absoluteYaw - charFacingRad;
 
-  // Normalize algebraically
   while (localYaw <= -Math.PI) localYaw += Math.PI * 2;
   while (localYaw > Math.PI) localYaw -= Math.PI * 2;
 
-  // Mechanical skeletal joint enforcement mapping natively onto yaw vector
-  localYaw = clamp(localYaw, -Math.PI * 0.5, Math.PI * 0.6);
-
-  return { roll: 1.0, pitch: targetPitch, yaw: localYaw };
+  return { roll: roll, pitch: targetPitch, yaw: localYaw };
 }
 /**
  * Calculates generic structural offsets for limbs based on leg animation and arm reach natively referencing the character state organically.
@@ -273,17 +263,23 @@ function calculateOptimalInterceptPoint(target) {
   const maxT = 2.0;    // Cap prediction strictly at 2.0 seconds
 
   while (currentT <= maxT) {
-    const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
+    // Only permit physics intercept tracking natively if the ball resolves physically inside valid playable geometry
+    const isWithinCourtX = Math.abs(simX) <= PLAYABLE_HALF_WIDTH;
+    const isWithinCourtY = simY >= (NPC_BASE_Y - PLAYABLE_OVERSHOOT) && simY <= (PLAYER_BASE_Y + PLAYABLE_OVERSHOOT);
 
-    if (distSq < closestDistSq) {
-      closestDistSq = distSq;
-      bestT = currentT;
-      bestX = simX;
-      bestY = simY;
-      bestZ = simZ;
-      bestVX = simVX;
-      bestVY = simVY;
-      bestVZ = simVZ;
+    if (isWithinCourtX && isWithinCourtY) {
+      const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
+
+      if (distSq < closestDistSq) {
+        closestDistSq = distSq;
+        bestT = currentT;
+        bestX = simX;
+        bestY = simY;
+        bestZ = simZ;
+        bestVX = simVX;
+        bestVY = simVY;
+        bestVZ = simVZ;
+      }
     }
 
     // Step the deterministic physics model natively by one slice
@@ -566,8 +562,8 @@ function serveBall(playerObj) {
   } else {
     boxMinY = netY;
     boxMaxY = netY + serviceBoxDepth;
-    boxMinX = (state.serveSide === -1) ? centerX : COURT_INNER_BOUNDS.x;
-    boxMaxX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width : centerX;
+    boxMinX = (state.serveSide === 1) ? centerX : COURT_INNER_BOUNDS.x;
+    boxMaxX = (state.serveSide === 1) ? COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width : centerX;
   }
 
   state.activeServiceBox = { minX: boxMinX, maxX: boxMaxX, minY: boxMinY, maxY: boxMaxY };
@@ -920,9 +916,7 @@ function processCharacter(charState, isPlayer, dt) {
   }
 
   // 3. Dynamic Limb Target Tracking
-  const isActiveServe = state.isServe === (isPlayer ? 'player_serve' : 'npc_serve');
-
-  if (isApproaching || (state.servePhase === 'live' && isActiveServe)) {
+  if (!state.resetting && (isApproaching || state.servePhase === 'live')) {
     const intercept = calculateOptimalInterceptPoint(charState.racketCurrentPosition);
     const reach = calculateArmReach(charState, intercept);
 
@@ -932,10 +926,17 @@ function processCharacter(charState, isPlayer, dt) {
     charState.racketTargetPosition.armX = reach.x;
     charState.racketTargetPosition.armY = reach.y;
 
-    const racketReach = calculateRacketAimAngle(reach, intercept, charState);
-    const aim = calculateRacketReturnAimAngle(intercept, charState);
+    // Direct racket targeting towards the center of the net strictly anticipating the deflection arc identically
+    const defaultTarget = {
+      x: COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width / 2,
+      y: COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2,
+      z: 20
+    };
+
+    //const racketReach = calculateRacketAimAngle(reach, intercept, charState);
+    const aim = calculateRacketReturnAimAngle(intercept, charState, defaultTarget);
     charState.racketTargetPosition.pitch = aim.pitch;
-    charState.racketTargetPosition.yaw = racketReach.yaw;
+    charState.racketTargetPosition.yaw = aim.yaw;
     charState.racketTargetPosition.roll = aim.roll;
   } else {
     // Smoothly settle back down to the ground if safely idling natively!
@@ -976,15 +977,20 @@ function run(dt) {
       let moveIntentX = 0;
       let moveIntentY = 0;
 
-      // Read from analog mobile joystick first if active
-      if (inputManager.keys.TouchMove) {
-        moveIntentX = inputManager.joystickVector.x;
-        moveIntentY = inputManager.joystickVector.y;
-      } else {
-        if (inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW')) moveIntentY -= 1;
-        if (inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS')) moveIntentY += 1;
-        if (inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA')) moveIntentX -= 1;
-        if (inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD')) moveIntentX += 1;
+      // Restrict active movement strictly while idling awaiting the mechanical toss apex
+      const isServingAndAwaitingToss = state.servePhase === 'idle' && state.isServe === 'player_serve';
+
+      if (!isServingAndAwaitingToss) {
+        // Read from analog mobile joystick first if active
+        if (inputManager.keys.TouchMove) {
+          moveIntentX = inputManager.joystickVector.x;
+          moveIntentY = inputManager.joystickVector.y;
+        } else {
+          if (inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW')) moveIntentY -= 1;
+          if (inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS')) moveIntentY += 1;
+          if (inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA')) moveIntentX -= 1;
+          if (inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD')) moveIntentX += 1;
+        }
       }
 
       if (moveIntentX !== 0 || moveIntentY !== 0) {
