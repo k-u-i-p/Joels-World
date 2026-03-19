@@ -316,16 +316,6 @@ function calculateOptimalInterceptPoint(target) {
 }
 
 /**
- * Extracts and returns the precise 3D center point of a given racket position state matrix.
- * 
- * @param {Object} racketCurrentPosition - The state tracker's generic racket position mapping.
- * @returns {{x: number, y: number, z: number}} - Formatted 3D geometrical center point.
- */
-function calculateCenterPointOfRacket(racketCurrentPosition) {
-  return { x: racketCurrentPosition.x, y: racketCurrentPosition.y, z: racketCurrentPosition.z };
-}
-
-/**
  * Maps a 3D ball trajectory coordinate back to the physical 2D floor positioning 
  * where a character must stand to naturally intercept it with their racket hand.
  * 
@@ -931,11 +921,9 @@ function processCharacter(charState, isPlayer, dt) {
 
   // 3. Dynamic Limb Target Tracking
   const isActiveServe = state.isServe === (isPlayer ? 'player_serve' : 'npc_serve');
-  const lockAimDuringThrow = isActiveServe && state.servePhase !== '';
 
-  if (!lockAimDuringThrow && (isApproaching || isActiveServe)) {
-    const centerPoint = calculateCenterPointOfRacket(charState.racketCurrentPosition);
-    const intercept = calculateOptimalInterceptPoint(centerPoint);
+  if (isApproaching || (state.servePhase === 'live' && isActiveServe)) {
+    const intercept = calculateOptimalInterceptPoint(charState.racketCurrentPosition);
     const reach = calculateArmReach(charState, intercept);
 
     // Execute dynamic Z scaling smoothly linking into the next convergePhysics frame natively
@@ -1026,8 +1014,7 @@ function run(dt) {
     function moveToIntercept() {
       // Ensure the NPC purposefully ignores tracking early physics data natively cascading from localized serve tosses
       // Formulate a nominal target tracking point dynamically around the actual rendered position of the racket head
-      const nominalTarget = calculateCenterPointOfRacket(state.npc.racketCurrentPosition);
-      const interceptPoint = calculateOptimalInterceptPoint(nominalTarget);
+      const interceptPoint = calculateOptimalInterceptPoint(state.npc.racketCurrentPosition);
       const optimalPosition = calculateOptimalInterceptPosition(interceptPoint, false);
 
       moveCharacterTo(state.npc, optimalPosition.x, optimalPosition.y);
@@ -1049,7 +1036,7 @@ function run(dt) {
           moveCharacterTo(state.npc, 0, NPC_BASE_Y);
           state.npc.hasTarget = false;
         }
-      } else if (state.isServe === 'npc_serve' && state.servePhase === 'live') {
+      } else if (state.isServe === 'npc_serve' && state.servePhase !== 'idle') {
         //Mve to stike thrown ball after serve
         if (!state.npc.hasTarget) {
           moveToIntercept();
@@ -1438,9 +1425,9 @@ function run(dt) {
     let interceptTarget;
     // Target the RECIEVER's racket to predict where they will intercept the ball
     if (state.lastHitter === 'npc' || state.isServe === 'npc_serve') {
-      interceptTarget = calculateCenterPointOfRacket(state.player.racketCurrentPosition);
+      interceptTarget = state.player.racketCurrentPosition;
     } else {
-      interceptTarget = calculateCenterPointOfRacket(state.npc.racketCurrentPosition);
+      interceptTarget = state.npc.racketCurrentPosition;
     }
 
     const bestPoint = calculateOptimalInterceptPoint(interceptTarget);
