@@ -21,7 +21,7 @@ const ctx = canvas.getContext('2d');
 const COURT_INNER_BOUNDS = { x: -60, y: 85, width: 120, height: 205 };
 const GAME_SCALE = COURT_INNER_BOUNDS.width / 255; // Used to normalize velocities against court shrinks
 
-const PADDLE_SPEED = 250 * GAME_SCALE;        // Player movement speed
+const PLAYER_SPEED = 250 * GAME_SCALE;        // Player movement speed
 const NPC_SPEED = 200 * GAME_SCALE;           // NPC movement speed
 const BALL_SPEED = 220 * GAME_SCALE;          // Base horizontal ball speed
 const MAXIMUM_BALL_SPEED = 300 * GAME_SCALE;  // engine speed ceiling for rallying
@@ -562,17 +562,22 @@ function serveBall(playerObj) {
 
   let boxMinX, boxMaxX, boxMinY, boxMaxY;
 
-  // Serves are cross-court correctly mapped 
+  // Apply standard physical tennis spacing: Doubles alleys are exactly 12.5% of total width each side
+  const doublesAlleyWidth = COURT_INNER_BOUNDS.width * 0.125; 
+  const singlesMinX = COURT_INNER_BOUNDS.x + doublesAlleyWidth;
+  const singlesMaxX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width - doublesAlleyWidth;
+
+  // Serves are cross-court correctly mapped into strictly singles service boundaries
   if (isPlayer) {
     boxMinY = netY - serviceBoxDepth;
     boxMaxY = netY;
-    boxMinX = (state.serveSide === -1) ? centerX : COURT_INNER_BOUNDS.x;
-    boxMaxX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width : centerX;
+    boxMinX = (state.serveSide === -1) ? centerX : singlesMinX;
+    boxMaxX = (state.serveSide === -1) ? singlesMaxX : centerX;
   } else {
     boxMinY = netY;
     boxMaxY = netY + serviceBoxDepth;
-    boxMinX = (state.serveSide === 1) ? centerX : COURT_INNER_BOUNDS.x;
-    boxMaxX = (state.serveSide === 1) ? COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width : centerX;
+    boxMinX = (state.serveSide === 1) ? centerX : singlesMinX;
+    boxMaxX = (state.serveSide === 1) ? singlesMaxX : centerX;
   }
 
   state.activeServiceBox = { minX: boxMinX, maxX: boxMaxX, minY: boxMinY, maxY: boxMaxY };
@@ -743,7 +748,9 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
 
     let returnSpeed = state.ball.velocity * (isPlayer ? 1.05 : 1.1);
 
-    returnSpeed = BALL_SPEED * (isPlayer ? 0.8 : 0.65);
+    if (state.isServe !== 'in_play') {
+      returnSpeed = BALL_SPEED * (isPlayer ? 0.8 : 0.65);
+    }
 
     state.rallyCount++;
     state.lastHitter = isPlayer ? 'player' : 'npc';
@@ -838,7 +845,7 @@ function handleIntroSequence(dt) {
 function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
   const prevX = charState.currentPosition.x;
   const prevY = charState.currentPosition.y;
-  const speed = (isPlayer ? PADDLE_SPEED : NPC_SPEED) * dt * speedMult;
+  const speed = (isPlayer ? PLAYER_SPEED : NPC_SPEED) * dt * speedMult;
 
   const dx = charState.targetPosition.x - charState.currentPosition.x;
   if (Math.abs(dx) > 1) {
@@ -1076,8 +1083,8 @@ function run(dt) {
 
         }
 
-        state.player.targetPosition.x = state.player.currentPosition.x + moveIntentX * 50 * GAME_SCALE; // Extend convergence target against camera mapping
-        state.player.targetPosition.y = state.player.currentPosition.y + moveIntentY * 50 * GAME_SCALE;
+        state.player.targetPosition.x = state.player.currentPosition.x + moveIntentX * 40 * GAME_SCALE; // Extend convergence target against camera mapping
+        state.player.targetPosition.y = state.player.currentPosition.y + moveIntentY * 40 * GAME_SCALE;
       } else {
         // Release snaps targetPosition to match feet instantly halting physics loops
         state.player.targetPosition.x = state.player.currentPosition.x;
