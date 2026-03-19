@@ -29,6 +29,10 @@ const BALL_RADIUS = 3;                        // Collision and drawing radius of
 const GRAVITY = 800 * GAME_SCALE;             // Gravity affecting the ball Z-axis (pixels/s^2)
 const NET_HEIGHT = 45 * GAME_SCALE;           // Minimum Z-altitude required to cross the court
 
+const SHOULDER_HEIGHT = 30;                   // Distance from ground to character shoulder joint
+const MAX_JUMP = 80;                          // Maximum aerial leap height extension for rackets
+const MIN_CROUCH = -20;                       // Maximum downward racket crouch extension
+
 const PLAYABLE_OVERSHOOT = 75; // How far characters can physically run out of bounds beyond the court lines
 const PLAYABLE_HALF_WIDTH = (COURT_INNER_BOUNDS.width / 2) + PLAYABLE_OVERSHOOT; // Lateral character bounds naturally scale with the court
 
@@ -109,7 +113,7 @@ const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
  * 
  * @param {Object} player - The character state tracking object.
  * @param {{x: number, y: number, z: number}} interceptPoint - Expected ball collision point.
- * @returns {{x: number, y: number, worldX: number, worldY: number, worldZ: number}} The calculated rightArm 2D offsets and absolute world position bindings.
+ * @returns {{x: number, y: number, z: number}} The calculated rightArm 2D offsets and absolute world position bindings.
  */
 function calculateArmReach(player, interceptPoint) {
   const isPlayer = player === state.player;
@@ -117,7 +121,7 @@ function calculateArmReach(player, interceptPoint) {
 
   const dx = interceptPoint.x - player.currentPosition.x;
   const dy = interceptPoint.y - worldY;
-  const dz = interceptPoint.z - (player.currentPosition.z + 30); // 30 is shoulder height
+  const dz = interceptPoint.z - (player.currentPosition.z + SHOULDER_HEIGHT);
 
   const dist2D = Math.sqrt(dx * dx + dy * dy);
 
@@ -139,15 +143,12 @@ function calculateArmReach(player, interceptPoint) {
   const armReachLength = 12 * Math.cos(pitchAngle);
 
   // Z target required to properly align the shoulder horizontally with the incoming optimal intersection natively!
-  const targetZ = interceptPoint.z - 30;
+  const targetZ = interceptPoint.z - SHOULDER_HEIGHT;
 
   return {
     x: -2 + armReachLength * Math.cos(localAngle),
     y: 14 + armReachLength * Math.sin(localAngle),
-    z: targetZ,
-    worldX: player.currentPosition.x,
-    worldY: worldY,
-    worldZ: player.currentPosition.z + 30
+    z: targetZ
   };
 }
 
@@ -920,9 +921,8 @@ function processCharacter(charState, isPlayer, dt) {
     const intercept = calculateOptimalInterceptPoint(charState.racketCurrentPosition);
     const reach = calculateArmReach(charState, intercept);
 
-    // Execute dynamic Z scaling smoothly linking into the next convergePhysics frame natively
-    charState.targetPosition.z = reach.z * zMult;
-
+    // Limit the characters vertical movement to MIN_CROUCH and MAX_JUMP
+    charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP) * zMult;
     charState.racketTargetPosition.armX = reach.x;
     charState.racketTargetPosition.armY = reach.y;
 
@@ -933,7 +933,6 @@ function processCharacter(charState, isPlayer, dt) {
       z: 20
     };
 
-    //const racketReach = calculateRacketAimAngle(reach, intercept, charState);
     const aim = calculateRacketReturnAimAngle(intercept, charState, defaultTarget);
     charState.racketTargetPosition.pitch = aim.pitch;
     charState.racketTargetPosition.yaw = aim.yaw;
