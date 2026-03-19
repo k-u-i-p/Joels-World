@@ -315,36 +315,6 @@ function calculateOptimalInterceptPoint(target) {
   return { x: bestX, y: bestY, z: bestZ, t: bestT, vx: bestVX, vy: bestVY, vz: bestVZ };
 }
 
-/**
- * Maps a 3D ball trajectory coordinate back to the physical 2D floor positioning 
- * where a character must stand to naturally intercept it with their racket hand.
- * 
- * @param {{x: number, y: number, z: number}} interceptPoint - The predicted 3D ball location.
- * @param {boolean} isPlayer - True if calculating for the bottom-court player.
- * @returns {{x: number, y: number}} - Absolute engine coordinates where the character's feet should be.
- */
-function calculateOptimalInterceptPosition(interceptPoint, isPlayer) {
-  // Lateral bracket offset representing distance from shoulder center to racket head natively in pixels
-  const racketOffsetX = 40 * camera.zoom * GAME_SCALE;
-  // Depth offset based on arm extension radius natively in pixels
-  const racketOffsetY = 15;
-
-  if (isPlayer) {
-    // Player faces UP (270 degrees). Racket hand is +X visual radius.
-    // They must plant their body -X and +Y relative to the incoming ball.
-    return {
-      x: interceptPoint.x - racketOffsetX,
-      y: interceptPoint.y + racketOffsetY
-    };
-  } else {
-    // NPC faces DOWN (90 degrees). Racket hand is -X visual radius from the camera's perspective.
-    // They must plant their body +X and -Y relative to the incoming ball.
-    return {
-      x: interceptPoint.x + racketOffsetX,
-      y: interceptPoint.y - racketOffsetY
-    };
-  }
-}
 
 /**
  * Halts all kinetic physics and geometrically forces the ball strictly onto a specific coordinate locally.
@@ -899,6 +869,15 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
   return charMoved;
 }
 
+function resetRacketToNeutral(charState) {
+  // Reset to neutral statically mapped organically
+  charState.racketTargetPosition.armX = -2 + 4 * Math.cos(Math.PI * 0.25);
+  charState.racketTargetPosition.armY = 14 + 4 * Math.sin(Math.PI * 0.25);
+  charState.racketTargetPosition.pitch = 0.0;
+  charState.racketTargetPosition.yaw = Math.PI * 0.25;
+  charState.racketTargetPosition.roll = 1.0;
+}
+
 /**
  * Handles aim tracking, boundary logic, Z-leaps, and walk animation timers identically for characters.
  */
@@ -912,11 +891,11 @@ function processCharacter(charState, isPlayer, dt) {
 
   // 2. Converge constraints!
   // Clip Court Bounds
-  charState.targetPosition.x = clamp(charState.targetPosition.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
+  // charState.targetPosition.x = clamp(charState.targetPosition.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
   if (isPlayer) {
-    charState.targetPosition.y = clamp(charState.targetPosition.y, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) + 10, PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10);
+    //charState.targetPosition.y = clamp(charState.targetPosition.y, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) + 10, PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10);
   } else {
-    charState.targetPosition.y = clamp(charState.targetPosition.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
+    //charState.targetPosition.y = clamp(charState.targetPosition.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
   }
 
   // 3. Dynamic Limb Target Tracking
@@ -944,12 +923,7 @@ function processCharacter(charState, isPlayer, dt) {
     // Smoothly settle back down to the ground if safely idling natively!
     charState.targetPosition.z = 0;
 
-    // Reset to neutral statically mapped organically
-    charState.racketTargetPosition.armX = -2 + 4 * Math.cos(Math.PI * 0.25);
-    charState.racketTargetPosition.armY = 14 + 4 * Math.sin(Math.PI * 0.25);
-    charState.racketTargetPosition.pitch = 0.0;
-    charState.racketTargetPosition.yaw = Math.PI * 0.25;
-    charState.racketTargetPosition.roll = 1.0;
+    resetRacketToNeutral(charState);
   }
 
   // Safely execute physical coordinate translations AFTER final dynamic Z bindings!
@@ -1023,9 +997,8 @@ function run(dt) {
       // Ensure the NPC purposefully ignores tracking early physics data natively cascading from localized serve tosses
       // Formulate a nominal target tracking point dynamically around the actual rendered position of the racket head
       const interceptPoint = calculateOptimalInterceptPoint(state.npc.racketCurrentPosition);
-      const optimalPosition = calculateOptimalInterceptPosition(interceptPoint, false);
 
-      moveCharacterTo(state.npc, optimalPosition.x, optimalPosition.y);
+      moveCharacterTo(state.npc, interceptPoint.x + 30, interceptPoint.y - 20);
     }
 
     if (state.resetting) {
