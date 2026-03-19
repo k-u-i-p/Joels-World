@@ -133,14 +133,26 @@ function calculateArmReach(player, interceptPoint) {
   const charFacingRad = player.rotation * (Math.PI / 180);
 
   // Angle relative to character body
-  const localAngle = angleToBall - charFacingRad;
+  let localAngle = angleToBall - charFacingRad;
+
+  // Normalize algebraically to strictly [-PI, +PI] securely
+  while (localAngle <= -Math.PI) localAngle += Math.PI * 2;
+  while (localAngle > Math.PI) localAngle -= Math.PI * 2;
+
+  // Restrict right arm socket structurally from swinging backwards into impossible geometry 
+  // (-90deg across chest to +110deg outstretched behind right shoulder)
+  localAngle = clamp(localAngle, -Math.PI * 0.5, Math.PI * 0.6);
 
   // Normal visual arm length physically reaching into Euclidean depth natively
   const armReachLength = 12 * Math.cos(pitchAngle);
 
+  // Z target required to properly align the shoulder horizontally with the incoming optimal intersection natively!
+  const targetZ = clamp(interceptPoint.z - 30, -20, 80); // Restrict to a deep crouch (-20) up to a max aerial leap (+80)
+
   return {
     x: -2 + armReachLength * Math.cos(localAngle),
     y: 14 + armReachLength * Math.sin(localAngle),
+    z: targetZ,
     worldX: player.x,
     worldY: worldY,
     worldZ: player.z + 30
@@ -161,10 +173,18 @@ function calculateRacketAimAngle(reach, interceptPoint, charState) {
   const dz = interceptPoint.z - reach.worldZ;
 
   const absoluteYaw = Math.atan2(dy, dx);
+  // Pitch is already realistically natively restricted explicitly between -60deg and +60deg vertical pitch!
   const targetPitch = clamp(Math.asin(clamp(dz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
 
   const charFacingRad = charState.rotation * (Math.PI / 180);
-  const localYaw = absoluteYaw - charFacingRad;
+  let localYaw = absoluteYaw - charFacingRad;
+
+  // Normalize algebraically
+  while (localYaw <= -Math.PI) localYaw += Math.PI * 2;
+  while (localYaw > Math.PI) localYaw -= Math.PI * 2;
+
+  // Rigid clamp structurally holding the racket face natively corresponding with shoulder restrictions
+  localYaw = clamp(localYaw, -Math.PI * 0.5, Math.PI * 0.6);
 
   return { roll: 1.0, pitch: targetPitch, yaw: localYaw };
 }
@@ -187,10 +207,18 @@ function calculateRacketReturnAimAngle(ballState, charState) {
   const absoluteYaw = Math.atan2(-by, -bx);
 
   // Invert the physical vertical momentum (e.g. if ball is dropping severely (-bz), racket aims upward severely)
+  // Pitch is already clamped securely between -60deg to +60deg vertical ranges natively
   const targetPitch = clamp(Math.asin(clamp(-bz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
 
   const charFacingRad = charState.rotation * (Math.PI / 180);
-  const localYaw = absoluteYaw - charFacingRad;
+  let localYaw = absoluteYaw - charFacingRad;
+
+  // Normalize algebraically
+  while (localYaw <= -Math.PI) localYaw += Math.PI * 2;
+  while (localYaw > Math.PI) localYaw -= Math.PI * 2;
+
+  // Mechanical skeletal joint enforcement mapping natively onto yaw vector
+  localYaw = clamp(localYaw, -Math.PI * 0.5, Math.PI * 0.6);
 
   return { roll: 1.0, pitch: targetPitch, yaw: localYaw };
 }
@@ -869,22 +897,16 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt) {
   const distY = Math.abs(state.ball.y - charState.y);
   const zMult = clamp(1 - (distY / 80), 0, 1);
 
-  if (isApproaching) {
-    const requiredJump = Math.max(0, state.ball.z - 35);
-    charState.moveTarget.z = clamp(requiredJump, 0, 70) * zMult;
-  } else {
-    charState.moveTarget.z = 0;
-  }
+  // Z-Leaps dynamically tracked below
 
   // 2. Converge constraints!
+  // Clip Court Bounds
   charState.moveTarget.x = clamp(charState.moveTarget.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
   if (isPlayer) {
     charState.moveTarget.y = clamp(charState.moveTarget.y, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) + 10, PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10);
   } else {
     charState.moveTarget.y = clamp(charState.moveTarget.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
   }
-
-  const charMoved = convergePhysics(charState, dt, isPlayer, prevX, prevY);
 
   // 3. Dynamic Limb Target Tracking
   let armX = -2 + 4 * Math.cos(Math.PI * 0.25);
@@ -900,6 +922,10 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt) {
     const centerPoint = calculateCenterPointOfRacket(charState.racketPosition);
     const intercept = calculateOptimalInterceptPoint(centerPoint);
     const reach = calculateArmReach(charState, intercept);
+
+    // Execute dynamic Z scaling smoothly linking into the next convergePhysics frame natively
+    charState.moveTarget.z = reach.z * zMult;
+
     armX = reach.x;
     armY = reach.y;
 
@@ -908,7 +934,13 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt) {
     targetPitch = aim.pitch;
     targetYaw = racketReach.yaw;
     targetRoll = aim.roll;
+  } else {
+    // Smoothly settle back down to the ground if safely idling natively!
+    charState.moveTarget.z = 0;
   }
+
+  // Safely execute physical coordinate translations AFTER final dynamic Z bindings!
+  const charMoved = convergePhysics(charState, dt, isPlayer, prevX, prevY);
 
   return { armX, armY, targetRacket: { pitch: targetPitch, yaw: targetYaw, roll: targetRoll }, moved: charMoved };
 }
@@ -979,10 +1011,6 @@ function run(dt) {
     const pAim = processCharacter(state.player, true, prevPlayerX, prevPlayerY, dt);
     const playerMoved = pAim.moved;
 
-    if (!playerMoved) {
-      state.player.moveTarget.rotation = 270;
-    }
-
     pArmX = pAim.armX;
     pArmY = pAim.armY;
     pAimPitch = pAim.targetRacket.pitch;
@@ -1011,6 +1039,7 @@ function run(dt) {
       const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
       const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
       moveCharacterTo(state.npc, targetX, NPC_BASE_Y);
+      state.player.moveTarget.rotation = 270;
     } else {
       if (state.isServe === 'in_play') {
         if (state.ball.vy < 0) {
