@@ -191,20 +191,24 @@ function calculateRacketAimAngle(reach, interceptPoint, charState) {
  * 
  * @param {Object} ballState - The current state of the ball.
  * @param {Object} charState - The character state.
+ * @param {Object} interceptPoint - The pre-calculated optimal intercept target containing predicted arrival time correctly.
  * @returns {{roll: number, pitch: number, yaw: number}}
  */
-function calculateRacketReturnAimAngle(ballState, charState) {
-  // Extract rigid velocity components natively
-  const bx = ballState.vx || 0;
-  const by = ballState.vy || 0;
-  const bz = (ballState.velocity || 0) * Math.tan(ballState.pitchAngle || 0);
+function calculateRacketReturnAimAngle(currentBallState, charState, interceptPoint) {
+  // If the explicit procedural interception path natively resolved physical bounces, cleanly route its finalized velocity!
+  const bx = (interceptPoint && interceptPoint.vx !== undefined) ? interceptPoint.vx : (currentBallState.vx || 0);
+  const by = (interceptPoint && interceptPoint.vy !== undefined) ? interceptPoint.vy : (currentBallState.vy || 0);
+
+  const initialVZ = (currentBallState.velocity || 0) * Math.tan(currentBallState.pitchAngle || 0);
+
+  // Trust the deterministic prediction loop to model bounces natively, falling back to current vectors identically
+  let predictedVZ = (interceptPoint && interceptPoint.vz !== undefined) ? interceptPoint.vz : initialVZ;
 
   // Focus the racket's geographic yaw completely inverted to the ball's planar XY momentum 
   const absoluteYaw = Math.atan2(-by, -bx);
 
-  // Invert the physical vertical momentum (e.g. if ball is dropping severely (-bz), racket aims upward severely)
-  // Pitch is already clamped securely between -60deg to +60deg vertical ranges natively
-  const targetPitch = clamp(Math.asin(clamp(-bz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
+  // Invert the predicted vertical momentum dynamically modeling the future falling state symmetrically
+  const targetPitch = clamp(Math.asin(clamp(-predictedVZ / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
 
   const charFacingRad = charState.currentPosition.rotation * (Math.PI / 180);
   let localYaw = absoluteYaw - charFacingRad;
@@ -263,6 +267,9 @@ function calculateOptimalInterceptPoint(target) {
   let bestX = simX;
   let bestY = simY;
   let bestZ = simZ;
+  let bestVX = simVX;
+  let bestVY = simVY;
+  let bestVZ = simVZ;
 
   let currentT = 0;
   const simDt = 0.016; // 60fps procedural resolution
@@ -277,6 +284,9 @@ function calculateOptimalInterceptPoint(target) {
       bestX = simX;
       bestY = simY;
       bestZ = simZ;
+      bestVX = simVX;
+      bestVY = simVY;
+      bestVZ = simVZ;
     }
 
     // Step the deterministic physics model natively by one slice
@@ -305,7 +315,7 @@ function calculateOptimalInterceptPoint(target) {
     }
   }
 
-  return { x: bestX, y: bestY, z: bestZ, t: bestT };
+  return { x: bestX, y: bestY, z: bestZ, t: bestT, vx: bestVX, vy: bestVY, vz: bestVZ };
 }
 
 /**
@@ -936,7 +946,7 @@ function processCharacter(charState, isPlayer, dt) {
     charState.racketTargetPosition.armY = reach.y;
 
     const racketReach = calculateRacketAimAngle(reach, intercept, charState);
-    const aim = calculateRacketReturnAimAngle(state.ball, charState);
+    const aim = calculateRacketReturnAimAngle(state.ball, charState, intercept);
     charState.racketTargetPosition.pitch = aim.pitch;
     charState.racketTargetPosition.yaw = racketReach.yaw;
     charState.racketTargetPosition.roll = aim.roll;
