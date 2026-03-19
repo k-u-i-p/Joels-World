@@ -319,11 +319,11 @@ function calculateOptimalInterceptPoint(target) {
  * Maps a 3D ball trajectory coordinate back to the physical 2D floor positioning 
  * where a character must stand to naturally intercept it with their racket hand.
  * 
- * @param {{x: number, y: number, z: number}} trajectoryPoint - The predicted 3D ball location.
+ * @param {{x: number, y: number, z: number}} interceptPoint - The predicted 3D ball location.
  * @param {boolean} isPlayer - True if calculating for the bottom-court player.
  * @returns {{x: number, y: number}} - Absolute engine coordinates where the character's feet should be.
  */
-function calculateOptimalInterceptPosition(trajectoryPoint, isPlayer) {
+function calculateOptimalInterceptPosition(interceptPoint, isPlayer) {
   // Lateral bracket offset representing distance from shoulder center to racket head natively in pixels
   const racketOffsetX = 40 * camera.zoom * GAME_SCALE;
   // Depth offset based on arm extension radius natively in pixels
@@ -333,15 +333,15 @@ function calculateOptimalInterceptPosition(trajectoryPoint, isPlayer) {
     // Player faces UP (270 degrees). Racket hand is +X visual radius.
     // They must plant their body -X and +Y relative to the incoming ball.
     return {
-      x: trajectoryPoint.x - racketOffsetX,
-      y: trajectoryPoint.y + racketOffsetY
+      x: interceptPoint.x - racketOffsetX,
+      y: interceptPoint.y + racketOffsetY
     };
   } else {
     // NPC faces DOWN (90 degrees). Racket hand is -X visual radius from the camera's perspective.
     // They must plant their body +X and -Y relative to the incoming ball.
     return {
-      x: trajectoryPoint.x + racketOffsetX,
-      y: trajectoryPoint.y - racketOffsetY
+      x: interceptPoint.x + racketOffsetX,
+      y: interceptPoint.y - racketOffsetY
     };
   }
 }
@@ -925,7 +925,7 @@ function processCharacter(charState, isPlayer, dt) {
     const reach = calculateArmReach(charState, intercept);
 
     // Limit the characters vertical movement to MIN_CROUCH and MAX_JUMP
-    charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP) * zMult;
+    charState.targetPosition.z = reach.z; //clamp(reach.z, MIN_CROUCH, MAX_JUMP) * zMult;
     charState.racketTargetPosition.armX = reach.x;
     charState.racketTargetPosition.armY = reach.y;
 
