@@ -1313,12 +1313,17 @@ function run(dt) {
         const pt = transform.transformPoint(new DOMPoint(0, headCy));
 
         // Invert the canvas viewport scaling to save pure internal game engine coordinates
-        const gameX = ((pt.x - transformData.offsetX) / transformData.scale) - transformData.centerX;
-        const gameY = (pt.y - transformData.offsetY) / transformData.scale;
+        const rawGameX = ((pt.x - transformData.offsetX) / transformData.scale) - transformData.centerX;
+        const rawGameY = (pt.y - transformData.offsetY) / transformData.scale;
 
-        transformData.targetStateObj.x = gameX;
-        transformData.targetStateObj.y = gameY;
-        transformData.targetStateObj.groundY = gameY + transformData.elevateZ;
+        // Decouple the visual Z-leap projection completely from the pure gameplay floor coordinates!
+        const baseRad = transformData.baseRotation * (Math.PI / 180);
+        const shiftX = transformData.elevateZ * (transformData.courtScale || 1) * Math.cos(baseRad);
+        const shiftY = transformData.elevateZ * (transformData.courtScale || 1) * Math.sin(baseRad);
+
+        transformData.targetStateObj.x = rawGameX - shiftX;
+        transformData.targetStateObj.y = rawGameY - shiftY;
+        transformData.targetStateObj.groundY = transformData.targetStateObj.y;
         transformData.targetStateObj.z = transformData.elevateZ + (20 * Math.sin(pitch)); // Raise structural bounds via arm pitch altitude!
         transformData.targetStateObj.w = Math.max(1, rx * camera.zoom * (transformData.courtScale || 1));
         transformData.targetStateObj.h = Math.max(1, headRy * camera.zoom * (transformData.courtScale || 1));
@@ -1406,10 +1411,8 @@ function run(dt) {
     characterManager.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
     characterManager.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
 
-    // Evaluate visual translation mapping spatial Z elevation to the World -Y axis 
-    ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
-    ctx.translate(0, -charState.currentPosition.z / camera.zoom);
-    ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
+    // Shift the character's upper body natively forward horizontally along their facing axis (+X) representing height projection from their fixed feet anchors
+    ctx.translate(charState.currentPosition.z / camera.zoom, 0);
 
     const transform = { offsetX, offsetY, scale, centerX, baseRotation: charState.currentPosition.rotation, elevateZ: charState.currentPosition.z, targetStateObj: charState.racketCurrentPosition, courtScale: COURT_SCALE };
     drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
@@ -1505,6 +1508,16 @@ function run(dt) {
     }
   } else {
     state.player.visualInterceptTarget = null;
+  }
+
+  // Draw the exact NPC intercept prediction as an Orange X for Admins
+  if (window.isAdmin && canNpcHit && state.ball.vy !== 0 && !state.resetting) {
+    const bestPoint = state.npc.lastInterceptPoint;
+    if (bestPoint && bestPoint.t > 0) {
+      const hitX = centerX + bestPoint.x;
+      const hitY = bestPoint.y - bestPoint.z;
+      drawCrosshair(ctx, hitX, hitY, 'rgba(230, 126, 34, 0.9)');
+    }
   }
 
   // Draw the yellow X for the Toss Ground Target
