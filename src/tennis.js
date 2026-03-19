@@ -1268,7 +1268,7 @@ function run(dt) {
       if (isShadow) {
         const radius = Math.max(1, Math.max(rx, headRy)) + 10.0;
         const racketShadow = ctx.createRadialGradient(0, headCy, 0, 0, headCy, radius);
-        racketShadow.addColorStop(0, 'rgba(0, 0, 0, 0.3)'); // Dark core
+        racketShadow.addColorStop(0, 'rgba(0, 0, 0, 0.1)'); // Dark core
         racketShadow.addColorStop(1, 'rgba(0, 0, 0, 0)'); // Blurred feathered out edge
 
         ctx.fillStyle = racketShadow;
@@ -1280,6 +1280,8 @@ function run(dt) {
       ctx.stroke();
 
       // Draw strings
+      ctx.save();
+      ctx.clip();
       ctx.strokeStyle = 'rgba(236, 240, 241, 0.5)';
       ctx.lineWidth = 0.5;
       ctx.beginPath();
@@ -1295,6 +1297,7 @@ function run(dt) {
         ctx.lineTo(rx - 1, i);
       }
       ctx.stroke();
+      ctx.restore();
 
       // Extract raw rendering matrix transformations 
       if (transformData && ctx.getTransform) {
@@ -1401,9 +1404,8 @@ function run(dt) {
     ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
 
     const transform = { offsetX, offsetY, scale, centerX, baseRotation: charState.currentPosition.rotation, elevateZ: charState.currentPosition.z, targetStateObj: charState.racketCurrentPosition, courtScale: COURT_SCALE };
-    if (!window.isAdmin) drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
+    drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
     characterManager.drawHumanoidUpperBody(ctx, characterData, limbs);
-    if (window.isAdmin) drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
     ctx.restore();
   }
 
@@ -1466,8 +1468,8 @@ function run(dt) {
   const landX = centerX + state.ball.x + state.ball.vx * tLand;
   const landY = state.ball.y + state.ball.vy * tLand;
 
-  // Only show the landing X to non-admins if the ball is moving towards the player
-  if (window.isAdmin || state.ball.vy > 0) {
+  // Bounce crosshair for admins
+  if (window.isAdmin) {
     const crosshairColor = state.resetting ? 'rgba(128, 128, 128, 0.8)' : 'rgba(255, 0, 0, 0.8)';
     drawCrosshair(ctx, landX, landY, crosshairColor);
   }
@@ -1494,7 +1496,7 @@ function run(dt) {
   }
 
   // Draw the yellow X for the Toss Ground Target
-  if (state.isServe !== 'in_play' && state.tossTarget && !state.resetting) {
+  if (window.isAdmin && state.isServe !== 'in_play' && state.tossTarget && !state.resetting) {
     const hitX = centerX + state.tossTarget.x;
     const hitY = state.tossTarget.y; // The tossTarget identically mirrors the ground geometry!
     drawCrosshair(ctx, hitX, hitY, 'rgba(241, 196, 15, 0.9)');
@@ -1547,8 +1549,10 @@ function run(dt) {
 
   ctx.restore(); // Restore from world/camera zoom and offset
 
-  // 4. Draw HUD Overlays (Mapped directly to canvas container size)
-  drawDiagnosticsOverlay(state.player.racketCurrentPosition.pitch, state.player.racketCurrentPosition.yaw, state.player.racketCurrentPosition.roll);
+  if (window.isAdmin) {
+    // 4. Draw HUD Overlays (Mapped directly to canvas container size)
+    drawDiagnosticsOverlay(state.player.racketCurrentPosition.pitch, state.player.racketCurrentPosition.yaw, state.player.racketCurrentPosition.roll);
+  }
 }
 
 /**
