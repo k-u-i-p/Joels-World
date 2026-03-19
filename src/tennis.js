@@ -62,6 +62,8 @@ let state = {
     score: 0,
     movementDirection: { x: 1, y: 1 },
     legTimer: 0,
+    lastInterceptPoint: null,
+    lastHitTarget: null,
   },
   npc: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 90 },
@@ -71,6 +73,8 @@ let state = {
     score: 0,
     movementDirection: { x: 1, y: 1 },
     legTimer: 0,
+    lastInterceptPoint: null,
+    lastHitTarget: null,
   },
   ball: {
     x: 0,
@@ -280,7 +284,7 @@ function calculateOptimalInterceptPoint(target) {
     const isWithinCourtY = simY >= (NPC_BASE_Y - PLAYABLE_OVERSHOOT) && simY <= (PLAYER_BASE_Y + PLAYABLE_OVERSHOOT);
 
     // Crucially restrict tracking so characters only lock onto intercept coordinates falling within their physical leaping/crouching limitations!
-    const isWithinReachZ = (simZ - SHOULDER_HEIGHT) >= MIN_CROUCH && (simZ - SHOULDER_HEIGHT) <= MAX_JUMP;
+    const isWithinReachZ = (simZ - SHOULDER_HEIGHT) >= MIN_CROUCH && (simZ - SHOULDER_HEIGHT) <= MAX_JUMP - 5;
 
     if (isWithinCourtX && isWithinCourtY && isWithinReachZ) {
       const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
@@ -475,8 +479,27 @@ export function initMinigame() {
 }
 
 /**
-* Calculates a valid or random fault service box coordinate .
+* Generate a tar .
 */
+function generateReturnBallHitCords(isPlayer, pRacketPos) {
+  let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
+  let targetY = COURT_INNER_BOUNDS.y + (isPlayer ? 0 : COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+
+  if (state.isServe !== 'in_play') {
+    const serveTarget = calculateServeTarget(isPlayer);
+    targetX = serveTarget.x;
+    targetY = serveTarget.y;
+  } else {
+    if (isPlayer && pRacketPos) {
+      targetX += (state.ball.x - pRacketPos.x) * 1.5; // center hit variance
+    } else if (!isPlayer) {
+      // NPC procedural aim application
+      targetX = COURT_INNER_BOUNDS.x + (state.ball.x < 0 ? COURT_INNER_BOUNDS.width * 0.85 : COURT_INNER_BOUNDS.width * 0.15);
+    }
+  }
+  return { x: targetX, y: targetY };
+}
+
 function calculateServeTarget(isPlayer) {
   const box = state.activeServiceBox;
   if (!box) return { x: 0, y: 0 };
@@ -580,7 +603,7 @@ function throwBall(playerObj, apex) {
 
   // Establish the 2D ground coordinate where the ball lands naturally
   state.tossTarget = {
-    x: startX + (isPlayer ? 35 * GAME_SCALE : -25 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
+    x: startX + (isPlayer ? 90 * GAME_SCALE : -25 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
     y: startY + (isPlayer ? -15 * GAME_SCALE : 45 * GAME_SCALE), // Land slightly into the court
     z: 105 * GAME_SCALE // Encodes explicit physical apex altitude 
   };
@@ -711,30 +734,22 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
   }
 
   function processHit(isPlayer) {
-    let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
-    // Player hits to front half (0 to height/2), NPC hits to back half (height/2 to height)
-    let targetY = COURT_INNER_BOUNDS.y + (isPlayer ? 0 : COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+    let payload;
+    if (isPlayer) {
+      payload = state.player.lastHitTarget || generateReturnBallHitCords(isPlayer, playerRacketPos);
+    } else {
+      payload = state.npc.lastHitTarget || generateReturnBallHitCords(isPlayer, npcRacketPos);
+    }
+
     let returnSpeed = state.ball.velocity * (isPlayer ? 1.05 : 1.1);
 
-    if (state.isServe !== 'in_play') {
-      const serveTarget = calculateServeTarget(isPlayer);
-      targetX = serveTarget.x;
-      targetY = serveTarget.y;
-      returnSpeed = BALL_SPEED * (isPlayer ? 0.8 : 0.65);
-    } else {
-      if (isPlayer) {
-        targetX += (state.ball.x - playerRacketPos.x) * 1.5; // center hit variance
-      } else {
-        // NPC procedural aim application
-        targetX = COURT_INNER_BOUNDS.x + (state.ball.x < 0 ? COURT_INNER_BOUNDS.width * 0.85 : COURT_INNER_BOUNDS.width * 0.15);
-      }
-    }
+    returnSpeed = BALL_SPEED * (isPlayer ? 0.8 : 0.65);
 
     state.rallyCount++;
     state.lastHitter = isPlayer ? 'player' : 'npc';
     state.bounceCount = 0;
     state.isServe = 'in_play'; // The rally is live!
-    hitBallToTarget(targetX, targetY, returnSpeed);
+    hitBallToTarget(payload.x, payload.y, returnSpeed);
 
     // audio
     const soundFile = isPlayer ? '/media/hit_tennis_ball.mp3' : '/media/hit_tennis_ball2.mp3';
@@ -950,13 +965,14 @@ function processCharacter(charState, isPlayer, dt) {
     charState.racketTargetPosition.armY = reach.y;
 
     // Direct racket targeting towards the center of the net anticipating the deflection arc identically
-    const defaultTarget = {
-      x: COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width / 2,
-      y: COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2,
-      z: 20
-    };
+    const target = generateReturnBallHitCords(isPlayer, charState.racketCurrentPosition);
 
-    const aim = calculateRacketReturnAimAngle(intercept, charState, defaultTarget);
+    target.z = (NET_HEIGHT * GAME_SCALE) + 5;
+
+    charState.lastHitTarget = target;
+
+    const aim = calculateRacketReturnAimAngle(intercept, charState, target);
+
     charState.racketTargetPosition.pitch = aim.pitch;
     charState.racketTargetPosition.yaw = aim.yaw;
     charState.racketTargetPosition.roll = aim.roll;
@@ -1401,8 +1417,8 @@ function run(dt) {
 
   const imageAspect = bgImage.width / bgImage.height;
 
-  // Game native virtual layout dimension based on total inner court height plus baseline runoffs
-  const virtualGameHeight = COURT_INNER_BOUNDS.height + (PLAYABLE_OVERSHOOT * 2) + 20;
+  // Game native virtual layout dimension explicitly fixed to preserve the static PNG mapping projection independent of mechanical overshoot bounds
+  const virtualGameHeight = COURT_INNER_BOUNDS.height + (75 * 2) + 20;
 
   const renderHeight = viewportHeight * dpr;
   const renderWidth = renderHeight * imageAspect;
@@ -1447,20 +1463,12 @@ function run(dt) {
     drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, null, true);
     ctx.restore();
 
-
     ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
     characterData.rotation = charState.currentPosition.rotation;
 
     // Draw the shoes securely anchored to the geographical ground floor
     characterManager.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
     characterManager.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
-
-    // Elevate visual translation mapping exclusively on the World -Y axis for the upper torso natively!
-    // Prevent the torso from sliding downwards linearly through the floor (exposing the shoes backwards) when performing negative-Z crouches for low balls
-    const visualZ = Math.max(0, charState.currentPosition.z);
-    ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
-    ctx.translate(0, -visualZ / camera.zoom);
-    ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
 
     const transform = { offsetX, offsetY, scale, centerX, baseRotation: charState.currentPosition.rotation, elevateZ: charState.currentPosition.z, targetStateObj: charState.racketCurrentPosition, courtScale: COURT_SCALE };
     drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
@@ -1604,6 +1612,14 @@ function run(dt) {
     ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)'; // Cyan for bounds
     ctx.lineWidth = 2;
     ctx.strokeRect(centerX + COURT_INNER_BOUNDS.x, COURT_INNER_BOUNDS.y, COURT_INNER_BOUNDS.width, COURT_INNER_BOUNDS.height);
+
+    // Draw Playable Overshoot Boundaries mapped exactly against physics clamps!
+    ctx.strokeStyle = 'rgba(255, 165, 0, 0.5)'; // Orange dashed boundary 
+    ctx.setLineDash([5, 5]);
+    const overMinY = NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10;
+    const overMaxY = PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10;
+    ctx.strokeRect(centerX - PLAYABLE_HALF_WIDTH, overMinY, PLAYABLE_HALF_WIDTH * 2, overMaxY - overMinY);
+    ctx.setLineDash([]);
 
     // Draw the halfway net line within the bounds
     const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
