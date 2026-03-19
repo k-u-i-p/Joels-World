@@ -562,7 +562,7 @@ function serveBall(playerObj) {
 
   // Calculate strict service box zones visually mapped to realistic canvas line artwork intrinsically
   const centerX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width / 2;
-  const serviceBoxDepth = COURT_INNER_BOUNDS.height * 0.22; // ~45.1
+  const serviceBoxDepth = COURT_INNER_BOUNDS.height * 0.245; // ~50.2 (perfectly hitting custom SVG T-line)
   const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
 
   let boxMinX, boxMaxX, boxMinY, boxMaxY;
@@ -576,8 +576,8 @@ function serveBall(playerObj) {
   } else {
     boxMinY = netY;
     boxMaxY = netY + serviceBoxDepth;
-    boxMinX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x : centerX;
-    boxMaxX = (state.serveSide === -1) ? centerX : COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width;
+    boxMinX = (state.serveSide === -1) ? centerX : COURT_INNER_BOUNDS.x;
+    boxMaxX = (state.serveSide === -1) ? COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width : centerX;
   }
 
   state.activeServiceBox = { minX: boxMinX, maxX: boxMaxX, minY: boxMinY, maxY: boxMaxY };
@@ -642,6 +642,9 @@ function throwBall(playerObj, apex) {
     setTimeout(() => {
       apex();
     }, tApex * 1000);
+
+    console.log('tApex', tApex * 1000);
+
   }
 }
 
@@ -730,18 +733,10 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
     const localDx = dx * Math.cos(-racketPos.angle) - dy * Math.sin(-racketPos.angle);
     const localDy = dx * Math.sin(-racketPos.angle) + dy * Math.cos(-racketPos.angle);
 
-    const isCorrectDirection = isPlayer
-      ? (state.ball.vy > 0 || state.isServe === 'player_serve')
-      : (state.ball.vy < 0 || state.isServe === 'npc_serve');
-
-    const isWithinReach = Math.abs(state.ball.y - racketPos.groundY) < 50;
-    const isCorrectHeight = state.ball.z >= racketPos.z - 15 && state.ball.z <= racketPos.z + 50;
-
     // Strict Elliptical Intersection Boolean Matrix Check over standard Box Radius Check
-    const isInHitbox = (Math.pow(localDx, 2) / Math.pow(racketPos.w + BALL_RADIUS, 2)) +
+    // This implicitly intrinsically handles height/Z constraints dynamically natively due to visual bounds geometry overlap!
+    return (Math.pow(localDx, 2) / Math.pow(racketPos.w + BALL_RADIUS, 2)) +
       (Math.pow(localDy, 2) / Math.pow(racketPos.h + BALL_RADIUS, 2)) <= 1;
-
-    return isCorrectDirection && isWithinReach && isCorrectHeight && isInHitbox;
   }
 
   function processHit(isPlayer) {
@@ -778,9 +773,12 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
     state.ball.z = Math.max(10, state.ball.z); // Simulate ground strike lift 
   }
 
-  if (evaluateHit(playerRacketPos, true)) {
+  const canPlayerHit = state.lastHitter !== 'player' || state.isServe === 'player_serve';
+  const canNpcHit = state.lastHitter !== 'npc' || state.isServe === 'npc_serve';
+
+  if (canPlayerHit && evaluateHit(playerRacketPos, true)) {
     processHit(true);
-  } else if (evaluateHit(npcRacketPos, false)) {
+  } else if (canNpcHit && evaluateHit(npcRacketPos, false)) {
     processHit(false);
   }
 }
@@ -933,7 +931,7 @@ function processCharacter(charState, isPlayer, dt) {
 
   // 3. Dynamic Limb Target Tracking
   const isActiveServe = state.isServe === (isPlayer ? 'player_serve' : 'npc_serve');
-  const lockAimDuringThrow = isActiveServe && state.servePhase !== 'live';
+  const lockAimDuringThrow = isActiveServe && state.servePhase !== '';
 
   if (!lockAimDuringThrow && (isApproaching || isActiveServe)) {
     const centerPoint = calculateCenterPointOfRacket(charState.racketCurrentPosition);
@@ -984,7 +982,7 @@ function run(dt) {
     // 1. Process Player Inputs & Movement
     if (state.resetting) {
       const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
-      const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
+      const targetX = state.serveSide * serveOffset;
       moveCharacterTo(state.player, targetX, PLAYER_BASE_Y);
     } else {
       let moveIntentX = 0;
@@ -1037,7 +1035,7 @@ function run(dt) {
 
     if (state.resetting) {
       const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
-      const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
+      const targetX = state.serveSide * -serveOffset;
       moveCharacterTo(state.npc, targetX, NPC_BASE_Y);
     } else {
       if (state.isServe === 'in_play') {
