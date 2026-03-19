@@ -52,7 +52,8 @@ let state = {
   player: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 270 },
     targetPosition: { x: 0, y: 0, z: 0, rotation: 270 },
-    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
+    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0, pitch: 0, yaw: Math.PI * 0.25, roll: 1.0, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
+    racketTargetPosition: { pitch: 0, yaw: Math.PI * 0.25, roll: 1.0, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
     score: 0,
     movementDirection: { x: 1, y: 1 },
     legTimer: 0,
@@ -61,7 +62,8 @@ let state = {
   npc: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 90 },
     targetPosition: { x: 0, y: COURT_INNER_BOUNDS.y - 10, z: 0, rotation: 90 },
-    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
+    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0, pitch: 0, yaw: Math.PI * 0.25, roll: 1.0, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
+    racketTargetPosition: { pitch: 0, yaw: Math.PI * 0.25, roll: 1.0, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
     score: 0,
     movementDirection: { x: 1, y: 1 },
     legTimer: 0,
@@ -544,11 +546,11 @@ function serveBall(playerObj) {
   const armWorldX = (limbs.leftArmX * Math.cos(rotRad) - limbs.leftArmY * Math.sin(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
   const armWorldY = (limbs.leftArmX * Math.sin(rotRad) + limbs.leftArmY * Math.cos(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
 
-  // Automatically lock precisely securely directly onto the launching coordinate recursively cleanly functionally exclusively
+  // Put the ball in the player's left hand
   moveBall({
     x: playerObj.currentPosition.x + armWorldX,
     y: playerObj.currentPosition.y + armWorldY,
-    z: playerObj.currentPosition.z // The exact Z accurately cleanly rationally naturally mechanically securely seamlessly effectively optimally natively intelligently efficiently functionally smoothly elegantly logically smartly confidently creatively organically brilliantly flawlessly physically securely intelligently uniquely authentically rationally reliably identically neatly safely effectively authentically precisely implicitly intelligently creatively logically natively gracefully logically successfully physically mathematically intelligently elegantly conceptually identically authentically exactly automatically smartly cleanly cleanly correctly purely optimally organically gracefully safely identically smoothly naturally nicely purely natively symmetrically precisely natively optimally exactly identical automatically gracefully magically geometrically ideally mathematically elegantly organically uniquely magically
+    z: playerObj.currentPosition.z
   });
 
   // Calculate strict service box zones (Tennis Service line is approx 53.8% of the 39ft half-court distance)
@@ -881,6 +883,20 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
   const diffRot = charState.targetPosition.rotation - charState.currentPosition.rotation;
   charState.currentPosition.rotation += ((diffRot + 540) % 360 - 180) * 0.2;
 
+  // Converge racket positional aiming state independently natively
+  if (charState.racketTargetPosition && charState.racketCurrentPosition) {
+    const rcp = charState.racketCurrentPosition;
+    const rtp = charState.racketTargetPosition;
+
+    rcp.pitch += (rtp.pitch - rcp.pitch) * 0.2;
+    rcp.roll += (rtp.roll - rcp.roll) * 0.2;
+    rcp.armX += (rtp.armX - rcp.armX) * 0.4;
+    rcp.armY += (rtp.armY - rcp.armY) * 0.4;
+
+    const dYaw = rtp.yaw - rcp.yaw;
+    rcp.yaw += ((dYaw + Math.PI * 3) % (Math.PI * 2) - Math.PI) * 0.25;
+  }
+
   return charMoved;
 }
 
@@ -905,12 +921,6 @@ function processCharacter(charState, isPlayer, dt) {
   }
 
   // 3. Dynamic Limb Target Tracking
-  let armX = -2 + 4 * Math.cos(Math.PI * 0.25);
-  let armY = 14 + 4 * Math.sin(Math.PI * 0.25);
-  let targetPitch = 0.0;
-  let targetYaw = Math.PI * 0.25;
-  let targetRoll = 1.0;
-
   const isActiveServe = state.isServe === (isPlayer ? 'player_serve' : 'npc_serve');
   const lockAimDuringThrow = isActiveServe && state.servePhase !== 'live';
 
@@ -922,23 +932,30 @@ function processCharacter(charState, isPlayer, dt) {
     // Execute dynamic Z scaling smoothly linking into the next convergePhysics frame natively
     charState.targetPosition.z = reach.z * zMult;
 
-    armX = reach.x;
-    armY = reach.y;
+    charState.racketTargetPosition.armX = reach.x;
+    charState.racketTargetPosition.armY = reach.y;
 
     const racketReach = calculateRacketAimAngle(reach, intercept, charState);
     const aim = calculateRacketReturnAimAngle(state.ball, charState);
-    targetPitch = aim.pitch;
-    targetYaw = racketReach.yaw;
-    targetRoll = aim.roll;
+    charState.racketTargetPosition.pitch = aim.pitch;
+    charState.racketTargetPosition.yaw = racketReach.yaw;
+    charState.racketTargetPosition.roll = aim.roll;
   } else {
     // Smoothly settle back down to the ground if safely idling natively!
     charState.targetPosition.z = 0;
+
+    // Reset to neutral statically mapped organically
+    charState.racketTargetPosition.armX = -2 + 4 * Math.cos(Math.PI * 0.25);
+    charState.racketTargetPosition.armY = 14 + 4 * Math.sin(Math.PI * 0.25);
+    charState.racketTargetPosition.pitch = 0.0;
+    charState.racketTargetPosition.yaw = Math.PI * 0.25;
+    charState.racketTargetPosition.roll = 1.0;
   }
 
   // Safely execute physical coordinate translations AFTER final dynamic Z bindings!
   const charMoved = convergePhysics(charState, dt, isPlayer);
 
-  return { armX, armY, targetRacket: { pitch: targetPitch, yaw: targetYaw, roll: targetRoll }, moved: charMoved };
+  return { moved: charMoved };
 }
 
 /**
@@ -950,22 +967,10 @@ function run(dt) {
   if (!minigameActive) return;
 
   // Cinematic Intro Sequence
-  let pArmX = -2 + 4 * Math.cos(Math.PI * 0.25);
-  let pArmY = 14 + 4 * Math.sin(Math.PI * 0.25);
-  let pAimPitch = 0.0;
-  let pAimYaw = Math.PI * 0.25;
-  let pAimRoll = 1.0;
-
-  let nArmX = pArmX, nArmY = pArmY, nAimPitch = 0.0, nAimYaw = Math.PI * 0.25, nAimRoll = 1.0;
-
   if (state.introPhase && state.introPhase !== 'playing') {
     handleIntroSequence(dt);
   } else {
-
-
-
     // 1. Process Player Inputs & Movement
-
     if (state.resetting) {
       const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
       const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
@@ -1001,27 +1006,16 @@ function run(dt) {
     }
 
 
-    const pAim = processCharacter(state.player, true, dt);
-    const playerMoved = pAim.moved;
-
-    pArmX = pAim.armX;
-    pArmY = pAim.armY;
-    pAimPitch = pAim.targetRacket.pitch;
-    pAimYaw = pAim.targetRacket.yaw;
-    pAimRoll = pAim.targetRacket.roll;
+    const playerAim = processCharacter(state.player, true, dt);
+    const playerMoved = playerAim.moved;
 
     // 2. Process Simple AI NPC Movement
-
-
     function moveToIntercept() {
       // Ensure the NPC purposefully ignores tracking early physics data natively cascading from localized serve tosses
       // Formulate a nominal target tracking point dynamically around the actual rendered position of the racket head
       const nominalTarget = calculateCenterPointOfRacket(state.npc.racketCurrentPosition);
       const interceptPoint = calculateOptimalInterceptPoint(nominalTarget);
       const optimalPosition = calculateOptimalInterceptPosition(interceptPoint, false);
-
-
-      console.log('moveCharacterTo()', optimalPosition);
 
       moveCharacterTo(state.npc, optimalPosition.x, optimalPosition.y);
     }
@@ -1052,17 +1046,12 @@ function run(dt) {
       }
     }
 
-    const nAim = processCharacter(state.npc, false, dt);
+    const npcAim = processCharacter(state.npc, false, dt);
+    const npcMoved = npcAim.moved;
 
-    if (!nAim.moved) {
+    if (!npcMoved) {
       state.npc.targetPosition.rotation = 90;
     }
-    nArmX = nAim.armX;
-    nArmY = nAim.armY;
-    nAimPitch = nAim.targetRacket.pitch;
-    nAimYaw = nAim.targetRacket.yaw;
-    nAimRoll = nAim.targetRacket.roll;
-    const npcMoved = nAim.moved;
 
     // Ensure logical collision trackers properly pull the latest bounds exactly here
     const playerRacketPos = state.player.racketCurrentPosition;
@@ -1330,8 +1319,8 @@ function run(dt) {
   // Derive visual scaling metric from the customized bounding area
   const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
 
-  const npcLimbs = getLimbs(state.npc, nArmX, nArmY);
-  const playerLimbs = getLimbs(state.player, pArmX, pArmY);
+  const npcLimbs = getLimbs(state.npc, state.npc.racketCurrentPosition.armX, state.npc.racketCurrentPosition.armY);
+  const playerLimbs = getLimbs(state.player, state.player.racketCurrentPosition.armX, state.player.racketCurrentPosition.armY);
 
   function drawCharacterShadowed(ctx, characterData, charState, limbs, aimPitch, aimYaw, aimRoll) {
     ctx.save();
@@ -1363,7 +1352,7 @@ function run(dt) {
   }
 
   // 1. Render NPC
-  drawCharacterShadowed(ctx, { ...npc, x: 0, y: 0 }, state.npc, npcLimbs, nAimPitch, nAimYaw, nAimRoll);
+  drawCharacterShadowed(ctx, { ...npc, x: 0, y: 0 }, state.npc, npcLimbs, state.npc.racketCurrentPosition.pitch, state.npc.racketCurrentPosition.yaw, state.npc.racketCurrentPosition.roll);
 
   // 2. Render Ball Physics Elements (Drawn before player to prevent top-overlap)
   function drawBall(ctx, ballState, cx, courtScale) {
@@ -1449,7 +1438,7 @@ function run(dt) {
   }
 
   // 3. Render Player
-  drawCharacterShadowed(ctx, window.init.myCharacter, state.player, playerLimbs, pAimPitch, pAimYaw, pAimRoll);
+  drawCharacterShadowed(ctx, window.init.myCharacter, state.player, playerLimbs, state.player.racketCurrentPosition.pitch, state.player.racketCurrentPosition.yaw, state.player.racketCurrentPosition.roll);
 
   drawBall(ctx, state.ball, centerX, COURT_SCALE);
 
@@ -1489,7 +1478,7 @@ function run(dt) {
   ctx.restore(); // Restore from world/camera zoom and offset
 
   // 4. Draw HUD Overlays (Mapped directly to absolute canvas container size)
-  drawDiagnosticsOverlay(pAimPitch, pAimYaw, pAimRoll);
+  drawDiagnosticsOverlay(state.player.racketCurrentPosition.pitch, state.player.racketCurrentPosition.yaw, state.player.racketCurrentPosition.roll);
 }
 
 /**
