@@ -50,27 +50,21 @@ bgImage.src = '/minigames/tennis/map.svg';
  */
 let state = {
   player: {
-    x: 0,
-    y: 0,
-    z: 0,
-    rotation: 270,
+    currentPosition: { x: 0, y: 0, z: 0, rotation: 270 },
     score: 0,
     movementDirection: { x: 1, y: 1 },
     racketPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
     legTimer: 0,
-    moveTarget: { x: 0, y: 0, z: 0, rotation: 270 },
+    targetPosition: { x: 0, y: 0, z: 0, rotation: 270 },
     hasTarget: false
   },
   npc: {
-    x: 0,
-    y: 0,
-    z: 0,
-    rotation: 90,
+    currentPosition: { x: 0, y: 0, z: 0, rotation: 90 },
     score: 0,
     movementDirection: { x: 1, y: 1 },
     racketPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0 },
     legTimer: 0,
-    moveTarget: { x: 0, y: COURT_INNER_BOUNDS.y - 10, z: 0, rotation: 90 },
+    targetPosition: { x: 0, y: COURT_INNER_BOUNDS.y - 10, z: 0, rotation: 90 },
     hasTarget: false
   },
   ball: {
@@ -117,11 +111,11 @@ const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
  */
 function calculateArmReach(player, interceptPoint) {
   const isPlayer = player === state.player;
-  const worldY = player.y;
+  const worldY = player.currentPosition.y;
 
-  const dx = interceptPoint.x - player.x;
+  const dx = interceptPoint.x - player.currentPosition.x;
   const dy = interceptPoint.y - worldY;
-  const dz = interceptPoint.z - (player.z + 30); // 30 is shoulder height
+  const dz = interceptPoint.z - (player.currentPosition.z + 30); // 30 is shoulder height
 
   const dist2D = Math.sqrt(dx * dx + dy * dy);
 
@@ -130,7 +124,7 @@ function calculateArmReach(player, interceptPoint) {
   // Angle up/down in 3D space
   const pitchAngle = clamp(Math.asin(clamp(dz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
 
-  const charFacingRad = player.rotation * (Math.PI / 180);
+  const charFacingRad = player.currentPosition.rotation * (Math.PI / 180);
 
   // Angle relative to character body
   let localAngle = angleToBall - charFacingRad;
@@ -153,9 +147,9 @@ function calculateArmReach(player, interceptPoint) {
     x: -2 + armReachLength * Math.cos(localAngle),
     y: 14 + armReachLength * Math.sin(localAngle),
     z: targetZ,
-    worldX: player.x,
+    worldX: player.currentPosition.x,
     worldY: worldY,
-    worldZ: player.z + 30
+    worldZ: player.currentPosition.z + 30
   };
 }
 
@@ -176,7 +170,7 @@ function calculateRacketAimAngle(reach, interceptPoint, charState) {
   // Pitch is already realistically natively restricted explicitly between -60deg and +60deg vertical pitch!
   const targetPitch = clamp(Math.asin(clamp(dz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
 
-  const charFacingRad = charState.rotation * (Math.PI / 180);
+  const charFacingRad = charState.currentPosition.rotation * (Math.PI / 180);
   let localYaw = absoluteYaw - charFacingRad;
 
   // Normalize algebraically
@@ -210,7 +204,7 @@ function calculateRacketReturnAimAngle(ballState, charState) {
   // Pitch is already clamped securely between -60deg to +60deg vertical ranges natively
   const targetPitch = clamp(Math.asin(clamp(-bz / 40, -1, 1)), -Math.PI / 3, Math.PI / 3);
 
-  const charFacingRad = charState.rotation * (Math.PI / 180);
+  const charFacingRad = charState.currentPosition.rotation * (Math.PI / 180);
   let localYaw = absoluteYaw - charFacingRad;
 
   // Normalize algebraically
@@ -463,23 +457,23 @@ export function initMinigame() {
   // Reset core tracking values
   state.serveSide = -1;
   const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
-  state.player.x = state.serveSide * -serveOffset;
-  state.player.y = PLAYER_BASE_Y;
-  state.npc.x = state.serveSide * serveOffset;
-  state.npc.y = NPC_BASE_Y;
+  state.player.currentPosition.x = state.serveSide * -serveOffset;
+  state.player.currentPosition.y = PLAYER_BASE_Y;
+  state.npc.currentPosition.x = state.serveSide * serveOffset;
+  state.npc.currentPosition.y = NPC_BASE_Y;
   state.resetDelayTimer = 0;
-  state.player.z = 0;
-  state.npc.z = 0;
-  state.npc.moveTarget = { x: state.npc.x, y: state.npc.y, z: 0, rotation: 90 };
-  state.player.moveTarget = { x: state.player.x, y: state.player.y, z: 0, rotation: 270 };
+  state.player.currentPosition.z = 0;
+  state.npc.currentPosition.z = 0;
+  state.npc.targetPosition = { x: state.npc.currentPosition.x, y: state.npc.currentPosition.y, z: 0, rotation: 90 };
+  state.player.targetPosition = { x: state.player.currentPosition.x, y: state.player.currentPosition.y, z: 0, rotation: 270 };
   state.resetting = false;
 
   // Start cinematic intro instead of immediately serving
   state.introPhase = 'walkToNet';
   state.introTimer = 0;
   // Place characters far back initially
-  state.player.y = PLAYER_BASE_Y + 30;
-  state.npc.y = NPC_BASE_Y - 30;
+  state.player.currentPosition.y = PLAYER_BASE_Y + 30;
+  state.npc.currentPosition.y = NPC_BASE_Y - 30;
   // Put the ball somewhere hidden temporarily
   state.ball.z = -100;
   state.ball.vx = 0;
@@ -543,7 +537,7 @@ function serveBall(playerObj) {
 
   console.log("Serving ball for " + (isPlayer ? "player" : "npc"));
 
-  const rotRad = playerObj.rotation * (Math.PI / 180);
+  const rotRad = playerObj.currentPosition.rotation * (Math.PI / 180);
   const limbs = getLimbs(playerObj, 0, 0);
 
   const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
@@ -552,9 +546,9 @@ function serveBall(playerObj) {
 
   // Automatically lock precisely securely directly onto the launching coordinate recursively cleanly functionally exclusively
   moveBall({
-    x: playerObj.x + armWorldX,
-    y: playerObj.y + armWorldY,
-    z: playerObj.z // The exact Z accurately cleanly rationally naturally mechanically securely seamlessly effectively optimally natively intelligently efficiently functionally smoothly elegantly logically smartly confidently creatively organically brilliantly flawlessly physically securely intelligently uniquely authentically rationally reliably identically neatly safely effectively authentically precisely implicitly intelligently creatively logically natively gracefully logically successfully physically mathematically intelligently elegantly conceptually identically authentically exactly automatically smartly cleanly cleanly correctly purely optimally organically gracefully safely identically smoothly naturally nicely purely natively symmetrically precisely natively optimally exactly identical automatically gracefully magically geometrically ideally mathematically elegantly organically uniquely magically
+    x: playerObj.currentPosition.x + armWorldX,
+    y: playerObj.currentPosition.y + armWorldY,
+    z: playerObj.currentPosition.z // The exact Z accurately cleanly rationally naturally mechanically securely seamlessly effectively optimally natively intelligently efficiently functionally smoothly elegantly logically smartly confidently creatively organically brilliantly flawlessly physically securely intelligently uniquely authentically rationally reliably identically neatly safely effectively authentically precisely implicitly intelligently creatively logically natively gracefully logically successfully physically mathematically intelligently elegantly conceptually identically authentically exactly automatically smartly cleanly cleanly correctly purely optimally organically gracefully safely identically smoothly naturally nicely purely natively symmetrically precisely natively optimally exactly identical automatically gracefully magically geometrically ideally mathematically elegantly organically uniquely magically
   });
 
   // Calculate strict service box zones (Tennis Service line is approx 53.8% of the 39ft half-court distance)
@@ -782,10 +776,10 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
  * Interface to manually command the movement subsystem to target specific local offsets.
  */
 function moveCharacterTo(charState, targetX, targetY) {
-  charState.moveTarget.x = targetX;
-  charState.moveTarget.y = targetY;
+  charState.targetPosition.x = targetX;
+  charState.targetPosition.y = targetY;
   // Let the immediate execution context evaluate if they've practically arrived
-  return Math.abs(targetX - charState.x) > 2 || Math.abs(targetY - charState.y) > 2;
+  return Math.abs(targetX - charState.currentPosition.x) > 2 || Math.abs(targetY - charState.currentPosition.y) > 2;
 }
 
 /**
@@ -801,12 +795,12 @@ function handleIntroSequence(dt) {
     const pMoving = moveCharacterTo(state.player, 0, targetPlayerY);
     const nMoving = moveCharacterTo(state.npc, 0, targetNpcY);
 
-    convergePhysics(state.player, dt, true, state.player.x, state.player.y, 0.5);
-    convergePhysics(state.npc, dt, false, state.npc.x, state.npc.y, 0.5);
+    convergePhysics(state.player, dt, true, state.player.currentPosition.x, state.player.currentPosition.y, 0.5);
+    convergePhysics(state.npc, dt, false, state.npc.currentPosition.x, state.npc.currentPosition.y, 0.5);
 
     // Override generic convergence rotational intent to face each other tightly
-    state.player.moveTarget.rotation = 270;
-    state.npc.moveTarget.rotation = 90;
+    state.player.targetPosition.rotation = 270;
+    state.npc.targetPosition.rotation = 90;
 
     if (!pMoving && !nMoving) {
       state.introPhase = 'shakeHands';
@@ -817,8 +811,8 @@ function handleIntroSequence(dt) {
   } else if (state.introPhase === 'shakeHands') {
     state.introTimer -= dt;
     // Simulate hand shake by oscillating rotation slightly
-    state.player.rotation = 270 + Math.sin(state.introTimer * 20) * 10;
-    state.npc.rotation = 90 - Math.sin(state.introTimer * 20) * 10;
+    state.player.currentPosition.rotation = 270 + Math.sin(state.introTimer * 20) * 10;
+    state.npc.currentPosition.rotation = 90 - Math.sin(state.introTimer * 20) * 10;
 
     if (state.introTimer <= 0) {
       state.introPhase = 'walkToBaseline';
@@ -831,12 +825,12 @@ function handleIntroSequence(dt) {
     const pFar = moveCharacterTo(state.player, targetPX, PLAYER_BASE_Y);
     const nFar = moveCharacterTo(state.npc, targetNX, NPC_BASE_Y);
 
-    convergePhysics(state.player, dt, true, state.player.x, state.player.y, 0.6);
-    convergePhysics(state.npc, dt, false, state.npc.x, state.npc.y, 0.6);
+    convergePhysics(state.player, dt, true, state.player.currentPosition.x, state.player.currentPosition.y, 0.6);
+    convergePhysics(state.npc, dt, false, state.npc.currentPosition.x, state.npc.currentPosition.y, 0.6);
 
     // If completely arrived back at baseline, organically turn to face the net utilizing standard defaults
-    if (!pFar) state.player.moveTarget.rotation = 270;
-    if (!nFar) state.npc.moveTarget.rotation = 90;
+    if (!pFar) state.player.targetPosition.rotation = 270;
+    if (!nFar) state.npc.targetPosition.rotation = 90;
 
     if (!pFar && !nFar) {
       state.player.legTimer = 0;
@@ -850,40 +844,40 @@ function handleIntroSequence(dt) {
 function convergePhysics(charState, dt, isPlayer, prevX, prevY, speedMult = 1.0) {
   const speed = (isPlayer ? PADDLE_SPEED : NPC_SPEED) * dt * speedMult;
 
-  const dx = charState.moveTarget.x - charState.x;
+  const dx = charState.targetPosition.x - charState.currentPosition.x;
   if (Math.abs(dx) > 1) {
     const mx = Math.sign(dx) * Math.min(speed, Math.abs(dx));
-    charState.x += mx;
+    charState.currentPosition.x += mx;
     charState.movementDirection.x = Math.sign(mx);
-  } else charState.x = charState.moveTarget.x;
+  } else charState.currentPosition.x = charState.targetPosition.x;
 
-  const dy = charState.moveTarget.y - charState.y;
+  const dy = charState.targetPosition.y - charState.currentPosition.y;
   if (Math.abs(dy) > 1) {
     const my = Math.sign(dy) * Math.min(speed, Math.abs(dy));
-    charState.y += my;
+    charState.currentPosition.y += my;
     charState.movementDirection.y = Math.sign(my);
-  } else charState.y = charState.moveTarget.y;
+  } else charState.currentPosition.y = charState.targetPosition.y;
 
-  const dz = charState.moveTarget.z - charState.z;
-  if (Math.abs(dz) > 1) charState.z += Math.sign(dz) * Math.min(speed * 1.5, Math.abs(dz));
-  else charState.z = charState.moveTarget.z;
+  const dz = charState.targetPosition.z - charState.currentPosition.z;
+  if (Math.abs(dz) > 1) charState.currentPosition.z += Math.sign(dz) * Math.min(speed * 1.5, Math.abs(dz));
+  else charState.currentPosition.z = charState.targetPosition.z;
 
-  const charMoved = (charState.x !== prevX) || (charState.y !== prevY);
+  const charMoved = (charState.currentPosition.x !== prevX) || (charState.currentPosition.y !== prevY);
 
   if (charMoved) {
     charState.legTimer += speed * 0.1; // Progress leg run cycle organically!
-    let targetRot = Math.atan2(charState.y - prevY, charState.x - prevX) * (180 / Math.PI);
+    let targetRot = Math.atan2(charState.currentPosition.y - prevY, charState.currentPosition.x - prevX) * (180 / Math.PI);
     if (targetRot < 0) targetRot += 360;
-    charState.moveTarget.rotation = targetRot;
+    charState.targetPosition.rotation = targetRot;
   } else if (charState.legTimer > 0) {
     const phase = charState.legTimer % Math.PI;
     if (phase > 0.1 && phase < Math.PI - 0.1) charState.legTimer += speed * 0.1;
     else charState.legTimer = 0;
   }
 
-  // Soft angular physical interpolation to moveTarget.rotation via modular shortest-path
-  const diffRot = charState.moveTarget.rotation - charState.rotation;
-  charState.rotation += ((diffRot + 540) % 360 - 180) * 0.2;
+  // Soft angular physical interpolation to targetPosition.rotation via modular shortest-path
+  const diffRot = charState.targetPosition.rotation - charState.currentPosition.rotation;
+  charState.currentPosition.rotation += ((diffRot + 540) % 360 - 180) * 0.2;
 
   return charMoved;
 }
@@ -894,18 +888,18 @@ function convergePhysics(charState, dt, isPlayer, prevX, prevY, speedMult = 1.0)
 function processCharacter(charState, isPlayer, prevX, prevY, dt) {
   // 1. Process Approach Proximities & Leaps Target
   const isApproaching = isPlayer ? (state.ball.vy > 0) : (state.ball.vy < 0);
-  const distY = Math.abs(state.ball.y - charState.y);
+  const distY = Math.abs(state.ball.y - charState.currentPosition.y);
   const zMult = clamp(1 - (distY / 80), 0, 1);
 
   // Z-Leaps dynamically tracked below
 
   // 2. Converge constraints!
   // Clip Court Bounds
-  charState.moveTarget.x = clamp(charState.moveTarget.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
+  charState.targetPosition.x = clamp(charState.targetPosition.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
   if (isPlayer) {
-    charState.moveTarget.y = clamp(charState.moveTarget.y, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) + 10, PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10);
+    charState.targetPosition.y = clamp(charState.targetPosition.y, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) + 10, PLAYER_BASE_Y + PLAYABLE_OVERSHOOT - 10);
   } else {
-    charState.moveTarget.y = clamp(charState.moveTarget.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
+    charState.targetPosition.y = clamp(charState.targetPosition.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
   }
 
   // 3. Dynamic Limb Target Tracking
@@ -924,7 +918,7 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt) {
     const reach = calculateArmReach(charState, intercept);
 
     // Execute dynamic Z scaling smoothly linking into the next convergePhysics frame natively
-    charState.moveTarget.z = reach.z * zMult;
+    charState.targetPosition.z = reach.z * zMult;
 
     armX = reach.x;
     armY = reach.y;
@@ -936,7 +930,7 @@ function processCharacter(charState, isPlayer, prevX, prevY, dt) {
     targetRoll = aim.roll;
   } else {
     // Smoothly settle back down to the ground if safely idling natively!
-    charState.moveTarget.z = 0;
+    charState.targetPosition.z = 0;
   }
 
   // Safely execute physical coordinate translations AFTER final dynamic Z bindings!
@@ -968,8 +962,8 @@ function run(dt) {
 
 
     // Track coordinates BEFORE movement processes run
-    const prevPlayerX = state.player.x;
-    const prevPlayerY = state.player.y;
+    const prevPlayerX = state.player.currentPosition.x;
+    const prevPlayerY = state.player.currentPosition.y;
 
     // 1. Process Player Inputs & Movement
 
@@ -998,12 +992,12 @@ function run(dt) {
         moveIntentX /= len;
         moveIntentY /= len;
 
-        state.player.moveTarget.x = state.player.x + moveIntentX * 50 * GAME_SCALE; // Extend convergence target organically against camera mapping
-        state.player.moveTarget.y = state.player.y + moveIntentY * 50 * GAME_SCALE;
+        state.player.targetPosition.x = state.player.currentPosition.x + moveIntentX * 50 * GAME_SCALE; // Extend convergence target organically against camera mapping
+        state.player.targetPosition.y = state.player.currentPosition.y + moveIntentY * 50 * GAME_SCALE;
       } else {
-        // Release snaps moveTarget to perfectly match feet instantly halting physics loops
-        state.player.moveTarget.x = state.player.x;
-        state.player.moveTarget.y = state.player.y;
+        // Release snaps targetPosition to perfectly match feet instantly halting physics loops
+        state.player.targetPosition.x = state.player.currentPosition.x;
+        state.player.targetPosition.y = state.player.currentPosition.y;
       }
     }
 
@@ -1018,8 +1012,8 @@ function run(dt) {
     pAimRoll = pAim.targetRacket.roll;
 
     // 2. Process Simple AI NPC Movement
-    const prevNpcX = state.npc.x;
-    const prevNpcY = state.npc.y;
+    const prevNpcX = state.npc.currentPosition.x;
+    const prevNpcY = state.npc.currentPosition.y;
 
 
     function moveToIntercept() {
@@ -1039,7 +1033,7 @@ function run(dt) {
       const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
       const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
       moveCharacterTo(state.npc, targetX, NPC_BASE_Y);
-      state.player.moveTarget.rotation = 270;
+      state.player.targetPosition.rotation = 270;
     } else {
       if (state.isServe === 'in_play') {
         if (state.ball.vy < 0) {
@@ -1064,7 +1058,7 @@ function run(dt) {
     const nAim = processCharacter(state.npc, false, prevNpcX, prevNpcY, dt);
 
     if (!nAim.moved) {
-      state.npc.moveTarget.rotation = 90;
+      state.npc.targetPosition.rotation = 90;
     }
     nArmX = nAim.armX;
     nArmY = nAim.armY;
@@ -1344,7 +1338,7 @@ function run(dt) {
 
   function drawCharacterShadowed(ctx, characterData, charState, limbs, aimPitch, aimYaw, aimRoll) {
     ctx.save();
-    ctx.translate(centerX + charState.x, charState.y);
+    ctx.translate(centerX + charState.currentPosition.x, charState.currentPosition.y);
     ctx.scale(camera.zoom * COURT_SCALE, camera.zoom * COURT_SCALE);
 
     // Drop shadow
@@ -1353,18 +1347,18 @@ function run(dt) {
     ctx.arc(2, 4, 14, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.rotate(charState.rotation * (Math.PI / 180));
-    characterData.rotation = charState.rotation;
+    ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
+    characterData.rotation = charState.currentPosition.rotation;
 
     characterManager.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
     characterManager.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
 
     // Evaluate visual translation mapping spatial Z elevation to the World -Y axis natively
-    ctx.rotate(-charState.rotation * (Math.PI / 180));
-    ctx.translate(0, -charState.z / camera.zoom);
-    ctx.rotate(charState.rotation * (Math.PI / 180));
+    ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
+    ctx.translate(0, -charState.currentPosition.z / camera.zoom);
+    ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
 
-    const transform = { offsetX, offsetY, scale, centerX, baseRotation: charState.rotation, elevateZ: charState.z, targetStateObj: charState.racketPosition, courtScale: COURT_SCALE };
+    const transform = { offsetX, offsetY, scale, centerX, baseRotation: charState.currentPosition.rotation, elevateZ: charState.currentPosition.z, targetStateObj: charState.racketPosition, courtScale: COURT_SCALE };
     if (!window.isAdmin) drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
     characterManager.drawHumanoidUpperBody(ctx, characterData, limbs);
     if (window.isAdmin) drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
