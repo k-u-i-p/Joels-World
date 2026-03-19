@@ -499,6 +499,7 @@ function serveBall(playerObj) {
   state.isServe = isPlayer ? 'player_serve' : 'npc_serve';
   state.player.hasTarget = false;
   state.npc.hasTarget = false;
+  state.npc.lastInterceptPoint = null;
   state.servePhase = 'idle'; // halt execution enforcing holding state 
 
   console.log("Serving ball for " + (isPlayer ? "player" : "npc"));
@@ -565,8 +566,8 @@ function throwBall(playerObj, apex) {
 
   // Establish the 2D ground coordinate where the ball lands naturally
   state.tossTarget = {
-    x: startX + (isPlayer ? 5 * GAME_SCALE : -5 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
-    y: startY + (isPlayer ? -25 * GAME_SCALE : 25 * GAME_SCALE), // Land slightly into the court
+    x: startX + (isPlayer ? 35 * GAME_SCALE : -25 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
+    y: startY + (isPlayer ? -15 * GAME_SCALE : 45 * GAME_SCALE), // Land slightly into the court
     z: 105 * GAME_SCALE // Encodes explicit physical apex altitude 
   };
 
@@ -747,7 +748,7 @@ function moveCharacterTo(charState, targetX, targetY) {
   charState.targetPosition.x = targetX;
   charState.targetPosition.y = targetY;
   // Let the immediate execution context evaluate if they've practically arrived
-  return Math.abs(targetX - charState.currentPosition.x) > 2 || Math.abs(targetY - charState.currentPosition.y) > 2;
+  return Math.abs(targetX - charState.currentPosition.x) > 5 || Math.abs(targetY - charState.currentPosition.y) > 5;
 }
 
 /**
@@ -843,7 +844,9 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
     else charState.currentPosition.z = charState.targetPosition.z;
   }
 
-  const charMoved = (charState.currentPosition.x !== prevX) || (charState.currentPosition.y !== prevY);
+  // Only evaluate as 'moved' if the distance traveled is visually significant, 
+  // preventing sub-pixel target smoothing from triggering the leg run cycle continuously.
+  const charMoved = Math.abs(charState.currentPosition.x - prevX) > 0.5 || Math.abs(charState.currentPosition.y - prevY) > 0.5;
 
   if (charMoved) {
     charState.legTimer += speed * 0.1; // Progress leg run cycle !
@@ -875,13 +878,13 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
     const rcp = charState.racketCurrentPosition;
     const rtp = charState.racketTargetPosition;
 
-    rcp.pitch += (rtp.pitch - rcp.pitch) * 0.2;
-    rcp.roll += (rtp.roll - rcp.roll) * 0.2;
-    rcp.armX += (rtp.armX - rcp.armX) * 0.4;
-    rcp.armY += (rtp.armY - rcp.armY) * 0.4;
+    rcp.pitch += (rtp.pitch - rcp.pitch) * 0.1;
+    rcp.roll += (rtp.roll - rcp.roll) * 0.1;
+    rcp.armX += (rtp.armX - rcp.armX) * 0.2;
+    rcp.armY += (rtp.armY - rcp.armY) * 0.2;
 
     const dYaw = rtp.yaw - rcp.yaw;
-    rcp.yaw += ((dYaw + Math.PI * 3) % (Math.PI * 2) - Math.PI) * 0.25;
+    rcp.yaw += ((dYaw + Math.PI * 3) % (Math.PI * 2) - Math.PI) * 0.1;
   }
 
   return charMoved;
@@ -1022,11 +1025,21 @@ function run(dt) {
 
     // 2. Process AI NPC Movement
     function moveToIntercept() {
-      // Ensure the NPC purposefully ignores tracking early physics data cascading from localized serve tosses
-      // Formulate a nominal target tracking point around the actual rendered position of the racket head
-      const interceptPoint = calculateOptimalInterceptPoint(state.npc.racketCurrentPosition);
+      const rawIntercept = calculateOptimalInterceptPoint(state.npc.racketCurrentPosition);
 
-      moveCharacterTo(state.npc, interceptPoint.x + 30, interceptPoint.y - 20);
+      // Hysteresis: only update footwork target if the intercept moved substantially (e.g. bouncing/new trajectory)
+      if (!state.npc.lastInterceptPoint) {
+        state.npc.lastInterceptPoint = rawIntercept;
+        moveCharacterTo(state.npc, rawIntercept.x + 30, rawIntercept.y - 20);
+      } else {
+        const dx = rawIntercept.x - state.npc.lastInterceptPoint.x;
+        const dy = rawIntercept.y - state.npc.lastInterceptPoint.y;
+
+        if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
+          state.npc.lastInterceptPoint = rawIntercept;
+          moveCharacterTo(state.npc, rawIntercept.x + 30, rawIntercept.y - 20);
+        }
+      }
     }
 
     if (state.resetting) {
@@ -1220,7 +1233,7 @@ function run(dt) {
 * @param {Object} limbs - Current Limb positions. 
 * @param {number} swingAngle - Rotational swing adjustment.
 */
-  function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = null) {
+  function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = null, isShadow = false) {
     const pitchMult = Math.max(0.05, Math.abs(Math.cos(pitch)));
     const rx = Math.max(1, 8 * roll);
 
@@ -1232,13 +1245,17 @@ function run(dt) {
       ctx.rotate(yaw + Math.PI / 2);
 
       // Draw handle
-      ctx.fillStyle = '#2c3e50';
       const handleLen = 15 * pitchMult;
-      ctx.fillRect(-2, -handleLen + 5 * pitchMult, 4, handleLen);
+      if (!isShadow) {
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(-2, -handleLen + 5 * pitchMult, 4, handleLen);
+      }
 
       // Draw structural frame
-      ctx.strokeStyle = '#e74c3c';
-      ctx.lineWidth = 2;
+      if (!isShadow) {
+        ctx.strokeStyle = '#e74c3c';
+        ctx.lineWidth = 2;
+      }
       ctx.beginPath();
       const headCy = -18 * pitchMult;
       const headRy = 12 * pitchMult;
@@ -1247,6 +1264,19 @@ function run(dt) {
       } else {
         ctx.arc(0, headCy, Math.max(rx, 10 * pitchMult), 0, Math.PI * 2);
       }
+
+      if (isShadow) {
+        const radius = Math.max(1, Math.max(rx, headRy)) + 10.0;
+        const racketShadow = ctx.createRadialGradient(0, headCy, 0, 0, headCy, radius);
+        racketShadow.addColorStop(0, 'rgba(0, 0, 0, 0.3)'); // Dark core
+        racketShadow.addColorStop(1, 'rgba(0, 0, 0, 0)'); // Blurred feathered out edge
+
+        ctx.fillStyle = racketShadow;
+        ctx.fill();
+        ctx.restore();
+        return;
+      }
+
       ctx.stroke();
 
       // Draw strings
@@ -1341,11 +1371,23 @@ function run(dt) {
     ctx.translate(centerX + charState.currentPosition.x, charState.currentPosition.y);
     ctx.scale(camera.zoom * COURT_SCALE, camera.zoom * COURT_SCALE);
 
-    // Drop shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    // Dynamic spherical gradient shadows replacing native filter arrays
+    const bodyShadow = ctx.createRadialGradient(-2, 4, 3, -2, 4, 15);
+    bodyShadow.addColorStop(0, 'rgba(0, 0, 0, 0.5)'); // Core dark opacity
+    bodyShadow.addColorStop(1, 'rgba(0, 0, 0, 0)');   // Completely blurred edge
+
+    ctx.fillStyle = bodyShadow;
     ctx.beginPath();
-    ctx.arc(2, 4, 14, 0, Math.PI * 2);
+    ctx.arc(-2, 4, 15, 0, Math.PI * 2);
     ctx.fill();
+
+    // Racket bounds casting (overhead 11am)
+    ctx.save();
+    ctx.translate(-2, 4); // Uniform shadow offset
+    ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
+    drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, null, true);
+    ctx.restore();
+
 
     ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
     characterData.rotation = charState.currentPosition.rotation;
@@ -1372,11 +1414,18 @@ function run(dt) {
   function drawBall(ctx, ballState, cx, courtScale) {
     // Ball's vertical Ground Shadow
     ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    const shadowRadius = Math.max(0.1, Math.max(2 * courtScale, (BALL_RADIUS * 2 - ballState.z * 0.05) * courtScale));
+    // Ensure the ball shadow respects the global 11am offset
+    const sx = cx + ballState.x - 2;
+    const sy = ballState.y + 4;
+
+    const ballGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, shadowRadius);
+    ballGrad.addColorStop(0, 'rgba(0, 0, 0, 0.6)');
+    ballGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
     ctx.beginPath();
-    // Shrink shadow exponentially based on elevation altitude 
-    const shadowRadius = Math.max(2 * courtScale, (BALL_RADIUS * 2 - ballState.z * 0.05) * courtScale);
-    ctx.arc(cx + ballState.x, ballState.y, shadowRadius, 0, Math.PI * 2);
+    ctx.fillStyle = ballGrad;
+    ctx.arc(sx, sy, shadowRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
