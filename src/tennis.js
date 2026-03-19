@@ -189,20 +189,17 @@ function calculateRacketAimAngle(reach, interceptPoint, charState) {
  * Procedurally calculates the 3D rotational vector required to hold the racket
  * perfectly perpendicular opposing the incoming velocity vector of the ball.
  * 
- * @param {Object} ballState - The current state of the ball.
+ * @param {Object} interceptPoint - The pre-calculated optimal intercept target containing accurately simulated arrival velocities.
  * @param {Object} charState - The character state.
- * @param {Object} interceptPoint - The pre-calculated optimal intercept target containing predicted arrival time correctly.
  * @returns {{roll: number, pitch: number, yaw: number}}
  */
-function calculateRacketReturnAimAngle(currentBallState, charState, interceptPoint) {
-  // If the explicit procedural interception path natively resolved physical bounces, cleanly route its finalized velocity!
-  const bx = (interceptPoint && interceptPoint.vx !== undefined) ? interceptPoint.vx : (currentBallState.vx || 0);
-  const by = (interceptPoint && interceptPoint.vy !== undefined) ? interceptPoint.vy : (currentBallState.vy || 0);
+function calculateRacketReturnAimAngle(interceptPoint, charState) {
+  // Directly extract the predicted momentum flawlessly simulated against native physics loops natively
+  const bx = interceptPoint.vx || 0;
+  const by = interceptPoint.vy || 0;
 
-  const initialVZ = (currentBallState.velocity || 0) * Math.tan(currentBallState.pitchAngle || 0);
-
-  // Trust the deterministic prediction loop to model bounces natively, falling back to current vectors identically
-  let predictedVZ = (interceptPoint && interceptPoint.vz !== undefined) ? interceptPoint.vz : initialVZ;
+  // Extract the deterministic simulation's predicted vertical tracking trajectory intrinsically
+  const predictedVZ = interceptPoint.vz || 0;
 
   // Focus the racket's geographic yaw completely inverted to the ball's planar XY momentum 
   const absoluteYaw = Math.atan2(-by, -bx);
@@ -591,7 +588,9 @@ function serveBall(playerObj) {
   state.trajectoryPoints = [];
 
   setTimeout(() => {
-    throwBall(playerObj);
+    throwBall(playerObj, function () {
+      state.servePhase = 'live';
+    });
   }, 1000);
 }
 
@@ -599,7 +598,7 @@ function serveBall(playerObj) {
  * Physically throws the ball organically from the character's hand using true gravity.
  * @param {Object} playerObj - The character object serving.
  */
-function throwBall(playerObj) {
+function throwBall(playerObj, apex) {
   const isPlayer = playerObj === state.player;
   state.servePhase = 'just_thrown';
 
@@ -611,7 +610,7 @@ function throwBall(playerObj) {
   state.tossTarget = {
     x: startX + (isPlayer ? 5 * GAME_SCALE : -5 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
     y: startY + (isPlayer ? -25 * GAME_SCALE : 25 * GAME_SCALE), // Land slightly linearly natively into the court
-    z: 85 * GAME_SCALE // Encodes explicit physical apex altitude mathematically
+    z: 105 * GAME_SCALE // Encodes explicit physical apex altitude mathematically
   };
 
   // 1. Calculate the initial vertical velocity required mathematically spanning to the tossTarget.z securely organically
@@ -639,9 +638,11 @@ function throwBall(playerObj) {
   state.bounceCount = 0;
   state.rallyCount = 0;
 
-  setTimeout(() => {
-    state.servePhase = 'live';
-  }, 100);
+  if (apex) {
+    setTimeout(() => {
+      apex();
+    }, tApex);
+  }
 }
 
 /** Formats numerical points into tennis scoring phrases. Returns object with { playerStr, npcStr, winner } */
@@ -946,7 +947,7 @@ function processCharacter(charState, isPlayer, dt) {
     charState.racketTargetPosition.armY = reach.y;
 
     const racketReach = calculateRacketAimAngle(reach, intercept, charState);
-    const aim = calculateRacketReturnAimAngle(state.ball, charState, intercept);
+    const aim = calculateRacketReturnAimAngle(intercept, charState);
     charState.racketTargetPosition.pitch = aim.pitch;
     charState.racketTargetPosition.yaw = racketReach.yaw;
     charState.racketTargetPosition.roll = aim.roll;
@@ -1019,6 +1020,10 @@ function run(dt) {
     const playerAim = processCharacter(state.player, true, dt);
     const playerMoved = playerAim.moved;
 
+    if (!playerMoved) {
+      state.player.targetPosition.rotation = 270;
+    }
+
     // 2. Process Simple AI NPC Movement
     function moveToIntercept() {
       // Ensure the NPC purposefully ignores tracking early physics data natively cascading from localized serve tosses
@@ -1034,7 +1039,6 @@ function run(dt) {
       const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
       const targetX = state.nextServerIsPlayer ? state.serveSide * serveOffset : state.serveSide * -serveOffset;
       moveCharacterTo(state.npc, targetX, NPC_BASE_Y);
-      state.player.targetPosition.rotation = 270;
     } else {
       if (state.isServe === 'in_play') {
         if (state.ball.vy < 0) {
@@ -1079,20 +1083,32 @@ function run(dt) {
 
 
     // 5. 3D Spatial Ball Physics Processing (Movement)
-    const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+    const prevBallY = state.ball.y;
 
-    if (state.servePhase !== 'idle') { // Securely halt execution implicitly organically enforcing holding state nativelyservePhase
+    if (state.servePhase === 'idle' && state.isServe !== 'in_play') {
+      const serverObj = state.isServe === 'player_serve' ? state.player : state.npc;
+      const rotRad = serverObj.currentPosition.rotation * (Math.PI / 180);
+      const limbs = getLimbs(serverObj, 0, 0); // Explicitly track limb anchoring
+      const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
+
+      const armWorldX = (limbs.leftArmX * Math.cos(rotRad) - limbs.leftArmY * Math.sin(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
+      const armWorldY = (limbs.leftArmX * Math.sin(rotRad) + limbs.leftArmY * Math.cos(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
+
+      state.ball.x = serverObj.currentPosition.x + armWorldX;
+      state.ball.y = serverObj.currentPosition.y + armWorldY;
+      state.ball.z = serverObj.currentPosition.z;
+    } else {
+      const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+
       // Elevate ball linearly
       state.ball.z += vZ * dt;
       // Rotate velocity downward due to continuous gravity
       state.ball.pitchAngle = Math.atan2(vZ - GRAVITY * dt, state.ball.velocity);
+
+      // Handle Planar XY movement
+      state.ball.x += state.ball.vx * dt;
+      state.ball.y += state.ball.vy * dt;
     }
-
-    const prevBallY = state.ball.y;
-
-    // Handle Planar XY movement
-    state.ball.x += state.ball.vx * dt;
-    state.ball.y += state.ball.vy * dt;
 
     // Progress global point timer monotonically (freeze while waiting for serves to start)
     if (state.resetDelayTimer <= 0) state.totalElapsedTime += dt;
