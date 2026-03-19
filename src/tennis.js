@@ -34,7 +34,7 @@ const SHOULDER_HEIGHT = 30;                   // Distance from ground to charact
 const MAX_JUMP = 80;                          // Maximum aerial leap height extension for rackets
 const MIN_CROUCH = -20;                       // Maximum downward racket crouch extension
 
-const PLAYABLE_OVERSHOOT = 75; // How far characters can physically run out of bounds beyond the court lines
+const PLAYABLE_OVERSHOOT = 50; // How far characters can physically run out of bounds beyond the court lines
 const PLAYABLE_HALF_WIDTH = (COURT_INNER_BOUNDS.width / 2) + PLAYABLE_OVERSHOOT; // Lateral character bounds naturally scale with the court
 
 // Character specific positioning
@@ -643,7 +643,6 @@ function updateScoreboardDOM() {
 function triggerFault(playerServing) {
   if (state.resetting) return;
   state.faults++;
-  soundManager.playPooled('/media/hit_tennis_ball2.mp3', 0.5); // Thud representing bad shot
 
   if (state.faults >= 2) {
     // Double Fault!
@@ -1024,6 +1023,43 @@ function run(dt) {
         moveIntentX /= len;
         moveIntentY /= len;
 
+        // Touch Joystick Vector Magnetism Assist
+        if (inputManager.keys.TouchMove && state.player.lastInterceptPoint && canCharacterHit(true)) {
+          const rotRad = state.player.currentPosition.rotation * (Math.PI / 180);
+          const rcp = state.player.racketCurrentPosition;
+
+          // Project the localized dynamic swinging arm bounds logically out into fixed world spatial coordinates
+          const armWorldX = rcp.armX * Math.cos(rotRad) - rcp.armY * Math.sin(rotRad);
+          const armWorldY = rcp.armX * Math.sin(rotRad) + rcp.armY * Math.cos(rotRad);
+
+          // Establish the golden target footprint pulling the player to exactly the correct swinging distance horizontally!
+          const targetX = state.player.lastInterceptPoint.x - armWorldX;
+          const targetY = state.player.lastInterceptPoint.y - armWorldY;
+
+          const dx = targetX - state.player.currentPosition.x;
+          const dy = targetY - state.player.currentPosition.y;
+          const distToTarget = Math.sqrt(dx * dx + dy * dy);
+
+          // Only physically redirect the unit if they aren't already essentially standing on the target coordinates
+          const idealX = dx / distToTarget;
+          const idealY = dy / distToTarget;
+
+          // Check if the joystick's raw heading is within approximately 60 degrees of the mathematically perfect intercept vector
+          const alignmentDot = moveIntentX * idealX + moveIntentY * idealY;
+          if (alignmentDot > 0.5) { // 0.5 == cos(60deg)
+            // Blend the user's manual trajectory sharply into the target algorithm tracking ray!
+            const pullPower = 0.6; // 60% directional lock
+            moveIntentX = moveIntentX * (1 - pullPower) + idealX * pullPower;
+            moveIntentY = moveIntentY * (1 - pullPower) + idealY * pullPower;
+
+            // Re-normalize the merged vector back to unit length safely!
+            const blendedLen = Math.sqrt(moveIntentX * moveIntentX + moveIntentY * moveIntentY);
+            moveIntentX /= blendedLen;
+            moveIntentY /= blendedLen;
+          }
+
+        }
+
         state.player.targetPosition.x = state.player.currentPosition.x + moveIntentX * 50 * GAME_SCALE; // Extend convergence target against camera mapping
         state.player.targetPosition.y = state.player.currentPosition.y + moveIntentY * 50 * GAME_SCALE;
       } else {
@@ -1047,14 +1083,15 @@ function run(dt) {
       // Hysteresis: only update footwork target if the intercept moved substantially (e.g. bouncing/new trajectory)
       if (!state.npc.lastMoveTarget) {
         state.npc.lastMoveTarget = rawIntercept;
-        moveCharacterTo(state.npc, rawIntercept.x + 30, rawIntercept.y - 15);
+
+        moveCharacterTo(state.npc, rawIntercept.x + (14 - state.npc.racketCurrentPosition.armX) + 18, rawIntercept.y - state.npc.racketCurrentPosition.armY);
       } else {
         const dx = rawIntercept.x - state.npc.lastMoveTarget.x;
         const dy = rawIntercept.y - state.npc.lastMoveTarget.y;
 
         if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
           state.npc.lastMoveTarget = rawIntercept;
-          moveCharacterTo(state.npc, rawIntercept.x + 30, rawIntercept.y - 15);
+          moveCharacterTo(state.npc, rawIntercept.x + (14 - state.npc.racketCurrentPosition.armX) + 18, rawIntercept.y - state.npc.racketCurrentPosition.armY);
         }
       }
     }
@@ -1165,39 +1202,44 @@ function run(dt) {
       state.ball.z = 0;
       state.bounceCount++;
 
-      if (state.bounceCount === 1 && !state.resetting && state.lastHitter) {
-        const minX = COURT_INNER_BOUNDS.x;
-        const maxX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width;
-        const minY = COURT_INNER_BOUNDS.y;
-        const maxY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height;
-
-        const inBoundsX = state.ball.x >= minX && state.ball.x <= maxX;
-        let validBounce = false;
-
-        if (state.isServe !== 'in_play') {
-          // Enforce rigid Service Box intersections!
-          const box = state.activeServiceBox;
-          if (state.ball.x >= box.minX && state.ball.x <= box.maxX && state.ball.y >= box.minY && state.ball.y <= box.maxY) {
-            validBounce = true;
-            state.isServe = 'in_play'; // Valid serve, rally is now open
-          }
+      if (state.bounceCount === 1 && !state.resetting) {
+        if (!state.lastHitter) {
+          // Serve toss plummeted to the floor before the racket struck it
+          triggerFault(state.isServe === 'player_serve');
         } else {
-          // Enforce total half-court bounds!
-          if (state.lastHitter === 'player') {
-            validBounce = inBoundsX && state.ball.y >= minY && state.ball.y <= netY; // NPC's half
-          } else if (state.lastHitter === 'npc') {
-            validBounce = inBoundsX && state.ball.y >= netY && state.ball.y <= maxY; // Player's half
-          } else {
-            validBounce = true;
-          }
-        }
+          const minX = COURT_INNER_BOUNDS.x;
+          const maxX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width;
+          const minY = COURT_INNER_BOUNDS.y;
+          const maxY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height;
 
-        // If the first bounce is out of bounds, the point is instantly dead!
-        if (!validBounce) {
+          const inBoundsX = state.ball.x >= minX && state.ball.x <= maxX;
+          let validBounce = false;
+
           if (state.isServe !== 'in_play') {
-            triggerFault(state.lastHitter === 'player');
+            // Enforce rigid Service Box intersections!
+            const box = state.activeServiceBox;
+            if (state.ball.x >= box.minX && state.ball.x <= box.maxX && state.ball.y >= box.minY && state.ball.y <= box.maxY) {
+              validBounce = true;
+              state.isServe = 'in_play'; // Valid serve, rally is now open
+            }
           } else {
-            triggerPointReset(state.lastHitter === 'player');
+            // Enforce total half-court bounds!
+            if (state.lastHitter === 'player') {
+              validBounce = inBoundsX && state.ball.y >= minY && state.ball.y <= netY; // NPC's half
+            } else if (state.lastHitter === 'npc') {
+              validBounce = inBoundsX && state.ball.y >= netY && state.ball.y <= maxY; // Player's half
+            } else {
+              validBounce = true;
+            }
+          }
+
+          // If the first bounce is out of bounds, the point is instantly dead!
+          if (!validBounce) {
+            if (state.isServe !== 'in_play') {
+              triggerFault(state.lastHitter === 'player');
+            } else {
+              triggerPointReset(state.lastHitter === 'player');
+            }
           }
         }
       }
