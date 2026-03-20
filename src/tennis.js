@@ -22,7 +22,7 @@ const COURT_INNER_BOUNDS = { x: -60, y: 85, width: 120, height: 205 };
 const GAME_SCALE = COURT_INNER_BOUNDS.width / 255; // Used to normalize velocities against court shrinks
 
 const PLAYER_SPEED = 250 * GAME_SCALE;        // Player movement speed
-const NPC_SPEED = 200 * GAME_SCALE;           // NPC movement speed
+const NPC_SPEED = 250 * GAME_SCALE;           // NPC movement speed
 const BALL_SPEED = 220 * GAME_SCALE;          // Base horizontal ball speed
 const MAXIMUM_BALL_SPEED = 300 * GAME_SCALE;  // engine speed ceiling for rallying
 const BALL_RADIUS = 3;                        // Collision and drawing radius of the ball
@@ -87,8 +87,7 @@ let state = {
     z: 0,
     vx: BALL_SPEED * 0.7,
     vy: BALL_SPEED * 0.7,
-    velocity: BALL_SPEED * 0.7,
-    pitchAngle: 0
+    vz: 0
   },
   bounceCount: 0,
   resetting: false,
@@ -173,12 +172,24 @@ function calculateArmReach(player, interceptPoint) {
   while (localAngle <= -Math.PI) localAngle += Math.PI * 2;
   while (localAngle > Math.PI) localAngle -= Math.PI * 2;
 
+  // Anatomical Constraints: Prevent the arm from bending unnaturally into the character's back.
+  // 0 is straight forward. PI/2 is straight right. -PI/2 is straight left across the body.
+  const minAngle = -Math.PI * 0.6; // Max reach across body to the left backhand (-108 deg)
+  const maxAngle = Math.PI * 0.75; // Max reach out to the right forehand (135 deg)
+
+  // This continuous polar constraint natively respects character rotation!
+  if (localAngle < minAngle) {
+    localAngle = minAngle;
+  } else if (localAngle > maxAngle) {
+    localAngle = maxAngle;
+  }
+
   const MAX_REACH = 14;
   const actualReach = Math.min(dist2D, MAX_REACH);
 
   return {
-    x: actualReach * Math.cos(localAngle),
-    y: actualReach * Math.sin(localAngle),
+    x: -2 + actualReach * Math.cos(localAngle),
+    y: 14 + actualReach * Math.sin(localAngle),
     z: interceptPoint.z
   };
 }
@@ -285,7 +296,7 @@ function calculateOptimalInterceptPoint(target) {
   let simZ = state.ball.z;
   let simVX = state.ball.vx;
   let simVY = state.ball.vy;
-  let simVZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+  let simVZ = state.ball.vz;
   let simBounces = state.bounceCount;
 
   let bestScore = -Infinity;
@@ -376,10 +387,9 @@ function moveBall(target) {
   state.ball.x = target.x;
   state.ball.y = target.y;
   state.ball.z = target.z;
-  state.ball.velocity = 0;
   state.ball.vx = 0;
   state.ball.vy = 0;
-  state.ball.pitchAngle = 0;
+  state.ball.vz = 0;
 }
 
 /**
@@ -404,12 +414,10 @@ function processBallMovement(dt, onBounce) {
       z: serverObj.currentPosition.z
     });
   } else {
-    const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
-
     // Elevate ball 
-    state.ball.z += vZ * dt;
+    state.ball.z += state.ball.vz * dt;
     // Rotate velocity downward due to continuous gravity
-    state.ball.pitchAngle = Math.atan2(vZ - GRAVITY * dt, state.ball.velocity);
+    state.ball.vz -= GRAVITY * dt;
 
     // Handle Planar XY movement
     state.ball.x += state.ball.vx * dt;
@@ -440,20 +448,17 @@ function processBallMovement(dt, onBounce) {
     if (state.ball.z < NET_HEIGHT) {
       // Ball hit the physical net structure!
       state.ball.vy *= -0.3; // Rebound weakly back towards the hitter
-      state.ball.velocity *= 0.3; // Kill most kinetic energy
+      state.ball.vx *= 0.3; // Kill most kinetic energy
       state.ball.y = netY + Math.sign(state.ball.vy) * 5; // Snap off the net
     }
   }
 
-
-  // 8. Handle floor bounce
   if (state.ball.z < 0) {
     state.ball.z = 0;
     state.bounceCount++;
 
     // Handle Bounce
-    const currentVZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
-    state.ball.pitchAngle = Math.atan2(Math.abs(currentVZ) * DAMPING_MULTIPLIER, state.ball.velocity);
+    state.ball.vz = Math.abs(state.ball.vz) * DAMPING_MULTIPLIER;
 
     onBounce(netY);
   }
@@ -467,8 +472,8 @@ function processBallMovement(dt, onBounce) {
 * @param {number} targetY - Destination Y coordinate.
 * @param {number} velocity - The driving physical 3D velocity of the ball.
 */
-function hitBallToTarget(targetX, targetY, velocity) {
-  state.ball.velocity = Math.min(velocity, MAXIMUM_BALL_SPEED);
+function hitBallToTarget(targetX, targetY, targetVelocity) {
+  let boundedVelocity = Math.min(targetVelocity, MAXIMUM_BALL_SPEED);
   state.bounceCount = 0;
 
   if (state.isServe === 'in_play') {
@@ -482,7 +487,7 @@ function hitBallToTarget(targetX, targetY, velocity) {
   const dist = Math.sqrt(dx * dx + dy * dy);
 
   // Parabolic Physics calculation establishing the necessary starting vertical Z velocity (vZ)
-  let timeToTarget = dist / state.ball.velocity;
+  let timeToTarget = dist / boundedVelocity;
 
   // Cap the flight time to prevent extreme "moonball" lobs. 
   // If the target requires a longer flight, we forcefully drive the ball harder and flatter to reach it.
@@ -490,7 +495,7 @@ function hitBallToTarget(targetX, targetY, velocity) {
   if (timeToTarget > maxFlightTime) {
     timeToTarget = maxFlightTime;
     // Boost the 2D planar velocity to cover the distance in the compressed time frame
-    state.ball.velocity = dist / timeToTarget;
+    boundedVelocity = dist / timeToTarget;
   }
 
   let vZ = (0.5 * GRAVITY * timeToTarget * timeToTarget - state.ball.z) / timeToTarget;
@@ -513,7 +518,7 @@ function hitBallToTarget(targetX, targetY, velocity) {
       let assist = 1.0;
 
       // Hard flat shots resist upward correction
-      if (state.ball.velocity > 250) assist -= 0.2;
+      if (boundedVelocity > 250) assist -= 0.2;
 
       // Balls hit late/low to the ground are physically harder to scoop over the net
       if (state.ball.z < 20) assist -= 0.4;
@@ -525,12 +530,10 @@ function hitBallToTarget(targetX, targetY, velocity) {
     }
   }
 
-  // Derive new spatial pitch vector
-  state.ball.pitchAngle = Math.atan2(vZ, state.ball.velocity);
-
+  state.ball.vz = vZ;
   // Set normalized 2D movement planar slice
-  state.ball.vx = (dx / dist) * state.ball.velocity;
-  state.ball.vy = (dy / dist) * state.ball.velocity;
+  state.ball.vx = (dx / dist) * boundedVelocity;
+  state.ball.vy = (dy / dist) * boundedVelocity;
 }
 
 // ==========================================
@@ -595,21 +598,40 @@ export function initMinigame() {
 * Generate a tar .
 */
 function generateReturnBallHitCords(isPlayer, pRacketPos) {
-  let targetX = COURT_INNER_BOUNDS.x + Math.random() * COURT_INNER_BOUNDS.width;
-  let targetY = COURT_INNER_BOUNDS.y + (isPlayer ? 0 : COURT_INNER_BOUNDS.height / 2) + Math.random() * (COURT_INNER_BOUNDS.height / 2);
+  let targetX, targetY;
 
   if (state.isServe !== 'in_play') {
     const serveTarget = calculateServeTarget(isPlayer);
     targetX = serveTarget.x;
     targetY = serveTarget.y;
   } else {
-    if (isPlayer && pRacketPos) {
-      targetX += (state.ball.x - pRacketPos.x) * 1.5; // center hit variance
-    } else if (!isPlayer) {
-      // NPC procedural aim application
-      targetX = COURT_INNER_BOUNDS.x + (state.ball.x < 0 ? COURT_INNER_BOUNDS.width * 0.85 : COURT_INNER_BOUNDS.width * 0.15);
+    const courtCenterX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width / 2;
+
+    if (isPlayer) {
+      // Player aims deep into the NPC's side (top half of the court)
+      targetY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height * (0.1 + Math.random() * 0.25);
+
+      // Aim diagonally away from the NPC's current spot
+      targetX = state.npc.currentPosition.x > courtCenterX
+        ? COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * (0.1 + Math.random() * 0.2) // Hit Left
+        : COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * (0.8 + Math.random() * 0.1); // Hit Right
+
+      // Add simulation variance based on how clean the racket strike was 
+      if (pRacketPos) {
+        targetX += (state.ball.x - pRacketPos.x) * 1.5;
+      }
+    } else {
+      // NPC aims moderately deep into the Player's side (bottom half of the court)
+      targetY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height * (0.6 + Math.random() * 0.3);
+
+      // NPC aims centrally, making it much easier for the player to reach
+      targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * (0.35 + Math.random() * 0.3);
     }
+
+    // Strictly enforce bounds so the smart-aiming doesn't actively hit the ball out
+    targetX = clamp(targetX, COURT_INNER_BOUNDS.x + 10, COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width - 10);
   }
+
   return { x: targetX, y: targetY };
 }
 
@@ -755,9 +777,7 @@ function throwBall(playerObj, apex) {
   // 5. Synthesize accurate constant trajectory velocity bridging start sequentially onto targeting gap 
   state.ball.vx = (state.tossTarget.x - startX) / tTotalFlight;
   state.ball.vy = (state.tossTarget.y - startY) / tTotalFlight;
-
-  state.ball.velocity = Math.max(0.1, Math.sqrt(state.ball.vx * state.ball.vx + state.ball.vy * state.ball.vy));
-  state.ball.pitchAngle = Math.atan2(vZ, state.ball.velocity);
+  state.ball.vz = vZ;
 
   state.trajectoryFrozen = false; // Ignite the tracker immediately
 
@@ -1073,8 +1093,6 @@ function resetRacketToNeutral(charState) {
 function processCharacter(charState, isPlayer, dt) {
   // 1. Process Approach Proximities & Leaps Target
   const isApproaching = isPlayer ? (state.ball.vy > 0) : (state.ball.vy < 0);
-  const distY = Math.abs(state.ball.y - charState.currentPosition.y);
-  const zMult = clamp(1 - (distY / 80), 0, 1);
 
   // Clip characters to Court Bounds
   charState.targetPosition.x = clamp(charState.targetPosition.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
@@ -1124,15 +1142,17 @@ function processCharacter(charState, isPlayer, dt) {
       reach = calculateArmReach(charState, intercept);
     }
 
+    reach.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP);
+
     const lastZChange = now - charState.lastZChangeTime;
     // Limit the characters vertical movement natively locking negative altitudes
     if (lastZChange > 150) {
       if (intercept.t < 0.3 && (now - charState.lastJumpTime > 500) && charState.currentPosition.z <= JUMP_Z) {
         charState.lastJumpTime = now;
-        charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP); //Jump only when on the ground
+        charState.targetPosition.z = reach.z; //Jump only when on the ground
         charState.lastZChangeTime = now;
       } else if (intercept.t < 0.25 && (now - charState.lastJumpTime > 500) && reach.z < RESTING_Z) {
-        charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, RESTING_Z); //Crouch
+        charState.targetPosition.z = reach.z; //Crouch
         charState.lastZChangeTime = now;
       } else if (reach.z >= RESTING_Z && reach.z < JUMP_Z) {
         charState.targetPosition.z = reach.z; //Not a jump, not a crouch
@@ -1159,7 +1179,7 @@ function processCharacter(charState, isPlayer, dt) {
     if (isRacketInRange(state.ball, racketWorldPos)) {
       aim = calculateRacketReturnAimAngle(state.ball, charState, target);
     } else {
-      aim = calculateRacketReturnAimAngle(state.ball, charState, target);
+      aim = calculateRacketReturnAimAngle(intercept, charState, target);
     }
 
     charState.racketTargetPosition.pitch = aim.pitch;
@@ -1398,7 +1418,7 @@ function run(dt) {
         payload = state.npc.lastHitTarget || generateReturnBallHitCords(isPlayer, state.npc.racketCurrentPosition);
       }
 
-      let returnSpeed = state.ball.velocity * (isPlayer ? 1.05 : 1.1);
+      let returnSpeed = Math.sqrt(state.ball.vx * state.ball.vx + state.ball.vy * state.ball.vy) * (isPlayer ? 1.05 : 1.1);
 
       if (state.isServe !== 'in_play') {
         returnSpeed = BALL_SPEED * (isPlayer ? 0.8 : 0.65);
@@ -1742,7 +1762,7 @@ function run(dt) {
   }
 
   // Calculate and render crosshairs onto the destination surface where ball's geometry will collide
-  const vZTargetCheck = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+  const vZTargetCheck = state.ball.vz;
   const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ball.z;
   let tLand = 0;
   if (det >= 0) {
