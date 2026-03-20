@@ -14,7 +14,9 @@ const ctx = canvas.getContext('2d');
 export const camera = {
   x: 0,
   y: 0,
-  zoom: 1
+  zoom: 1,
+  springX: 0,
+  springY: 0
 };
 
 // --- WEBSOCKET CLIENT ---
@@ -155,6 +157,15 @@ uiManager.initMinimapDialog();
 function update(dt = 0.016) {
   const timeScale = (dt * 60) || 1;
 
+  // Spring decay
+  camera.springX = camera.springX || 0;
+  camera.springY = camera.springY || 0;
+  
+  // Snap back strongly when pressure is released
+  const decay = Math.pow(0.001, dt);
+  camera.springX *= decay;
+  camera.springY *= decay;
+
   // Rotation (tank controls)
   if (!uiManager.isMinimapOpen) {
     if (inputManager.isPressed('ArrowLeft')) {
@@ -230,6 +241,25 @@ function update(dt = 0.016) {
       emoteForcedMove,
       window.init?.npcs
     );
+
+    const actualDx = result.newX - player.x;
+    const actualDy = result.newY - player.y;
+
+    const blockedDx = dx - actualDx;
+    const blockedDy = dy - actualDy;
+
+    // Apply tension to camera if pushing into a wall
+    if (Math.abs(blockedDx) > 0.1 || Math.abs(blockedDy) > 0.1) {
+      camera.springX += blockedDx * 1.5; 
+      camera.springY += blockedDy * 1.5;
+      
+      const maxSpring = 30;
+      const dist = Math.sqrt(camera.springX * camera.springX + camera.springY * camera.springY);
+      if (dist > maxSpring) {
+        camera.springX = (camera.springX / dist) * maxSpring;
+        camera.springY = (camera.springY / dist) * maxSpring;
+      }
+    }
 
     isMoving = result.isMoving;
     player.x = result.newX;
@@ -372,9 +402,9 @@ function executeEvents(sourceObj, rawActions, eventType = 'on_enter') {
  * draws the map, all visible characters, and user interface elements.
  */
 function draw() {
-  camera.x = player.x;
+  camera.x = player.x + (camera.springX || 0);
   // Offset camera Y slightly higher so the player renders lower down in the view, leaving more space above them
-  camera.y = player.y - (viewportHeight / camera.zoom * 0.15);
+  camera.y = player.y - (viewportHeight / camera.zoom * 0.15) + (camera.springY || 0);
 
   // Read from cached globals instead of forcing aggressive DOM reflow every frame
   let yOffset = window.visualViewport ? cachedViewportOffsetY : 0;
