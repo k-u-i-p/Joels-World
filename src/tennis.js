@@ -358,7 +358,7 @@ function calculateOptimalInterceptPoint(target) {
 function moveBall(target) {
   state.ball.x = target.x;
   state.ball.y = target.y;
-  state.ball.z = target.z -;
+  state.ball.z = target.z;
   state.ball.velocity = 0;
   state.ball.vx = 0;
   state.ball.vy = 0;
@@ -1515,9 +1515,10 @@ function run(dt) {
 
     // Elevate visual translation mapping exclusively on the World -Y axis for the upper torso natively!
     // Prevent the torso from sliding downwards linearly through the floor when crouched (visualZ naturally bottoms out at 0)
+    // Divides by COURT_SCALE to escape the shrinking matrix and perfectly map 1:1 against the native ball physics
     const visualZ = Math.max(0, charState.currentPosition.z);
     ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
-    ctx.translate(0, -visualZ / camera.zoom);
+    ctx.translate(0, -visualZ / (camera.zoom * COURT_SCALE));
     ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
 
     const transform = {
