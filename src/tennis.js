@@ -29,10 +29,8 @@ const BALL_RADIUS = 3;                        // Collision and drawing radius of
 const GRAVITY = 800 * GAME_SCALE;             // Gravity affecting the ball Z-axis (pixels/s^2)
 const NET_HEIGHT = 45 * GAME_SCALE;           // Minimum Z-altitude required to cross the court
 const DAMPING_MULTIPLIER = 0.6;               // Vertical velocity retained after a court bounce
-
-const SHOULDER_HEIGHT = 30;                   // Distance from ground to character shoulder joint
-const MAX_JUMP = 80;                          // Maximum aerial leap height extension for rackets
-const MIN_CROUCH = -20;                       // Maximum downward racket crouch extension
+const MAX_JUMP = 100;                         // Maximum aerial leap height extension for rackets
+const MIN_CROUCH = 5;                         // Maximum downward racket crouch extension
 
 const PLAYABLE_OVERSHOOT_X = 75; // How far characters can physically run laterally out of bounds
 const PLAYABLE_OVERSHOOT_Y = 50; // How far characters can physically run vertically past the baselines
@@ -157,7 +155,7 @@ function calculateArmReach(player, interceptPoint) {
   return {
     x: -2 + actualReach * Math.cos(localAngle),
     y: 14 + actualReach * Math.sin(localAngle),
-    z: interceptPoint.z - SHOULDER_HEIGHT
+    z: interceptPoint.z
   };
 }
 
@@ -278,7 +276,7 @@ function calculateOptimalInterceptPoint(target) {
     const isWithinCourtY = simY >= (NPC_BASE_Y - PLAYABLE_OVERSHOOT_Y) && simY <= (PLAYER_BASE_Y + PLAYABLE_OVERSHOOT_Y);
 
     // Crucially restrict tracking so characters only lock onto intercept coordinates falling within their physical leaping/crouching limitations!
-    const isWithinReachZ = (simZ - SHOULDER_HEIGHT) >= MIN_CROUCH && (simZ - SHOULDER_HEIGHT) <= MAX_JUMP;
+    const isWithinReachZ = simZ >= MIN_CROUCH && simZ <= MAX_JUMP;
 
     if (isWithinCourtX && isWithinCourtY && isWithinReachZ) {
       const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
@@ -338,6 +336,53 @@ function moveBall(target) {
   state.ball.vx = 0;
   state.ball.vy = 0;
   state.ball.pitchAngle = 0;
+}
+
+/**
+ * Handles continuous physical coordinate resolution for the ball across space
+ */
+function processBallMovement(dt, playerRacketPos, npcRacketPos) {
+  if (state.servePhase === 'idle' && state.isServe !== 'in_play') {
+    const serverObj = state.isServe === 'player_serve' ? state.player : state.npc;
+    const rotRad = serverObj.currentPosition.rotation * (Math.PI / 180);
+    const limbs = getLimbs(serverObj, 0, 0); // track limb anchoring
+    const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
+
+    const armWorldX = (limbs.leftArmX * Math.cos(rotRad) - limbs.leftArmY * Math.sin(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
+    const armWorldY = (limbs.leftArmX * Math.sin(rotRad) + limbs.leftArmY * Math.cos(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
+
+    state.ball.x = serverObj.currentPosition.x + armWorldX;
+    state.ball.y = serverObj.currentPosition.y + armWorldY;
+    state.ball.z = serverObj.currentPosition.z;
+  } else {
+    const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+
+    // Elevate ball 
+    state.ball.z += vZ * dt;
+    // Rotate velocity downward due to continuous gravity
+    state.ball.pitchAngle = Math.atan2(vZ - GRAVITY * dt, state.ball.velocity);
+
+    // Handle Planar XY movement
+    state.ball.x += state.ball.vx * dt;
+    state.ball.y += state.ball.vy * dt;
+  }
+
+  // Progress global point timer monotonically (freeze while waiting for serves to start)
+  if (state.resetDelayTimer <= 0) state.totalElapsedTime += dt;
+
+  // permit tracking during live gameplay
+  if (minigameActive && !state.trajectoryFrozen) {
+    state.trajectoryPoints.push({
+      x: state.ball.x,
+      y: state.ball.y,
+      t: state.totalElapsedTime,
+      z: state.ball.z,
+      pZ: playerRacketPos.z, // Align to physical shoulder height (25px above floor)
+      nZ: npcRacketPos.z
+    });
+    // Keep array from growing infinitely if the ball gets stuck out of bounds
+    if (state.trajectoryPoints.length > 300) state.trajectoryPoints.shift();
+  }
 }
 
 /**
@@ -724,7 +769,6 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
     const localDy = dx * Math.sin(-racketPos.angle) + dy * Math.cos(-racketPos.angle);
 
     // Strict Elliptical Intersection Boolean Matrix Check over standard Box Radius Check
-    // This perfectly evaluates spatial bounds dynamically resolving visual overlaps!
     return (Math.pow(localDx, 2) / Math.pow(racketPos.w + BALL_RADIUS, 2)) +
       (Math.pow(localDy, 2) / Math.pow(racketPos.h + BALL_RADIUS, 2)) <= 1;
   }
@@ -987,6 +1031,12 @@ function processCharacter(charState, isPlayer, dt) {
     const intercept = charState.lastInterceptPoint;
     const reach = calculateArmReach(charState, intercept);
 
+    if (intercept.t < 0.1 && intercept.t > 0) {
+      console.log('intercept point', intercept);
+      console.log('reach', reach);
+      console.log('ball x,y,z', state.ball.x, state.ball.y, state.ball.z);
+    }
+
     // Limit the characters vertical movement natively locking negative altitudes
     charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP);
 
@@ -1180,48 +1230,7 @@ function run(dt) {
 
     // 5. 3D Spatial Ball Physics Processing (Movement)
     const prevBallY = state.ball.y;
-
-    if (state.servePhase === 'idle' && state.isServe !== 'in_play') {
-      const serverObj = state.isServe === 'player_serve' ? state.player : state.npc;
-      const rotRad = serverObj.currentPosition.rotation * (Math.PI / 180);
-      const limbs = getLimbs(serverObj, 0, 0); // track limb anchoring
-      const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
-
-      const armWorldX = (limbs.leftArmX * Math.cos(rotRad) - limbs.leftArmY * Math.sin(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
-      const armWorldY = (limbs.leftArmX * Math.sin(rotRad) + limbs.leftArmY * Math.cos(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
-
-      state.ball.x = serverObj.currentPosition.x + armWorldX;
-      state.ball.y = serverObj.currentPosition.y + armWorldY;
-      state.ball.z = serverObj.currentPosition.z;
-    } else {
-      const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
-
-      // Elevate ball 
-      state.ball.z += vZ * dt;
-      // Rotate velocity downward due to continuous gravity
-      state.ball.pitchAngle = Math.atan2(vZ - GRAVITY * dt, state.ball.velocity);
-
-      // Handle Planar XY movement
-      state.ball.x += state.ball.vx * dt;
-      state.ball.y += state.ball.vy * dt;
-    }
-
-    // Progress global point timer monotonically (freeze while waiting for serves to start)
-    if (state.resetDelayTimer <= 0) state.totalElapsedTime += dt;
-
-    // permit tracking during live gameplay
-    if (minigameActive && !state.trajectoryFrozen) {
-      state.trajectoryPoints.push({
-        x: state.ball.x,
-        y: state.ball.y,
-        t: state.totalElapsedTime,
-        z: state.ball.z,
-        pZ: playerRacketPos.z + 25, // Align to physical shoulder height (25px above floor)
-        nZ: npcRacketPos.z + 25
-      });
-      // Keep array from growing infinitely if the ball gets stuck out of bounds
-      if (state.trajectoryPoints.length > 300) state.trajectoryPoints.shift();
-    }
+    processBallMovement(dt, playerRacketPos, npcRacketPos);
 
     // 6. Structural Net Collision
     // Check if ball crossed the Y-center of the court during this frame
@@ -1496,7 +1505,16 @@ function run(dt) {
     characterManager.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
     characterManager.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
 
-    const transform = { offsetX, offsetY, scale, centerX, baseRotation: charState.currentPosition.rotation, elevateZ: charState.currentPosition.z, targetStateObj: charState.racketCurrentPosition, courtScale: COURT_SCALE };
+    const transform = {
+      offsetX,
+      offsetY,
+      scale,
+      centerX,
+      baseRotation: charState.currentPosition.rotation,
+      elevateZ: charState.currentPosition.z,
+      targetStateObj: charState.racketCurrentPosition,
+      courtScale: COURT_SCALE
+    };
     drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
     characterManager.drawHumanoidUpperBody(ctx, characterData, limbs);
     ctx.restore();
