@@ -105,7 +105,8 @@ export async function processOverlays() {
             .png({
               compressionLevel: 9,
               adaptiveFiltering: true,
-              effort: 10
+              effort: 10,
+              palette: true
             })
             .toFile(outPath);
 

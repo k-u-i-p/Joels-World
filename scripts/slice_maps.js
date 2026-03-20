@@ -128,7 +128,12 @@ async function processLayer(inputPath, chunksDir, baseName, ext, chunkSize) {
         let extractor = image.clone().extract({ left, top, width: extractWidth, height: extractHeight });
         
         if (isPng) {
-          extractor = extractor.png();
+          extractor = extractor.png({
+            compressionLevel: 9,
+            adaptiveFiltering: true,
+            effort: 10,
+            palette: true
+          });
         } else {
           // Removes alpha layer for solid JPG backgrounds to prevent sharp from 
           // feathering the transparent rendering edges - stops the faint grid effect!

@@ -918,14 +918,16 @@ function triggerPointReset(nextPlayerServing) {
   state.serveSide = ((state.player.score + state.npc.score) % 2 === 0) ? -1 : 1;
   state.resetDelayTimer = 1.5; // Brief intermission before next serve
   if (wonSet) {
-    soundManager.playPooled('/media/crowd_cheering.mp3', 0.8);
+    soundManager.playPooled('/media/crowd_cheering.mp3', 1.0);
   } else if (state.rallyCount >= 4) {
-    soundManager.playPooled('/media/clap.mp3', 0.8);
+    soundManager.playPooled('/media/clap.mp3', 0.7);
   }
 }
 
 export function onPlayerWinsSet() {
-
+  import('../network.js').then(({ networkClient }) => {
+    networkClient.send({ type: 'award_badge', badge: 'tennis' });
+  });
 }
 
 function processRacketDeflections(visualBallY, processHit) {

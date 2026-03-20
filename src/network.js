@@ -87,6 +87,16 @@ export class NetworkClient {
           return;
         } else if (data.type === 'init') {
           if (this.onInitDataCallback) this.onInitDataCallback(data);
+        } else if (data.type === 'badge_earned') {
+          if (typeof uiManager !== 'undefined' && uiManager.addServerChatMessage) {
+            uiManager.addServerChatMessage('System', `You earned the badge: ${data.badge}!`);
+          }
+          if (player) {
+            if (!player.badges) player.badges = [];
+            if (!player.badges.includes(data.badge)) {
+              player.badges.push(data.badge);
+            }
+          }
         } else if (data.type === 'map_change_rejected') {
           if (typeof uiManager !== 'undefined') {
             uiManager.showMapChangeRejected();

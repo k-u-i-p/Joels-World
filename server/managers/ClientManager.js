@@ -148,6 +148,17 @@ export class ClientManager {
             this.handleDisconnect(ws, data, mapData);
           } else if (data.type === 'change_map') {
             mapData = this.handleChangeMap(ws, data, mapData, session);
+          } else if (data.type === 'award_badge') {
+            if (session && session.player) {
+              if (!session.player.badges) {
+                session.player.badges = [];
+              }
+              if (!session.player.badges.includes(data.badge)) {
+                session.player.badges.push(data.badge);
+                session.save();
+                ws.send(JSON.stringify({ type: 'badge_earned', badge: data.badge }));
+              }
+            }
           } else {
             handleAdminMessage(ws, data, mapData);
           }

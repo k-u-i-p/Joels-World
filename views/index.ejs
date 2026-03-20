@@ -126,6 +126,37 @@
     </div>
   </div>
 
+  <!-- Badges Dialog Overlay -->
+  <div id="badges-dialog" class="overlay" style="display: none;">
+    <div style="position: relative; max-width: 350px; width: 80%;">
+      <button id="close-badges-btn" class="dialog-close-btn">&times;</button>
+      <div class="dialog-content glass-panel"
+        style="text-align: left; width: 100%; padding: 15px; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px); overflow-y: auto;">
+        <h2 class="dialog-header">Badges</h2>
+        <% const badgeDefinitions=[ { id: 'rugby' , name: 'Rugby' , icon: '🏉' }, { id: 'tennis' , name: 'Tennis' ,
+          icon: '🎾' }, { id: 'swimming' , name: 'Swimming' , icon: '🏊' }, { id: 'tag' , name: 'Tag' , icon: '🏃' }, {
+          id: 'good friend' , name: 'Good Friend' , icon: '🫂' }, { id: 'tower defence' , name: 'Tower Defence' ,
+          icon: '🏰' }, { id: 'detention' , name: 'Detention' , icon: '🚫' } ]; %>
+          <div id="badges-list" style="display: flex; flex-direction: column; gap: 8px;">
+            <% badgeDefinitions.forEach(badge=> { %>
+              <div class="badge-row emote-row" data-badge="<%= badge.id %>"
+                style="justify-content: space-between; cursor: default;">
+                <div style="display: flex; align-items: center;">
+                  <span class="emote-row-icon">
+                    <%= badge.icon %>
+                  </span>
+                  <span class="emote-row-name">
+                    <%= badge.name %>
+                  </span>
+                </div>
+                <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
+              </div>
+              <% }); %>
+          </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Minimap Dialog Overlay -->
   <div id="minimap-dialog" class="overlay" style="display: none;">
     <div style="position: relative;">
@@ -312,6 +343,7 @@
       <div id="ui-buttons-container">
         <button id="map-button" title="Map (M)"></button>
         <button id="exit-button" title="Exit Minigame" style="display: none;">🏃</button>
+        <button id="badges-button" title="Badges">🏅</button>
         <button id="emotes-button" title="Emotes">☺️</button>
         <button id="help-button">?</button>
       </div>

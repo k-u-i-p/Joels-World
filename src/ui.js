@@ -128,6 +128,56 @@ export class UIManager {
     }
   }
 
+  initBadgesDialog() {
+    const badgesButton = document.getElementById('badges-button');
+    const badgesDialog = document.getElementById('badges-dialog');
+    const closeBadgesBtn = document.getElementById('close-badges-btn');
+
+    if (badgesButton && badgesDialog && closeBadgesBtn) {
+      badgesButton.addEventListener('click', () => {
+        this.populateBadgesList();
+        badgesDialog.style.display = 'flex';
+      });
+
+      closeBadgesBtn.addEventListener('click', () => {
+        badgesDialog.style.display = 'none';
+      });
+
+      badgesDialog.addEventListener('click', (e) => {
+        if (e.target === badgesDialog) {
+          badgesDialog.style.display = 'none';
+        }
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && badgesDialog.style.display === 'flex') {
+          closeBadgesBtn.click();
+        }
+      });
+    }
+  }
+
+  populateBadgesList() {
+    const earnedBadges = Array.isArray(player.badges) ? player.badges : [];
+    const badgeRows = document.querySelectorAll('.badge-row');
+
+    badgeRows.forEach(row => {
+      const badgeId = row.getAttribute('data-badge');
+      const statusDiv = row.querySelector('.badge-status');
+      if (!badgeId || !statusDiv) return;
+
+      const hasEarned = earnedBadges.some(b => b.toString().toLowerCase() === badgeId.toLowerCase());
+
+      if (hasEarned) {
+        statusDiv.textContent = '✅';
+        statusDiv.style.opacity = '1';
+      } else {
+        statusDiv.textContent = '🔒';
+        statusDiv.style.opacity = '0.5';
+      }
+    });
+  }
+
   addServerChatMessage(senderName, message) {
     if (!this.serverChatStack) return;
 

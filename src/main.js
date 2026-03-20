@@ -9,6 +9,9 @@ import { networkClient } from './network.js';
 import { uiManager } from './ui.js';
 import { gameLoop } from './gameloop.js';
 
+const MAX_SPRING = 50;
+const SPRING_SPEED = 0.75;
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 export const camera = {
@@ -136,18 +139,10 @@ let lastSyncTime = 0;
 let activeNpc = null;
 
 export const footprints = [];
-/**
- * Global gameLoop system is now handled by our GameLoop class in gameloop.js.
- * We register our main update and draw callbacks natively once init executes.
- */
-
-
-
-const movementCoords = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
-const exactCoords = [{ x: 0, y: 0 }];
 
 uiManager.initHelpDialog();
 uiManager.initEmotesDialog();
+uiManager.initBadgesDialog();
 uiManager.initMinimapDialog();
 
 /**
@@ -157,14 +152,10 @@ uiManager.initMinimapDialog();
 function update(dt = 0.016) {
   const timeScale = (dt * 60) || 1;
 
-  // Spring decay
+  // Spring setup
   camera.springX = camera.springX || 0;
   camera.springY = camera.springY || 0;
-  
-  // Snap back strongly when pressure is released
   const decay = Math.pow(0.001, dt);
-  camera.springX *= decay;
-  camera.springY *= decay;
 
   // Rotation (tank controls)
   if (!uiManager.isMinimapOpen) {
@@ -248,17 +239,23 @@ function update(dt = 0.016) {
     const blockedDx = dx - actualDx;
     const blockedDy = dy - actualDy;
 
-    // Apply tension to camera if pushing into a wall
-    if (Math.abs(blockedDx) > 0.1 || Math.abs(blockedDy) > 0.1) {
-      camera.springX += blockedDx * 1.5; 
-      camera.springY += blockedDy * 1.5;
-      
-      const maxSpring = 30;
-      const dist = Math.sqrt(camera.springX * camera.springX + camera.springY * camera.springY);
-      if (dist > maxSpring) {
-        camera.springX = (camera.springX / dist) * maxSpring;
-        camera.springY = (camera.springY / dist) * maxSpring;
-      }
+    // Apply tension to camera if pushing into a wall, otherwise decay that axis
+    if (Math.abs(blockedDx) > 0.1) {
+      camera.springX += blockedDx * SPRING_SPEED;
+    } else {
+      camera.springX *= decay;
+    }
+
+    if (Math.abs(blockedDy) > 0.1) {
+      camera.springY += blockedDy * SPRING_SPEED;
+    } else {
+      camera.springY *= decay;
+    }
+
+    const dist = Math.sqrt(camera.springX * camera.springX + camera.springY * camera.springY);
+    if (dist > MAX_SPRING) {
+      camera.springX = (camera.springX / dist) * MAX_SPRING;
+      camera.springY = (camera.springY / dist) * MAX_SPRING;
     }
 
     isMoving = result.isMoving;
@@ -350,7 +347,9 @@ function update(dt = 0.016) {
       }
     }
   } else {
-    // Smoother stop: reset animation to neutral when stopped
+    // Smoother stop: reset animation to neutral when stopped and snap camera back
+    camera.springX *= decay;
+    camera.springY *= decay;
     player.legAnimationTime = 0;
 
     if (player.walkingAudio) {
@@ -480,7 +479,12 @@ function draw() {
 
   characterManager.drawCharacters('base', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
-  mapManager.drawLayer(1, ctx, canvas, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
+  ctx.save();
+  const springOffsetX = ((camera.springX || 0) | 0) * 0.1;
+  const springOffsetY = ((camera.springY || 0) | 0) * 0.1;
+  ctx.translate(-springOffsetX, -springOffsetY);
+  mapManager.drawLayer(1, ctx, canvas, camera.x - springOffsetX, camera.y - springOffsetY, camera.zoom, viewportWidth, viewportHeight);
+  ctx.restore();
 
   characterManager.drawCharacters('overlay', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
   characterManager.drawCharacters('chat', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);

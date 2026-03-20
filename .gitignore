@@ -36,3 +36,6 @@ log.txt
 
 #Large images
 original_images/*
+
+# Sessions
+sessions/

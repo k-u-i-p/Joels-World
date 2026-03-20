@@ -265,10 +265,12 @@ body {
 #help-button,
 #emotes-button,
 #map-button,
+#badges-button,
 #exit-button {
   width: 44px;
   height: 44px;
   border-radius: 50%;
+  font-size: 32px;
   border: 2px solid rgba(255, 255, 255, 0.5);
   cursor: pointer;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
@@ -288,7 +290,13 @@ body {
 }
 
 #emotes-button {
-  background-color: #f39c12;
+  background-color: var(--color-primary);
+  color: #ffffff;
+  font-size: 24px;
+}
+
+#badges-button {
+  background-color: var(--color-primary);
   color: #ffffff;
   font-size: 24px;
 }
@@ -304,6 +312,7 @@ body {
 #help-button:hover,
 #emotes-button:hover,
 #map-button:hover,
+#badges-button:hover,
 #exit-button:hover {
   transform: scale(1.1);
   filter: brightness(1.2);
