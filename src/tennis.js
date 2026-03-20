@@ -155,7 +155,7 @@ function calculateArmReach(player, interceptPoint) {
   return {
     x: -2 + actualReach * Math.cos(localAngle),
     y: 14 + actualReach * Math.sin(localAngle),
-    z: interceptPoint.z
+    z: interceptPoint.z + 9
   };
 }
 
@@ -268,7 +268,7 @@ function calculateOptimalInterceptPoint(target) {
 
   let currentT = 0;
   const simDt = 0.016; // 60fps procedural resolution
-  const maxT = 10.0;    // Cap prediction at 2.0 seconds
+  const maxT = 3.0;    // Cap prediction at 2.0 seconds
 
   while (currentT <= maxT) {
     // Only permit physics intercept tracking if the ball resolves physically inside valid playable geometry
@@ -277,6 +277,7 @@ function calculateOptimalInterceptPoint(target) {
 
     // Crucially restrict tracking so characters only lock onto intercept coordinates falling within their physical leaping/crouching limitations!
     const isWithinReachZ = simZ >= MIN_CROUCH && simZ <= MAX_JUMP;
+    const isComfortableZ = simZ >= MIN_CROUCH + 25 && simZ <= MAX_JUMP - 20;
 
     if (isWithinCourtX && isWithinCourtY && isWithinReachZ) {
       const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
@@ -922,11 +923,12 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
 
   charState.vz = charState.vz || 0; // Initialize if missing
 
-  // Triggers jump if target is above 10 and the unit is firmly resting at or below the 10px tippy-toe ceiling
-  if (charState.targetPosition.z > 10 && charState.currentPosition.z <= 10 && charState.vz === 0) {
+  const jumpHeight = 30;
+
+  if (charState.targetPosition.z > jumpHeight && charState.currentPosition.z <= jumpHeight && charState.vz === 0) {
     if (charState.lastInterceptPoint && charState.lastInterceptPoint.t > 0) {
       const boundedZ = Math.min(MAX_JUMP, charState.targetPosition.z);
-      const actualLeapDistance = boundedZ - 10; // Recalculate trajectory relative to the raised tippy-toe floor
+      const actualLeapDistance = boundedZ - jumpHeight; // Recalculate trajectory relative to the raised tippy-toe floor
       const timeToApex = Math.sqrt((2 * actualLeapDistance) / GRAVITY);
       if (charState.lastInterceptPoint.t <= timeToApex + 0.05) {
         charState.vz = Math.sqrt(2 * GRAVITY * actualLeapDistance);
@@ -934,16 +936,16 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
     }
   }
 
-  if (charState.vz !== 0 || charState.currentPosition.z > 10) { // Airborne or launching
+  if (charState.vz !== 0 || charState.currentPosition.z > jumpHeight) { // Airborne or launching
     charState.vz -= GRAVITY * dt;
     charState.currentPosition.z += charState.vz * dt;
-    if (charState.currentPosition.z <= 10) {
-      charState.currentPosition.z = 10;
+    if (charState.currentPosition.z <= jumpHeight) {
+      charState.currentPosition.z = jumpHeight;
       charState.vz = 0; // Terminate freefall completely, transition smoothly identically to kinematics below
     }
   } else {
     // Kinematic "Tippy-Toe / Crouch" resolution natively handles low bounce targets safely!
-    const kinematicTarget = Math.min(10, charState.targetPosition.z);
+    const kinematicTarget = Math.min(jumpHeight, charState.targetPosition.z);
     const dz = kinematicTarget - charState.currentPosition.z;
     if (Math.abs(dz) > 1) {
       charState.currentPosition.z += Math.sign(dz) * Math.min(speed * 1.5, Math.abs(dz));
@@ -1504,6 +1506,13 @@ function run(dt) {
     // Draw the shoes securely anchored to the geographical ground floor
     characterManager.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
     characterManager.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
+
+    // Elevate visual translation mapping exclusively on the World -Y axis for the upper torso natively!
+    // Prevent the torso from sliding downwards linearly through the floor when crouched (visualZ naturally bottoms out at 0)
+    const visualZ = Math.max(0, charState.currentPosition.z);
+    ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
+    ctx.translate(0, -visualZ / camera.zoom);
+    ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
 
     const transform = {
       offsetX,
