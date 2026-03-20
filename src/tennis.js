@@ -31,8 +31,8 @@ const NET_HEIGHT = 45 * GAME_SCALE;           // Minimum Z-altitude required to 
 const DAMPING_MULTIPLIER = 0.6;               // Vertical velocity retained after a court bounce
 const MAX_JUMP = 80;                         // Maximum aerial leap height extension for rackets
 const MIN_CROUCH = 5;                         // Maximum downward racket crouch extension
-const JUMP_Z = 25;                            // Minimum Z to count as a JUMP
-const RESTING_Z = 15;                         // Resting Character Z
+const JUMP_Z = 15;                            // Minimum Z to count as a JUMP
+const RESTING_Z = 10;                         // Resting Character Z
 
 const PLAYABLE_OVERSHOOT_X = 75; // How far characters can physically run laterally out of bounds
 const PLAYABLE_OVERSHOOT_Y = 50; // How far characters can physically run vertically past the baselines
@@ -244,7 +244,7 @@ function getLimbs(playerObj, rightArmX, rightArmY) {
   const directionY = playerObj.movementDirection ? playerObj.movementDirection.y : 1;
 
   const legSwing = Math.sin(legTimer);
-  const legStride = 9;
+  const legStride = 5;
   const armStride = 8;
   const safeDirX = directionX || 1;
   const safeDirY = directionY || 1;
@@ -252,9 +252,9 @@ function getLimbs(playerObj, rightArmX, rightArmY) {
   return {
     leftArmX: -2 - legSwing * armStride, leftArmY: -14,
     rightArmX: rightArmX, rightArmY: rightArmY,
-    leftLegStartX: -2 + (safeDirY * legSwing * legStride), leftLegStartY: -6 + (-safeDirX * legSwing * legStride),
+    leftLegStartX: -2, leftLegStartY: -6,
     leftLegEndX: -2 + (safeDirY * legSwing * legStride), leftLegEndY: -6 + (-safeDirX * legSwing * legStride),
-    rightLegStartX: -2 - (safeDirY * legSwing * legStride), rightLegStartY: 6 - (-safeDirX * legSwing * legStride),
+    rightLegStartX: -2, rightLegStartY: 6,
     rightLegEndX: -2 - (safeDirY * legSwing * legStride), rightLegEndY: 6 - (-safeDirX * legSwing * legStride)
   };
 }
@@ -1565,6 +1565,29 @@ function run(dt) {
     // Draw the shoes anchored to the translation floor
     characterManager.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
     characterManager.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
+
+    // Dynamic Physics Legs: Draw stretching joint connections perfectly linking the jumping Torso cleanly down to the Shoes!
+    const torsoOffsetScreen = -torsoZ / (camera.zoom * COURT_SCALE);
+    ctx.strokeStyle = characterData.pantsColor || '#2980b9';
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = 'round';
+
+    const drawStretchingLeg = (startX, startY, endX, endY) => {
+      ctx.beginPath();
+      ctx.save();
+      // Locate the hip anchor matrix seamlessly inside the unrotated Torso hovering frame
+      ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
+      ctx.translate(0, torsoOffsetScreen);
+      ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
+      ctx.moveTo(startX, startY);
+      ctx.restore();
+      // Attach to the physically planted/sliding shoe origin
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+    };
+
+    drawStretchingLeg(limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY);
+    drawStretchingLeg(limbs.rightLegStartX, limbs.rightLegStartY, limbs.rightLegEndX, limbs.rightLegEndY);
 
     // Elevate visual translation mapping exclusively on the World -Y axis for the upper torso natively!
     // The torso absorbs the initial altitude delta (unbending legs) capped at JUMP_Z
