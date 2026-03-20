@@ -31,7 +31,7 @@ const NET_HEIGHT = 45 * GAME_SCALE;           // Minimum Z-altitude required to 
 const DAMPING_MULTIPLIER = 0.6;               // Vertical velocity retained after a court bounce
 const MAX_JUMP = 80;                         // Maximum aerial leap height extension for rackets
 const MIN_CROUCH = 5;                         // Maximum downward racket crouch extension
-const JUMP_Z = 20;                            // Minimum Z to count as a JUMP
+const JUMP_Z = 25;                            // Minimum Z to count as a JUMP
 const RESTING_Z = 15;                         // Resting Character Z
 
 const PLAYABLE_OVERSHOOT_X = 75; // How far characters can physically run laterally out of bounds
@@ -65,6 +65,8 @@ let state = {
     legTimer: 0,
     lastInterceptPoint: null,
     lastHitTarget: null,
+    lastJumpTime: 0,
+    lastZChangeTime: 0,
   },
   npc: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 90 },
@@ -76,6 +78,8 @@ let state = {
     legTimer: 0,
     lastInterceptPoint: null,
     lastHitTarget: null,
+    lastJumpTime: 0,
+    lastZChangeTime: 0,
   },
   ball: {
     x: 0,
@@ -121,6 +125,19 @@ function canCharacterHit(isPlayer) {
 
   if (!isPlayer)
     return (state.lastHitter !== 'npc' && state.isServe === 'in_play') || (state.isServe === 'npc_serve' && state.servePhase === 'live');
+}
+
+/**
+ * Calculates the absolute 3D Euclidean distance from the character to the ball.
+ * @param {Object} playerObj - The state tracking object for the character (state.player or state.npc)
+ * @returns {number} The straight-line coordinate distance
+ */
+function distanceToBall(playerObj) {
+  const dx = state.ball.x - playerObj.currentPosition.x;
+  const dy = state.ball.y - playerObj.currentPosition.y;
+  const dz = state.ball.z - playerObj.currentPosition.z;
+
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
 /**
@@ -761,6 +778,10 @@ function triggerPointReset(nextPlayerServing) {
   if (state.resetting) return;
   state.resetting = true;
   state.trajectoryFrozen = true; // Freeze the graph to display the concluding shot!
+  state.player.previousFrameInterceptPoint = null;
+  state.npc.previousFrameInterceptPoint = null;
+  state.player.lastHitTarget = null;
+  state.npc.lastHitTarget = null;
 
   // Award point based on who is serving next (loser of the rally serves)
   if (nextPlayerServing) {
@@ -864,7 +885,7 @@ function getOptimalInterceptPosition(playerObj, interceptPoint) {
   // The racket handle physically extends ~18 units statically past the wrist.
   // Project this exact static handle length mathematically along the arm's true extended global vector!
   const absoluteYaw = rcp.yaw + rotRad;
-  const handleWorldX = 18 * Math.cos(absoluteYaw);
+  const handleWorldX = 25 * Math.cos(absoluteYaw);
   const handleWorldY = 18 * Math.sin(absoluteYaw);
 
   const stringbedWorldX = armWorldX + handleWorldX;
@@ -956,7 +977,7 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
 
   const dz = charState.targetPosition.z - charState.currentPosition.z;
   if (Math.abs(dz) > 1) {
-    const mz = Math.sign(dz) * Math.min(speed * 2.0, Math.abs(dz));
+    const mz = Math.sign(dz) * Math.min(speed, Math.abs(dz));
     charState.currentPosition.z += mz;
   } else {
     charState.currentPosition.z = charState.targetPosition.z;
@@ -1036,16 +1057,32 @@ function processCharacter(charState, isPlayer, dt) {
     charState.targetPosition.y = clamp(charState.targetPosition.y, NPC_BASE_Y - PLAYABLE_OVERSHOOT_Y + 10, (COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2) - 10);
   }
 
-  // 3. Dynamic Limb Target Tracking
-  if (canCharacterHit(isPlayer)) {
-    const intercept = charState.lastInterceptPoint;
-    const reach = calculateArmReach(charState, intercept);
+  const intercept = charState.lastInterceptPoint;
 
+  const distance = distanceToBall(charState);
+  // 3. Dynamic Limb Target Tracking
+  if (canCharacterHit(isPlayer) && intercept.t > 0 && ((isApproaching && distance < 150) || (!isApproaching && distance < 50))) {
+    const reach = calculateArmReach(charState, intercept);
+    const now = Date.now();
+    const lastZChange = now - charState.lastZChangeTime;
     // Limit the characters vertical movement natively locking negative altitudes
-    if (intercept.t < 0.25) {
-      charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP);
-    } else {
-      charState.targetPosition.z = RESTING_Z;
+    if (lastZChange > 250 && distance < 50) {
+      if (intercept.t < 0.15 && lastZChange < 1000 && reach.z > JUMP_Z && charState.currentPosition.z <= RESTING_Z) {
+        console.log("JUMPING")
+        charState.lastJumpTime = now;
+        charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP); //Jump only when on the ground
+      } else if (intercept.t < 0.15 && lastZChange < 1000 && reach.z < RESTING_Z) {
+        console.log("CROUCHING")
+        charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, RESTING_Z); //Crouch
+      } else if (reach.z >= RESTING_Z && reach.z < JUMP_Z) {
+        console.log("NOT JUMPING NOT CROUCHING")
+        charState.targetPosition.z = reach.z; //Not a jump, not a crouch
+      } else {
+        console.log("ELSE Z IS AT REST")
+        charState.targetPosition.z = RESTING_Z; //Else z is at rest
+      }
+
+      charState.lastZChangeTime = now;
     }
 
     charState.racketTargetPosition.armX = reach.x;
@@ -1183,15 +1220,15 @@ function run(dt) {
         state.npc.previousFrameInterceptPoint = rawIntercept;
 
         let target = getOptimalInterceptPosition(state.npc, rawIntercept);
-        moveCharacterTo(state.npc, target.x, target.y);
+        moveCharacterTo(state.npc, target.x, target.y, RESTING_Z);
       } else {
         const dx = rawIntercept.x - state.npc.previousFrameInterceptPoint.x;
         const dy = rawIntercept.y - state.npc.previousFrameInterceptPoint.y;
 
-        if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
           state.npc.previousFrameInterceptPoint = rawIntercept;
           let target = getOptimalInterceptPosition(state.npc, rawIntercept);
-          moveCharacterTo(state.npc, target.x, target.y);
+          moveCharacterTo(state.npc, target.x, target.y, RESTING_Z);
         }
       }
     }
@@ -1509,16 +1546,22 @@ function run(dt) {
     ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
     characterData.rotation = charState.currentPosition.rotation;
 
-    // Draw the shoes securely anchored to the geographical ground floor
+    const shoeZ = Math.max(0, charState.currentPosition.z - JUMP_Z);
+    const torsoZ = Math.max(0, charState.currentPosition.z) - shoeZ;
+
+    // Elevate the shoes vertically off the absolute floor if jumping (exceeding JUMP_Z leg extension)
+    ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
+    ctx.translate(0, -shoeZ / (camera.zoom * COURT_SCALE));
+    ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
+
+    // Draw the shoes anchored to the translation floor
     characterManager.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
     characterManager.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
 
     // Elevate visual translation mapping exclusively on the World -Y axis for the upper torso natively!
-    // Prevent the torso from sliding downwards linearly through the floor when crouched (visualZ naturally bottoms out at 0)
-    // Divides by COURT_SCALE to escape the shrinking matrix and perfectly map 1:1 against the native ball physics
-    const visualZ = Math.max(0, charState.currentPosition.z);
+    // The torso absorbs the initial altitude delta (unbending legs) capped at JUMP_Z
     ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
-    ctx.translate(0, -visualZ / (camera.zoom * COURT_SCALE));
+    ctx.translate(0, -torsoZ / (camera.zoom * COURT_SCALE));
     ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
 
     const transform = {
