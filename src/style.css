@@ -264,7 +264,8 @@ body {
 
 #help-button,
 #emotes-button,
-#map-button {
+#map-button,
+#exit-button {
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -302,7 +303,8 @@ body {
 
 #help-button:hover,
 #emotes-button:hover,
-#map-button:hover {
+#map-button:hover,
+#exit-button:hover {
   transform: scale(1.1);
   filter: brightness(1.2);
 }
@@ -310,8 +312,15 @@ body {
 #help-button:active,
 #emotes-button:active,
 #map-button:active,
+#exit-button:active,
 #close-minimap-btn:active {
   transform: scale(0.9);
+}
+
+#exit-button {
+  background-color: var(--color-danger);
+  color: #ffffff;
+  font-size: 20px;
 }
 
 /* Emotes UI */

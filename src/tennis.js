@@ -22,7 +22,7 @@ const COURT_INNER_BOUNDS = { x: -60, y: 85, width: 120, height: 205 };
 const GAME_SCALE = COURT_INNER_BOUNDS.width / 255; // Used to normalize velocities against court shrinks
 
 const PLAYER_SPEED = 250 * GAME_SCALE;        // Player movement speed
-const NPC_SPEED = 250 * GAME_SCALE;           // NPC movement speed
+const NPC_SPEED = 175 * GAME_SCALE;           // NPC movement speed
 const BALL_SPEED = 220 * GAME_SCALE;          // Base horizontal ball speed
 const MAXIMUM_BALL_SPEED = 300 * GAME_SCALE;  // engine speed ceiling for rallying
 const BALL_RADIUS = 3;                        // Collision and drawing radius of the ball
@@ -598,6 +598,41 @@ export function initMinigame() {
   const scoreboard = document.getElementById('tennis-scoreboard');
   if (scoreboard) scoreboard.style.display = 'flex';
   updateScoreboardDOM();
+
+  // Setup Exit Button
+  const mapBtn = document.getElementById('map-button');
+  const exitBtn = document.getElementById('exit-button');
+  if (mapBtn) mapBtn.style.display = 'none';
+  if (exitBtn) {
+    exitBtn.style.display = 'flex';
+    exitBtn.onclick = () => {
+      const dialogOverlay = document.getElementById('action-dialog');
+      const dialogText = document.getElementById('action-dialog-text');
+      const btnYes = document.getElementById('action-dialog-yes');
+      const btnNo = document.getElementById('action-dialog-no');
+
+      if (dialogOverlay && dialogText && btnYes && btnNo) {
+        dialogText.textContent = 'Return to the junior school?';
+        dialogOverlay.style.display = 'block';
+
+        const topUi = document.getElementById('top-center-ui');
+        const wasHidden = topUi && topUi.style.display === 'none';
+        if (wasHidden) topUi.style.display = 'flex';
+
+        btnNo.onclick = () => {
+          dialogOverlay.style.display = 'none';
+          if (wasHidden && topUi) topUi.style.display = 'none';
+        };
+
+        btnYes.onclick = () => {
+          dialogOverlay.style.display = 'none';
+          import('./network.js').then(({ networkClient }) => {
+            networkClient.send({ type: 'change_map', mapId: 0 });
+          });
+        };
+      }
+    };
+  }
 
   gameLoop.registerFunction(run);
 }

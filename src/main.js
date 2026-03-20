@@ -519,6 +519,14 @@ function handleInitData(data) {
         }
       }
 
+      const mapBtn = document.getElementById('map-button');
+      const exitBtn = document.getElementById('exit-button');
+      if (mapBtn) mapBtn.style.display = 'flex';
+      if (exitBtn) exitBtn.style.display = 'none';
+
+      const scoreboard = document.getElementById('tennis-scoreboard');
+      if (scoreboard) scoreboard.style.display = 'none';
+
       const topUi = document.getElementById('top-center-ui');
       if (topUi) topUi.style.display = 'flex';
 
