@@ -6,11 +6,11 @@
 * and AI opponent tracking.
 */
 
-import { gameLoop } from './gameloop.js';
-import { inputManager } from './input.js';
-import { characterManager } from './characters.js';
-import { player, camera } from './main.js';
-import { soundManager } from './sound.js';
+import { gameLoop } from '../gameloop.js';
+import { inputManager } from '../input.js';
+import { characterManager } from '../characters.js';
+import { camera } from '../main.js';
+import { soundManager } from '../sound.js';
 
 // ==========================================
 // CONSTANTS & CONFIGURATION
@@ -626,7 +626,7 @@ export function initMinigame() {
 
         btnYes.onclick = () => {
           dialogOverlay.style.display = 'none';
-          import('./network.js').then(({ networkClient }) => {
+          import('../network.js').then(({ networkClient }) => {
             networkClient.send({ type: 'change_map', mapId: 0 });
           });
         };
@@ -900,8 +900,13 @@ function triggerPointReset(nextPlayerServing) {
   // Clear faults for the next point
   state.faults = 0;
 
+  let wonSet = false;
   const scoreData = getTennisScore(state.player.score, state.npc.score);
   if (scoreData.winner) {
+    if (scoreData.winner === 'player') {
+      onPlayerWinsSet();
+      wonSet = true;
+    }
     // Game won, reset points for the next game
     state.player.score = 0;
     state.npc.score = 0;
@@ -912,9 +917,15 @@ function triggerPointReset(nextPlayerServing) {
   // Always serve from Deuce (-1) on Even total points, Ad (1) on Odd total points
   state.serveSide = ((state.player.score + state.npc.score) % 2 === 0) ? -1 : 1;
   state.resetDelayTimer = 1.5; // Brief intermission before next serve
-  if (state.rallyCount >= 4) {
+  if (wonSet) {
+    soundManager.playPooled('/media/crowd_cheering.mp3', 0.8);
+  } else if (state.rallyCount >= 4) {
     soundManager.playPooled('/media/clap.mp3', 0.8);
   }
+}
+
+export function onPlayerWinsSet() {
+
 }
 
 function processRacketDeflections(visualBallY, processHit) {
