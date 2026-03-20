@@ -180,9 +180,9 @@ export class InputManager {
       
       if (distance > 10) {
         this.keys.TouchMove = true;
-        // Normalize the vector so minigames can scale it relative to their own speed constraints
-        this.joystickVector.x = Math.cos(angle);
-        this.joystickVector.y = Math.sin(angle);
+        // Output raw analog displacement (up to maxRadius length) instead of normalizing
+        this.joystickVector.x = knobX;
+        this.joystickVector.y = knobY;
         
         // Direct global override for player targeting rotation immediately
         if (player) {

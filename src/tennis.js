@@ -132,12 +132,17 @@ function canCharacterHit(isPlayer) {
  * @param {Object} playerObj - The state tracking object for the character (state.player or state.npc)
  * @returns {number} The straight-line coordinate distance
  */
-function distanceToBall(playerObj) {
+function distanceToBallXY(playerObj) {
   const dx = state.ball.x - playerObj.currentPosition.x;
   const dy = state.ball.y - playerObj.currentPosition.y;
+
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function distanceToBallZ(playerObj) {
   const dz = state.ball.z - playerObj.currentPosition.z;
 
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  return Math.sqrt(dz * dz);
 }
 
 /**
@@ -291,7 +296,7 @@ function calculateOptimalInterceptPoint(target) {
 
   let currentT = 0;
   const simDt = 0.016; // 60fps procedural resolution
-  const maxT = 3.0;    // Cap prediction at 2.0 seconds
+  const maxT = 5.0;    // Cap prediction at 2.0 seconds
 
   while (currentT <= maxT) {
     // Only permit physics intercept tracking if the ball resolves physically inside valid playable geometry
@@ -384,7 +389,8 @@ function moveBall(target) {
 /**
  * Handles continuous physical coordinate resolution for the ball across space
  */
-function processBallMovement(dt, playerRacketPos, npcRacketPos) {
+function processBallMovement(dt, onBounce) {
+  const prevBallY = state.ball.y;
 
   //Ball in hand before serve
   if (state.servePhase === 'idle' && state.isServe !== 'in_play') {
@@ -424,11 +430,36 @@ function processBallMovement(dt, playerRacketPos, npcRacketPos) {
       y: state.ball.y,
       t: state.totalElapsedTime,
       z: state.ball.z,
-      pZ: playerRacketPos.z, // Align to physical shoulder height (25px above floor)
-      nZ: npcRacketPos.z
+      pZ: state.player.racketCurrentPosition.z, // Align to physical shoulder height (25px above floor)
+      nZ: state.npc.racketCurrentPosition.z
     });
     // Keep array from growing infinitely if the ball gets stuck out of bounds
     if (state.trajectoryPoints.length > 300) state.trajectoryPoints.shift();
+  }
+
+  // Handle Net Collision
+  // Check if ball crossed the Y-center of the court during this frame
+  const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
+  if ((prevBallY < netY && state.ball.y >= netY) || (prevBallY >= netY && state.ball.y < netY)) {
+    if (state.ball.z < NET_HEIGHT) {
+      // Ball hit the physical net structure!
+      state.ball.vy *= -0.3; // Rebound weakly back towards the hitter
+      state.ball.velocity *= 0.3; // Kill most kinetic energy
+      state.ball.y = netY + Math.sign(state.ball.vy) * 5; // Snap off the net
+    }
+  }
+
+
+  // 8. Handle floor bounce
+  if (state.ball.z < 0) {
+    state.ball.z = 0;
+    state.bounceCount++;
+
+    // Handle Bounce
+    const currentVZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
+    state.ball.pitchAngle = Math.atan2(Math.abs(currentVZ) * DAMPING_MULTIPLIER, state.ball.velocity);
+
+    onBounce(netY);
   }
 }
 
@@ -622,8 +653,11 @@ function serveBall(playerObj) {
   state.resetting = false;
   state.isServe = isPlayer ? 'player_serve' : 'npc_serve';
   state.player.hasTarget = false;
-  state.npc.previousFrameInterceptPoint = null;
-  state.servePhase = 'idle'; // halt execution enforcing holding state 
+  state.servePhase = 'idle';
+  state.player.lastInterceptPoint = null;
+  state.npc.lastInterceptPoint = null;
+  state.npc.previousMoveToInterceptPoint = null;
+  state.player.previousMoveToInterceptPoint = null;
 
   console.log("Serving ball for " + (isPlayer ? "player" : "npc"));
 
@@ -678,6 +712,16 @@ function serveBall(playerObj) {
       state.servePhase = 'live';
     });
   }, 1000);
+}
+
+function setNewInterceptPoints() {
+  resetRacketToNeutral(state.player);
+  resetRacketToNeutral(state.npc);
+
+  state.player.lastInterceptPoint = calculateOptimalInterceptPoint(state.player.racketCurrentPosition);
+  state.npc.lastInterceptPoint = calculateOptimalInterceptPoint(state.npc.racketCurrentPosition);
+  state.player.previousMoveToInterceptPoint = null;
+  state.npc.previousMoveToInterceptPoint = null;
 }
 
 /**
@@ -765,6 +809,10 @@ function triggerFault(playerServing) {
     state.resetDelayTimer = 1.0;
     state.nextServerIsPlayer = playerServing; // Same person serves again
   }
+
+  //Update the intercept points for both players
+  state.player.lastInterceptPoint = null;
+  state.npc.lastInterceptPoint = null;
 }
 
 /**
@@ -777,8 +825,8 @@ function triggerPointReset(nextPlayerServing) {
   if (state.resetting) return;
   state.resetting = true;
   state.trajectoryFrozen = true; // Freeze the graph to display the concluding shot!
-  state.player.previousFrameInterceptPoint = null;
-  state.npc.previousFrameInterceptPoint = null;
+  state.player.previousMoveToInterceptPoint = null;
+  state.npc.previousMoveToInterceptPoint = null;
   state.player.lastHitTarget = null;
   state.npc.lastHitTarget = null;
 
@@ -809,7 +857,7 @@ function triggerPointReset(nextPlayerServing) {
   }
 }
 
-function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
+function processRacketDeflections(visualBallY, processHit) {
   if (state.resetting) return;
 
   //Check if ball hits the racket bounding box visually
@@ -824,37 +872,9 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
       (Math.pow(localDy, 2) / Math.pow(racketPos.h + BALL_RADIUS, 2)) <= 1;
   }
 
-  function processHit(isPlayer) {
-    let payload;
-    if (isPlayer) {
-      payload = state.player.lastHitTarget || generateReturnBallHitCords(isPlayer, playerRacketPos);
-    } else {
-      payload = state.npc.lastHitTarget || generateReturnBallHitCords(isPlayer, npcRacketPos);
-    }
-
-    let returnSpeed = state.ball.velocity * (isPlayer ? 1.05 : 1.1);
-
-    if (state.isServe !== 'in_play') {
-      returnSpeed = BALL_SPEED * (isPlayer ? 0.8 : 0.65);
-    }
-
-    state.rallyCount++;
-    state.lastHitter = isPlayer ? 'player' : 'npc';
-    state.bounceCount = 0;
-    state.isServe = 'in_play'; // The rally is live!
-    hitBallToTarget(payload.x, payload.y, returnSpeed);
-
-    // audio
-    const soundFile = isPlayer ? '/media/hit_tennis_ball.mp3' : '/media/hit_tennis_ball2.mp3';
-    let sound = soundManager.playPooled(soundFile, 0.7 + Math.random() * 0.5);
-    sound.setRate(0.85 + Math.random() * 0.3);
-
-    state.ball.z = Math.max(10, state.ball.z); // Simulate ground strike lift 
-  }
-
-  if (canCharacterHit(true) && evaluateHit(playerRacketPos)) {
+  if (canCharacterHit(true) && evaluateHit(state.player.racketCurrentPosition)) {
     processHit(true);
-  } else if (canCharacterHit(false) && evaluateHit(npcRacketPos)) {
+  } else if (canCharacterHit(false) && evaluateHit(state.npc.racketCurrentPosition)) {
     processHit(false);
   }
 }
@@ -991,7 +1011,7 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
 
   const dz = charState.targetPosition.z - charState.currentPosition.z;
   if (Math.abs(dz) > 1) {
-    const mz = Math.sign(dz) * Math.min(speed, Math.abs(dz));
+    const mz = Math.sign(dz) * Math.min(speed * 0.5, Math.abs(dz));
     charState.currentPosition.z += mz;
   } else {
     charState.currentPosition.z = charState.targetPosition.z;
@@ -1004,7 +1024,8 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
   if (charMoved) {
     charState.legTimer += speed * 0.1; // Progress leg run cycle !
     let targetRot = Math.atan2(charState.currentPosition.y - prevY, charState.currentPosition.x - prevX) * (180 / Math.PI);
-    if (targetRot < 0) targetRot += 360;
+    if (targetRot < 0)
+      targetRot += 360;
 
     if (state.introPhase === 'playing') {
       // Prevent characters from turning their backs to the net when moving backwards
@@ -1061,8 +1082,6 @@ function processCharacter(charState, isPlayer, dt) {
   const distY = Math.abs(state.ball.y - charState.currentPosition.y);
   const zMult = clamp(1 - (distY / 80), 0, 1);
 
-  // Z-Leaps tracked below
-
   // Clip characters to Court Bounds
   charState.targetPosition.x = clamp(charState.targetPosition.x, -PLAYABLE_HALF_WIDTH, PLAYABLE_HALF_WIDTH);
   if (isPlayer) {
@@ -1072,31 +1091,28 @@ function processCharacter(charState, isPlayer, dt) {
   }
 
   const intercept = charState.lastInterceptPoint;
-
-  const distance = distanceToBall(charState);
+  const now = Date.now();
+  const distanceXY = distanceToBallXY(charState);
   // 3. Dynamic Limb Target Tracking
-  if (canCharacterHit(isPlayer) && intercept.t > 0 && ((isApproaching && distance < 150) || (!isApproaching && distance < 50))) {
+  if (canCharacterHit(isPlayer) && intercept && intercept.t > 0 && ((isApproaching && distanceXY < 100) || (!isApproaching && distanceXY < 50))) {
     const reach = calculateArmReach(charState, intercept);
-    const now = Date.now();
     const lastZChange = now - charState.lastZChangeTime;
     // Limit the characters vertical movement natively locking negative altitudes
-    if (lastZChange > 250 && distance < 50) {
-      if (intercept.t < 0.15 && lastZChange < 1000 && reach.z > JUMP_Z && charState.currentPosition.z <= RESTING_Z) {
-        console.log("JUMPING")
+    if (lastZChange > 150) {
+      if (intercept.t < 0.3 && (now - charState.lastJumpTime > 500) && charState.currentPosition.z <= JUMP_Z) {
         charState.lastJumpTime = now;
         charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP); //Jump only when on the ground
-      } else if (intercept.t < 0.15 && lastZChange < 1000 && reach.z < RESTING_Z) {
-        console.log("CROUCHING")
+        charState.lastZChangeTime = now;
+      } else if (intercept.t < 0.25 && (now - charState.lastJumpTime > 500) && reach.z < RESTING_Z) {
         charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, RESTING_Z); //Crouch
+        charState.lastZChangeTime = now;
       } else if (reach.z >= RESTING_Z && reach.z < JUMP_Z) {
-        console.log("NOT JUMPING NOT CROUCHING")
         charState.targetPosition.z = reach.z; //Not a jump, not a crouch
+        charState.lastZChangeTime = now;
       } else {
-        console.log("ELSE Z IS AT REST")
         charState.targetPosition.z = RESTING_Z; //Else z is at rest
+        charState.lastZChangeTime = now;
       }
-
-      charState.lastZChangeTime = now;
     }
 
     charState.racketTargetPosition.armX = reach.x;
@@ -1115,7 +1131,6 @@ function processCharacter(charState, isPlayer, dt) {
     charState.racketTargetPosition.yaw = aim.yaw;
     charState.racketTargetPosition.roll = aim.roll;
   } else {
-    // Smoothly settle back down to the ground if idling !
     charState.targetPosition.z = RESTING_Z;
 
     resetRacketToNeutral(charState);
@@ -1135,182 +1150,99 @@ function processCharacter(charState, isPlayer, dt) {
 function run(dt) {
   if (!minigameActive) return;
 
-  // 0. Cache intensive physics simulation trajectory natively exactly once per frame!
-
   // Cinematic Intro Sequence
   if (state.introPhase && state.introPhase !== 'playing') {
     handleIntroSequence(dt);
   } else {
-    if (!state.resetting) {
-      state.player.lastInterceptPoint = calculateOptimalInterceptPoint(state.player.racketCurrentPosition);
-      state.npc.lastInterceptPoint = calculateOptimalInterceptPoint(state.npc.racketCurrentPosition);
-    }
-
     // 1. Process Player Inputs & Movement
     if (state.resetting) {
       const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
       const targetX = state.serveSide * serveOffset;
       moveCharacterTo(state.player, targetX, PLAYER_BASE_Y);
+      moveCharacterTo(state.npc, -targetX, NPC_BASE_Y);
     } else {
-      let moveIntentX = 0;
-      let moveIntentY = 0;
-
       // Restrict active movement while idling awaiting the mechanical toss apex
       const isServingAndAwaitingToss = state.servePhase === 'idle' && state.isServe === 'player_serve';
 
       if (!isServingAndAwaitingToss) {
-        // Read from analog mobile joystick first if active
         if (inputManager.keys.TouchMove) {
-          moveIntentX = inputManager.joystickVector.x;
-          moveIntentY = inputManager.joystickVector.y;
+          let joystickVectorX = inputManager.joystickVector.x;
+          let joystickVectorY = inputManager.joystickVector.y;
+
+          if (joystickVectorX !== 0 || joystickVectorY !== 0) {
+            // Decrease Joystick sensitivity
+            joystickVectorX = joystickVectorX / 3.0;
+            joystickVectorY = joystickVectorY / 3.0;
+
+            if (state.player.lastInterceptPoint && canCharacterHit(true)) {
+              const target = getOptimalInterceptPosition(state.player, state.player.lastInterceptPoint);
+              const dx = target.x - state.player.targetPosition.x;
+              const dy = target.y - state.player.targetPosition.y;
+              const distToTarget = Math.sqrt(dx * dx + dy * dy);
+
+              if (distToTarget > 5) {
+                const idealX = dx / distToTarget;
+                const idealY = dy / distToTarget;
+
+                // Calculate how much the user is pushing towards the target (-1 to 1 depending on magnitude)
+                const alignment = joystickVectorX * idealX + joystickVectorY * idealY;
+
+                // If they are pushing functionally towards the target quadrant
+                if (alignment > 0) {
+                  const mag = Math.sqrt(joystickVectorX * joystickVectorX + joystickVectorY * joystickVectorY);
+
+                  // 1. Gentle Trajectory Bend (80% user control, 20% perfect tracking)
+                  joystickVectorX = (joystickVectorX * 0.8) + (idealX * mag * 0.2);
+                  joystickVectorY = (joystickVectorY * 0.8) + (idealY * mag * 0.2);
+
+                  // 2. Speed Amplification (Boosts vector length based on alignment accuracy)
+                  joystickVectorX += idealX * (alignment * 0.3);
+                  joystickVectorY += idealY * (alignment * 0.3);
+                }
+              }
+            }
+
+            state.previousPress = true;
+            state.player.targetPosition.x = state.player.currentPosition.x + joystickVectorX * GAME_SCALE;
+            state.player.targetPosition.y = state.player.currentPosition.y + joystickVectorY * GAME_SCALE;
+          } else if (state.previousPress) {
+            // Release snaps targetPosition to match feet instantly halting physics loops
+            state.player.targetPosition.x = state.player.currentPosition.x;
+            state.player.targetPosition.y = state.player.currentPosition.y;
+            state.previousPress = false;
+          }
         } else {
+          let moveIntentX = 0;
+          let moveIntentY = 0;
+
           if (inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW')) moveIntentY -= 1;
           if (inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS')) moveIntentY += 1;
           if (inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA')) moveIntentX -= 1;
           if (inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD')) moveIntentX += 1;
-        }
-      }
 
-      if (moveIntentX !== 0 || moveIntentY !== 0) {
-        // Normalize diagonal vectors 
-        const len = Math.sqrt(moveIntentX * moveIntentX + moveIntentY * moveIntentY);
-        moveIntentX /= len;
-        moveIntentY /= len;
+          if (moveIntentX !== 0 || moveIntentY !== 0) {
+            // Normalize diagonal vectors so the player doesn't move 1.4x faster
+            const len = Math.sqrt(moveIntentX * moveIntentX + moveIntentY * moveIntentY);
+            moveIntentX = (moveIntentX / len) * 40;
+            moveIntentY = (moveIntentY / len) * 40;
 
-        // Touch Joystick Vector Magnetism Assist
-        if (inputManager.keys.TouchMove && state.player.lastInterceptPoint && canCharacterHit(true)) {
-
-          // Establish the golden target footprint pulling the player to exactly the correct swinging distance horizontally!
-          const target = getOptimalInterceptPosition(state.player, state.player.lastInterceptPoint);
-          const targetX = target.x;
-          const targetY = target.y;
-
-          const dx = targetX - state.player.targetPosition.x;
-          const dy = targetY - state.player.targetPosition.y;
-          const distToTarget = Math.sqrt(dx * dx + dy * dy);
-
-          // Only physically redirect the unit if they aren't already essentially standing on the target coordinates
-          const idealX = dx / distToTarget;
-          const idealY = dy / distToTarget;
-
-          // Check if the joystick's raw heading is within approximately 60 degrees of the mathematically perfect intercept vector
-          const alignmentDot = moveIntentX * idealX + moveIntentY * idealY;
-          if (alignmentDot > 0.5) { // 0.5 == cos(60deg)
-            // Blend the user's manual trajectory sharply into the target algorithm tracking ray!
-            const pullPower = 0.6; // 60% directional lock
-            moveIntentX = moveIntentX * (1 - pullPower) + idealX * pullPower;
-            moveIntentY = moveIntentY * (1 - pullPower) + idealY * pullPower;
-
-            // Re-normalize the merged vector back to unit length safely!
-            const blendedLen = Math.sqrt(moveIntentX * moveIntentX + moveIntentY * moveIntentY);
-            moveIntentX /= blendedLen;
-            moveIntentY /= blendedLen;
+            state.previousPress = true;
+            state.player.targetPosition.x = state.player.currentPosition.x + moveIntentX * GAME_SCALE; // Extend convergence target against camera mapping
+            state.player.targetPosition.y = state.player.currentPosition.y + moveIntentY * GAME_SCALE;
+          } else if (state.previousPress) {
+            // Release snaps targetPosition to match feet instantly halting physics loops
+            state.player.targetPosition.x = state.player.currentPosition.x;
+            state.player.targetPosition.y = state.player.currentPosition.y;
+            state.previousPress = false;
           }
-
-        }
-
-        state.player.targetPosition.x = state.player.currentPosition.x + moveIntentX * 40 * GAME_SCALE; // Extend convergence target against camera mapping
-        state.player.targetPosition.y = state.player.currentPosition.y + moveIntentY * 40 * GAME_SCALE;
-      } else {
-        // Release snaps targetPosition to match feet instantly halting physics loops
-        state.player.targetPosition.x = state.player.currentPosition.x;
-        state.player.targetPosition.y = state.player.currentPosition.y;
-      }
-    }
-
-
-    const playerAim = processCharacter(state.player, true, dt);
-    const playerMoved = playerAim.moved;
-
-    if (!playerMoved) {
-      state.player.targetPosition.rotation = 270;
-    }
-
-    function moveToIntercept() {
-      const rawIntercept = state.npc.lastInterceptPoint;
-
-      // Hysteresis: only update footwork target if the intercept moved substantially (e.g. bouncing/new trajectory)
-      if (!state.npc.previousFrameInterceptPoint) {
-        state.npc.previousFrameInterceptPoint = rawIntercept;
-
-        let target = getOptimalInterceptPosition(state.npc, rawIntercept);
-        moveCharacterTo(state.npc, target.x, target.y, RESTING_Z);
-      } else {
-        const dx = rawIntercept.x - state.npc.previousFrameInterceptPoint.x;
-        const dy = rawIntercept.y - state.npc.previousFrameInterceptPoint.y;
-
-        if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
-          state.npc.previousFrameInterceptPoint = rawIntercept;
-          let target = getOptimalInterceptPosition(state.npc, rawIntercept);
-          moveCharacterTo(state.npc, target.x, target.y, RESTING_Z);
         }
       }
     }
 
-    if (state.resetting) {
-      const serveOffset = COURT_INNER_BOUNDS.width * 0.4;
-      const targetX = state.serveSide * -serveOffset;
-      moveCharacterTo(state.npc, targetX, NPC_BASE_Y);
-    } else {
-      if (state.isServe === 'in_play') {
-        if (state.ball.vy < 0) {
-          moveToIntercept();
-        } else {
-          // Ball is moving away toward player, reset to center gracefully
-          moveCharacterTo(state.npc, 0, NPC_BASE_Y);
-        }
-      } else if (state.isServe === 'npc_serve' && state.servePhase !== 'idle') {
-        //Move to strike thrown ball after serve
-        moveToIntercept();
-      }
-    }
+    processBallMovement(dt, (netY) => {
 
-    const npcAim = processCharacter(state.npc, false, dt);
-    const npcMoved = npcAim.moved;
-
-    if (!npcMoved) {
-      state.npc.targetPosition.rotation = 90;
-    }
-
-    // Ensure logical collision trackers properly pull the latest bounds here
-    const playerRacketPos = state.player.racketCurrentPosition;
-    const npcRacketPos = state.npc.racketCurrentPosition;
-    const visualBallY = state.ball.y - state.ball.z;
-
-    if (state.resetting && !playerMoved && !npcMoved) {
-      if (state.resetDelayTimer > 0) {
-        state.resetDelayTimer -= dt;
-      } else {
-        serveBall(state.nextServerIsPlayer ? state.player : state.npc);
-      }
-      // Allow physics payload to execute while anticipating serve!
-    }
-
-
-    // 5. 3D Spatial Ball Physics Processing (Movement)
-    const prevBallY = state.ball.y;
-    processBallMovement(dt, playerRacketPos, npcRacketPos);
-
-    // 6. Structural Net Collision
-    // Check if ball crossed the Y-center of the court during this frame
-    const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
-    if ((prevBallY < netY && state.ball.y >= netY) || (prevBallY >= netY && state.ball.y < netY)) {
-      if (state.ball.z < NET_HEIGHT) {
-        // Ball hit the physical net structure!
-        state.ball.vy *= -0.3; // Rebound weakly back towards the hitter
-        state.ball.velocity *= 0.3; // Kill most kinetic energy
-        state.ball.y = netY + Math.sign(state.ball.vy) * 5; // Snap off the net
-      }
-    }
-
-    // 7. Racket Deflections
-    // Process racket scoops BEFORE the floor formally terminates the rally if they collide on the exact same frame!
-    processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY);
-
-    // 8. Handle floor bounce and Scoring Logic
-    if (state.ball.z < 0 && state.servePhase !== 'idle') {
-      state.ball.z = 0;
-      state.bounceCount++;
+      //Update the intercept points for both players
+      setNewInterceptPoints()
 
       if (state.bounceCount === 1 && !state.resetting) {
         if (!state.lastHitter) {
@@ -1362,11 +1294,93 @@ function run(dt) {
           triggerPointReset(false); // Bounced twice on NPC's side -> Player scored
         }
       }
+    });
 
-      // Handle Bounce
-      const currentVZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
-      state.ball.pitchAngle = Math.atan2(Math.abs(currentVZ) * DAMPING_MULTIPLIER, state.ball.velocity);
+    function moveToIntercept(character) {
+      if (!character.lastInterceptPoint) {
+        setNewInterceptPoints();
+      }
+
+      if (character.previousMoveToInterceptPoint) {
+        if (character.lastInterceptPoint.x == character.previousMoveToInterceptPoint.x && character.lastInterceptPoint.y == character.previousMoveToInterceptPoint.y) {
+          return;
+        }
+      }
+
+      const target = getOptimalInterceptPosition(character, character.lastInterceptPoint);
+      moveCharacterTo(character, target.x, target.y, RESTING_Z);
+
+      character.previousMoveToInterceptPoint = character.lastInterceptPoint;
     }
+
+    if (canCharacterHit(true)) {
+      moveToIntercept(state.player);
+    }
+
+    const playerAim = processCharacter(state.player, true, dt);
+    const playerMoved = playerAim.moved;
+
+    if (!playerMoved) {
+      state.player.targetPosition.rotation = 270;
+    }
+
+    if (canCharacterHit(false)) {
+      moveToIntercept(state.npc);
+    }
+
+    const npcAim = processCharacter(state.npc, false, dt);
+    const npcMoved = npcAim.moved;
+
+    if (!npcMoved) {
+      state.npc.targetPosition.rotation = 90;
+    }
+
+    // Ensure logical collision trackers properly pull the latest bounds here
+    const visualBallY = state.ball.y - state.ball.z;
+
+    if (state.resetting && !playerMoved && !npcMoved) {
+      if (state.resetDelayTimer > 0) {
+        state.resetDelayTimer -= dt;
+      } else {
+        serveBall(state.nextServerIsPlayer ? state.player : state.npc);
+      }
+    }
+
+    // 7. Racket Deflections
+    // Process racket scoops BEFORE the floor formally terminates the rally if they collide on the exact same frame!
+    processRacketDeflections(visualBallY, (isPlayer) => {
+
+      let payload;
+      if (isPlayer) {
+        payload = state.player.lastHitTarget || generateReturnBallHitCords(isPlayer, state.player.racketCurrentPosition);
+      } else {
+        payload = state.npc.lastHitTarget || generateReturnBallHitCords(isPlayer, state.npc.racketCurrentPosition);
+      }
+
+      let returnSpeed = state.ball.velocity * (isPlayer ? 1.05 : 1.1);
+
+      if (state.isServe !== 'in_play') {
+        returnSpeed = BALL_SPEED * (isPlayer ? 0.8 : 0.65);
+      }
+
+      state.rallyCount++;
+      state.lastHitter = isPlayer ? 'player' : 'npc';
+      state.bounceCount = 0;
+      state.isServe = 'in_play'; // The rally is live!
+      hitBallToTarget(payload.x, payload.y, returnSpeed);
+
+      // audio
+      const soundFile = isPlayer ? '/media/hit_tennis_ball.mp3' : '/media/hit_tennis_ball2.mp3';
+      let sound = soundManager.playPooled(soundFile, 0.7 + Math.random() * 0.5);
+      sound.setRate(0.85 + Math.random() * 0.3);
+
+      state.ball.z = Math.max(10, state.ball.z); // Simulate ground strike lift 
+
+      setNewInterceptPoints();
+
+      moveCharacterTo(state.player, COURT_INNER_BOUNDS.x + (COURT_INNER_BOUNDS.width / 2) * (0.5 + Math.random()), PLAYER_BASE_Y - (50 * GAME_SCALE * (0.5 + Math.random())));
+      moveCharacterTo(state.npc, COURT_INNER_BOUNDS.x + (COURT_INNER_BOUNDS.width / 2) * (0.5 + Math.random()), NPC_BASE_Y + (50 * GAME_SCALE * (0.5 + Math.random())));
+    });
 
     // 9. Bounds Checking / Out Checks
     // Point resolving (scoring logic) automatically triggers walkback
@@ -1394,11 +1408,11 @@ function run(dt) {
   // ==========================================
 
   /**
-* draws a tennis racket starting from the wrist location.
-* @param {CanvasRenderingContext2D} ctx - Canvas context.
-* @param {Object} limbs - Current Limb positions. 
-* @param {number} swingAngle - Rotational swing adjustment.
-*/
+  * draws a tennis racket starting from the wrist location.
+  * @param {CanvasRenderingContext2D} ctx - Canvas context.
+  * @param {Object} limbs - Current Limb positions. 
+  * @param {number} swingAngle - Rotational swing adjustment.
+  */
   function drawRacket(ctx, limbs, pitch = 0, yaw = 0, roll = 1.0, transformData = null, isShadow = false) {
     const pitchMult = Math.max(0.05, Math.abs(Math.cos(pitch)));
     const rx = Math.max(1, 8 * roll);
@@ -1562,6 +1576,27 @@ function run(dt) {
 
     const shoeZ = Math.max(0, charState.currentPosition.z - JUMP_Z);
     const torsoZ = Math.max(0, charState.currentPosition.z) - shoeZ;
+
+    if (shoeZ > 0) {
+      ctx.save();
+      // Apply uniform shadow offset un-rotated
+      ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
+      ctx.translate(-2, 4);
+      ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
+
+      const shadowRadius = Math.max(1.0, 4 - (shoeZ * 0.05));
+      const opacity = Math.max(0.1, 0.4 - (shoeZ * 0.005));
+      ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+
+      ctx.beginPath();
+      ctx.ellipse(limbs.leftLegEndX, limbs.leftLegEndY, shadowRadius * 1.5, shadowRadius, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.ellipse(limbs.rightLegEndX, limbs.rightLegEndY, shadowRadius * 1.5, shadowRadius, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
 
     // Elevate the shoes vertically off the absolute floor if jumping (exceeding JUMP_Z leg extension)
     ctx.rotate(-charState.currentPosition.rotation * (Math.PI / 180));
