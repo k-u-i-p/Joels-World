@@ -56,10 +56,10 @@ export function setupStatic(app, server, port) {
 
   app.use(async (req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
-      const hasAdminQuery = req.query.admin === 'true';
-
-      if (hasAdminQuery) {
+      if (req.query.admin === 'true') {
         req.session.isAdmin = true;
+      } else if (req.query.admin === 'false') {
+        req.session.isAdmin = false;
       }
     }
 
