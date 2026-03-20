@@ -29,8 +29,10 @@ const BALL_RADIUS = 3;                        // Collision and drawing radius of
 const GRAVITY = 800 * GAME_SCALE;             // Gravity affecting the ball Z-axis (pixels/s^2)
 const NET_HEIGHT = 45 * GAME_SCALE;           // Minimum Z-altitude required to cross the court
 const DAMPING_MULTIPLIER = 0.6;               // Vertical velocity retained after a court bounce
-const MAX_JUMP = 100;                         // Maximum aerial leap height extension for rackets
+const MAX_JUMP = 80;                         // Maximum aerial leap height extension for rackets
 const MIN_CROUCH = 5;                         // Maximum downward racket crouch extension
+const JUMP_Z = 20;                            // Minimum Z to count as a JUMP
+const RESTING_Z = 15;                         // Resting Character Z
 
 const PLAYABLE_OVERSHOOT_X = 75; // How far characters can physically run laterally out of bounds
 const PLAYABLE_OVERSHOOT_Y = 50; // How far characters can physically run vertically past the baselines
@@ -258,6 +260,8 @@ function calculateOptimalInterceptPoint(target) {
   let simBounces = state.bounceCount;
 
   let closestDistSq = Infinity;
+  let closestComfortableDistSq = Infinity;
+
   let bestT = 0;
   let bestX = simX;
   let bestY = simY;
@@ -265,6 +269,9 @@ function calculateOptimalInterceptPoint(target) {
   let bestVX = simVX;
   let bestVY = simVY;
   let bestVZ = simVZ;
+
+  let hasComfortable = false;
+  let comfT = 0, comfX = simX, comfY = simY, comfZ = simZ, comfVX = simVX, comfVY = simVY, comfVZ = simVZ;
 
   let currentT = 0;
   const simDt = 0.016; // 60fps procedural resolution
@@ -277,7 +284,7 @@ function calculateOptimalInterceptPoint(target) {
 
     // Crucially restrict tracking so characters only lock onto intercept coordinates falling within their physical leaping/crouching limitations!
     const isWithinReachZ = simZ >= MIN_CROUCH && simZ <= MAX_JUMP;
-    const isComfortableZ = simZ >= MIN_CROUCH + 25 && simZ <= MAX_JUMP - 20;
+    const isComfortableZ = simZ >= RESTING_Z && simZ <= JUMP_Z;
 
     if (isWithinCourtX && isWithinCourtY && isWithinReachZ) {
       const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
@@ -291,6 +298,19 @@ function calculateOptimalInterceptPoint(target) {
         bestVX = simVX;
         bestVY = simVY;
         bestVZ = simVZ;
+      }
+
+      // Track the closest point that is ALSO physically comfortable dynamically
+      if (isComfortableZ && distSq < closestComfortableDistSq) {
+        closestComfortableDistSq = distSq;
+        hasComfortable = true;
+        comfT = currentT;
+        comfX = simX;
+        comfY = simY;
+        comfZ = simZ;
+        comfVX = simVX;
+        comfVY = simVY;
+        comfVZ = simVZ;
       }
     }
 
@@ -320,6 +340,12 @@ function calculateOptimalInterceptPoint(target) {
     }
   }
 
+  // Prioritize returning a comfortable hitting coordinate if one explicitly exists!
+  if (hasComfortable) {
+    return { x: comfX, y: comfY, z: comfZ, t: comfT, vx: comfVX, vy: comfVY, vz: comfVZ };
+  }
+
+  // Fallback to absolute closest reachable boundary limits
   return { x: bestX, y: bestY, z: bestZ, t: bestT, vx: bestVX, vy: bestVY, vz: bestVZ };
 }
 
@@ -332,7 +358,7 @@ function calculateOptimalInterceptPoint(target) {
 function moveBall(target) {
   state.ball.x = target.x;
   state.ball.y = target.y;
-  state.ball.z = target.z;
+  state.ball.z = target.z -;
   state.ball.velocity = 0;
   state.ball.vx = 0;
   state.ball.vy = 0;
@@ -343,6 +369,8 @@ function moveBall(target) {
  * Handles continuous physical coordinate resolution for the ball across space
  */
 function processBallMovement(dt, playerRacketPos, npcRacketPos) {
+
+  //Ball in hand before serve
   if (state.servePhase === 'idle' && state.isServe !== 'in_play') {
     const serverObj = state.isServe === 'player_serve' ? state.player : state.npc;
     const rotRad = serverObj.currentPosition.rotation * (Math.PI / 180);
@@ -352,9 +380,11 @@ function processBallMovement(dt, playerRacketPos, npcRacketPos) {
     const armWorldX = (limbs.leftArmX * Math.cos(rotRad) - limbs.leftArmY * Math.sin(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
     const armWorldY = (limbs.leftArmX * Math.sin(rotRad) + limbs.leftArmY * Math.cos(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
 
-    state.ball.x = serverObj.currentPosition.x + armWorldX;
-    state.ball.y = serverObj.currentPosition.y + armWorldY;
-    state.ball.z = serverObj.currentPosition.z;
+    moveBall({
+      x: serverObj.currentPosition.x + armWorldX,
+      y: serverObj.currentPosition.y + armWorldY,
+      z: serverObj.currentPosition.z
+    });
   } else {
     const vZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
 
@@ -590,8 +620,8 @@ function serveBall(playerObj) {
 
   // Put the ball in the player's left hand
   moveBall({
-    x: playerObj.currentPosition.x + armWorldX,
-    y: playerObj.currentPosition.y + armWorldY,
+    x: playerObj.currentPosition.x + armWorldX + 100,
+    y: playerObj.currentPosition.y + armWorldY - 100,
     z: playerObj.currentPosition.z
   });
 
@@ -812,11 +842,14 @@ function processRacketDeflections(playerRacketPos, npcRacketPos, visualBallY) {
 /**
 * Interface to manually command the movement subsystem to target specific local offsets.
 */
-function moveCharacterTo(charState, targetX, targetY) {
+function moveCharacterTo(charState, targetX, targetY, z = RESTING_Z) {
   charState.targetPosition.x = targetX;
   charState.targetPosition.y = targetY;
+  charState.targetPosition.z = z;
   // Let the immediate execution context evaluate if they've practically arrived
-  return Math.abs(targetX - charState.currentPosition.x) > 10 || Math.abs(targetY - charState.currentPosition.y) > 10;
+  return Math.abs(targetX - charState.currentPosition.x) > 10 ||
+    Math.abs(targetY - charState.currentPosition.y) > 10 ||
+    Math.abs(z - charState.currentPosition.z) > 10;
 }
 
 // Point to position the characters body so the racket is at the intercept point
@@ -921,37 +954,12 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
     charState.movementDirection.y = Math.sign(my);
   } else charState.currentPosition.y = charState.targetPosition.y;
 
-  charState.vz = charState.vz || 0; // Initialize if missing
-
-  const jumpHeight = 30;
-
-  if (charState.targetPosition.z > jumpHeight && charState.currentPosition.z <= jumpHeight && charState.vz === 0) {
-    if (charState.lastInterceptPoint && charState.lastInterceptPoint.t > 0) {
-      const boundedZ = Math.min(MAX_JUMP, charState.targetPosition.z);
-      const actualLeapDistance = boundedZ - jumpHeight; // Recalculate trajectory relative to the raised tippy-toe floor
-      const timeToApex = Math.sqrt((2 * actualLeapDistance) / GRAVITY);
-      if (charState.lastInterceptPoint.t <= timeToApex + 0.05) {
-        charState.vz = Math.sqrt(2 * GRAVITY * actualLeapDistance);
-      }
-    }
-  }
-
-  if (charState.vz !== 0 || charState.currentPosition.z > jumpHeight) { // Airborne or launching
-    charState.vz -= GRAVITY * dt;
-    charState.currentPosition.z += charState.vz * dt;
-    if (charState.currentPosition.z <= jumpHeight) {
-      charState.currentPosition.z = jumpHeight;
-      charState.vz = 0; // Terminate freefall completely, transition smoothly identically to kinematics below
-    }
+  const dz = charState.targetPosition.z - charState.currentPosition.z;
+  if (Math.abs(dz) > 1) {
+    const mz = Math.sign(dz) * Math.min(speed * 2.0, Math.abs(dz));
+    charState.currentPosition.z += mz;
   } else {
-    // Kinematic "Tippy-Toe / Crouch" resolution natively handles low bounce targets safely!
-    const kinematicTarget = Math.min(jumpHeight, charState.targetPosition.z);
-    const dz = kinematicTarget - charState.currentPosition.z;
-    if (Math.abs(dz) > 1) {
-      charState.currentPosition.z += Math.sign(dz) * Math.min(speed * 1.5, Math.abs(dz));
-    } else {
-      charState.currentPosition.z = charState.targetPosition.z;
-    }
+    charState.currentPosition.z = charState.targetPosition.z;
   }
 
   // Only evaluate as 'moved' if the distance traveled is visually significant, 
@@ -1033,14 +1041,12 @@ function processCharacter(charState, isPlayer, dt) {
     const intercept = charState.lastInterceptPoint;
     const reach = calculateArmReach(charState, intercept);
 
-    if (intercept.t < 0.1 && intercept.t > 0) {
-      console.log('intercept point', intercept);
-      console.log('reach', reach);
-      console.log('ball x,y,z', state.ball.x, state.ball.y, state.ball.z);
-    }
-
     // Limit the characters vertical movement natively locking negative altitudes
-    charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP);
+    if (intercept.t < 0.25) {
+      charState.targetPosition.z = clamp(reach.z, MIN_CROUCH, MAX_JUMP);
+    } else {
+      charState.targetPosition.z = RESTING_Z;
+    }
 
     charState.racketTargetPosition.armX = reach.x;
     charState.racketTargetPosition.armY = reach.y;
@@ -1059,7 +1065,7 @@ function processCharacter(charState, isPlayer, dt) {
     charState.racketTargetPosition.roll = aim.roll;
   } else {
     // Smoothly settle back down to the ground if idling !
-    charState.targetPosition.z = 0;
+    charState.targetPosition.z = RESTING_Z;
 
     resetRacketToNeutral(charState);
   }
