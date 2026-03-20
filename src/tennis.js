@@ -58,8 +58,8 @@ let state = {
   player: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 270 },
     targetPosition: { x: 0, y: 0, z: 0, rotation: 270 },
-    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0, pitch: 0, yaw: Math.PI * 0.25, roll: 1.0, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
-    racketTargetPosition: { pitch: 0, yaw: Math.PI * 0.25, roll: 1.0, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
+    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0, pitch: 0, yaw: Math.PI * 0.25, roll: 0.5, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
+    racketTargetPosition: { pitch: 0, yaw: Math.PI * 0.25, roll: 0.5, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
     score: 0,
     movementDirection: { x: 1, y: 1 },
     legTimer: 0,
@@ -71,8 +71,8 @@ let state = {
   npc: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 90 },
     targetPosition: { x: 0, y: COURT_INNER_BOUNDS.y - 10, z: 0, rotation: 90 },
-    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0, pitch: 0, yaw: Math.PI * 0.25, roll: 1.0, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
-    racketTargetPosition: { pitch: 0, yaw: Math.PI * 0.25, roll: 1.0, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
+    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0, pitch: 0, yaw: Math.PI * 0.25, roll: 0.5, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
+    racketTargetPosition: { pitch: 0, yaw: Math.PI * 0.25, roll: 0.5, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
     score: 0,
     movementDirection: { x: 1, y: 1 },
     legTimer: 0,
@@ -103,7 +103,8 @@ let state = {
   faults: 0,
   trajectoryPoints: [],
   totalElapsedTime: 0,
-  trajectoryFrozen: false
+  trajectoryFrozen: false,
+  isJoystickActive: false
 };
 
 /** Standard numeric clamp function. */
@@ -176,8 +177,8 @@ function calculateArmReach(player, interceptPoint) {
   const actualReach = Math.min(dist2D, MAX_REACH);
 
   return {
-    x: -2 + actualReach * Math.cos(localAngle),
-    y: 7 + actualReach * Math.sin(localAngle),
+    x: actualReach * Math.cos(localAngle),
+    y: actualReach * Math.sin(localAngle),
     z: interceptPoint.z
   };
 }
@@ -191,9 +192,16 @@ function calculateArmReach(player, interceptPoint) {
 * @returns {{roll: number, pitch: number, yaw: number}}
 */
 function calculateRacketReturnAimAngle(interceptPoint, charState, targetPoint) {
-  const bx = interceptPoint.vx || 0;
-  const by = interceptPoint.vy || 0;
+  let bx = interceptPoint.vx || 0;
+  let by = interceptPoint.vy || 0;
   const bz = interceptPoint.vz || 0;
+
+  // Serve tosses have trivial horizontal velocities that shouldn't be "deflected" like 100mph rally shots.
+  // Ignoring the toss drift allows the racket normal to aim perfectly horizontally at the actual target!
+  if (state.isServe !== 'in_play') {
+    bx = 0;
+    by = 0;
+  }
 
   // Calculate normalized incoming kinetic vector preventing zero division
   const inLen = Math.sqrt(bx * bx + by * by + bz * bz) || 1;
@@ -280,19 +288,8 @@ function calculateOptimalInterceptPoint(target) {
   let simVZ = state.ball.velocity * Math.tan(state.ball.pitchAngle);
   let simBounces = state.bounceCount;
 
-  let closestDistSq = Infinity;
-  let closestComfortableDistSq = Infinity;
-
-  let bestT = 0;
-  let bestX = simX;
-  let bestY = simY;
-  let bestZ = simZ;
-  let bestVX = simVX;
-  let bestVY = simVY;
-  let bestVZ = simVZ;
-
-  let hasComfortable = false;
-  let comfT = 0, comfX = simX, comfY = simY, comfZ = simZ, comfVX = simVX, comfVY = simVY, comfVZ = simVZ;
+  let bestScore = -Infinity;
+  let bestT = 0, bestX = simX, bestY = simY, bestZ = simZ, bestVX = simVX, bestVY = simVY, bestVZ = simVZ;
 
   let currentT = 0;
   const simDt = 0.016; // 60fps procedural resolution
@@ -310,8 +307,26 @@ function calculateOptimalInterceptPoint(target) {
     if (isWithinCourtX && isWithinCourtY && isWithinReachZ) {
       const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
 
-      if (distSq < closestDistSq) {
-        closestDistSq = distSq;
+      let score = -distSq; // Base Penalty: Spatial Distance to target
+
+      // Comfort Bonus: Massive multiplier to enforce sticking to easily reachable vertical heights
+      if (isComfortableZ) {
+        score += 100000;
+      }
+
+      // Scooping Penalty: Strongly discourage hitting the ball while it's hurtling downwards
+      if (simVZ < 0) {
+        score -= Math.abs(simVZ) * 50;
+      }
+
+      // Apex / Float Bonus: Globally reward hitting the ball when its vertical kinetic energy is low 
+      score -= Math.abs(simVZ) * 20;
+
+      // Stall Penalty: Gently prefer intercepting the ball sooner rather than later
+      score -= currentT * 2000;
+
+      if (score > bestScore) {
+        bestScore = score;
         bestT = currentT;
         bestX = simX;
         bestY = simY;
@@ -319,19 +334,6 @@ function calculateOptimalInterceptPoint(target) {
         bestVX = simVX;
         bestVY = simVY;
         bestVZ = simVZ;
-      }
-
-      // Track the closest point that is ALSO physically comfortable dynamically
-      if (isComfortableZ && distSq < closestComfortableDistSq) {
-        closestComfortableDistSq = distSq;
-        hasComfortable = true;
-        comfT = currentT;
-        comfX = simX;
-        comfY = simY;
-        comfZ = simZ;
-        comfVX = simVX;
-        comfVY = simVY;
-        comfVZ = simVZ;
       }
     }
 
@@ -361,12 +363,6 @@ function calculateOptimalInterceptPoint(target) {
     }
   }
 
-  // Prioritize returning a comfortable hitting coordinate if one explicitly exists!
-  if (hasComfortable) {
-    return { x: comfX, y: comfY, z: comfZ, t: comfT, vx: comfVX, vy: comfVY, vz: comfVZ };
-  }
-
-  // Fallback to absolute closest reachable boundary limits
   return { x: bestX, y: bestY, z: bestZ, t: bestT, vx: bestVX, vy: bestVY, vz: bestVZ };
 }
 
@@ -897,21 +893,19 @@ function getOptimalInterceptPosition(playerObj, interceptPoint) {
   const rotRad = playerObj.currentPosition.rotation * (Math.PI / 180);
   const rcp = playerObj.racketCurrentPosition;
 
-  // Project the localized dynamic swinging arm bounds logically out into fixed world spatial coordinates
   const armWorldX = rcp.armX * Math.cos(rotRad) - rcp.armY * Math.sin(rotRad);
   const armWorldY = rcp.armX * Math.sin(rotRad) + rcp.armY * Math.cos(rotRad);
 
-  // The racket handle physically extends ~18 units statically past the wrist.
+  const MAX_REACH = 43;
+
   const absoluteYaw = rcp.yaw + rotRad;
-  const handleWorldX = 20 * Math.cos(absoluteYaw);
+  const handleWorldX = Math.cos(absoluteYaw);
   const handleWorldY = Math.sin(absoluteYaw);
 
   // Calculate the unjumpable altitude difference (requires arm to tilt up/down)
   // const expectedBodyZ = Math.max(MIN_CROUCH, Math.min(MAX_JUMP, interceptPoint.z));
   const dz = interceptPoint.z - playerObj.currentPosition.z;
 
-  // Total default physical horizontal length of the arm + racket is roughly 43 units
-  const MAX_REACH = 43;
   // Trigonometrically shrink the horizontal 2D footprint if the arm is forced to tilt vertically!
   const planarScale = Math.sqrt(Math.max(0.1, 1 - Math.pow(Math.min(Math.abs(dz), MAX_REACH) / MAX_REACH, 2)));
 
@@ -919,7 +913,7 @@ function getOptimalInterceptPosition(playerObj, interceptPoint) {
   const stringbedWorldY = (armWorldY + handleWorldY) * planarScale;
 
   return {
-    x: interceptPoint.x - stringbedWorldX,
+    x: interceptPoint.x - stringbedWorldX + (MAX_REACH / 2 * GAME_SCALE),
     y: interceptPoint.y - stringbedWorldY,
     z: interceptPoint.z
   };
@@ -1070,7 +1064,7 @@ function resetRacketToNeutral(charState) {
   charState.racketTargetPosition.armY = 14 + 4 * Math.sin(Math.PI * 0.25);
   charState.racketTargetPosition.pitch = 0.0;
   charState.racketTargetPosition.yaw = Math.PI * 0.25;
-  charState.racketTargetPosition.roll = 1.0;
+  charState.racketTargetPosition.roll = 0.5;
 }
 
 /**
@@ -1095,7 +1089,41 @@ function processCharacter(charState, isPlayer, dt) {
   const distanceXY = distanceToBallXY(charState);
   // 3. Dynamic Limb Target Tracking
   if (canCharacterHit(isPlayer) && intercept && intercept.t > 0 && ((isApproaching && distanceXY < 100) || (!isApproaching && distanceXY < 50))) {
-    const reach = calculateArmReach(charState, intercept);
+
+    function isRacketInRange(ballObject, racketPosition) {
+      const speed = Math.sqrt(ballObject.vx * ballObject.vx + ballObject.vy * ballObject.vy);
+      if (speed === 0) return true;
+
+      const nx = ballObject.vx / speed;
+      const ny = ballObject.vy / speed;
+
+      // Vector from ball to racket
+      const dx = racketPosition.x - ballObject.x;
+      const dy = racketPosition.y - ballObject.y;
+
+      // Project the distance vector onto the normalized velocity
+      const dot = dx * nx + dy * ny;
+
+      // If dot >= -10, the racket is behind the ball vector by no more than 10 units
+      return dot <= 10;
+    }
+
+    const rotRad = charState.currentPosition.rotation * (Math.PI / 180);
+    const armWorldX = charState.racketTargetPosition.armX * Math.cos(rotRad) - charState.racketTargetPosition.armY * Math.sin(rotRad);
+    const armWorldY = charState.racketTargetPosition.armX * Math.sin(rotRad) + charState.racketTargetPosition.armY * Math.cos(rotRad);
+
+    const racketWorldPos = {
+      x: charState.currentPosition.x + armWorldX,
+      y: charState.currentPosition.y + armWorldY
+    };
+
+    let reach = null;
+    if (isRacketInRange(state.ball, racketWorldPos)) {
+      reach = calculateArmReach(charState, state.ball);
+    } else {
+      reach = calculateArmReach(charState, intercept);
+    }
+
     const lastZChange = now - charState.lastZChangeTime;
     // Limit the characters vertical movement natively locking negative altitudes
     if (lastZChange > 150) {
@@ -1125,11 +1153,19 @@ function processCharacter(charState, isPlayer, dt) {
 
     charState.lastHitTarget = target;
 
-    const aim = calculateRacketReturnAimAngle(intercept, charState, target);
+    // Calculate the mathematical perfect aim unconditionally each frame
+    let aim = null;
+
+    if (isRacketInRange(state.ball, racketWorldPos)) {
+      aim = calculateRacketReturnAimAngle(state.ball, charState, target);
+    } else {
+      aim = calculateRacketReturnAimAngle(state.ball, charState, target);
+    }
 
     charState.racketTargetPosition.pitch = aim.pitch;
     charState.racketTargetPosition.yaw = aim.yaw;
     charState.racketTargetPosition.roll = aim.roll;
+
   } else {
     charState.targetPosition.z = RESTING_Z;
 
@@ -1169,13 +1205,15 @@ function run(dt) {
           let joystickVectorX = inputManager.joystickVector.x;
           let joystickVectorY = inputManager.joystickVector.y;
 
+          state.isJoystickActive = true;
+
           if (joystickVectorX !== 0 || joystickVectorY !== 0) {
             // Decrease Joystick sensitivity
             joystickVectorX = joystickVectorX / 3.0;
             joystickVectorY = joystickVectorY / 3.0;
 
-            if (state.player.lastInterceptPoint && canCharacterHit(true)) {
-              const target = getOptimalInterceptPosition(state.player, state.player.lastInterceptPoint);
+            if (state.player.previousMoveToInterceptPoint && canCharacterHit(true)) {
+              const target = state.player.previousMoveToInterceptPoint;
               const dx = target.x - state.player.targetPosition.x;
               const dy = target.y - state.player.targetPosition.y;
               const distToTarget = Math.sqrt(dx * dx + dy * dy);
@@ -1214,6 +1252,8 @@ function run(dt) {
         } else {
           let moveIntentX = 0;
           let moveIntentY = 0;
+
+          state.isJoystickActive = false;
 
           if (inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW')) moveIntentY -= 1;
           if (inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS')) moveIntentY += 1;
@@ -1308,12 +1348,13 @@ function run(dt) {
       }
 
       const target = getOptimalInterceptPosition(character, character.lastInterceptPoint);
+
       moveCharacterTo(character, target.x, target.y, RESTING_Z);
 
       character.previousMoveToInterceptPoint = character.lastInterceptPoint;
     }
 
-    if (canCharacterHit(true)) {
+    if (state.isJoystickActive && canCharacterHit(true) && distanceToBallXY(state.player) < 100) {
       moveToIntercept(state.player);
     }
 
@@ -1369,7 +1410,6 @@ function run(dt) {
       state.isServe = 'in_play'; // The rally is live!
       hitBallToTarget(payload.x, payload.y, returnSpeed);
 
-      // audio
       const soundFile = isPlayer ? '/media/hit_tennis_ball.mp3' : '/media/hit_tennis_ball2.mp3';
       let sound = soundManager.playPooled(soundFile, 0.7 + Math.random() * 0.5);
       sound.setRate(0.85 + Math.random() * 0.3);
@@ -1378,8 +1418,9 @@ function run(dt) {
 
       setNewInterceptPoints();
 
-      moveCharacterTo(state.player, COURT_INNER_BOUNDS.x + (COURT_INNER_BOUNDS.width / 2) * (0.5 + Math.random()), PLAYER_BASE_Y - (50 * GAME_SCALE * (0.5 + Math.random())));
-      moveCharacterTo(state.npc, COURT_INNER_BOUNDS.x + (COURT_INNER_BOUNDS.width / 2) * (0.5 + Math.random()), NPC_BASE_Y + (50 * GAME_SCALE * (0.5 + Math.random())));
+      if (isPlayer) {
+        moveCharacterTo(state.npc, COURT_INNER_BOUNDS.x + (COURT_INNER_BOUNDS.width / 2) * (0.5 + Math.random()), NPC_BASE_Y + (50 * GAME_SCALE * (0.5 + Math.random())));
+      }
     });
 
     // 9. Bounds Checking / Out Checks
