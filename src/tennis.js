@@ -167,14 +167,13 @@ function calculateArmReach(player, interceptPoint) {
   while (localAngle <= -Math.PI) localAngle += Math.PI * 2;
   while (localAngle > Math.PI) localAngle -= Math.PI * 2;
 
-  // Arm extends fully horizontally towards the target, capping organically at the maximum physical reach radius
   const MAX_REACH = 14;
   const actualReach = Math.min(dist2D, MAX_REACH);
 
   return {
     x: -2 + actualReach * Math.cos(localAngle),
-    y: 14 + actualReach * Math.sin(localAngle),
-    z: interceptPoint.z + 9
+    y: 7 + actualReach * Math.sin(localAngle),
+    z: interceptPoint.z
   };
 }
 
@@ -883,17 +882,26 @@ function getOptimalInterceptPosition(playerObj, interceptPoint) {
   const armWorldY = rcp.armX * Math.sin(rotRad) + rcp.armY * Math.cos(rotRad);
 
   // The racket handle physically extends ~18 units statically past the wrist.
-  // Project this exact static handle length mathematically along the arm's true extended global vector!
   const absoluteYaw = rcp.yaw + rotRad;
-  const handleWorldX = 25 * Math.cos(absoluteYaw);
-  const handleWorldY = 18 * Math.sin(absoluteYaw);
+  const handleWorldX = 20 * Math.cos(absoluteYaw);
+  const handleWorldY = Math.sin(absoluteYaw);
 
-  const stringbedWorldX = armWorldX + handleWorldX;
-  const stringbedWorldY = armWorldY + handleWorldY;
+  // Calculate the unjumpable altitude difference (requires arm to tilt up/down)
+  // const expectedBodyZ = Math.max(MIN_CROUCH, Math.min(MAX_JUMP, interceptPoint.z));
+  const dz = interceptPoint.z - playerObj.currentPosition.z;
+
+  // Total default physical horizontal length of the arm + racket is roughly 43 units
+  const MAX_REACH = 43;
+  // Trigonometrically shrink the horizontal 2D footprint if the arm is forced to tilt vertically!
+  const planarScale = Math.sqrt(Math.max(0.1, 1 - Math.pow(Math.min(Math.abs(dz), MAX_REACH) / MAX_REACH, 2)));
+
+  const stringbedWorldX = (armWorldX + handleWorldX) * planarScale;
+  const stringbedWorldY = (armWorldY + handleWorldY) * planarScale;
 
   return {
     x: interceptPoint.x - stringbedWorldX,
-    y: interceptPoint.y - stringbedWorldY
+    y: interceptPoint.y - stringbedWorldY,
+    z: interceptPoint.z
   };
 }
 
@@ -1225,7 +1233,7 @@ function run(dt) {
         const dx = rawIntercept.x - state.npc.previousFrameInterceptPoint.x;
         const dy = rawIntercept.y - state.npc.previousFrameInterceptPoint.y;
 
-        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
           state.npc.previousFrameInterceptPoint = rawIntercept;
           let target = getOptimalInterceptPosition(state.npc, rawIntercept);
           moveCharacterTo(state.npc, target.x, target.y, RESTING_Z);
