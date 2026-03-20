@@ -969,19 +969,25 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
   const prevY = charState.currentPosition.y;
   const speed = (isPlayer ? PLAYER_SPEED : NPC_SPEED) * dt * speedMult;
 
+  let mx = 0;
   const dx = charState.targetPosition.x - charState.currentPosition.x;
   if (Math.abs(dx) > 1) {
-    const mx = Math.sign(dx) * Math.min(speed, Math.abs(dx));
+    mx = Math.sign(dx) * Math.min(speed, Math.abs(dx));
     charState.currentPosition.x += mx;
-    charState.movementDirection.x = Math.sign(mx);
   } else charState.currentPosition.x = charState.targetPosition.x;
 
+  let my = 0;
   const dy = charState.targetPosition.y - charState.currentPosition.y;
   if (Math.abs(dy) > 1) {
-    const my = Math.sign(dy) * Math.min(speed, Math.abs(dy));
+    my = Math.sign(dy) * Math.min(speed, Math.abs(dy));
     charState.currentPosition.y += my;
-    charState.movementDirection.y = Math.sign(my);
   } else charState.currentPosition.y = charState.targetPosition.y;
+
+  const moveLen = Math.sqrt(mx * mx + my * my);
+  if (moveLen > 0) {
+    charState.movementDirection.x = mx / moveLen;
+    charState.movementDirection.y = my / moveLen;
+  }
 
   const dz = charState.targetPosition.z - charState.currentPosition.z;
   if (Math.abs(dz) > 1) {
@@ -1018,7 +1024,7 @@ function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
 
   // Soft angular physical interpolation to targetPosition.rotation via modular shortest-path
   const diffRot = charState.targetPosition.rotation - charState.currentPosition.rotation;
-  charState.currentPosition.rotation += ((diffRot + 540) % 360 - 180) * 0.2;
+  charState.currentPosition.rotation += ((diffRot + 540) % 360 - 180) * 0.1;
 
   // Converge racket at target position
   if (charState.racketTargetPosition && charState.racketCurrentPosition) {
