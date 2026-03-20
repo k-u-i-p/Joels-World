@@ -33,6 +33,7 @@ const MAX_JUMP = 80;                         // Maximum aerial leap height exten
 const MIN_CROUCH = 5;                         // Maximum downward racket crouch extension
 const JUMP_Z = 15;                            // Minimum Z to count as a JUMP
 const RESTING_Z = 10;                         // Resting Character Z
+const RESTING_RACKET_ROLL = 0.6;             // Resting Racket Roll
 
 const PLAYABLE_OVERSHOOT_X = 75; // How far characters can physically run laterally out of bounds
 const PLAYABLE_OVERSHOOT_Y = 50; // How far characters can physically run vertically past the baselines
@@ -58,8 +59,8 @@ let state = {
   player: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 270 },
     targetPosition: { x: 0, y: 0, z: 0, rotation: 270 },
-    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0, pitch: 0, yaw: Math.PI * 0.25, roll: 0.5, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
-    racketTargetPosition: { pitch: 0, yaw: Math.PI * 0.25, roll: 0.5, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
+    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0, pitch: 0, yaw: Math.PI * 0.25, roll: RESTING_RACKET_ROLL, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
+    racketTargetPosition: { pitch: 0, yaw: Math.PI * 0.25, roll: RESTING_RACKET_ROLL, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
     score: 0,
     movementDirection: { x: 1, y: 1 },
     legTimer: 0,
@@ -71,8 +72,8 @@ let state = {
   npc: {
     currentPosition: { x: 0, y: 0, z: 0, rotation: 90 },
     targetPosition: { x: 0, y: COURT_INNER_BOUNDS.y - 10, z: 0, rotation: 90 },
-    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0, pitch: 0, yaw: Math.PI * 0.25, roll: 0.5, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
-    racketTargetPosition: { pitch: 0, yaw: Math.PI * 0.25, roll: 0.5, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
+    racketCurrentPosition: { x: 0, y: 0, groundY: 0, z: 0, w: 1, h: 1, angle: 0, pitch: 0, yaw: Math.PI * 0.25, roll: RESTING_RACKET_ROLL, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
+    racketTargetPosition: { pitch: 0, yaw: Math.PI * 0.25, roll: RESTING_RACKET_ROLL, armX: -2 + 4 * Math.cos(Math.PI * 0.25), armY: 14 + 4 * Math.sin(Math.PI * 0.25) },
     score: 0,
     movementDirection: { x: 1, y: 1 },
     legTimer: 0,
@@ -121,10 +122,10 @@ function canCharacterHit(isPlayer) {
     return false; // Prevent logic locks during manual ball holding
 
   if (isPlayer)
-    return (state.lastHitter !== 'player' && state.isServe === 'in_play') || (state.isServe === 'player_serve' && state.servePhase === 'live');
+    return (state.lastHitter !== 'player' && state.isServe === 'in_play') || (state.isServe === 'player_serve' && state.servePhase !== 'idle');
 
   if (!isPlayer)
-    return (state.lastHitter !== 'npc' && state.isServe === 'in_play') || (state.isServe === 'npc_serve' && state.servePhase === 'live');
+    return (state.lastHitter !== 'npc' && state.isServe === 'in_play') || (state.isServe === 'npc_serve' && state.servePhase !== 'idle');
 }
 
 /**
@@ -196,7 +197,7 @@ function calculateArmReach(player, interceptPoint) {
 
 /**
 * calculates the 3D rotational vector required to hold the racket
-* perpendicular opposing the incoming velocity vector of the ball.
+* to aim for targetPoint the incoming velocity vector of the ball.
 * 
 * @param {Object} interceptPoint - The pre-calculated intercept target containing accurately simulated arrival velocities.
 * @param {Object} charState - The character state.
@@ -256,6 +257,13 @@ function calculateRacketReturnAimAngle(interceptPoint, charState, targetPoint) {
 
   while (localYaw <= -Math.PI) localYaw += Math.PI * 2;
   while (localYaw > Math.PI) localYaw -= Math.PI * 2;
+
+  // Anatomical Constraints: Prevent the wrist from snapping into impossible > 90 degree bends
+  // Resting racket yaw is naturally PI * 0.25 (45 deg)
+  const minYaw = -Math.PI * 0.25; // Max inward backhand wrist bend (-45 deg)
+  const maxYaw = Math.PI * 0.75;  // Max outward forehand wrist bend (135 deg)
+
+  localYaw = clamp(localYaw, minYaw, maxYaw);
 
   return { roll: roll, pitch: targetPitch, yaw: localYaw };
 }
@@ -728,6 +736,7 @@ function serveBall(playerObj) {
   setTimeout(() => {
     throwBall(playerObj, function () {
       state.servePhase = 'live';
+      setNewInterceptPoints();
     });
   }, 1000);
 }
@@ -756,9 +765,9 @@ function throwBall(playerObj, apex) {
 
   // Establish the 2D ground coordinate where the ball lands naturally
   state.tossTarget = {
-    x: startX + (isPlayer ? 85 * GAME_SCALE : -25 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
-    y: startY + (isPlayer ? -15 * GAME_SCALE : 45 * GAME_SCALE), // Land slightly into the court
-    z: 105 * GAME_SCALE // Encodes explicit physical apex altitude 
+    x: startX + (isPlayer ? 85 * GAME_SCALE : -85 * GAME_SCALE), // Land softly rightwards physically into racket swing coverage!
+    y: startY + (isPlayer ? -15 * GAME_SCALE : 15 * GAME_SCALE), // Land slightly into the court
+    z: 125 * GAME_SCALE // Encodes explicit physical apex altitude 
   };
 
   // 1. Calculate the initial vertical velocity required spanning to the tossTarget.z 
@@ -1084,7 +1093,7 @@ function resetRacketToNeutral(charState) {
   charState.racketTargetPosition.armY = 14 + 4 * Math.sin(Math.PI * 0.25);
   charState.racketTargetPosition.pitch = 0.0;
   charState.racketTargetPosition.yaw = Math.PI * 0.25;
-  charState.racketTargetPosition.roll = 0.5;
+  charState.racketTargetPosition.roll = RESTING_RACKET_ROLL;
 }
 
 /**
@@ -1106,7 +1115,7 @@ function processCharacter(charState, isPlayer, dt) {
   const now = Date.now();
   const distanceXY = distanceToBallXY(charState);
   // 3. Dynamic Limb Target Tracking
-  if (canCharacterHit(isPlayer) && intercept && intercept.t > 0 && ((isApproaching && distanceXY < 100) || (!isApproaching && distanceXY < 50))) {
+  if (canCharacterHit(isPlayer) && intercept && intercept.t > 0 && distanceXY < 100) {
 
     function isRacketInRange(ballObject, racketPosition) {
       const speed = Math.sqrt(ballObject.vx * ballObject.vx + ballObject.vy * ballObject.vy);
