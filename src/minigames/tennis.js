@@ -587,9 +587,12 @@ function hitBallToTarget(targetX, targetY, targetVelocity) {
 * Called externally when launching into the map.
 */
 export function initMinigame() {
+  if (minigameActive) {
+    gameLoop.registerFunction(run);
+    return;
+  }
   console.log('[Tennis] Initializing Minigame...');
   minigameActive = true;
-
   if (window.init && window.init.npcs && window.init.npcs.length > 0) {
     npc = window.init.npcs[0];
   } else {
@@ -1308,8 +1311,6 @@ function processCharacter(charState, isPlayer, dt) {
 * @param {number} dt - Delta time in seconds since last frame.
 */
 function run(dt) {
-  if (!minigameActive) return;
-
   // Cinematic Intro Sequence
   if (state.introPhase && state.introPhase !== 'playing') {
     handleIntroSequence(dt);
