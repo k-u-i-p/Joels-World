@@ -112,20 +112,54 @@ const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
 /** Evaluates whether a character is mechanically authorized to natively strike or track the ball. */
 function canCharacterHit(isPlayer) {
-  if (state.introPhase && state.introPhase !== 'playing')
-    return false;
-
   if (state.resetting)
     return false;
 
-  if (state.servePhase === 'idle' && state.isServe !== 'in_play')
+  if (state.introPhase && state.introPhase !== 'playing')
+    return false;
+
+  let lastHitterWasPlayer = state.lastHitter === 'player';
+
+  if (state.servePhase === 'idle')
     return false; // Prevent logic locks during manual ball holding
 
-  if (isPlayer)
-    return (state.lastHitter !== 'player' && state.isServe === 'in_play') || (state.isServe === 'player_serve' && state.servePhase !== 'idle');
+  if (isPlayer && lastHitterWasPlayer && state.isServe === 'in_play')
+    return false; // Prevent double hits
 
-  if (!isPlayer)
-    return (state.lastHitter !== 'npc' && state.isServe === 'in_play') || (state.isServe === 'npc_serve' && state.servePhase !== 'idle');
+  if (!isPlayer && !lastHitterWasPlayer && state.isServe === 'in_play')
+    return false; // Prevent double hits
+
+  if (isPlayer && state.isServe === 'player_serve' && state.servePhase === 'idle')
+    return false; // Don't allow player to hit ball until the serve is thrown
+
+  if (!isPlayer && state.isServe === 'npc_serve' && state.servePhase === 'idle')
+    return false; // Don't allow npc to hit ball until the serve is thrown
+
+  if (isPlayer && state.isServe === 'npc_serve' && state.servePhase !== 'live')
+    return false; // Don't allow player to hit ball until the NPC hits on their serve
+
+  if (!isPlayer && state.isServe === 'player_serve' && state.servePhase !== 'live')
+    return false; // Don't allow npc to hit ball until the player hits on their serve
+
+  if (isPlayer && state.isServe === 'player_serve' && state.servePhase === 'live' && (state.bounceCount > 0 || state.rallyCount > 0))
+    return false; // Can't hit the ball if its our serve and its bounced
+
+  if (!isPlayer && state.isServe === 'npc_serve' && state.servePhase === 'live' && (state.bounceCount > 0 || state.rallyCount > 0))
+    return false; // Can't hit the ball if its our serve and its bounced
+
+  if (isPlayer && state.isServe === 'npc_serve' && state.servePhase === 'live' && state.bounceCount == 0)
+    return false; // Can't hit the ball if its the NPCs serve and it hasn't bounced yet
+
+  if (!isPlayer && state.isServe === 'player_serve' && state.servePhase === 'live' && state.bounceCount == 0)
+    return false; // Can't hit the ball if its the players serve and it hasn't bounced yet
+
+  if (isPlayer && state.isServe === 'npc_serve' && state.servePhase !== 'live')
+    return false; // Can't hit the ball until the NPC hits it on their serve
+
+  if (!isPlayer && state.isServe === 'player_serve' && state.servePhase !== 'live')
+    return false; // Can't hit the ball until the player hits it on their serve
+
+  return true;
 }
 
 /**
@@ -308,7 +342,7 @@ function calculateOptimalInterceptPoint(target) {
   let simBounces = state.bounceCount;
 
   let bestScore = -Infinity;
-  let bestT = 0, bestX = simX, bestY = simY, bestZ = simZ, bestVX = simVX, bestVY = simVY, bestVZ = simVZ;
+  let bestT = -1, bestX = simX, bestY = simY, bestZ = simZ, bestVX = simVX, bestVY = simVY, bestVZ = simVZ;
 
   let currentT = 0;
   const simDt = 0.016; // 60fps procedural resolution
@@ -407,7 +441,7 @@ function processBallMovement(dt, onBounce) {
   const prevBallY = state.ball.y;
 
   //Ball in hand before serve
-  if (state.servePhase === 'idle' && state.isServe !== 'in_play') {
+  if (state.servePhase === 'idle') {
     const serverObj = state.isServe === 'player_serve' ? state.player : state.npc;
     const rotRad = serverObj.currentPosition.rotation * (Math.PI / 180);
     const limbs = getLimbs(serverObj, 0, 0); // track limb anchoring
@@ -1055,6 +1089,19 @@ function handleIntroSequence(dt) {
   }
 }
 
+function getLandingSpot(ball) {
+  // Calculate and render crosshairs onto the destination surface where ball's geometry will collide
+  const vZTargetCheck = ball.vz;
+  const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * ball.z;
+  let tLand = 0;
+  if (det >= 0) {
+    tLand = (vZTargetCheck + Math.sqrt(det)) / GRAVITY;
+  }
+  const landX = ball.x + ball.vx * tLand;
+  const landY = ball.y + ball.vy * tLand;
+  return { x: landX, y: landY };
+}
+
 function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
   const prevX = charState.currentPosition.x;
   const prevY = charState.currentPosition.y;
@@ -1163,7 +1210,7 @@ function processCharacter(charState, isPlayer, dt) {
   const now = Date.now();
   const distanceXY = distanceToBallXY(charState);
   // 3. Dynamic Limb Target Tracking
-  if (canCharacterHit(isPlayer) && intercept && intercept.t > 0 && distanceXY < 100) {
+  if (canCharacterHit(isPlayer) && intercept && intercept.t >= 0 && distanceXY < 100) {
 
     function isRacketInRange(ballObject, racketPosition) {
       const speed = Math.sqrt(ballObject.vx * ballObject.vx + ballObject.vy * ballObject.vy);
@@ -1431,7 +1478,7 @@ function run(dt) {
       character.previousMoveToInterceptPoint = character.lastInterceptPoint;
     }
 
-    if (state.isJoystickActive && canCharacterHit(true) && distanceToBallXY(state.player) < 100) {
+    if (state.isJoystickActive && distanceToBallXY(state.player) < 100 && canCharacterHit(true)) {
       moveToIntercept(state.player);
     }
 
@@ -1442,6 +1489,7 @@ function run(dt) {
       state.player.targetPosition.rotation = 270;
     }
 
+    //If we can hit it move to intercept of if the player has just hit the serve ball
     if (canCharacterHit(false)) {
       moveToIntercept(state.npc);
     }
@@ -1484,7 +1532,6 @@ function run(dt) {
       state.rallyCount++;
       state.lastHitter = isPlayer ? 'player' : 'npc';
       state.bounceCount = 0;
-      state.isServe = 'in_play'; // The rally is live!
       hitBallToTarget(payload.x, payload.y, returnSpeed);
 
       const soundFile = isPlayer ? '/media/hit_tennis_ball.mp3' : '/media/hit_tennis_ball2.mp3';
@@ -1496,7 +1543,12 @@ function run(dt) {
       setNewInterceptPoints();
 
       if (isPlayer) {
-        moveCharacterTo(state.npc, COURT_INNER_BOUNDS.x + (COURT_INNER_BOUNDS.width / 2) * (0.5 + Math.random()), NPC_BASE_Y + (50 * GAME_SCALE * (0.5 + Math.random())));
+        if (state.isServe === 'player_serve' && state.isServe !== 'in_play') {
+          const landingSpot = getLandingSpot(state.ball);
+          moveCharacterTo(state.npc, landingSpot.x + (40 * GAME_SCALE), landingSpot.y - (220 * GAME_SCALE * 0.7));
+        } else {
+          moveCharacterTo(state.npc, COURT_INNER_BOUNDS.x + (COURT_INNER_BOUNDS.width / 2) * (0.5 + Math.random()), NPC_BASE_Y + (50 * GAME_SCALE * (0.5 + Math.random())));
+        }
       }
     });
 
@@ -1520,6 +1572,7 @@ function run(dt) {
     }
 
   } // End of physical modeling loop
+
 
   // ==========================================
   // RENDERING
@@ -1818,18 +1871,13 @@ function run(dt) {
     ctx.restore();
   }
 
-  // Calculate and render crosshairs onto the destination surface where ball's geometry will collide
-  const vZTargetCheck = state.ball.vz;
-  const det = vZTargetCheck * vZTargetCheck + 2 * GRAVITY * state.ball.z;
-  let tLand = 0;
-  if (det >= 0) {
-    tLand = (vZTargetCheck + Math.sqrt(det)) / GRAVITY;
-  }
-  const landX = centerX + state.ball.x + state.ball.vx * tLand;
-  const landY = state.ball.y + state.ball.vy * tLand;
-
   // Bounce crosshair for admins
   if (window.isAdmin) {
+    const landingSpot = getLandingSpot(state.ball);
+
+    const landX = centerX + landingSpot.x;
+    const landY = landingSpot.y;
+
     const crosshairColor = state.resetting ? 'rgba(128, 128, 128, 0.8)' : 'rgba(255, 0, 0, 0.8)';
     drawCrosshair(ctx, landX, landY, crosshairColor);
   }
@@ -1839,7 +1887,7 @@ function run(dt) {
     const bestPoint = state.player.lastInterceptPoint;
 
     // Only draw the visual if it predicts an approach
-    if (bestPoint && bestPoint.t > 0) {
+    if (bestPoint && bestPoint.t >= 0) {
       const targetHitX = centerX + bestPoint.x;
       const targetHitY = bestPoint.y - bestPoint.z;
 
@@ -1862,7 +1910,7 @@ function run(dt) {
   // Draw the exact NPC intercept prediction as an Orange X for Admins
   if (window.isAdmin && canCharacterHit(false) && state.ball.vy !== 0 && !state.resetting) {
     const bestPoint = state.npc.lastInterceptPoint;
-    if (bestPoint && bestPoint.t > 0) {
+    if (bestPoint && bestPoint.t >= 0) {
       const hitX = centerX + bestPoint.x;
       const hitY = bestPoint.y - bestPoint.z;
       drawCrosshair(ctx, hitX, hitY, 'rgba(230, 126, 34, 0.9)');
