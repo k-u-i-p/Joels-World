@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="/src/style.css" />
+  <title>Joels World</title>
+</head>
+
+<body>
+
+  <!-- Top Center UI Overlay -->
+  <div id="top-center-ui" class="overlay">
+    <div id="top-center-ui-wrapper">
+      <div id="top-center-ui-header">
+        <div id="avatars-container"></div>
+        <div id="top-center-ui-header-right">
+          <div id="map-name-display"></div>
+          <div id="chat-container">
+            <input type="text" id="chat-input" class="glass-input" placeholder="Click to chat..." autocomplete="off"
+              autocorrect="on" autocapitalize="on" spellcheck="true" maxlength="80" />
+          </div>
+        </div>
+      </div>
+
+      <div id="server-chat-stack"></div>
+
+      <div id="action-dialog" class="dialog-content glass-panel" style="display: none;">
+        <h2 id="action-dialog-text" class="dialog-header"></h2>
+        <div class="action-dialog-buttons">
+          <button id="action-dialog-yes" class="btn btn-success btn-action">Yes</button>
+          <button id="action-dialog-no" class="btn btn-danger btn-action">No</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tennis Scoreboard Overlay -->
+  <div id="tennis-scoreboard" class="glass-panel"
+    style="display: none; position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 12px; z-index: 50;">
+    <div
+      style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #e74c3c; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);"
+      id="tennis-score-npc">NPC: Love</div>
+    <div
+      style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #2ecc71; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); padding-left: 15px;"
+      id="tennis-score-player">YOU: Love</div>
+  </div>
+
+  <!-- Loading Dialog Overlay -->
+  <div id="loading-dialog" class="overlay">
+    <div class="dialog-content glass-panel">
+      <img src="media/logo_128_128.png" alt="Joel's World Logo"
+        style="display: block; margin: 0 auto 15px auto; width: 128px; height: 128px;" />
+      <h2 class="dialog-header">Loading...</h2>
+    </div>
+  </div>
+
+  <!-- Naming Dialog Overlay -->
+  <div id="name-dialog" class="overlay" style="display: none;">
+    <div class="dialog-content glass-panel">
+      <img src="media/logo_128_128.png" alt="Joel's World Logo"
+        style="display: block; margin: 0 auto 15px auto; width: 128px; height: 128px;" />
+      <h2 class="dialog-header">Welcome!</h2>
+      <input type="text" id="player-name-input" class="glass-input" placeholder="Enter your name..." maxlength="10"
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+      <br>
+      <button id="start-game-btn" class="btn btn-success">Start Game</button>
+    </div>
+  </div>
+
+  <!-- Help Dialog Overlay -->
+  <div id="help-dialog" class="overlay" style="display: none;">
+    <div style="position: relative; max-width: 450px; width: 90%;">
+      <button id="close-help-btn" class="dialog-close-btn">&times;</button>
+      <div class="dialog-content glass-panel" style="text-align: left; width: 100%;">
+        <h2 class="dialog-header">Help</h2>
+
+        <div class="help-section">
+          <h3><span class="icon">🎮</span> Controls</h3>
+          <ul class="help-list">
+            <li><strong>Keyboard:</strong> Arrow keys to move and turn.</li>
+            <li><strong>Mobile:</strong> Use the virtual joysticks to move and turn.</li>
+            <li><strong>Interact:</strong> Figure out how to escape school!</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h3><span class="icon">💬</span> Chat</h3>
+          <p style="margin: 0 0 10px 0; font-size: 14px; color: #cbd5e1;">Press Enter to type a message to other
+            players.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Emotes Dialog Overlay -->
+  <div id="emotes-dialog" class="overlay" style="display: none;">
+    <div style="position: relative; max-width: 350px; width: 80%;">
+      <button id="close-emotes-btn" class="dialog-close-btn">&times;</button>
+      <div class="dialog-content glass-panel"
+        style="text-align: left; width: 100%; padding: 15px; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px); overflow-y: auto;">
+        <h2 class="dialog-header">Emotes</h2>
+        <div id="emotes-list" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Emotes populated dynamically by ui.js -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Badges Dialog Overlay -->
+  <div id="badges-dialog" class="overlay" style="display: none;">
+    <div style="position: relative; max-width: 350px; width: 80%;">
+      <button id="close-badges-btn" class="dialog-close-btn">&times;</button>
+      <div class="dialog-content glass-panel"
+        style="text-align: left; width: 100%; padding: 15px; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px); overflow-y: auto;">
+        <h2 class="dialog-header">Badges</h2>
+        <div id="badges-list" style="display: flex; flex-direction: column; gap: 8px;">
+          <div class="badge-row emote-row" data-badge="rugby" style="justify-content: space-between; cursor: default;">
+            <div style="display: flex; align-items: center;">
+              <span class="emote-row-icon">🏉</span><span class="emote-row-name">Rugby</span>
+            </div>
+            <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
+          </div>
+          <div class="badge-row emote-row" data-badge="tennis" style="justify-content: space-between; cursor: default;">
+            <div style="display: flex; align-items: center;">
+              <span class="emote-row-icon">🎾</span><span class="emote-row-name">Tennis</span>
+            </div>
+            <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
+          </div>
+          <div class="badge-row emote-row" data-badge="swimming" style="justify-content: space-between; cursor: default;">
+            <div style="display: flex; align-items: center;">
+              <span class="emote-row-icon">🏊</span><span class="emote-row-name">Swimming</span>
+            </div>
+            <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
+          </div>
+          <div class="badge-row emote-row" data-badge="tag" style="justify-content: space-between; cursor: default;">
+            <div style="display: flex; align-items: center;">
+              <span class="emote-row-icon">🏃</span><span class="emote-row-name">Tag</span>
+            </div>
+            <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
+          </div>
+          <div class="badge-row emote-row" data-badge="good friend" style="justify-content: space-between; cursor: default;">
+            <div style="display: flex; align-items: center;">
+              <span class="emote-row-icon">🫂</span><span class="emote-row-name">Good Friend</span>
+            </div>
+            <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
+          </div>
+          <div class="badge-row emote-row" data-badge="tower defence" style="justify-content: space-between; cursor: default;">
+            <div style="display: flex; align-items: center;">
+              <span class="emote-row-icon">🏰</span><span class="emote-row-name">Tower Defence</span>
+            </div>
+            <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
+          </div>
+          <div class="badge-row emote-row" data-badge="detention" style="justify-content: space-between; cursor: default;">
+            <div style="display: flex; align-items: center;">
+              <span class="emote-row-icon">🚫</span><span class="emote-row-name">Detention</span>
+            </div>
+            <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Minimap Dialog Overlay -->
+  <div id="minimap-dialog" class="overlay" style="display: none;">
+    <div style="position: relative;">
+      <button id="close-minimap-btn" class="dialog-close-btn">&times;</button>
+      <div id="minimap-wrapper">
+        <img id="minimap-image" src="" alt="Minimap" />
+        <div id="minimap-player-dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ui-buttons-container">
+    <button id="map-button" title="Map (M)"></button>
+    <button id="exit-button" title="Exit Minigame" style="display: none;">🏃</button>
+    <button id="badges-button" title="Badges">🏅</button>
+    <button id="emotes-button" title="Emotes">☺️</button>
+    <button id="help-button">?</button>
+  </div>
+
+  <div id="joystick-move-container">
+    <div id="joystick-move-knob"></div>
+  </div>
+  <canvas id="gameCanvas"></canvas>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

@@ -5,9 +5,9 @@ import session from 'express-session';
 import sessionFileStore from 'session-file-store';
 import { setupWebSocket } from './websocket.js';
 import { setupStatic } from './static.js';
-import { ensureMapChunks } from '../scripts/slice_maps.js';
-import { processOverlays } from '../scripts/create_overlays.js';
-import { ensureMinimaps } from '../scripts/generate_minimaps.js';
+import { ensureMapChunks } from './scripts/slice_maps.js';
+import { processOverlays } from './scripts/create_overlays.js';
+import { ensureMinimaps } from './scripts/generate_minimaps.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -19,14 +19,14 @@ const app = express();
 const server = http.createServer(app);
 
 app.set('view engine', 'ejs');
-app.set('views', path.resolve(__dirname, '../views'));
+app.set('views', path.resolve(__dirname, './views'));
 
 app.use(cookieParser());
 
 const FileStore = sessionFileStore(session);
 
 const sessionMiddleware = session({
-  store: new FileStore({ path: path.resolve(__dirname, '../sessions') }),
+  store: new FileStore({ path: path.resolve(__dirname, './sessions') }),
   secret: 'joels-world-secret',
   resave: false,
   saveUninitialized: true

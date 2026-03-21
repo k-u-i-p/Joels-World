@@ -11,7 +11,7 @@ export function setupStatic(app, server, port) {
 
   // Parse emotes once on boot
   try {
-    const emotesPath = path.resolve(__dirname, '../src/emotes.js');
+    const emotesPath = path.resolve(__dirname, '../client/src/emotes.js');
     const emotesCode = fs.readFileSync(emotesPath, 'utf8');
     const regex = /^  ([a-zA-Z0-9_]+): \{/gm;
     let m;
@@ -25,7 +25,7 @@ export function setupStatic(app, server, port) {
 
   // Parse hairstyles once on boot
   try {
-    const charsPath = path.resolve(__dirname, '../src/characters.js');
+    const charsPath = path.resolve(__dirname, '../client/src/characters.js');
     const charsCode = fs.readFileSync(charsPath, 'utf8');
     const regex = /style === '([a-zA-Z0-9_]+)'/g;
     let m;
@@ -50,32 +50,34 @@ export function setupStatic(app, server, port) {
   });
 
   // Serve static assets natively
-  app.use('/src', express.static(path.resolve(__dirname, '../src')));
-  app.use('/public', express.static(path.resolve(__dirname, '../public')));
-  app.use('/', express.static(path.resolve(__dirname, '../public'))); // Catch-all for assets at root like /grounds/
+  app.use('/src', express.static(path.resolve(__dirname, '../client/src')));
+  app.use('/public', express.static(path.resolve(__dirname, '../client/public')));
+
+  app.get('/api/config', (req, res) => {
+    res.json({
+      validEmotes: cachedEmotes,
+      validHairStyles: cachedHairStyles
+    });
+  });
+
+  app.use('/', express.static(path.resolve(__dirname, '../client/public'))); // Catch-all for assets at root like /grounds/
 
   app.use(async (req, res, next) => {
-    if (req.path === '/' || req.path === '/index.html') {
+    if (req.path === '/admin.html') {
+
       if (req.query.admin === 'true') {
         req.session.isAdmin = true;
       } else if (req.query.admin === 'false') {
         req.session.isAdmin = false;
       }
-    }
 
-    // Only serve HTML files for the root or exact paths to prevent catching /api or /ws traffic
-    if (req.path === '/' || req.path === '/index.html' || req.path === '/admin.html') {
-      try {
-        const isAdminSession = req.session && req.session.isAdmin;
+      const isAdminSession = req.session && req.session.isAdmin;
 
-        return res.render('index', {
-          isAdmin: isAdminSession,
-          validEmotes: cachedEmotes,
-          validHairStyles: cachedHairStyles
-        });
-      } catch (e) {
-        return next(e);
-      }
+      return res.render('index', {
+        isAdmin: isAdminSession,
+        validEmotes: cachedEmotes,
+        validHairStyles: cachedHairStyles
+      });
     }
 
     // Pass other non-static requests through

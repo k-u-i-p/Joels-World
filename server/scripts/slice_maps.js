@@ -6,8 +6,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const basePath = path.resolve(__dirname, '../public');
-const mapsJsonPath = path.resolve(__dirname, '../server/data/maps.json');
+const basePath = path.resolve(__dirname, '../../client/public');
+const mapsJsonPath = path.resolve(__dirname, '../data/maps.json');
 
 export async function ensureMapChunks() {
   console.log('[Chunker] Checking map chunk allocations...');

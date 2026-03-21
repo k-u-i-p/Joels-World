@@ -86,12 +86,56 @@ export class UIManager {
     }
   }
 
-  initEmotesDialog() {
+  async initEmotesDialog() {
     const emotesButton = document.getElementById('emotes-button');
     const emotesDialog = document.getElementById('emotes-dialog');
     const closeEmotesBtn = document.getElementById('close-emotes-btn');
 
     if (emotesButton && emotesDialog && closeEmotesBtn) {
+      // Async fetch and populate
+      try {
+        const response = await fetch('/api/config');
+        const data = await response.json();
+        const validEmotes = data.validEmotes || [];
+        
+        const emotesList = document.getElementById('emotes-list');
+        if (emotesList) {
+          const emoteEmojis = { dance: '🕺', fart: '💨', dead: '💀', cry: '😭', rugby: '🏉', sit: '🪑', jump: '🦘', eat: '🍔', lunch: '🥪', tennis: '🎾' };
+          
+          validEmotes.forEach(emote => {
+            const row = document.createElement('div');
+            row.className = 'emote-row';
+            row.setAttribute('data-emote', emote);
+            
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'emote-row-icon';
+            iconSpan.textContent = emoteEmojis[emote] || '💬';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'emote-row-name';
+            nameSpan.textContent = emote.charAt(0).toUpperCase() + emote.slice(1);
+            
+            row.appendChild(iconSpan);
+            row.appendChild(nameSpan);
+            emotesList.appendChild(row);
+          });
+
+          // Bind row clicks to chat emission dynamically
+          const emoteRows = document.querySelectorAll('.emote-row');
+          emoteRows.forEach(row => {
+            row.addEventListener('click', () => {
+              const emoteName = row.getAttribute('data-emote');
+              if (emoteName) {
+                window.dispatchEvent(new CustomEvent('chatSubmit', { detail: { message: '/' + emoteName } }));
+                emotesDialog.style.display = 'none';
+              }
+            });
+          });
+        }
+      } catch (e) {
+        console.error('Failed to load emotes config', e);
+      }
+
       emotesButton.addEventListener('click', () => {
         emotesDialog.style.display = 'flex';
       });
@@ -105,18 +149,6 @@ export class UIManager {
         if (e.target === emotesDialog) {
           emotesDialog.style.display = 'none';
         }
-      });
-
-      // Bind row clicks to chat emission
-      const emoteRows = document.querySelectorAll('.emote-row');
-      emoteRows.forEach(row => {
-        row.addEventListener('click', () => {
-          const emoteName = row.getAttribute('data-emote');
-          if (emoteName) {
-            window.dispatchEvent(new CustomEvent('chatSubmit', { detail: { message: '/' + emoteName } }));
-            emotesDialog.style.display = 'none';
-          }
-        });
       });
 
       // Keyboard Shortcuts

@@ -6,9 +6,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const basePath = path.resolve(__dirname, '../public');
-const mapsJsonPath = path.resolve(__dirname, '../server/data/maps.json');
-const minimapsDir = path.resolve(__dirname, '../public/minimaps');
+const basePath = path.resolve(__dirname, '../../client/public');
+const mapsJsonPath = path.resolve(__dirname, '../data/maps.json');
+const minimapsDir = path.resolve(__dirname, '../../client/public/minimaps');
 
 export async function ensureMinimaps() {
   console.log('[Minimaps] Checking map minimap generation...');

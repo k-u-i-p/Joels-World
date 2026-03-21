@@ -24,7 +24,7 @@ dist-ssr
 *.sw?
 
 # Map chunks
-public/**/chunks/
+client/public/**/chunks/
 
 # Secrets
 gemini_key
@@ -35,7 +35,8 @@ log.txt
 *_log.txt
 
 #Large images
+server/original_images/*
 original_images/*
 
 # Sessions
-sessions/
+server/sessions/

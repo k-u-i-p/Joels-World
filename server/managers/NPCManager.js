@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { PhysicsEngine } from '../../src/physics.js';
+import { PhysicsEngine } from '../../client/src/physics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
