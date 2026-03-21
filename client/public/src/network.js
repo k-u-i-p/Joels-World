@@ -2,7 +2,9 @@ import { emotes, getEmoteMessage } from './emotes.js';
 import { uiManager } from './ui.js';
 import { player } from './main.js';
 
-const DOMAIN = "joels-world.com"
+const isLocalBrowser = window.location.hostname === 'localhost' && !window.Capacitor?.isNativePlatform();
+export const DOMAIN = isLocalBrowser ? 'localhost' : 'joels-world.com';
+export const PROTOCOL = isLocalBrowser ? 'http' : 'https';
 
 export class NetworkClient {
   constructor() {

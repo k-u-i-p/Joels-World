@@ -3,7 +3,7 @@ import path from 'path';
 import { WebSocketServer } from 'ws';
 import { handleAdminMessage } from './admin.js';
 import { fileURLToPath } from 'url';
-import { PhysicsEngine } from '../client/src/physics.js';
+import { PhysicsEngine } from '../client/public/src/physics.js';
 import { AIAgentManager } from './managers/AIAgentManager.js';
 import { NPCManager } from './managers/NPCManager.js';
 import { MapManager } from './managers/MapManager.js';

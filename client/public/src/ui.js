@@ -1,4 +1,5 @@
 import { player } from './main.js';
+import { DOMAIN, PROTOCOL } from './network.js';
 
 export class UIManager {
   constructor() {
@@ -92,29 +93,33 @@ export class UIManager {
     const closeEmotesBtn = document.getElementById('close-emotes-btn');
 
     if (emotesButton && emotesDialog && closeEmotesBtn) {
+      const URL = `${PROTOCOL}://${DOMAIN}/api/config`;
       // Async fetch and populate
       try {
-        const response = await fetch('/api/config');
+        console.log('[UI] Fetching Emotes from: ' + URL);
+        const response = await fetch(URL);
         const data = await response.json();
         const validEmotes = data.validEmotes || [];
-        
+
+        console.log('[UI] Loaded Emotes: ' + validEmotes.length);
+
         const emotesList = document.getElementById('emotes-list');
         if (emotesList) {
           const emoteEmojis = { dance: '🕺', fart: '💨', dead: '💀', cry: '😭', rugby: '🏉', sit: '🪑', jump: '🦘', eat: '🍔', lunch: '🥪', tennis: '🎾' };
-          
+
           validEmotes.forEach(emote => {
             const row = document.createElement('div');
             row.className = 'emote-row';
             row.setAttribute('data-emote', emote);
-            
+
             const iconSpan = document.createElement('span');
             iconSpan.className = 'emote-row-icon';
             iconSpan.textContent = emoteEmojis[emote] || '💬';
-            
+
             const nameSpan = document.createElement('span');
             nameSpan.className = 'emote-row-name';
             nameSpan.textContent = emote.charAt(0).toUpperCase() + emote.slice(1);
-            
+
             row.appendChild(iconSpan);
             row.appendChild(nameSpan);
             emotesList.appendChild(row);
@@ -133,7 +138,7 @@ export class UIManager {
           });
         }
       } catch (e) {
-        console.error('Failed to load emotes config', e);
+        console.error('Failed to load emotes config, URL: ' + URL, e);
       }
 
       emotesButton.addEventListener('click', () => {

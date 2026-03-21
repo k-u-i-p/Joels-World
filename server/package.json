@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "npm run server",
-    "server": "node server.js"
+    "server": "node server.js",
+    "build": "node scripts/build.js"
   },
   "dependencies": {
     "@google/genai": "^1.45.0",

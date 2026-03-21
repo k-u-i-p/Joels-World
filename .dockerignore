@@ -1,0 +1,15 @@
+node_modules/
+.git/
+.gitignore
+.DS_Store
+README.md
+Dockerfile
+.dockerignore
+original_images/
+server/sessions/
+server/node_modules/
+client/node_modules/
+client/ios/
+client/ios 2/
+client/android/
+client/dist/

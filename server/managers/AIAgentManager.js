@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
-import { PhysicsEngine } from '../../client/src/physics.js';
+import { PhysicsEngine } from '../../client/public/src/physics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,7 +41,7 @@ export class AIAgentManager {
         console.log("[AI] Starting background agent system...");
 
         try {
-            const srcPath = path.resolve(__dirname, '../../client/src/emotes.js');
+            const srcPath = path.resolve(__dirname, '../../client/public/src/emotes.js');
             const code = fs.readFileSync(srcPath, 'utf8');
             const regex = /^  ([a-zA-Z0-9_]+): \{/gm;
             let m;

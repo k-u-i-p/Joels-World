@@ -11,7 +11,7 @@ export function setupStatic(app, server, port) {
 
   // Parse emotes once on boot
   try {
-    const emotesPath = path.resolve(__dirname, '../client/src/emotes.js');
+    const emotesPath = path.resolve(__dirname, '../client/public/src/emotes.js');
     const emotesCode = fs.readFileSync(emotesPath, 'utf8');
     const regex = /^  ([a-zA-Z0-9_]+): \{/gm;
     let m;
@@ -25,7 +25,7 @@ export function setupStatic(app, server, port) {
 
   // Parse hairstyles once on boot
   try {
-    const charsPath = path.resolve(__dirname, '../client/src/characters.js');
+    const charsPath = path.resolve(__dirname, '../client/public/src/characters.js');
     const charsCode = fs.readFileSync(charsPath, 'utf8');
     const regex = /style === '([a-zA-Z0-9_]+)'/g;
     let m;
@@ -50,7 +50,7 @@ export function setupStatic(app, server, port) {
   });
 
   // Serve static assets natively
-  app.use('/src', express.static(path.resolve(__dirname, '../client/src')));
+  app.use('/src', express.static(path.resolve(__dirname, '../client/public/src')));
   app.use('/public', express.static(path.resolve(__dirname, '../client/public')));
 
   app.get('/api/config', (req, res) => {
@@ -84,7 +84,7 @@ export function setupStatic(app, server, port) {
     next();
   });
 
-  server.listen(port, () => {
-    console.log(`Server & WebSocket running natively on http://localhost:${port}`);
+  server.listen(port, '0.0.0.0', () => {
+    console.log(`Server & WebSocket running natively on http://0.0.0.0:${port}`);
   });
 }

@@ -5,7 +5,7 @@ echo "🚀 Deploying Joels World to Google Cloud Run..."
 API_KEY=$(cat gemini_key)
 
 gcloud run deploy joels-world \
-  --source . \
+  --source ../ \
   --region us-central1 \
   --allow-unauthenticated \
   --port 8080 \
