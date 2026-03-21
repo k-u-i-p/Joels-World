@@ -556,6 +556,9 @@ export class CharacterManager {
 
     if (layerType === 'all' || layerType === 'chat') {
       if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
+        if (this.currentFrameChatCount >= 3) return;
+        this.currentFrameChatCount++;
+
         ctx.save();
         ctx.translate(c.x | 0, c.y | 0);
         ctx.scale(1 / cameraZoom, 1 / cameraZoom);
@@ -610,6 +613,7 @@ export class CharacterManager {
    * within the camera bounds.
    */
   drawCharacters(layerType = 'all', ctx, canvas, player, syncPlayerToJSON, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight) {
+    this.currentFrameChatCount = 0;
     const viewHalfW = ((viewportWidth / cameraZoom) / 2) | 0;
     const viewHalfH = ((viewportHeight / cameraZoom) / 2) | 0;
 

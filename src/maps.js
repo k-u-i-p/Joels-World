@@ -121,8 +121,6 @@ export class MapManager {
       }
 
       if (layer.chunked) {
-        // --- Spatial Chunking Logic ---
-
         const startCol = Math.max(0, (mapStartX / layer.chunk_size) | 0);
         const endCol = Math.min(layer.grid_w - 1, (mapEndX / layer.chunk_size) | 0);
         const startRow = Math.max(0, (mapStartY / layer.chunk_size) | 0);

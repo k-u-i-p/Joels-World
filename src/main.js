@@ -10,7 +10,7 @@ import { uiManager } from './ui.js';
 import { gameLoop } from './gameloop.js';
 
 const MAX_SPRING = 50;
-const SPRING_SPEED = 0.75;
+const SPRING_SPEED = 0.5;
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -155,7 +155,7 @@ function update(dt = 0.016) {
   // Spring setup
   camera.springX = camera.springX || 0;
   camera.springY = camera.springY || 0;
-  const decay = Math.pow(0.001, dt);
+  const decay = Math.pow(0.001 * SPRING_SPEED, dt);
 
   // Rotation (tank controls)
   if (!uiManager.isMinimapOpen) {
@@ -240,13 +240,13 @@ function update(dt = 0.016) {
     const blockedDy = dy - actualDy;
 
     // Apply tension to camera if pushing into a wall, otherwise decay that axis
-    if (Math.abs(blockedDx) > 0.1) {
+    if (Math.abs(blockedDx) > 0.01) {
       camera.springX += blockedDx * SPRING_SPEED;
     } else {
       camera.springX *= decay;
     }
 
-    if (Math.abs(blockedDy) > 0.1) {
+    if (Math.abs(blockedDy) > 0.01) {
       camera.springY += blockedDy * SPRING_SPEED;
     } else {
       camera.springY *= decay;
@@ -480,10 +480,17 @@ function draw() {
   characterManager.drawCharacters('base', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
   ctx.save();
-  const springOffsetX = ((camera.springX || 0) | 0) * 0.1;
-  const springOffsetY = ((camera.springY || 0) | 0) * 0.1;
+  let springOffsetX = ((camera.springX || 0) | 0) * 0.1;
+  let springOffsetY = ((camera.springY || 0) | 0) * 0.1;
   ctx.translate(-springOffsetX, -springOffsetY);
   mapManager.drawLayer(1, ctx, canvas, camera.x - springOffsetX, camera.y - springOffsetY, camera.zoom, viewportWidth, viewportHeight);
+  ctx.restore();
+
+  ctx.save();
+  springOffsetX = ((camera.springX || 0) | 0) * 0.2;
+  springOffsetY = ((camera.springY || 0) | 0) * 0.2;
+  ctx.translate(-springOffsetX, -springOffsetY);
+  mapManager.drawLayer(2, ctx, canvas, camera.x - springOffsetX, camera.y - springOffsetY, camera.zoom, viewportWidth, viewportHeight);
   ctx.restore();
 
   characterManager.drawCharacters('overlay', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
