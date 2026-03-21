@@ -4,5 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Capacitor client for Joel's World",
-  "dependencies": {}
+  "dependencies": {
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/core": "^8.2.0",
+    "@capacitor/ios": "^8.2.0"
+  }
 }

@@ -2,6 +2,8 @@ import { emotes, getEmoteMessage } from './emotes.js';
 import { uiManager } from './ui.js';
 import { player } from './main.js';
 
+const DOMAIN = "joels-world.com"
+
 export class NetworkClient {
   constructor() {
     this.isAdmin = window.isAdmin === true;
@@ -41,7 +43,7 @@ export class NetworkClient {
     }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const state = window.init ? 'running' : 'new';
-    const wsUrl = `${protocol}//${window.location.host}?state=${state}`;
+    const wsUrl = `${protocol}//${DOMAIN}?state=${state}`;
     console.log(`[NetworkClient] 1. Initiating WebSocket connection to ${wsUrl}`);
 
     this.ws = new WebSocket(wsUrl);
