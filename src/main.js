@@ -487,8 +487,8 @@ function draw() {
   ctx.restore();
 
   ctx.save();
-  springOffsetX = ((camera.springX || 0) | 0) * 0.2;
-  springOffsetY = ((camera.springY || 0) | 0) * 0.2;
+  springOffsetX = ((camera.springX || 0) | 0) * 0.15;
+  springOffsetY = ((camera.springY || 0) | 0) * 0.15;
   ctx.translate(-springOffsetX, -springOffsetY);
   mapManager.drawLayer(2, ctx, canvas, camera.x - springOffsetX, camera.y - springOffsetY, camera.zoom, viewportWidth, viewportHeight);
   ctx.restore();
