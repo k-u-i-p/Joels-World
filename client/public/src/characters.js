@@ -359,17 +359,11 @@ export class CharacterManager {
       const logicalSize = Math.max(120, 120 * maxScale);
 
       // Procedural character canvas backing
-      // Helper for colors
-      const colorToHex = (cssColor) => {
-         if (!cssColor) return 0xffffff;
-         if (cssColor.startsWith('#')) return parseInt(cssColor.replace('#', '0x'), 16);
-         return 0xffffff;
-      };
-
-      const skinMat = new THREE.MeshLambertMaterial({ color: colorToHex(c.color || '#f1c40f') });
-      const shirtMat = new THREE.MeshLambertMaterial({ color: colorToHex(c.shirtColor || '#3498db') });
-      const pantsMat = new THREE.MeshLambertMaterial({ color: colorToHex(c.pantsColor || '#2c3e50') });
-      const shoeMat = new THREE.MeshLambertMaterial({ color: colorToHex(c.shoeColor || '#7f8c8d') });
+      // WebGL Materials naturally evaluate basic HTML5 string-formatted colors!
+      const skinMat = new THREE.MeshLambertMaterial({ color: c.color || '#f1c40f' });
+      const shirtMat = new THREE.MeshLambertMaterial({ color: c.shirtColor || '#3498db' });
+      const pantsMat = new THREE.MeshLambertMaterial({ color: c.pantsColor || '#2c3e50' });
+      const shoeMat = new THREE.MeshLambertMaterial({ color: c.shoeColor || '#7f8c8d' });
 
       // Core skeleton rig (Scaled to match old R=14 Canvas Paths)
       c.rig = {
@@ -395,8 +389,7 @@ export class CharacterManager {
 
       // Build Hair
       const style = c.style || 'base';
-      const hairColorHex = colorToHex(c.hairColor || '#8e44ad');
-      const hairMat = new THREE.MeshLambertMaterial({ color: hairColorHex });
+      const hairMat = new THREE.MeshLambertMaterial({ color: c.hairColor || '#8e44ad' });
       
       const hairGroup = new THREE.Group();
       hairGroup.position.set(0, 0, 0); // Local to Head
