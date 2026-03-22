@@ -639,8 +639,9 @@ export class CharacterManager {
     const restPitch = -0.3; // Swing forward slightly (+X axis)
     const restRoll = 0.4;   // Splay outward laterally (-/+ Y axis)
     
-    c.rig.leftArm.rotation.set(restRoll, restPitch, 0);
-    c.rig.rightArm.rotation.set(-restRoll, restPitch, 0);
+    // Invert the signs so the rotation pushes them outwards geometrically
+    c.rig.leftArm.rotation.set(-restRoll, restPitch, 0);
+    c.rig.rightArm.rotation.set(restRoll, restPitch, 0);
     c.rig.leftLeg.rotation.set(0, 0, 0);
     c.rig.rightLeg.rotation.set(0, 0, 0);
 
