@@ -430,14 +430,14 @@ export class CharacterManager {
       // Build Arms (Cylinders point along Y natively, we rotate them to point along Z)
       const armGeo = new THREE.CylinderGeometry(5.5, 5.5, 16, 10);
       
-      const lArmMesh = new THREE.Mesh(armGeo, skinMat);
+      const lArmMesh = new THREE.Mesh(armGeo, shirtMat);
       lArmMesh.rotation.x = Math.PI / 2;
       lArmMesh.position.set(0, 0, -8); // Drop down from shoulder pivot
       c.rig.leftArm.add(lArmMesh);
       c.rig.leftArm.position.set(0, -15, 26); // Shift left on Y, up on Z
       c.rig.bodyPivot.add(c.rig.leftArm);
 
-      const rArmMesh = new THREE.Mesh(armGeo, skinMat);
+      const rArmMesh = new THREE.Mesh(armGeo, shirtMat);
       rArmMesh.rotation.x = Math.PI / 2;
       rArmMesh.position.set(0, 0, -8);
       c.rig.rightArm.add(rArmMesh);
