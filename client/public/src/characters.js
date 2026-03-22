@@ -374,7 +374,7 @@ export class CharacterManager {
       // Core skeleton rig (Scaled to match old R=14 Canvas Paths)
       c.rig = {
          bodyPivot: new THREE.Group(),
-         head: new THREE.Mesh(new THREE.SphereGeometry(14, 16, 16), skinMat),
+         head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), skinMat),
          torso: new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 22, 16), shirtMat),
          leftArm: new THREE.Group(),
          rightArm: new THREE.Group(),
@@ -402,32 +402,32 @@ export class CharacterManager {
       hairGroup.position.set(0, 0, 0); // Local to Head
       
       if (style === 'spiky') {
-          const spikeGeo = new THREE.ConeGeometry(5, 12, 6);
+          const spikeGeo = new THREE.ConeGeometry(3.5, 10, 6);
           for (let i = 0; i < 5; i++) {
               const spike = new THREE.Mesh(spikeGeo, hairMat);
               spike.rotation.y = (Math.PI / 4) * (i - 2);
               spike.rotation.x = Math.PI / 2;
-              spike.position.set(-2, (i - 2) * 2.5, 12); 
+              spike.position.set(-1.5, (i - 2) * 2.0, 9); 
               hairGroup.add(spike);
           }
       } else if (style === 'ponytail') {
-          const baseHairGeo = new THREE.SphereGeometry(14.5, 16, 16, 0, Math.PI, 0, Math.PI);
+          const baseHairGeo = new THREE.SphereGeometry(11, 16, 16, 0, Math.PI, 0, Math.PI);
           const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
           baseHair.rotation.y = -Math.PI / 2; // Cover back half of head
           hairGroup.add(baseHair);
           
-          const tailGeo = new THREE.ConeGeometry(5, 24, 8);
+          const tailGeo = new THREE.ConeGeometry(4, 18, 8);
           const tail = new THREE.Mesh(tailGeo, hairMat);
           tail.rotation.z = Math.PI / 2;
-          tail.position.set(-18, 0, 4); // Drooping off the back
+          tail.position.set(-14, 0, 3); // Drooping off the back
           hairGroup.add(tail);
       } else if (style === 'messy') {
-          const baseHairGeo = new THREE.IcosahedronGeometry(15, 0); // jagged
+          const baseHairGeo = new THREE.IcosahedronGeometry(11.5, 0); // jagged
           const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
           hairGroup.add(baseHair);
       } else {
           // Base/default flat cap style hair
-          const baseHairGeo = new THREE.SphereGeometry(14.5, 16, 16, 0, Math.PI, 0, Math.PI);
+          const baseHairGeo = new THREE.SphereGeometry(11, 16, 16, 0, Math.PI, 0, Math.PI);
           const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
           baseHair.rotation.y = -Math.PI / 2;
           hairGroup.add(baseHair);
