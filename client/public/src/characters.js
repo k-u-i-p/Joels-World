@@ -447,6 +447,7 @@ export class CharacterManager {
       // Build Arms (Cylinders point along Y natively, we rotate them to point along Z)
       const armGeo = new THREE.CylinderGeometry(5.5, 5.5, 16, 10);
       const handGeo = new THREE.SphereGeometry(6.5, 12, 12);
+      const shoulderGeo = new THREE.SphereGeometry(5.5, 12, 12);
       
       const lArmMesh = new THREE.Mesh(armGeo, armMat);
       lArmMesh.rotation.x = Math.PI / 2;
@@ -456,6 +457,10 @@ export class CharacterManager {
       const lHand = new THREE.Mesh(handGeo, skinMat);
       lHand.position.set(0, 0, -17); // Terminus of the sleeve
       c.rig.leftArm.add(lHand);
+      
+      const lShoulder = new THREE.Mesh(shoulderGeo, armMat);
+      lShoulder.position.set(0, 0, 0); // Anchors precisely at the joint rotation pivot
+      c.rig.leftArm.add(lShoulder);
       
       c.rig.leftArm.position.set(0, -15, 26); // Shift left on Y, up on Z
       c.rig.bodyPivot.add(c.rig.leftArm);
@@ -468,6 +473,10 @@ export class CharacterManager {
       const rHand = new THREE.Mesh(handGeo, skinMat);
       rHand.position.set(0, 0, -17);
       c.rig.rightArm.add(rHand);
+      
+      const rShoulder = new THREE.Mesh(shoulderGeo, armMat);
+      rShoulder.position.set(0, 0, 0);
+      c.rig.rightArm.add(rShoulder);
       
       c.rig.rightArm.position.set(0, 15, 26); // Shift right on Y
       c.rig.bodyPivot.add(c.rig.rightArm);
