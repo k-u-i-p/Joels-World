@@ -21,7 +21,7 @@ export class AIAgentManager {
 
     startAIAgent() {
         if (!this.apiKey) {
-            const keyPath = path.resolve(__dirname, '../../gemini_key');
+            const keyPath = path.resolve(__dirname, '../gemini_key');
             if (fs.existsSync(keyPath)) {
                 this.apiKey = fs.readFileSync(keyPath, 'utf8').trim();
                 console.log("[AI] API Key loaded from gemini_key file.", this.apiKey);
@@ -178,7 +178,7 @@ export class AIAgentManager {
             if (act.say) {
                 console.log(`[AI][${mapData.name}] NPC '${npcChar.name || npcId}' says:`, act.say);
                 const sayArr = Array.isArray(act.say) ? act.say : [act.say];
-                
+
                 const playerIdsInRange = new Set();
                 if (mapData.characters) {
                     Object.values(mapData.characters).forEach(player => {
@@ -192,7 +192,7 @@ export class AIAgentManager {
                 for (let i = 0; i < sayArr.length; i++) {
                     let msg = sayArr[i];
                     msg = msg.replace(/\s*\([^)]*\)/g, '');
-                    
+
                     const broadcastMsg = JSON.stringify({ type: 'chat', id: npcId, message: msg });
                     const logLine = `${npcChar.name || npcId} (${npcId}) said: "${msg}"`;
                     this.npcManager.logEventToNearbyNPCs(mapData, logLine, this);
@@ -203,7 +203,7 @@ export class AIAgentManager {
                             if (fs.existsSync(logFilePath)) {
                                 this.lastProcessed[npcId] = fs.readFileSync(logFilePath, 'utf8').trim();
                             }
-                        } catch (e) {}
+                        } catch (e) { }
                     }
 
                     mapData.clients.forEach(client => {
@@ -222,14 +222,14 @@ export class AIAgentManager {
                 console.log(`[AI][${mapData.name}] NPC '${npcChar.name || npcId}' emoting: ${act.emote}`);
                 const emoteObj = { name: act.emote, startTime: Date.now() };
                 npcChar.emote = emoteObj;
-                
+
                 const updateMsg = JSON.stringify({
-                  type: 'update',
-                  character: { id: npcId, emote: emoteObj }
+                    type: 'update',
+                    character: { id: npcId, emote: emoteObj }
                 });
-                
+
                 mapData.clients.forEach(client => {
-                  if (client.readyState === 1) client.send(updateMsg);
+                    if (client.readyState === 1) client.send(updateMsg);
                 });
 
                 setTimeout(() => {
@@ -238,11 +238,11 @@ export class AIAgentManager {
                     if (currentNpc && currentNpc.emote === emoteObj) {
                         currentNpc.emote = null;
                         const clearMsg = JSON.stringify({
-                          type: 'update',
-                          character: { id: npcId, emote: null }
+                            type: 'update',
+                            character: { id: npcId, emote: null }
                         });
                         mapData.clients.forEach(client => {
-                          if (client.readyState === 1) client.send(clearMsg);
+                            if (client.readyState === 1) client.send(clearMsg);
                         });
                     }
                 }, 5000);

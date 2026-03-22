@@ -199,5 +199,14 @@
     "name": "Tennis",
     "import": "/src/minigames/tennis.js",
     "default_zoom": 1
+  },
+  {
+    "id": 5,
+    "name": "Tag",
+    "import": "/src/minigames/tag.js",
+    "default_zoom": 1,
+    "clip_mask": "minigames/tag/clip_mask.png",
+    "width": 2365,
+    "height": 1330
   }
 ]

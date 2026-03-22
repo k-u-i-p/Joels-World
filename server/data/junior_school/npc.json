@@ -708,7 +708,15 @@
     "shirtColor": "#3498db",
     "pantsColor": "#2c3e50",
     "armColor": "#3498db",
-    "on_enter": [],
+    "on_enter": [
+      {
+        "show_dialog": {
+          "description": "Do you want to play Tag?",
+          "type": "change_map",
+          "map": 5
+        }
+      }
+    ],
     "on_exit": []
   }
 ]

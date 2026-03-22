@@ -363,9 +363,9 @@ function calculateOptimalInterceptPoint(playerObj) {
     const isComfortableZ = simZ >= RESTING_Z && simZ <= JUMP_Z;
 
     if (isWithinCourtX && isWithinCourtY && isWithinReachZ && isOnCorrectSide) {
-      const distSq = (simX - playerObj.currentPosition.x) ** 2 + 
-                     (simY - playerObj.currentPosition.y) ** 2 + 
-                     (simZ - playerObj.currentPosition.z) ** 2;
+      const distSq = (simX - playerObj.currentPosition.x) ** 2 +
+        (simY - playerObj.currentPosition.y) ** 2 +
+        (simZ - playerObj.currentPosition.z) ** 2;
 
       let score = -distSq; // Base Penalty: Spatial Distance to player
 
@@ -583,10 +583,7 @@ function hitBallToTarget(targetX, targetY, targetVelocity) {
 * Called externally when launching into the map.
 */
 export function initMinigame() {
-  if (minigameActive) {
-    gameLoop.registerFunction(run);
-    return;
-  }
+
   console.log('[Tennis] Initializing Minigame...');
   minigameActive = true;
   if (window.init && window.init.npcs && window.init.npcs.length > 0) {
