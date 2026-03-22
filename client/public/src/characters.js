@@ -553,7 +553,8 @@ export class CharacterManager {
     if (!c.rig) return;
 
     // Apply entire body rotation on the Z-axis (Top-Down perspective)
-    c.rig.bodyPivot.rotation.z = (c.rotation - 90) * (Math.PI / 180);
+    // WebGL Z-rotation is counter-clockwise, HTML5 Canvas is clockwise. We must invert the angle!
+    c.rig.bodyPivot.rotation.z = -c.rotation * (Math.PI / 180);
 
     // Emote Handling
     const isActualNpc = isNpc;
