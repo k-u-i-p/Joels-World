@@ -466,9 +466,9 @@ export class CharacterManager {
       c.rig.head.add(hairGroup);
 
       // Build Arms (Cylinders point along Y natively, we rotate them to point along Z)
-      const armGeo = new THREE.CylinderGeometry(5.5, 5.5, 16, 10);
-      const handGeo = new THREE.SphereGeometry(6.5, 12, 12);
-      const shoulderGeo = new THREE.SphereGeometry(5.5, 12, 12);
+      const armGeo = new THREE.CylinderGeometry(4.2, 4.2, 16, 10);
+      const handGeo = new THREE.SphereGeometry(5.2, 12, 12);
+      const shoulderGeo = new THREE.SphereGeometry(4.2, 12, 12);
       
       const lArmMesh = new THREE.Mesh(armGeo, armMat);
       lArmMesh.rotation.x = Math.PI / 2;
