@@ -51,12 +51,10 @@ function initPlayers() {
     id: myChar.id || player.id,
     isLocalPlayer: true,
     name: myChar.name || player.name || 'You',
-    x: 0,
-    y: 0,
-    z: 0,
+    currentPosition: { x: 0, y: 0, z: 0, rotation: 90 },
+    targetPosition: { x: 0, y: 0, z: 0, rotation: 90 },
     width: 40,
     height: 40,
-    rotation: 90,
     gender: myChar.gender || 'male',
     shirtColor: myChar.shirtColor || '#3498db',
     pantsColor: myChar.pantsColor || '#2c3e50',
@@ -86,12 +84,10 @@ function initPlayers() {
       id: 990 + i,
       isLocalPlayer: false,
       name: names[i],
-      x: spawnPoints[i].x,
-      y: spawnPoints[i].y,
-      z: 0,
+      currentPosition: { x: spawnPoints[i].x, y: spawnPoints[i].y, z: 0, rotation: Math.random() * 360 },
+      targetPosition: { x: spawnPoints[i].x, y: spawnPoints[i].y, z: 0, rotation: Math.random() * 360 },
       width: 35,
       height: 35,
-      rotation: Math.random() * 360,
       gender: i % 2 === 0 ? 'male' : 'female',
       shirtColor: colors[i],
       pantsColor: '#2c3e50',
@@ -128,8 +124,8 @@ export function initMinigame() {
   soundManager.playBackground('/media/playground_sound_effect.mp3', 0.4);
 
   // Setup camera
-  camera.x = state.players[0].x;
-  camera.y = state.players[0].y;
+  camera.x = state.players[0].currentPosition.x;
+  camera.y = state.players[0].currentPosition.y;
   camera.zoom = 1.2;
 
   // Setup UI
@@ -170,6 +166,7 @@ function processNPCLogic(npc, itPlayer, dt) {
   let dx = 0, dy = 0;
   let targetAngle = null;
   let shouldMove = true;
+  let speedMult = 1.0;
 
   if (isIt) {
     // If IT, chase the closest player
@@ -181,7 +178,7 @@ function processNPCLogic(npc, itPlayer, dt) {
       // Tag cooldown logic check: don't chase if invincible
       if (state.invincibleTime > 0) continue; 
       
-      const dist = Math.sqrt((p.x - npc.x) ** 2 + (p.y - npc.y) ** 2);
+      const dist = Math.sqrt((p.targetPosition.x - npc.targetPosition.x) ** 2 + (p.targetPosition.y - npc.targetPosition.y) ** 2);
       if (dist < closestDist) {
         closestDist = dist;
         target = p;
@@ -189,29 +186,59 @@ function processNPCLogic(npc, itPlayer, dt) {
     }
 
     if (target) {
-      targetAngle = Math.atan2(target.y - npc.y, target.x - npc.x);
+      targetAngle = Math.atan2(target.targetPosition.y - npc.targetPosition.y, target.targetPosition.x - npc.targetPosition.x);
     } else {
       shouldMove = false; // No one to chase? Rest!
     }
   } else {
     // Flee from IT
     if (itPlayer) {
-      const dist = Math.sqrt((itPlayer.x - npc.x) ** 2 + (itPlayer.y - npc.y) ** 2);
+      const dist = Math.sqrt((itPlayer.targetPosition.x - npc.targetPosition.x) ** 2 + (itPlayer.targetPosition.y - npc.targetPosition.y) ** 2);
       
-      // State machine logic
+      // Initialize states
       if (!npc.tagState) npc.tagState = 'idle';
+      if (!npc.tauntAngleOffset) npc.tauntAngleOffset = (Math.random() - 0.5) * Math.PI;
       
-      if (dist < 300) {
+      // Pure state machine thresholds
+      if (dist < 250) {
         npc.tagState = 'flee';
-      } else if (dist > 450 || state.invincibleTime > 0) {
+      } else if (dist > 350 && npc.tagState === 'flee') {
+        npc.tagState = 'idle';
+      } else if (dist > 550) {
+        npc.tagState = 'taunt';
+      } else if (dist < 400 && npc.tagState === 'taunt') {
+        npc.tagState = 'idle';
+        // Reroll offset for next taunt
+        npc.tauntAngleOffset = (Math.random() - 0.5) * Math.PI; 
+      }
+
+      // If IT is invisible/cooldown, always feel safe
+      if (state.invincibleTime > 0 && npc.tagState === 'flee') {
         npc.tagState = 'idle';
       }
 
+      // Execute State Behaviors
       if (npc.tagState === 'idle') {
-        shouldMove = false; // Resting
-      } else {
-        // Fleeing
-        targetAngle = Math.atan2(npc.y - itPlayer.y, npc.x - itPlayer.x); // Away from IT
+        shouldMove = false; // Resting / Catching breath
+        
+        // Ensure they causally gaze towards IT with some random shifting
+        if (npc.idleGazeOffset === undefined || Math.random() < 1 * dt) { 
+           // Change gaze focus roughly once per second (+/- 45 degrees)
+           npc.idleGazeOffset = (Math.random() - 0.5) * (Math.PI / 2); 
+        }
+        
+        const angleTowards = Math.atan2(itPlayer.targetPosition.y - npc.targetPosition.y, itPlayer.targetPosition.x - npc.targetPosition.x);
+        const lookAngle = (angleTowards + npc.idleGazeOffset) * (180 / Math.PI);
+        npc.targetPosition.rotation = lookAngle; // Turn head smoothly
+        
+      } else if (npc.tagState === 'flee') {
+        targetAngle = Math.atan2(npc.targetPosition.y - itPlayer.targetPosition.y, npc.targetPosition.x - itPlayer.targetPosition.x); // Run strictly away from IT
+        speedMult = 1.0; // Sprint
+      } else if (npc.tagState === 'taunt') {
+        // Move back towards IT, but slightly off-axis so they don't form a conga line!
+        const angleTowards = Math.atan2(itPlayer.targetPosition.y - npc.targetPosition.y, itPlayer.targetPosition.x - npc.targetPosition.x);
+        targetAngle = angleTowards + npc.tauntAngleOffset;
+        speedMult = 0.6; // Jog/Walk
       }
     }
   }
@@ -226,8 +253,8 @@ function processNPCLogic(npc, itPlayer, dt) {
     // Since we're just steering, 60 pixels is a good detection radius for "corners"
     for (const offset of angleOffsets) {
       const testAngle = targetAngle + (offset * Math.PI / 180);
-      const testX = npc.x + Math.cos(testAngle) * 60;
-      const testY = npc.y + Math.sin(testAngle) * 60;
+      const testX = npc.targetPosition.x + Math.cos(testAngle) * 60;
+      const testY = npc.targetPosition.y + Math.sin(testAngle) * 60;
 
       // Ensure that spot is playable and not colliding with clip mask boundary
       if (physicsEngine.checkClipMask(testX, testY, 15)) {
@@ -245,13 +272,17 @@ function processNPCLogic(npc, itPlayer, dt) {
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
     let finalSpeed = npc.speed + (state.round - 1) * 20; // Increase speed per round
     if (isIt) finalSpeed *= 1.1; // IT is slightly faster
+    
+    // Apply state-specific speed multiplier
+    finalSpeed *= speedMult;
 
     const moveX = (dx / len) * finalSpeed * dt;
     const moveY = (dy / len) * finalSpeed * dt;
 
     // Natively handle physical barriers using the engine's standard sliding logic!
+    const mockEntity = { x: npc.targetPosition.x, y: npc.targetPosition.y, width: npc.width, height: npc.height };
     const result = physicsEngine.processMovement(
-      npc,
+      mockEntity,
       moveX,
       moveY,
       window.init?.objects || [],
@@ -260,14 +291,38 @@ function processNPCLogic(npc, itPlayer, dt) {
       state.players
     );
 
-    npc.x = result.newX;
-    npc.y = result.newY;
+    npc.targetPosition.x = result.newX;
+    npc.targetPosition.y = result.newY;
 
     if (moveX !== 0 || moveY !== 0) {
       const newRotAngle = Math.atan2(moveY, moveX) * (180 / Math.PI);
-      npc.rotation = lerpRotation(npc.rotation, newRotAngle, 600 * dt);
-      npc.legTimer += 10 * dt;
+      npc.targetPosition.rotation = newRotAngle;
+      
     }
+  }
+}
+
+
+function convergePhysics(charState, dt) {
+  const speed = 600 * dt;
+  const dx = charState.targetPosition.x - charState.currentPosition.x;
+  const dy = charState.targetPosition.y - charState.currentPosition.y;
+  const dz = charState.targetPosition.z - charState.currentPosition.z;
+
+  if (Math.abs(dx) > 0.5) charState.currentPosition.x += Math.sign(dx) * Math.min(speed, Math.abs(dx));
+  else charState.currentPosition.x = charState.targetPosition.x;
+
+  if (Math.abs(dy) > 0.5) charState.currentPosition.y += Math.sign(dy) * Math.min(speed, Math.abs(dy));
+  else charState.currentPosition.y = charState.targetPosition.y;
+  
+  if (Math.abs(dz) > 0.5) charState.currentPosition.z += Math.sign(dz) * Math.min(speed, Math.abs(dz));
+  else charState.currentPosition.z = charState.targetPosition.z;
+
+  charState.currentPosition.rotation = lerpRotation(charState.currentPosition.rotation, charState.targetPosition.rotation, 800 * dt);
+
+  const moveLen = Math.sqrt(dx * dx + dy * dy);
+  if (moveLen > 0.1) {
+    charState.legTimer += 15 * dt;
   }
 }
 
@@ -293,8 +348,9 @@ function processLocalPlayerLogic(localP, dt) {
     let finalMoveY = (moveY / len) * pSpeed * dt;
 
     // Unify Player physics and sliding constraints to identical collision geometry
+    const mockEntity = { x: localP.targetPosition.x, y: localP.targetPosition.y, width: localP.width, height: localP.height };
     const result = physicsEngine.processMovement(
-      localP,
+      mockEntity,
       finalMoveX,
       finalMoveY,
       window.init?.objects || [],
@@ -303,19 +359,19 @@ function processLocalPlayerLogic(localP, dt) {
       state.players
     );
 
-    localP.x = result.newX;
-    localP.y = result.newY;
+    localP.targetPosition.x = result.newX;
+    localP.targetPosition.y = result.newY;
 
     if (finalMoveX !== 0 || finalMoveY !== 0) {
       const targetAngle = Math.atan2(finalMoveY, finalMoveX) * (180 / Math.PI);
-      localP.rotation = lerpRotation(localP.rotation, targetAngle, 800 * dt);
-      localP.legTimer += 10 * dt;
+      localP.targetPosition.rotation = targetAngle;
+      
     }
   }
 
   // Update camera smoothly
-  camera.x += (localP.x - camera.x) * 5 * dt;
-  camera.y += (localP.y - camera.y) * 5 * dt;
+  camera.x += (localP.currentPosition.x - camera.x) * 5 * dt;
+  camera.y += (localP.currentPosition.y - camera.y) * 5 * dt;
 }
 
 function processTagCollisions() {
@@ -325,7 +381,7 @@ function processTagCollisions() {
       for (const p of state.players) {
         if (p.id === currentIt.id) continue;
 
-        const dist = Math.sqrt((p.x - currentIt.x) ** 2 + (p.y - currentIt.y) ** 2);
+        const dist = Math.sqrt((p.currentPosition.x - currentIt.currentPosition.x) ** 2 + (p.currentPosition.y - currentIt.currentPosition.y) ** 2);
         if (dist < 45) {
           // Tagged!
           state.itId = p.id;
@@ -372,12 +428,17 @@ function run(dt) {
   // 3. Collision / Tag Logic
   processTagCollisions();
 
+  for (const p of state.players) {
+    convergePhysics(p, dt);
+  }
+
   draw();
 }
 
 function drawCharacter(ctx, p, isIt) {
   ctx.save();
-  ctx.translate(p.x, p.y);
+  ctx.translate(p.currentPosition.x, p.currentPosition.y);
+  ctx.translate(0, -p.currentPosition.z);
 
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -403,7 +464,7 @@ function drawCharacter(ctx, p, isIt) {
   // Prepare structural limbs based on legTimer
   const legSwing = Math.sin(p.legTimer);
   const legStride = 6;
-  const bodyRotRad = p.rotation * (Math.PI / 180);
+  const bodyRotRad = p.currentPosition.rotation * (Math.PI / 180);
 
   ctx.rotate(bodyRotRad);
 
@@ -491,7 +552,7 @@ function draw() {
   }
 
   // Sort players by Y coordinate for depth sorting
-  const sortedPlayers = [...state.players].sort((a, b) => a.y - b.y);
+  const sortedPlayers = [...state.players].sort((a, b) => a.currentPosition.y - b.currentPosition.y);
 
   for (const p of sortedPlayers) {
     const isIt = p.id === state.itId;
