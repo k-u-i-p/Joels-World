@@ -417,9 +417,30 @@ export class CharacterManager {
           tail.position.set(-14, 0, 3); // Drooping off the back
           hairGroup.add(tail);
       } else if (style === 'messy') {
-          const messyGeo = new THREE.IcosahedronGeometry(11.5, 0); // jagged
-          const messyHair = new THREE.Mesh(messyGeo, hairMat);
-          hairGroup.add(messyHair);
+          const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
+          baseHair.rotation.y = -Math.PI / 2;
+          hairGroup.add(baseHair);
+          
+          const tuftGeo = new THREE.ConeGeometry(3.5, 10, 5);
+          
+          // Replicate the zig-zag sawtooth path of the original 2D stroke
+          const t1 = new THREE.Mesh(tuftGeo, hairMat);
+          t1.rotation.y = -Math.PI / 5; // Angle outward left
+          t1.rotation.x = Math.PI / 2;
+          t1.position.set(-8, -7, 5);
+          hairGroup.add(t1);
+
+          const t2 = new THREE.Mesh(tuftGeo, hairMat);
+          t2.rotation.y = Math.PI / 12; // Angle backward
+          t2.rotation.x = Math.PI / 2;
+          t2.position.set(-11, -1, 4);
+          hairGroup.add(t2);
+
+          const t3 = new THREE.Mesh(tuftGeo, hairMat);
+          t3.rotation.y = Math.PI / 5; // Angle outward right
+          t3.rotation.x = Math.PI / 2;
+          t3.position.set(-8, 6, 7);
+          hairGroup.add(t3);
       } else if (style === 'long') {
           const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
           baseHair.rotation.y = -Math.PI / 2;
