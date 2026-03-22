@@ -20,6 +20,13 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setClearColor(0x7bed9f); // Grass green color
 export const scene = new THREE.Scene();
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Base visibility
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+dirLight.position.set(50, -100, 150); // Angled down from top-front
+scene.add(dirLight);
 export const threeCamera = new THREE.OrthographicCamera(-1, 1, -1, 1, -1000, 1000);
 
 // We invert the Y frustum to match HTML5 Canvas standard coordinates (Y-down)

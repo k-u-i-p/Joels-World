@@ -41,18 +41,22 @@ export class CharacterManager {
   disposeCharacter(c, scene) {
     if (c.meshGroup) {
       scene.remove(c.meshGroup);
-      if (c.canvasTexture) c.canvasTexture.dispose();
-      if (c.spriteMesh) {
-         if (c.spriteMesh.geometry) c.spriteMesh.geometry.dispose();
-         if (c.spriteMesh.material) c.spriteMesh.material.dispose();
-      }
-      if (c.shadowMesh) {
-         if (c.shadowMesh.geometry) c.shadowMesh.geometry.dispose();
-         if (c.shadowMesh.material) {
-            if (c.shadowMesh.material.map) c.shadowMesh.material.map.dispose();
-            c.shadowMesh.material.dispose();
+      c.meshGroup.traverse((child) => {
+         if (child.isMesh) {
+             if (child.geometry) child.geometry.dispose();
+             if (child.material) {
+                 if (Array.isArray(child.material)) {
+                     child.material.forEach(m => {
+                         if (m.map) m.map.dispose();
+                         m.dispose();
+                     });
+                 } else {
+                     if (child.material.map) child.material.map.dispose();
+                     child.material.dispose();
+                 }
+             }
          }
-      }
+      });
       c.meshGroup = null;
     }
     if (c.nameElement && c.nameElement.parentNode) c.nameElement.parentNode.removeChild(c.nameElement);
@@ -355,36 +359,142 @@ export class CharacterManager {
       const logicalSize = Math.max(120, 120 * maxScale);
 
       // Procedural character canvas backing
-      const dpr = window.devicePixelRatio || 1;
-      const texSize = logicalSize * dpr;
-      c.animationCanvas = window.OffscreenCanvas ? new OffscreenCanvas(texSize, texSize) : document.createElement('canvas');
-      if (!window.OffscreenCanvas) { c.animationCanvas.width = texSize; c.animationCanvas.height = texSize; }
-      c.offscreenCtx = c.animationCanvas.getContext('2d', { willReadFrequently: true });
-      c.canvasTexture = new THREE.CanvasTexture(c.animationCanvas);
-      c.canvasTexture.colorSpace = THREE.SRGBColorSpace; // Prevent washed out linear colors
-      c.canvasTexture.minFilter = THREE.LinearFilter;
-      c.logicalTexSize = logicalSize;
+      // Helper for colors
+      const colorToHex = (cssColor) => {
+         if (!cssColor) return 0xffffff;
+         if (cssColor.startsWith('#')) return parseInt(cssColor.replace('#', '0x'), 16);
+         return 0xffffff;
+      };
+
+      const skinMat = new THREE.MeshLambertMaterial({ color: colorToHex(c.color || '#f1c40f') });
+      const shirtMat = new THREE.MeshLambertMaterial({ color: colorToHex(c.shirtColor || '#3498db') });
+      const pantsMat = new THREE.MeshLambertMaterial({ color: colorToHex(c.pantsColor || '#2c3e50') });
+      const shoeMat = new THREE.MeshLambertMaterial({ color: colorToHex(c.shoeColor || '#7f8c8d') });
+
+      // Core skeleton rig
+      c.rig = {
+         bodyPivot: new THREE.Group(),
+         head: new THREE.Mesh(new THREE.SphereGeometry(6, 16, 16), skinMat),
+         torso: new THREE.Mesh(new THREE.CylinderGeometry(5.5, 5.5, 10, 12), shirtMat),
+         leftArm: new THREE.Group(),
+         rightArm: new THREE.Group(),
+         leftLeg: new THREE.Group(),
+         rightLeg: new THREE.Group()
+      };
+
+      c.meshGroup.add(c.rig.bodyPivot);
+      c.rig.bodyPivot.add(c.rig.torso);
+
+      // Torso stands UP along the Z axis. CylinderGeometry defaults to Y axis upright.
+      // We must rotate the torso 90 degrees on X so it points up the Z axis!
+      c.rig.torso.rotation.x = Math.PI / 2;
+      c.rig.torso.position.set(0, 0, 10);
+
+      // Head is placed above the torso on the Z axis
+      c.rig.head.position.set(2, 0, 16); // Slightly forward on X (face points X+)
+      c.rig.bodyPivot.add(c.rig.head);
+
+      // Build Hair
+      const style = c.style || 'base';
+      const hairColorHex = colorToHex(c.hairColor || '#8e44ad');
+      const hairMat = new THREE.MeshLambertMaterial({ color: hairColorHex });
       
-      const charGeo = new THREE.PlaneGeometry(logicalSize, logicalSize);
-      const charMat = new THREE.MeshBasicMaterial({ map: c.canvasTexture, transparent: true });
-      c.spriteMesh = new THREE.Mesh(charGeo, charMat);
-      c.spriteMesh.position.set(0, 0, 5); // Base character Z layer
-      c.meshGroup.add(c.spriteMesh);
+      const hairGroup = new THREE.Group();
+      hairGroup.position.set(0, 0, 0); // Local to Head
+      
+      if (style === 'spiky') {
+          const spikeGeo = new THREE.ConeGeometry(2, 6, 4);
+          for (let i = 0; i < 5; i++) {
+              const spike = new THREE.Mesh(spikeGeo, hairMat);
+              spike.rotation.y = (Math.PI / 4) * (i - 2);
+              spike.rotation.x = Math.PI / 2;
+              spike.position.set(-1, (i - 2) * 1.5, 5); 
+              hairGroup.add(spike);
+          }
+      } else if (style === 'ponytail') {
+          const baseHairGeo = new THREE.SphereGeometry(6.2, 16, 16, 0, Math.PI, 0, Math.PI);
+          const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
+          baseHair.rotation.y = -Math.PI / 2; // Cover back half of head
+          hairGroup.add(baseHair);
+          
+          const tailGeo = new THREE.ConeGeometry(2, 12, 8);
+          const tail = new THREE.Mesh(tailGeo, hairMat);
+          tail.rotation.z = Math.PI / 2;
+          tail.position.set(-8, 0, 2); // Drooping off the back
+          hairGroup.add(tail);
+      } else if (style === 'messy') {
+          const baseHairGeo = new THREE.IcosahedronGeometry(6.5, 0); // jagged
+          const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
+          hairGroup.add(baseHair);
+      } else {
+          // Base/default flat cap style hair
+          const baseHairGeo = new THREE.SphereGeometry(6.2, 16, 16, 0, Math.PI, 0, Math.PI);
+          const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
+          baseHair.rotation.y = -Math.PI / 2;
+          hairGroup.add(baseHair);
+      }
+      c.rig.head.add(hairGroup);
+
+      // Build Arms (Cylinders point along Y natively, we rotate them to point along Z)
+      const armGeo = new THREE.CylinderGeometry(2, 2, 8, 8);
+      
+      const lArmMesh = new THREE.Mesh(armGeo, skinMat);
+      lArmMesh.rotation.x = Math.PI / 2;
+      lArmMesh.position.set(0, 0, -4); // Drop down from shoulder pivot
+      c.rig.leftArm.add(lArmMesh);
+      c.rig.leftArm.position.set(0, -7, 13); // Shift left on Y, up on Z
+      c.rig.bodyPivot.add(c.rig.leftArm);
+
+      const rArmMesh = new THREE.Mesh(armGeo, skinMat);
+      rArmMesh.rotation.x = Math.PI / 2;
+      rArmMesh.position.set(0, 0, -4);
+      c.rig.rightArm.add(rArmMesh);
+      c.rig.rightArm.position.set(0, 7, 13); // Shift right on Y
+      c.rig.bodyPivot.add(c.rig.rightArm);
+
+      // Build Legs
+      const legGeo = new THREE.CylinderGeometry(2.5, 2, 8, 8);
+      const lLegMesh = new THREE.Mesh(legGeo, pantsMat);
+      lLegMesh.rotation.x = Math.PI / 2;
+      lLegMesh.position.set(0, 0, -4);
+      
+      const shoeGeo = new THREE.BoxGeometry(5, 3, 3);
+      const lShoe = new THREE.Mesh(shoeGeo, shoeMat);
+      lShoe.position.set(1.5, 0, -8); // Toes point forward (+X)
+      c.rig.leftLeg.add(lLegMesh);
+      c.rig.leftLeg.add(lShoe);
+      c.rig.leftLeg.position.set(0, -3.5, 8); // Hips
+      c.rig.bodyPivot.add(c.rig.leftLeg);
+
+      const rLegMesh = new THREE.Mesh(legGeo, pantsMat);
+      rLegMesh.rotation.x = Math.PI / 2;
+      rLegMesh.position.set(0, 0, -4);
+      
+      const rShoe = new THREE.Mesh(shoeGeo, shoeMat);
+      rShoe.position.set(1.5, 0, -8);
+      c.rig.rightLeg.add(rLegMesh);
+      c.rig.rightLeg.add(rShoe);
+      c.rig.rightLeg.position.set(0, 3.5, 8);
+      c.rig.bodyPivot.add(c.rig.rightLeg);
+      
+      // Apply Master Scale and Base Elevation
+      c.meshGroup.scale.set(maxScale, maxScale, maxScale);
+      c.rig.bodyPivot.position.set(0, 0, 5); // Lift entire rig off the ground map
 
       // Shadow Mesh
-      const shadowSize = 28 * maxScale;
+      const shadowSize = 28; // Scale is handled by meshGroup now
       const shadowGeo = new THREE.PlaneGeometry(shadowSize, shadowSize);
       const shadowCanvas = document.createElement('canvas');
-      shadowCanvas.width = 30 * maxScale; shadowCanvas.height = 30 * maxScale;
+      shadowCanvas.width = 30; shadowCanvas.height = 30;
       const sctx = shadowCanvas.getContext('2d');
       sctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
       sctx.beginPath();
-      sctx.arc(15 * maxScale, 15 * maxScale, 14 * maxScale, 0, Math.PI*2);
+      sctx.arc(15, 15, 14, 0, Math.PI*2);
       sctx.fill();
       const shadowTex = new THREE.CanvasTexture(shadowCanvas);
       const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
       c.shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
-      c.shadowMesh.position.set(2 * maxScale, -4 * maxScale, 4); // Immediately below the character
+      c.shadowMesh.position.set(0, 0, 1); // Ground flush
       c.meshGroup.add(c.shadowMesh);
     }
     
@@ -439,99 +549,66 @@ export class CharacterManager {
     }
   }
 
-  updateCharacterTexture(c, isNpc, player, syncPlayerToJSON) {
-    const ctx = c.offscreenCtx;
-    const dpr = window.devicePixelRatio || 1;
-    const logicalSize = c.logicalTexSize || 120;
-    const texSize = logicalSize * dpr;
-    ctx.clearRect(0, 0, texSize, texSize);
-    ctx.save();
-    ctx.scale(dpr, dpr);
-    ctx.translate(logicalSize / 2, logicalSize / 2);
+  updateCharacter3D(c, isNpc, player, syncPlayerToJSON) {
+    if (!c.rig) return;
 
-    const baseScale = window.init?.mapData?.character_scale || 1;
-    const widthScale = (c.width || 40) / 40;
-    const heightScale = (c.height || 40) / 40;
-    const scaleX = baseScale * widthScale;
-    const scaleY = baseScale * heightScale;
+    // Apply entire body rotation on the Z-axis (Top-Down perspective)
+    c.rig.bodyPivot.rotation.z = (c.rotation - 90) * (Math.PI / 180);
 
-    ctx.rotate(c.rotation * DEG_TO_RAD);
-    ctx.scale(scaleX, scaleY);
+    // Emote Handling
+    const isActualNpc = isNpc;
+    if (isActualNpc && !c.emote && c.default_emote) {
+      c.emote = JSON.parse(JSON.stringify(c.default_emote));
+    }
 
-    if (c.emoji) {
-      ctx.font = '60px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.rotate(-c.rotation * DEG_TO_RAD); 
-
-      let currentEmote = c.emote;
-      let emoteDef = null;
-      if (currentEmote && emotes[currentEmote.name]) {
-        emoteDef = emotes[currentEmote.name];
-        if (emoteDef.setup) {
-          emoteDef.setup(ctx, currentEmote, c);
+    let currentEmote = c.emote;
+    let emoteDef = null;
+    
+    if (currentEmote && emotes[currentEmote.name]) {
+      emoteDef = emotes[currentEmote.name];
+      if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
+        if (c.activeEmoteAudio) {
+          c.activeEmoteAudio.fadeOut(500);
+          c.activeEmoteAudio = null;
         }
-      }
-      ctx.fillText(c.emoji, 0, 0);
-    } else {
-      const isActualNpc = isNpc;
-
-      if (isActualNpc && !c.emote && c.default_emote) {
-        c.emote = JSON.parse(JSON.stringify(c.default_emote));
-      }
-
-      let currentEmote = c.emote;
-      let emoteDef = null;
-      
-      if (currentEmote && emotes[currentEmote.name]) {
-        emoteDef = emotes[currentEmote.name];
-        if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
-          if (c.activeEmoteAudio) {
-            c.activeEmoteAudio.fadeOut(500);
-            c.activeEmoteAudio = null;
-          }
-          if (isActualNpc && c.default_emote) {
-            c.emote = JSON.parse(JSON.stringify(c.default_emote));
-            currentEmote = c.emote;
-            emoteDef = emotes[currentEmote.name] || null;
-            if (emoteDef && emoteDef.setup) { emoteDef.setup(ctx, currentEmote, c); }
-          } else {
-            c.emote = null;
-            currentEmote = null;
-            if (c === player && syncPlayerToJSON) syncPlayerToJSON();
-            emoteDef = null;
-          }
-        } else if (emoteDef && emoteDef.setup) {
-          emoteDef.setup(ctx, currentEmote, c);
+        if (isActualNpc && c.default_emote) {
+          c.emote = JSON.parse(JSON.stringify(c.default_emote));
+        } else {
+          c.emote = null;
+          if (c === player && syncPlayerToJSON) syncPlayerToJSON();
         }
-      }
-
-      const legSwing = Math.sin(c.legAnimationTime || 0);
-      const legStride = 9;
-      const armStride = 8;
-
-      let limbs = {
-        leftArmX: 4 - legSwing * armStride, leftArmY: -14,
-        rightArmX: 4 + legSwing * armStride, rightArmY: 14,
-        leftLegStartX: -2, leftLegStartY: -6,
-        leftLegEndX: -2 + 6 + legSwing * legStride, leftLegEndY: -6,
-        rightLegStartX: -2, rightLegStartY: 6,
-        rightLegEndX: -2 + 6 - legSwing * legStride, rightLegEndY: 6
-      };
-
-      if (emoteDef && emoteDef.updateLimbs) {
-        emoteDef.updateLimbs(limbs, currentEmote);
-      }
-
-      this.drawHumanoid(ctx, c, limbs);
-
-      if (emoteDef && emoteDef.draw) {
-        emoteDef.draw(ctx, currentEmote);
       }
     }
-    
-    ctx.restore();
-    c.canvasTexture.needsUpdate = true;
+
+    // Walking Animation (Limb Oscillation)
+    const legSwing = Math.sin(c.legAnimationTime || 0);
+    const strideAngle = 0.6; // ~35 degrees
+
+    // Reset default idle pose
+    c.rig.leftArm.rotation.set(0, 0, 0);
+    c.rig.rightArm.rotation.set(0, 0, 0);
+    c.rig.leftLeg.rotation.set(0, 0, 0);
+    c.rig.rightLeg.rotation.set(0, 0, 0);
+
+    // If moving, oscillate limbs opposite to each other.
+    if ((c.legAnimationTime || 0) > 0) {
+       // X axis is effectively pitch (forward/backward) because the limb pivots lie along X/Y
+       c.rig.leftArm.rotation.x = -legSwing * strideAngle;
+       c.rig.rightArm.rotation.x = legSwing * strideAngle;
+       c.rig.leftLeg.rotation.x = legSwing * strideAngle;
+       c.rig.rightLeg.rotation.x = -legSwing * strideAngle;
+    }
+
+    // Emote overrides for 3D skeleton
+    if (emoteDef && emoteDef.updateLimbs3D) {
+       emoteDef.updateLimbs3D(c.rig, currentEmote);
+    } else if (c.emoji) {
+       // Basic cheer pose fallback for string emojis
+       c.rig.leftArm.rotation.x = 2.0; // Raise arms
+       c.rig.rightArm.rotation.x = 2.0;
+       c.rig.leftArm.rotation.y = -0.5; // Splay slightly outwards
+       c.rig.rightArm.rotation.y = 0.5; 
+    }
   }
 
   drawCharacter(c, isNpc, layerType, scene, player, syncPlayerToJSON, cameraZoom, viewportWidth, viewportHeight, threeCamera) {
@@ -553,7 +630,7 @@ export class CharacterManager {
       const isRedrawForced = isEmoteAnimating || hasMovement || c._lastRenderedEmote !== JSON.stringify(c.emote) || c._lastRenderedRot !== c.rotation || !c._hasInitialRender;
       
       if (isRedrawForced) {
-         this.updateCharacterTexture(c, isNpc, player, syncPlayerToJSON);
+         this.updateCharacter3D(c, isNpc, player, syncPlayerToJSON);
          c._lastRenderedEmote = JSON.stringify(c.emote);
          c._lastRenderedRot = c.rotation;
          c._hasInitialRender = true;
