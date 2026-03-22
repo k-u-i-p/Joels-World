@@ -362,6 +362,7 @@ export class CharacterManager {
       // WebGL Materials naturally evaluate basic HTML5 string-formatted colors!
       const skinMat = new THREE.MeshLambertMaterial({ color: c.color || '#f1c40f' });
       const shirtMat = new THREE.MeshLambertMaterial({ color: c.shirtColor || '#3498db' });
+      const armMat = new THREE.MeshLambertMaterial({ color: c.armColor || c.shirtColor || '#3498db' });
       const pantsMat = new THREE.MeshLambertMaterial({ color: c.pantsColor || '#2c3e50' });
       const shoeMat = new THREE.MeshLambertMaterial({ color: c.shoeColor || '#7f8c8d' });
 
@@ -447,7 +448,7 @@ export class CharacterManager {
       const armGeo = new THREE.CylinderGeometry(5.5, 5.5, 16, 10);
       const handGeo = new THREE.SphereGeometry(6.5, 12, 12);
       
-      const lArmMesh = new THREE.Mesh(armGeo, shirtMat);
+      const lArmMesh = new THREE.Mesh(armGeo, armMat);
       lArmMesh.rotation.x = Math.PI / 2;
       lArmMesh.position.set(0, 0, -8); // Drop down from shoulder pivot
       c.rig.leftArm.add(lArmMesh);
@@ -459,7 +460,7 @@ export class CharacterManager {
       c.rig.leftArm.position.set(0, -15, 26); // Shift left on Y, up on Z
       c.rig.bodyPivot.add(c.rig.leftArm);
 
-      const rArmMesh = new THREE.Mesh(armGeo, shirtMat);
+      const rArmMesh = new THREE.Mesh(armGeo, armMat);
       rArmMesh.rotation.x = Math.PI / 2;
       rArmMesh.position.set(0, 0, -8);
       c.rig.rightArm.add(rArmMesh);
