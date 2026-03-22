@@ -189,11 +189,22 @@
         <select id="admin-map-select" class="admin-select">
           <option value="">Select Map...</option>
         </select>
-        <button id="btn-create-obj-rect" class="admin-full-btn" style="background-color: #e67e22;">+ Collision
-          Box</button>
-        <button id="btn-create-obj-circle" class="admin-full-btn" style="background-color: #f1c40f;">+ Collision
-          Circle</button>
+        <button id="btn-create-obj-rect" class="admin-full-btn" style="background-color: #e67e22;">+ Collision Box</button>
+        <button id="btn-create-obj-circle" class="admin-full-btn" style="background-color: #f1c40f;">+ Collision Circle</button>
         <button id="btn-create-npc" class="admin-full-btn" style="background-color: #9b59b6;">+ NPC</button>
+      </div>
+
+      <div style="margin-bottom: 10px; padding: 5px; background: rgba(0,0,0,0.3); border-radius: 4px;">
+        <div style="font-size: 11px; color: #bdc3c7; text-align: center; margin-bottom: 5px;">Camera Controls</div>
+        <div class="admin-control-row">
+          <span style="font-size: 11px; flex: 1; text-align: right; margin-right: 5px;">Tilt:</span>
+          <button class="admin-btn" onclick="window.adminCameraConfig && window.adminCameraConfig.setPitch(-0.1)">▲</button>
+          <button class="admin-btn" onclick="window.adminCameraConfig && window.adminCameraConfig.setPitch(0.1)">▼</button>
+          <span style="flex: 0.5;"></span>
+          <span style="font-size: 11px; flex: 1; text-align: right; margin-right: 5px;">Rotate:</span>
+          <button class="admin-btn" onclick="window.adminCameraConfig && window.adminCameraConfig.setYaw(-0.1)">↺</button>
+          <button class="admin-btn" onclick="window.adminCameraConfig && window.adminCameraConfig.setYaw(0.1)">↻</button>
+        </div>
       </div>
       <div id="admin-last-clicked"
         style="font-size: 12px; font-family: monospace; color: #bdc3c7; text-align: center; margin-bottom: 5px;">

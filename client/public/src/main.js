@@ -165,6 +165,11 @@ window.init = null;
 let lastSyncTime = 0;
 let activeNpc = null;
 
+window.adminCameraConfig = {
+    setPitch: (val) => { camera.pitch = Math.max(0, Math.min(Math.PI / 2.1, (camera.pitch || 0) + val)); },
+    setYaw: (val) => { camera.yaw = (camera.yaw || 0) + val; }
+};
+
 export const footprints = [];
 
 uiManager.initHelpDialog();
@@ -460,8 +465,24 @@ function draw() {
     }
   }
 
-  // Update Three.js Camera (WebGL Y is UP, game is DOWN)
-  threeCamera.position.set(camera.x - xOffset, -(camera.y - yOffset), 100);
+  // Determine dynamic spherical camera positioning using Pitch and Yaw
+  const pitch = camera.pitch || 0; // 0 = Top down, PI/2 = Ground Level
+  const yaw = camera.yaw || 0;     // Rotation around Z axis
+  const orbDistance = 500;
+
+  // Real world coordinates of the focus target (The player)
+  const targetX = camera.x - xOffset;
+  const targetY = -(camera.y - yOffset);
+
+  // Position camera relative to target
+  threeCamera.position.x = targetX + Math.sin(yaw) * Math.sin(pitch) * orbDistance;
+  threeCamera.position.y = targetY - Math.cos(yaw) * Math.sin(pitch) * orbDistance;
+  threeCamera.position.z = Math.cos(pitch) * orbDistance;
+
+  // Maintain rigid orientation upwards relative to the 2D plane so we don't spin uncontrollably when looking straight down
+  threeCamera.up.set(Math.sin(yaw), Math.cos(yaw), 0);
+  threeCamera.lookAt(targetX, targetY, 0);
+
   threeCamera.zoom = camera.zoom;
   threeCamera.updateProjectionMatrix();
 
