@@ -388,11 +388,13 @@ export class CharacterManager {
       c.rig.bodyPivot.add(c.rig.head);
 
       // Build Hair
-      const style = c.style || 'base';
+      const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
       const hairMat = new THREE.MeshLambertMaterial({ color: c.hairColor || '#8e44ad' });
       
       const hairGroup = new THREE.Group();
       hairGroup.position.set(0, 0, 0); // Local to Head
+      
+      const baseHairGeo = new THREE.SphereGeometry(11, 16, 16, 0, Math.PI, 0, Math.PI);
       
       if (style === 'spiky') {
           const spikeGeo = new THREE.ConeGeometry(3.5, 10, 6);
@@ -404,7 +406,6 @@ export class CharacterManager {
               hairGroup.add(spike);
           }
       } else if (style === 'ponytail') {
-          const baseHairGeo = new THREE.SphereGeometry(11, 16, 16, 0, Math.PI, 0, Math.PI);
           const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
           baseHair.rotation.y = -Math.PI / 2; // Cover back half of head
           hairGroup.add(baseHair);
@@ -415,12 +416,27 @@ export class CharacterManager {
           tail.position.set(-14, 0, 3); // Drooping off the back
           hairGroup.add(tail);
       } else if (style === 'messy') {
-          const baseHairGeo = new THREE.IcosahedronGeometry(11.5, 0); // jagged
+          const messyGeo = new THREE.IcosahedronGeometry(11.5, 0); // jagged
+          const messyHair = new THREE.Mesh(messyGeo, hairMat);
+          hairGroup.add(messyHair);
+      } else if (style === 'long') {
           const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
+          baseHair.rotation.y = -Math.PI / 2;
           hairGroup.add(baseHair);
+          
+          // Long flowing locks down the back/sides
+          const lockGeo = new THREE.ConeGeometry(4.5, 16, 6);
+          const rightLock = new THREE.Mesh(lockGeo, hairMat);
+          rightLock.rotation.z = Math.PI / 2;
+          rightLock.position.set(-10, 8, -1);
+          hairGroup.add(rightLock);
+          
+          const leftLock = new THREE.Mesh(lockGeo, hairMat);
+          leftLock.rotation.z = Math.PI / 2;
+          leftLock.position.set(-10, -8, -1);
+          hairGroup.add(leftLock);
       } else {
-          // Base/default flat cap style hair
-          const baseHairGeo = new THREE.SphereGeometry(11, 16, 16, 0, Math.PI, 0, Math.PI);
+          // 'short' / Base flat cap style hair
           const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
           baseHair.rotation.y = -Math.PI / 2;
           hairGroup.add(baseHair);
