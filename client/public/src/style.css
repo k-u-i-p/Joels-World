@@ -282,6 +282,7 @@ body {
   justify-content: center;
   align-items: center;
   flex-shrink: 0;
+  font-family: system-ui;
 }
 
 #help-button {

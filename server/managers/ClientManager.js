@@ -39,151 +39,151 @@ export class ClientManager {
     ws.close();
   }
 
-  handleConnection(ws, req, sessionMiddleware, wss) {
+  handleConnection(ws, wss, session, urlParams, sessionID) {
     console.log('Client connected');
 
-    sessionMiddleware(req, {}, () => {
-      const urlParams = new URLSearchParams(req.url.split('?')[1] || "");
-      const stateParam = urlParams.get('state') || 'new';
-      const session = req.session;
+    const stateParam = urlParams.get('state') || 'new';
+    const token = urlParams.get('token');
 
-      if (stateParam === 'running' && req.headers.cookie && req.headers.cookie.includes('connect.sid') && (!session || !session.player)) {
-        this.sendError(ws, 'No player session');
-        return;
-      } else if (session && session.player) {
-        console.log(session.player.name + ' has resumed game with valid session');
-      }
-
-      ws.isAdmin = session ? session.isAdmin : false;
-
-      const mapIdParam = urlParams.get('mapId');
-      let requestedMapId = mapIdParam !== null ? parseInt(mapIdParam, 10) : 0;
-      if (session && session.player && session.player.mapId !== undefined) {
-        requestedMapId = session.player.mapId;
-      }
-      
-      ws.mapId = this.mapManager.getMap(requestedMapId) ? requestedMapId : this.mapManager.getFirstMapId();
-      let mapData = this.mapManager.getMap(ws.mapId);
-
-      if (!mapData) {
-        console.error(`No map found to attach client to (requested: ${requestedMapId})`);
-        ws.close();
-        return;
-      }
-
-      this.mapManager.addClient(mapData.id, ws);
-      this.initializeMaxId();
-
-      // If the session already has an attached character, boot them into the game instantly.
-      if (session && session.player) {
-        // Find any existing ghost connection or other window for this session and terminate it
-        for (const client of wss.clients) {
-          if (client !== ws && client.readyState === 1 && client.clientId === session.player.id) {
-            this.sendError(client, 'Session already active in another window.');
-          }
+        if (stateParam === 'running' && token && (!session || !session.player)) {
+          this.sendError(ws, 'No player session');
+          return;
+        } else if (session && session.player) {
+          console.log(session.player.name + ' has resumed game with valid session token');
         }
 
-        ws.clientId = session.player.id;
+        ws.isAdmin = session ? session.isAdmin : false;
 
-        // Override persistent coordinates with a fresh spawn location dynamically 
-        const { spawnX, spawnY } = this.mapManager.generateSpawnCoords(mapData.id);
-        session.player.x = spawnX;
-        session.player.y = spawnY;
+        const mapIdParam = urlParams.get('mapId');
+        let requestedMapId = mapIdParam !== null ? parseInt(mapIdParam, 10) : 0;
+        if (session && session.player && session.player.mapId !== undefined) {
+          requestedMapId = session.player.mapId;
+        }
 
-        this.mapManager.addCharacter(mapData.id, session.player);
+        ws.mapId = this.mapManager.getMap(requestedMapId) ? requestedMapId : this.mapManager.getFirstMapId();
+        let mapData = this.mapManager.getMap(ws.mapId);
 
-        console.log(`Resuming session character ${session.player.name} (${ws.clientId})`);
-        ws.send(this.mapManager.getInitPayload(mapData.id, session.player));
-      }
+        if (!mapData) {
+          console.error(`No map found to attach client to (requested: ${requestedMapId})`);
+          ws.close();
+          return;
+        }
 
-      ws.on('message', (message) => {
-        try {
-          const data = JSON.parse(message);
+        this.mapManager.addClient(mapData.id, ws);
+        this.initializeMaxId();
 
-          if (data.type === 'create_character') {
-            // If they already have a session char, ignore
-            if (session && session.player) return;
+        // If the session already has an attached character, boot them into the game instantly.
+        if (session && session.player) {
+          // Find any existing ghost connection or other window for this session and terminate it
+          for (const client of wss.clients) {
+            if (client !== ws && client.readyState === 1 && client.clientId === session.player.id) {
+              this.sendError(client, 'Session already active in another window.');
+            }
+          }
 
-            let playerName = data.name || '';
-            if (!playerName && ws.isAdmin) playerName = 'Admin';
+          ws.clientId = session.player.id;
 
-            if (!ws.isAdmin && (!playerName || !/^[a-zA-Z]+$/.test(playerName))) {
-              this.sendError(ws, 'Invalid Name. Please use only English letters with no spaces or symbols.');
+          // Override persistent coordinates with a fresh spawn location dynamically 
+          const { spawnX, spawnY } = this.mapManager.generateSpawnCoords(mapData.id);
+          session.player.x = spawnX;
+          session.player.y = spawnY;
+
+          this.mapManager.addCharacter(mapData.id, session.player);
+
+          console.log(`Resuming session character ${session.player.name} (${ws.clientId})`);
+          ws.send(this.mapManager.getInitPayload(mapData.id, session.player));
+
+          ws.send(JSON.stringify({ type: 'session_token', token: sessionID }));
+        }
+
+        ws.on('message', (message) => {
+          try {
+            const data = JSON.parse(message);
+
+            if (data.type === 'create_character') {
+              // If they already have a session char, ignore
+              if (session && session.player) return;
+
+              let playerName = data.name || '';
+              if (!playerName && ws.isAdmin) playerName = 'Admin';
+
+              if (!ws.isAdmin && (!playerName || !/^[a-zA-Z]+$/.test(playerName))) {
+                this.sendError(ws, 'Invalid Name. Please use only English letters with no spaces or symbols.');
+                return;
+              }
+
+              const newPlayerId = this.globalPlayerIdCounter++;
+              ws.clientId = newPlayerId;
+
+              const newChar = this.mapManager.generateNewCharacter(mapData.id, newPlayerId, playerName);
+
+              if (session) {
+                newChar.mapId = ws.mapId;
+                session.player = newChar;
+                session.save();
+                ws.send(JSON.stringify({ type: 'session_token', token: sessionID }));
+              }
+
+              this.mapManager.addCharacter(mapData.id, newChar);
+
+              ws.send(this.mapManager.getInitPayload(mapData.id, newChar));
+
+              this.npcManager.logEventToNearbyNPCs(mapData, `${newChar.name || 'Student'} (${newPlayerId}) entered the map`, this.aiAgentManager);
+
               return;
             }
 
-            const newPlayerId = this.globalPlayerIdCounter++;
-            ws.clientId = newPlayerId;
+            // Drop all standard gameplay packets if they don't have a spawned character yet
+            if (!ws.clientId || !this.mapManager.getCharacter(mapData.id, ws.clientId)) return;
 
-            const newChar = this.mapManager.generateNewCharacter(mapData.id, newPlayerId, playerName);
+            if (data.type === 'update') {
+              const char = data.character;
 
-            if (session) {
-              newChar.mapId = ws.mapId;
-              session.player = newChar;
-              session.save();
-            }
-
-            this.mapManager.addCharacter(mapData.id, newChar);
-
-            ws.send(this.mapManager.getInitPayload(mapData.id, newChar));
-
-            this.npcManager.logEventToNearbyNPCs(mapData, `${newChar.name || 'Student'} (${newPlayerId}) entered the map`, this.aiAgentManager);
-
-            return;
-          }
-
-          // Drop all standard gameplay packets if they don't have a spawned character yet
-          if (!ws.clientId || !this.mapManager.getCharacter(mapData.id, ws.clientId)) return;
-
-          if (data.type === 'update') {
-            const char = data.character;
-
-            ws.clientId = char.id;
-            this.mapManager.markCharacterDirty(mapData.id, char);
-          } else if (data.type === 'log') {
-            this.chatManager.handleLogMessage(ws, data, mapData);
-          } else if (data.type === 'chat') {
-            this.chatManager.handleChatMessage(ws, data, mapData);
-          } else if (data.type === 'disconnect') {
-            this.handleDisconnect(ws, data, mapData);
-          } else if (data.type === 'change_map') {
-            mapData = this.handleChangeMap(ws, data, mapData, session);
-          } else if (data.type === 'award_badge') {
-            if (session && session.player) {
-              if (!session.player.badges) {
-                session.player.badges = [];
+              ws.clientId = char.id;
+              this.mapManager.markCharacterDirty(mapData.id, char);
+            } else if (data.type === 'log') {
+              this.chatManager.handleLogMessage(ws, data, mapData);
+            } else if (data.type === 'chat') {
+              this.chatManager.handleChatMessage(ws, data, mapData);
+            } else if (data.type === 'disconnect') {
+              this.handleDisconnect(ws, data, mapData);
+            } else if (data.type === 'change_map') {
+              mapData = this.handleChangeMap(ws, data, mapData, session);
+            } else if (data.type === 'award_badge') {
+              if (session && session.player) {
+                if (!session.player.badges) {
+                  session.player.badges = [];
+                }
+                if (!session.player.badges.includes(data.badge)) {
+                  session.player.badges.push(data.badge);
+                  session.save();
+                  ws.send(JSON.stringify({ type: 'badge_earned', badge: data.badge }));
+                }
               }
-              if (!session.player.badges.includes(data.badge)) {
-                session.player.badges.push(data.badge);
-                session.save();
-                ws.send(JSON.stringify({ type: 'badge_earned', badge: data.badge }));
-              }
+            } else {
+              handleAdminMessage(ws, data, mapData);
             }
-          } else {
-            handleAdminMessage(ws, data, mapData);
+          } catch (err) {
+            console.error('Error processing message:', err);
           }
-        } catch (err) {
-          console.error('Error processing message:', err);
-        }
-      });
+        }); // end ws.on('message')
 
-      ws.on('close', () => {
-        if (ws.clientId) {
-          console.log('Client disconnected', ws.clientId);
+        ws.on('close', () => {
+          if (ws.clientId) {
+            console.log('Client disconnected', ws.clientId);
 
-          let isReconnected = this.mapManager.hasActiveClient(mapData.id, ws.clientId, ws);
+            let isReconnected = this.mapManager.hasActiveClient(mapData.id, ws.clientId, ws);
 
-          if (!isReconnected) {
-            this.mapManager.removeCharacter(mapData.id, ws.clientId);
-            const broadcastMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
-            this.mapManager.broadcastToAllExcept(mapData.id, broadcastMsg, ws.clientId);
-          } else {
-            console.log(`Client ${ws.clientId} closed, but a new active socket was found. Skipping deletion.`);
+            if (!isReconnected) {
+              this.mapManager.removeCharacter(mapData.id, ws.clientId);
+              const broadcastMsg = JSON.stringify({ type: 'disconnect', id: ws.clientId });
+              this.mapManager.broadcastToAllExcept(mapData.id, broadcastMsg, ws.clientId);
+            } else {
+              console.log(`Client ${ws.clientId} closed, but a new active socket was found. Skipping deletion.`);
+            }
           }
-        }
-        this.mapManager.removeClient(mapData.id, ws);
-      });
-    });
+          this.mapManager.removeClient(mapData.id, ws);
+        });
   }
 
   handleDisconnect(ws, data, mapData) {
@@ -223,7 +223,7 @@ export class ClientManager {
 
       // Update client reference
       ws.mapId = requestedMapId;
-      
+
       if (session && session.player) {
         session.player.mapId = requestedMapId;
       }
@@ -235,7 +235,11 @@ export class ClientManager {
       oldChar.y = spawnY;
       oldChar.emote = null;
 
+
       if (session && session.player) {
+
+        console.log(`Saving session`, session.player);
+
         session.save();
       }
 

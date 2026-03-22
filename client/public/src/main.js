@@ -9,8 +9,8 @@ import { networkClient } from './network.js';
 import { uiManager } from './ui.js';
 import { gameLoop } from './gameloop.js';
 
-const MAX_SPRING = 50;
-const SPRING_SPEED = 0.5;
+const MAX_SPRING = 100;
+const SPRING_SPEED = 1.0;
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -26,6 +26,10 @@ export const camera = {
 networkClient.connect((data) => {
   handleInitData(data);
 });
+
+function clamp(number, min, max) {
+  return Math.max(min, Math.min(number, max));
+}
 
 let viewportWidth = 0;
 let viewportHeight = 0;
@@ -479,18 +483,13 @@ function draw() {
 
   characterManager.drawCharacters('base', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
-  ctx.save();
-  let springOffsetX = ((camera.springX || 0) | 0) * 0.1;
-  let springOffsetY = ((camera.springY || 0) | 0) * 0.1;
-  ctx.translate(-springOffsetX, -springOffsetY);
-  mapManager.drawLayer(1, ctx, canvas, camera.x - springOffsetX, camera.y - springOffsetY, camera.zoom, viewportWidth, viewportHeight);
-  ctx.restore();
+  mapManager.drawLayer(1, ctx, canvas, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
   ctx.save();
-  springOffsetX = ((camera.springX || 0) | 0) * 0.15;
-  springOffsetY = ((camera.springY || 0) | 0) * 0.15;
-  ctx.translate(-springOffsetX, -springOffsetY);
-  mapManager.drawLayer(2, ctx, canvas, camera.x - springOffsetX, camera.y - springOffsetY, camera.zoom, viewportWidth, viewportHeight);
+  let layer2SpringOffsetX = clamp(((camera.springX || 0) | 0) * 0.05, -5, 5);
+  let layer2SpringOffsetY = clamp(((camera.springY || 0) | 0) * 0.05, -5, 5);
+  ctx.translate(-layer2SpringOffsetX, -layer2SpringOffsetY);
+  mapManager.drawLayer(2, ctx, canvas, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
   ctx.restore();
 
   characterManager.drawCharacters('overlay', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);

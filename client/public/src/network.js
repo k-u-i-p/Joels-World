@@ -6,18 +6,47 @@ const isLocalBrowser = window.location.hostname === 'localhost' && !window.Capac
 export const DOMAIN = isLocalBrowser ? 'localhost' : 'joels-world.com';
 export const PROTOCOL = isLocalBrowser ? 'http' : 'https';
 
+export const getLocalToken = async () => {
+  if (window.Capacitor && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins?.Preferences) {
+    const { value } = await window.Capacitor.Plugins.Preferences.get({ key: 'player_token' });
+    return value;
+  }
+  return localStorage.getItem('player_token');
+};
+
+export const saveLocalToken = async (token) => {
+  if (window.Capacitor && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins?.Preferences) {
+    await window.Capacitor.Plugins.Preferences.set({ key: 'player_token', value: token });
+    return;
+  }
+  localStorage.setItem('player_token', token);
+};
+
 export class NetworkClient {
-  constructor() {
-    this.isAdmin = window.isAdmin === true;
+  constructor(uiManager) {
+    this.isAdmin = window.isAdmin === true; // Keep this from original constructor
     this.ws = null;
-
-    this.syncTimeout = null;
-    this.lastSyncCallTime = 0;
-    this.SYNC_THROTTLE_MS = 50;
-
+    this.uiManager = uiManager;
+    this.onInitDataCallback = null;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.baseReconnectDelay = 1000;
+
+    this.syncTimeout = null; // Keep this from original constructor
+    this.lastSyncCallTime = 0; // Keep this from original constructor
+    this.SYNC_THROTTLE_MS = 50; // Keep this from original constructor
+    
+    // Bind the manual disconnect/reconnect button
+    const reconnectBtn = document.getElementById('reconnect-btn');
+    if (reconnectBtn) {
+      reconnectBtn.addEventListener('click', () => {
+        if (this.uiManager) this.uiManager.hideDisconnectDialog();
+        this.reconnectAttempts = 0;
+        this.connect(this.onInitDataCallback);
+      });
+    }
+    
+    this.setupNetworkListeners();
 
     window.addEventListener("pagehide", () => {
       if (this.ws) {
@@ -29,23 +58,48 @@ export class NetworkClient {
 
     window.addEventListener("pageshow", (event) => {
       if (event.persisted) {
-        console.log("RECONNECTING");
-        this.connect(this.onInitDataCallback);
+        this.attemptReconnect(this.onInitDataCallback);
       }
     });
+  }
+
+  setupNetworkListeners() {
+    const handleOnline = () => {
+      console.log('[NetworkClient] Connection restored contextually. Attempting reconnect...');
+      // Only force a retry if we are completely disconnected/exhausted
+      if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
+        if (this.uiManager) this.uiManager.hideDisconnectDialog();
+        this.reconnectAttempts = 0;
+        this.connect(this.onInitDataCallback);
+      }
+    };
+
+    // Use Capacitor Native Network bridging if available, else fallback to standard HTML5 browser hook
+    if (window.Capacitor && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins && window.Capacitor.Plugins.Network) {
+      window.Capacitor.Plugins.Network.addListener('networkStatusChange', status => {
+        if (status.connected) handleOnline();
+      });
+    } else {
+      window.addEventListener('online', handleOnline);
+    }
   }
 
   /**
    * Initializes WebSocket connections and sets up event routers.
    * @param {Function} onInitDataCallback Callback for when the server sends initial map and entity state.
    */
-  connect(onInitDataCallback) {
+  async connect(onInitDataCallback) {
     if (onInitDataCallback) {
       this.onInitDataCallback = onInitDataCallback;
     }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const state = window.init ? 'running' : 'new';
-    const wsUrl = `${protocol}//${DOMAIN}?state=${state}`;
+
+    // Auto-append the token to bridge the gap left by missing CORS cookies
+    const token = await getLocalToken();
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+
+    const wsUrl = `${protocol}//${DOMAIN}?state=${state}${tokenParam}`;
     console.log(`[NetworkClient] 1. Initiating WebSocket connection to ${wsUrl}`);
 
     this.ws = new WebSocket(wsUrl);
@@ -87,9 +141,23 @@ export class NetworkClient {
             ws.close();
             return;
           }
-          window.location.reload();
+          
+          if (this.uiManager) {
+            this.uiManager.showDisconnectDialog(data.message || 'Fatal Connection Error occurred.');
+          }
+
+          if (ws._closeHandler) {
+            ws.removeEventListener('close', ws._closeHandler);
+          }
+          ws.close();
           return;
+        } else if (data.type === 'session_token') {
+          saveLocalToken(data.token);
+          console.log('[NetworkClient] Saved persistent session token!');
         } else if (data.type === 'init') {
+          const joystickContainer = document.getElementById('joystick-move-container');
+          if (joystickContainer) joystickContainer.style.display = 'flex';
+          
           if (this.onInitDataCallback) this.onInitDataCallback(data);
         } else if (data.type === 'badge_earned') {
           if (typeof uiManager !== 'undefined' && uiManager.addServerChatMessage) {
@@ -225,8 +293,10 @@ export class NetworkClient {
    */
   attemptReconnect(onInitDataCallback) {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnect attempts reached. Reloading the page...');
-      window.location.reload();
+      console.error('Max reconnect attempts reached. Showing disconnected UI natively.');
+      if (this.uiManager) {
+        this.uiManager.showDisconnectDialog('We were unable to reach the server. Please verify your internet connection.');
+      }
       return;
     }
 

@@ -14,6 +14,16 @@
 </head>
 
 <body>
+  <!-- Tennis Scoreboard Overlay -->
+  <div id="tennis-scoreboard" class="glass-panel"
+    style="display: none; position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 12px; z-index: 50;">
+    <div
+      style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #e74c3c; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);"
+      id="tennis-score-npc">NPC: Love</div>
+    <div
+      style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #2ecc71; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); padding-left: 15px;"
+      id="tennis-score-player">YOU: Love</div>
+  </div>
 
   <!-- Top Center UI Overlay -->
   <div id="top-center-ui" class="overlay">
@@ -41,23 +51,22 @@
     </div>
   </div>
 
-  <!-- Tennis Scoreboard Overlay -->
-  <div id="tennis-scoreboard" class="glass-panel"
-    style="display: none; position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 12px; z-index: 50;">
-    <div
-      style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #e74c3c; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);"
-      id="tennis-score-npc">NPC: Love</div>
-    <div
-      style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #2ecc71; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); padding-left: 15px;"
-      id="tennis-score-player">YOU: Love</div>
-  </div>
-
   <!-- Loading Dialog Overlay -->
   <div id="loading-dialog" class="overlay">
     <div class="dialog-content glass-panel">
       <img src="media/logo_128_128.png" alt="Joel's World Logo"
         style="display: block; margin: 0 auto 15px auto; width: 128px; height: 128px;" />
       <h2 class="dialog-header">Loading...</h2>
+    </div>
+  </div>
+
+  <!-- Disconnect Dialog Overlay -->
+  <div id="disconnect-dialog" class="overlay" style="display: none;">
+    <div class="dialog-content glass-panel" style="text-align: center;">
+      <h2 id="disconnect-dialog-header" class="dialog-header">Connection Lost</h2>
+      <p id="disconnect-dialog-message" style="color: #cbd5e1; margin-bottom: 20px;">Please check your internet
+        connection.</p>
+      <button id="reconnect-btn" class="btn btn-success" style="width: 100%;">Reconnect</button>
     </div>
   </div>
 
@@ -134,7 +143,8 @@
             </div>
             <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
           </div>
-          <div class="badge-row emote-row" data-badge="swimming" style="justify-content: space-between; cursor: default;">
+          <div class="badge-row emote-row" data-badge="swimming"
+            style="justify-content: space-between; cursor: default;">
             <div style="display: flex; align-items: center;">
               <span class="emote-row-icon">🏊</span><span class="emote-row-name">Swimming</span>
             </div>
@@ -146,19 +156,22 @@
             </div>
             <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
           </div>
-          <div class="badge-row emote-row" data-badge="good friend" style="justify-content: space-between; cursor: default;">
+          <div class="badge-row emote-row" data-badge="good friend"
+            style="justify-content: space-between; cursor: default;">
             <div style="display: flex; align-items: center;">
               <span class="emote-row-icon">🫂</span><span class="emote-row-name">Good Friend</span>
             </div>
             <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
           </div>
-          <div class="badge-row emote-row" data-badge="tower defence" style="justify-content: space-between; cursor: default;">
+          <div class="badge-row emote-row" data-badge="tower defence"
+            style="justify-content: space-between; cursor: default;">
             <div style="display: flex; align-items: center;">
               <span class="emote-row-icon">🏰</span><span class="emote-row-name">Tower Defence</span>
             </div>
             <div class="badge-status" style="opacity: 0.5; font-size: 16px;">🔒</div>
           </div>
-          <div class="badge-row emote-row" data-badge="detention" style="justify-content: space-between; cursor: default;">
+          <div class="badge-row emote-row" data-badge="detention"
+            style="justify-content: space-between; cursor: default;">
             <div style="display: flex; align-items: center;">
               <span class="emote-row-icon">🚫</span><span class="emote-row-name">Detention</span>
             </div>

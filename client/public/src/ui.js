@@ -1,5 +1,5 @@
 import { player } from './main.js';
-import { DOMAIN, PROTOCOL } from './network.js';
+import { DOMAIN, PROTOCOL, getLocalToken } from './network.js';
 
 export class UIManager {
   constructor() {
@@ -58,12 +58,12 @@ export class UIManager {
   }
 
   initHelpDialog() {
-    const helpButton = document.getElementById('help-button');
+    const helpBtn = document.getElementById('help-button');
     const helpDialog = document.getElementById('help-dialog');
     const closeHelpBtn = document.getElementById('close-help-btn');
 
-    if (helpButton && helpDialog && closeHelpBtn) {
-      helpButton.addEventListener('click', () => {
+    if (helpBtn && helpDialog && closeHelpBtn) {
+      helpBtn.addEventListener('click', () => {
         helpDialog.style.display = 'flex';
       });
 
@@ -87,6 +87,18 @@ export class UIManager {
     }
   }
 
+  showDisconnectDialog(message) {
+    const dialog = document.getElementById('disconnect-dialog');
+    const msgEl = document.getElementById('disconnect-dialog-message');
+    if (msgEl && message) msgEl.innerText = message;
+    if (dialog) dialog.style.display = 'flex';
+  }
+
+  hideDisconnectDialog() {
+    const dialog = document.getElementById('disconnect-dialog');
+    if (dialog) dialog.style.display = 'none';
+  }
+
   async initEmotesDialog() {
     const emotesButton = document.getElementById('emotes-button');
     const emotesDialog = document.getElementById('emotes-dialog');
@@ -97,7 +109,11 @@ export class UIManager {
       // Async fetch and populate
       try {
         console.log('[UI] Fetching Emotes from: ' + URL);
-        const response = await fetch(URL);
+        const token = await getLocalToken();
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const response = await fetch(`${PROTOCOL}://${DOMAIN}/api/config`, { headers });
         const data = await response.json();
         const validEmotes = data.validEmotes || [];
 

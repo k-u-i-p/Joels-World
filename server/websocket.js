@@ -15,7 +15,7 @@ export const physicsEngine = new PhysicsEngine();
 
 
 
-export function setupWebSocket(server, sessionMiddleware) {
+export function setupWebSocket(server, sessionManager) {
   const wss = new WebSocketServer({ server });
 
   const mapManager = new MapManager();
@@ -41,8 +41,19 @@ export function setupWebSocket(server, sessionMiddleware) {
     }
   }, 200);
 
-  wss.on('connection', (ws, req) => {
-    clientManager.handleConnection(ws, req, sessionMiddleware, wss);
+  wss.on('connection', async (ws, req) => {
+    const urlParams = new URLSearchParams(req.url.split('?')[1] || "");
+    const token = urlParams.get('token');
+
+    let session = await sessionManager.get(token);
+    let sessionID = session ? session.id : null;
+
+    if (!session) {
+      session = await sessionManager.create();
+      sessionID = session.id;
+    }
+
+    clientManager.handleConnection(ws, wss, session, urlParams, sessionID);
   });
 
   return { wss };

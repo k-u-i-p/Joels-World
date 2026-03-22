@@ -16,6 +16,7 @@
           "path_template": "/junior_school/chunks/new_map_2_{x}_{y}.png"
         }
       ],
+      [],
       [
         {
           "alpha": 1.0,
@@ -26,9 +27,7 @@
           "grid_w": 9,
           "grid_h": 8,
           "path_template": "/junior_school/chunks/background_overlay_{x}_{y}.png"
-        }
-      ],
-      [
+        },
         {
           "alpha": 0.9,
           "overlay": true,
@@ -198,6 +197,7 @@
   {
     "id": 4,
     "name": "Tennis",
-    "import": "/src/minigames/tennis.js"
+    "import": "/src/minigames/tennis.js",
+    "default_zoom": 1
   }
 ]

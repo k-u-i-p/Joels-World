@@ -66,9 +66,15 @@ export function setupStatic(app, server, port) {
     if (req.path === '/admin.html') {
 
       if (req.query.admin === 'true') {
-        req.session.isAdmin = true;
+        if (req.session) {
+          req.session.isAdmin = true;
+          await req.session.save();
+        }
       } else if (req.query.admin === 'false') {
-        req.session.isAdmin = false;
+        if (req.session) {
+          req.session.isAdmin = false;
+          await req.session.save();
+        }
       }
 
       const isAdminSession = req.session && req.session.isAdmin;

@@ -23,7 +23,7 @@ const GAME_SCALE = COURT_INNER_BOUNDS.width / 255; // Used to normalize velociti
 
 const PLAYER_SPEED = 250 * GAME_SCALE;        // Player movement speed
 const NPC_SPEED = 175 * GAME_SCALE;           // NPC movement speed
-const BALL_SPEED = 220 * GAME_SCALE;          // Base horizontal ball speed
+const BALL_SPEED = 200 * GAME_SCALE;          // Base horizontal ball speed
 const MAXIMUM_BALL_SPEED = 300 * GAME_SCALE;  // engine speed ceiling for rallying
 const BALL_RADIUS = 3;                        // Collision and drawing radius of the ball
 const GRAVITY = 800 * GAME_SCALE;             // Gravity affecting the ball Z-axis (pixels/s^2)
@@ -47,6 +47,7 @@ const NPC_BASE_Y = COURT_INNER_BOUNDS.y - 10;
 // GAME STATE
 // ==========================================
 let minigameActive = false;
+let touchListenerAdded = false;
 let npc = null;
 let bgImage = new Image();
 bgImage.src = '/minigames/tennis/map.svg';
@@ -442,19 +443,8 @@ function processBallMovement(dt, onBounce) {
 
   //Ball in hand before serve
   if (state.servePhase === 'idle') {
-    const serverObj = state.isServe === 'player_serve' ? state.player : state.npc;
-    const rotRad = serverObj.currentPosition.rotation * (Math.PI / 180);
-    const limbs = getLimbs(serverObj, 0, 0); // track limb anchoring
-    const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
-
-    const armWorldX = (limbs.leftArmX * Math.cos(rotRad) - limbs.leftArmY * Math.sin(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
-    const armWorldY = (limbs.leftArmX * Math.sin(rotRad) + limbs.leftArmY * Math.cos(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
-
-    moveBall({
-      x: serverObj.currentPosition.x + armWorldX,
-      y: serverObj.currentPosition.y + armWorldY,
-      z: serverObj.currentPosition.z
-    });
+    // Do nothing
+    return;
   } else {
     // Elevate ball 
     state.ball.z += state.ball.vz * dt;
@@ -632,9 +622,47 @@ export function initMinigame() {
   camera.y = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
   camera.zoom = 1.8;
 
+  if (!touchListenerAdded) {
+    touchListenerAdded = true;
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!minigameActive || state.resetting) return;
+
+      // Ignore UI clicks outside of canvas bounds
+      if (e.target !== canvas) return;
+
+      const canvasRect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - canvasRect.left;
+      const mouseY = e.clientY - canvasRect.top;
+
+      const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
+      const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
+
+      if (state.player.lastInterceptPoint) {
+        const dx = worldX - state.player.lastInterceptPoint.x;
+        const dy = worldY - state.player.lastInterceptPoint.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 40) {
+          const targetOptimalPos = getOptimalInterceptPosition(state.player, state.player.lastInterceptPoint);
+
+          moveCharacterTo(state.player, targetOptimalPos.x, targetOptimalPos.y, RESTING_Z);
+
+          return;
+        }
+      }
+
+      const targetOptimalPos = getOptimalInterceptPosition(state.player, { x: worldX, y: worldY, z: RESTING_Z });
+
+      moveCharacterTo(state.player, targetOptimalPos.x, targetOptimalPos.y, RESTING_Z);
+    });
+  }
+
   const scoreboard = document.getElementById('tennis-scoreboard');
   if (scoreboard) scoreboard.style.display = 'flex';
   updateScoreboardDOM();
+
+  const joystickContainer = document.getElementById('joystick-move-container');
+  if (joystickContainer) joystickContainer.style.display = 'none';
 
   // Setup Exit Button
   const mapBtn = document.getElementById('map-button');
@@ -649,7 +677,7 @@ export function initMinigame() {
       const btnNo = document.getElementById('action-dialog-no');
 
       if (dialogOverlay && dialogText && btnYes && btnNo) {
-        dialogText.textContent = 'Return to the junior school?';
+        dialogText.textContent = 'Leave Game?';
         dialogOverlay.style.display = 'block';
 
         const topUi = document.getElementById('top-center-ui');
@@ -704,8 +732,8 @@ function generateReturnBallHitCords(isPlayer, pRacketPos) {
       // NPC aims moderately deep into the Player's side (bottom half of the court)
       targetY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height * (0.6 + Math.random() * 0.3);
 
-      // NPC aims centrally, making it much easier for the player to reach
-      targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * (0.35 + Math.random() * 0.3);
+      // NPC aims more variedly across the court width
+      targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * (0.15 + Math.random() * 0.7);
     }
 
     // Strictly enforce bounds so the smart-aiming doesn't actively hit the ball out
@@ -757,20 +785,19 @@ function serveBall(playerObj) {
   state.npc.previousMoveToInterceptPoint = null;
   state.player.previousMoveToInterceptPoint = null;
 
-  console.log("Serving ball for " + (isPlayer ? "player" : "npc"));
-
-  const rotRad = playerObj.currentPosition.rotation * (Math.PI / 180);
-  const limbs = getLimbs(playerObj, 0, 0);
-
+  // Put the ball in the player's left hand
+  const serverObj = state.isServe === 'player_serve' ? state.player : state.npc;
+  const rotRad = serverObj.currentPosition.rotation * (Math.PI / 180);
+  const limbs = getLimbs(serverObj, 0, 0); // track limb anchoring
   const COURT_SCALE = COURT_INNER_BOUNDS.width / 255;
+
   const armWorldX = (limbs.leftArmX * Math.cos(rotRad) - limbs.leftArmY * Math.sin(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
   const armWorldY = (limbs.leftArmX * Math.sin(rotRad) + limbs.leftArmY * Math.cos(rotRad)) * (camera.zoom || 1) * COURT_SCALE;
 
-  // Put the ball in the player's left hand
   moveBall({
-    x: playerObj.currentPosition.x + armWorldX + 100,
-    y: playerObj.currentPosition.y + armWorldY - 100,
-    z: playerObj.currentPosition.z
+    x: serverObj.currentPosition.x + armWorldX,
+    y: serverObj.currentPosition.y + armWorldY,
+    z: serverObj.currentPosition.z
   });
 
   // Calculate strict service box zones mapped to realistic canvas line artwork 
@@ -807,8 +834,8 @@ function serveBall(playerObj) {
 
   setTimeout(() => {
     throwBall(playerObj, function () {
-      state.servePhase = 'live';
       setNewInterceptPoints();
+      state.servePhase = 'live';
     });
   }, 1000);
 }
@@ -1023,11 +1050,18 @@ function getOptimalInterceptPosition(playerObj, interceptPoint) {
   // Trigonometrically shrink the horizontal 2D footprint if the arm is forced to tilt vertically!
   const planarScale = Math.sqrt(Math.max(0.1, 1 - Math.pow(Math.min(Math.abs(dz), MAX_REACH) / MAX_REACH, 2)));
 
-  const stringbedWorldX = (armWorldX + handleWorldX) * planarScale;
-  const stringbedWorldY = (armWorldY + handleWorldY) * planarScale;
+  let stringbedWorldX = (armWorldX + handleWorldX) * planarScale;
+  let stringbedWorldY = (armWorldY + handleWorldY) * planarScale;
+
+
+  if (playerObj === state.npc) {
+    stringbedWorldX = stringbedWorldX - (MAX_REACH / 2 * GAME_SCALE);
+  } else {
+    stringbedWorldX = stringbedWorldX + (MAX_REACH / 2 * GAME_SCALE);
+  }
 
   return {
-    x: interceptPoint.x - stringbedWorldX + (MAX_REACH / 2 * GAME_SCALE),
+    x: interceptPoint.x - stringbedWorldX,
     y: interceptPoint.y - stringbedWorldY,
     z: interceptPoint.z
   };
@@ -1083,7 +1117,9 @@ function handleIntroSequence(dt) {
     if (!pFar) state.player.targetPosition.rotation = 270;
     if (!nFar) state.npc.targetPosition.rotation = 90;
 
-    if (!pFar && !nFar) {
+    const finishedRotating = Math.round(state.player.currentPosition.rotation) === Math.round(state.player.targetPosition.rotation) && Math.round(state.npc.currentPosition.rotation) === Math.round(state.npc.targetPosition.rotation);
+
+    if (!pFar && !nFar && finishedRotating) {
       state.player.legTimer = 0;
       state.npc.legTimer = 0;
       state.introPhase = 'playing';
@@ -1108,7 +1144,7 @@ function getLandingSpot(ball) {
 function convergePhysics(charState, dt, isPlayer, speedMult = 1.0) {
   const prevX = charState.currentPosition.x;
   const prevY = charState.currentPosition.y;
-  const speed = (isPlayer ? PLAYER_SPEED : NPC_SPEED) * dt * speedMult;
+  const speed = (isPlayer ? (state.isJoystickActive ? PLAYER_SPEED * 0.75 : PLAYER_SPEED) : NPC_SPEED) * dt * speedMult;
 
   let mx = 0;
   const dx = charState.targetPosition.x - charState.currentPosition.x;
@@ -1326,80 +1362,30 @@ function run(dt) {
       const isServingAndAwaitingToss = state.servePhase === 'idle' && state.isServe === 'player_serve';
 
       if (!isServingAndAwaitingToss) {
-        if (inputManager.keys.TouchMove) {
-          let joystickVectorX = inputManager.joystickVector.x;
-          let joystickVectorY = inputManager.joystickVector.y;
+        let moveIntentX = 0;
+        let moveIntentY = 0;
 
-          state.isJoystickActive = true;
+        state.isJoystickActive = false;
 
-          if (joystickVectorX !== 0 || joystickVectorY !== 0) {
-            // Decrease Joystick sensitivity
-            joystickVectorX = joystickVectorX / 3.0;
-            joystickVectorY = joystickVectorY / 3.0;
+        if (inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW')) moveIntentY -= 1;
+        if (inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS')) moveIntentY += 1;
+        if (inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA')) moveIntentX -= 1;
+        if (inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD')) moveIntentX += 1;
 
-            if (state.player.previousMoveToInterceptPoint && canCharacterHit(true)) {
-              const target = state.player.previousMoveToInterceptPoint;
-              const dx = target.x - state.player.targetPosition.x;
-              const dy = target.y - state.player.targetPosition.y;
-              const distToTarget = Math.sqrt(dx * dx + dy * dy);
+        if (moveIntentX !== 0 || moveIntentY !== 0) {
+          // Normalize diagonal vectors so the player doesn't move 1.4x faster
+          const len = Math.sqrt(moveIntentX * moveIntentX + moveIntentY * moveIntentY);
+          moveIntentX = (moveIntentX / len) * 40;
+          moveIntentY = (moveIntentY / len) * 40;
 
-              if (distToTarget > 5) {
-                const idealX = dx / distToTarget;
-                const idealY = dy / distToTarget;
-
-                // Calculate how much the user is pushing towards the target (-1 to 1 depending on magnitude)
-                const alignment = joystickVectorX * idealX + joystickVectorY * idealY;
-
-                // If they are pushing functionally towards the target quadrant
-                if (alignment > 0) {
-                  const mag = Math.sqrt(joystickVectorX * joystickVectorX + joystickVectorY * joystickVectorY);
-
-                  // 1. Gentle Trajectory Bend (80% user control, 20% perfect tracking)
-                  joystickVectorX = (joystickVectorX * 0.8) + (idealX * mag * 0.2);
-                  joystickVectorY = (joystickVectorY * 0.8) + (idealY * mag * 0.2);
-
-                  // 2. Speed Amplification (Boosts vector length based on alignment accuracy)
-                  joystickVectorX += idealX * (alignment * 0.3);
-                  joystickVectorY += idealY * (alignment * 0.3);
-                }
-              }
-            }
-
-            state.previousPress = true;
-            state.player.targetPosition.x = state.player.currentPosition.x + joystickVectorX * GAME_SCALE;
-            state.player.targetPosition.y = state.player.currentPosition.y + joystickVectorY * GAME_SCALE;
-          } else if (state.previousPress) {
-            // Release snaps targetPosition to match feet instantly halting physics loops
-            state.player.targetPosition.x = state.player.currentPosition.x;
-            state.player.targetPosition.y = state.player.currentPosition.y;
-            state.previousPress = false;
-          }
-        } else {
-          let moveIntentX = 0;
-          let moveIntentY = 0;
-
-          state.isJoystickActive = false;
-
-          if (inputManager.isPressed('ArrowUp') || inputManager.isPressed('KeyW')) moveIntentY -= 1;
-          if (inputManager.isPressed('ArrowDown') || inputManager.isPressed('KeyS')) moveIntentY += 1;
-          if (inputManager.isPressed('ArrowLeft') || inputManager.isPressed('KeyA')) moveIntentX -= 1;
-          if (inputManager.isPressed('ArrowRight') || inputManager.isPressed('KeyD')) moveIntentX += 1;
-
-          if (moveIntentX !== 0 || moveIntentY !== 0) {
-            // Normalize diagonal vectors so the player doesn't move 1.4x faster
-            const len = Math.sqrt(moveIntentX * moveIntentX + moveIntentY * moveIntentY);
-            moveIntentX = (moveIntentX / len) * 40;
-            moveIntentY = (moveIntentY / len) * 40;
-
-            state.previousPress = true;
-            state.player.targetPosition.x = state.player.currentPosition.x + moveIntentX * GAME_SCALE; // Extend convergence target against camera mapping
-            state.player.targetPosition.y = state.player.currentPosition.y + moveIntentY * GAME_SCALE;
-          } else if (state.previousPress) {
-            // Release snaps targetPosition to match feet instantly halting physics loops
-            state.player.targetPosition.x = state.player.currentPosition.x;
-            state.player.targetPosition.y = state.player.currentPosition.y;
-            state.previousPress = false;
-          }
+          state.previousPress = true;
+          state.player.targetPosition.x = state.player.currentPosition.x + moveIntentX * GAME_SCALE; // Extend convergence target against camera mapping
+          state.player.targetPosition.y = state.player.currentPosition.y + moveIntentY * GAME_SCALE;
+        } else if (state.previousPress) {
+          // Release snaps targetPosition to match feet instantly halting physics loops
+          state.player.targetPosition.x = state.player.currentPosition.x;
+          state.player.targetPosition.y = state.player.currentPosition.y;
+          state.previousPress = false;
         }
       }
     }
@@ -1477,10 +1463,6 @@ function run(dt) {
       moveCharacterTo(character, target.x, target.y, RESTING_Z);
 
       character.previousMoveToInterceptPoint = character.lastInterceptPoint;
-    }
-
-    if (state.isJoystickActive && distanceToBallXY(state.player) < 100 && canCharacterHit(true)) {
-      moveToIntercept(state.player);
     }
 
     const playerAim = processCharacter(state.player, true, dt);
@@ -1884,7 +1866,7 @@ function run(dt) {
   }
 
   // Draw the interpolated intercept prediction as a Green X
-  if (canCharacterHit(true) && state.ball.vy !== 0 && !state.resetting) {
+  if ((canCharacterHit(true) || (state.isServe === 'npc_serve' && state.servePhase === 'live' && state.rallyCount > 0)) && state.ball.vy !== 0 && !state.resetting) {
     const bestPoint = state.player.lastInterceptPoint;
 
     // Only draw the visual if it predicts an approach
