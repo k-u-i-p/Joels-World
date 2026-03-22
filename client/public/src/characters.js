@@ -593,11 +593,11 @@ export class CharacterManager {
 
     // If moving, oscillate limbs opposite to each other.
     if ((c.legAnimationTime || 0) > 0) {
-       // X axis is effectively pitch (forward/backward) because the limb pivots lie along X/Y
-       c.rig.leftArm.rotation.x = -legSwing * strideAngle;
-       c.rig.rightArm.rotation.x = legSwing * strideAngle;
-       c.rig.leftLeg.rotation.x = legSwing * strideAngle;
-       c.rig.rightLeg.rotation.x = -legSwing * strideAngle;
+       // Y axis pivots the limbs longitudinally (forward/backward stride)
+       c.rig.leftArm.rotation.y = -legSwing * strideAngle;
+       c.rig.rightArm.rotation.y = legSwing * strideAngle;
+       c.rig.leftLeg.rotation.y = legSwing * strideAngle;
+       c.rig.rightLeg.rotation.y = -legSwing * strideAngle;
     }
 
     // Emote overrides for 3D skeleton
@@ -605,10 +605,10 @@ export class CharacterManager {
        emoteDef.updateLimbs3D(c.rig, currentEmote);
     } else if (c.emoji) {
        // Basic cheer pose fallback for string emojis
-       c.rig.leftArm.rotation.x = 2.0; // Raise arms
-       c.rig.rightArm.rotation.x = 2.0;
-       c.rig.leftArm.rotation.y = -0.5; // Splay slightly outwards
-       c.rig.rightArm.rotation.y = 0.5; 
+       c.rig.leftArm.rotation.y = -2.0; // Raise arms forward
+       c.rig.rightArm.rotation.y = -2.0;
+       c.rig.leftArm.rotation.x = -0.5; // Splay slightly outwards laterally
+       c.rig.rightArm.rotation.x = 0.5; 
     }
   }
 
