@@ -23,8 +23,8 @@ const GAME_SCALE = COURT_INNER_BOUNDS.width / 255; // Used to normalize velociti
 
 const PLAYER_SPEED = 250 * GAME_SCALE;        // Player movement speed
 const NPC_SPEED = 175 * GAME_SCALE;           // NPC movement speed
-const BALL_SPEED = 200 * GAME_SCALE;          // Base horizontal ball speed
-const MAXIMUM_BALL_SPEED = 300 * GAME_SCALE;  // engine speed ceiling for rallying
+const BALL_SPEED = 175 * GAME_SCALE;          // Base horizontal ball speed
+const MAXIMUM_BALL_SPEED = 250 * GAME_SCALE;  // engine speed ceiling for rallying
 const BALL_RADIUS = 3;                        // Collision and drawing radius of the ball
 const GRAVITY = 800 * GAME_SCALE;             // Gravity affecting the ball Z-axis (pixels/s^2)
 const NET_HEIGHT = 45 * GAME_SCALE;           // Minimum Z-altitude required to cross the court
@@ -220,13 +220,13 @@ function calculateArmReach(player, interceptPoint) {
     localAngle = maxAngle;
   }
 
-  const MAX_REACH = 14;
+  const MAX_REACH = 15;
   const actualReach = Math.min(dist2D, MAX_REACH);
 
   return {
     x: -2 + actualReach * Math.cos(localAngle),
     y: 14 + actualReach * Math.sin(localAngle),
-    z: interceptPoint.z
+    z: interceptPoint.z - 5
   };
 }
 
@@ -333,7 +333,7 @@ function getLimbs(playerObj, rightArmX, rightArmY) {
 * @param {{x: number, y: number, z: number}} target - The target 3D Cartesian coordinates.
 * @returns {{x: number, y: number, z: number, t: number}} - The closest trajectory coordinate and its timestamp.
 */
-function calculateOptimalInterceptPoint(target) {
+function calculateOptimalInterceptPoint(playerObj) {
   let simX = state.ball.x;
   let simY = state.ball.y;
   let simZ = state.ball.z;
@@ -349,19 +349,25 @@ function calculateOptimalInterceptPoint(target) {
   const simDt = 0.016; // 60fps procedural resolution
   const maxT = 5.0;    // Cap prediction at 2.0 seconds
 
+  const isPlayer = playerObj === state.player;
+  const netY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height / 2;
+
   while (currentT <= maxT) {
     // Only permit physics intercept tracking if the ball resolves physically inside valid playable geometry
     const isWithinCourtX = Math.abs(simX) <= PLAYABLE_HALF_WIDTH;
     const isWithinCourtY = simY >= (NPC_BASE_Y - PLAYABLE_OVERSHOOT_Y) && simY <= (PLAYER_BASE_Y + PLAYABLE_OVERSHOOT_Y);
+    const isOnCorrectSide = isPlayer ? (simY >= netY) : (simY <= netY);
 
     // Crucially restrict tracking so characters only lock onto intercept coordinates falling within their physical leaping/crouching limitations!
     const isWithinReachZ = simZ >= MIN_CROUCH && simZ <= MAX_JUMP;
     const isComfortableZ = simZ >= RESTING_Z && simZ <= JUMP_Z;
 
-    if (isWithinCourtX && isWithinCourtY && isWithinReachZ) {
-      const distSq = (simX - target.x) ** 2 + (simY - target.y) ** 2 + (simZ - target.z) ** 2;
+    if (isWithinCourtX && isWithinCourtY && isWithinReachZ && isOnCorrectSide) {
+      const distSq = (simX - playerObj.currentPosition.x) ** 2 +
+        (simY - playerObj.currentPosition.y) ** 2 +
+        (simZ - playerObj.currentPosition.z) ** 2;
 
-      let score = -distSq; // Base Penalty: Spatial Distance to target
+      let score = -distSq; // Base Penalty: Spatial Distance to player
 
       // Comfort Bonus: Massive multiplier to enforce sticking to easily reachable vertical heights
       if (isComfortableZ) {
@@ -579,8 +585,8 @@ function hitBallToTarget(targetX, targetY, targetVelocity) {
 export function initMinigame() {
   if (minigameActive) {
     gameLoop.registerFunction(run);
-    return;
   }
+
   console.log('[Tennis] Initializing Minigame...');
   minigameActive = true;
   if (window.init && window.init.npcs && window.init.npcs.length > 0) {
@@ -732,8 +738,12 @@ function generateReturnBallHitCords(isPlayer, pRacketPos) {
       // NPC aims moderately deep into the Player's side (bottom half of the court)
       targetY = COURT_INNER_BOUNDS.y + COURT_INNER_BOUNDS.height * (0.6 + Math.random() * 0.3);
 
-      // NPC aims more variedly across the court width
-      targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * (0.15 + Math.random() * 0.7);
+      // NPC aims away from the player
+      if (state.player.currentPosition.x > courtCenterX) {
+        targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * (0.2 + Math.random() * 0.3);
+      } else {
+        targetX = COURT_INNER_BOUNDS.x + COURT_INNER_BOUNDS.width * (0.5 + Math.random() * 0.3);
+      }
     }
 
     // Strictly enforce bounds so the smart-aiming doesn't actively hit the ball out
@@ -834,8 +844,9 @@ function serveBall(playerObj) {
 
   setTimeout(() => {
     throwBall(playerObj, function () {
-      setNewInterceptPoints();
       state.servePhase = 'live';
+      setNewInterceptPoints();
+      moveToIntercept(playerObj);
     });
   }, 1000);
 }
@@ -844,8 +855,8 @@ function setNewInterceptPoints() {
   resetRacketToNeutral(state.player);
   resetRacketToNeutral(state.npc);
 
-  state.player.lastInterceptPoint = calculateOptimalInterceptPoint(state.player.racketCurrentPosition);
-  state.npc.lastInterceptPoint = calculateOptimalInterceptPoint(state.npc.racketCurrentPosition);
+  state.player.lastInterceptPoint = calculateOptimalInterceptPoint(state.player);
+  state.npc.lastInterceptPoint = calculateOptimalInterceptPoint(state.npc);
   state.player.previousMoveToInterceptPoint = null;
   state.npc.previousMoveToInterceptPoint = null;
 }
@@ -1037,7 +1048,7 @@ function getOptimalInterceptPosition(playerObj, interceptPoint) {
   const armWorldX = rcp.armX * Math.cos(rotRad) - rcp.armY * Math.sin(rotRad);
   const armWorldY = rcp.armX * Math.sin(rotRad) + rcp.armY * Math.cos(rotRad);
 
-  const MAX_REACH = 43;
+  const MAX_REACH = 40;
 
   const absoluteYaw = rcp.yaw + rotRad;
   const handleWorldX = Math.cos(absoluteYaw);
@@ -1055,9 +1066,9 @@ function getOptimalInterceptPosition(playerObj, interceptPoint) {
 
 
   if (playerObj === state.npc) {
-    stringbedWorldX = stringbedWorldX - (MAX_REACH / 2 * GAME_SCALE);
+    stringbedWorldX = stringbedWorldX - ((MAX_REACH * 0.5) * planarScale);
   } else {
-    stringbedWorldX = stringbedWorldX + (MAX_REACH / 2 * GAME_SCALE);
+    stringbedWorldX = stringbedWorldX + ((MAX_REACH * 0.5) * planarScale);
   }
 
   return {
@@ -1248,8 +1259,16 @@ function processCharacter(charState, isPlayer, dt) {
   const intercept = charState.lastInterceptPoint;
   const now = Date.now();
   const distanceXY = distanceToBallXY(charState);
+
+  let isOurServeThrow = false;
+  if (isPlayer && state.isServe === 'player_serve' && state.servePhase !== 'idle') {
+    isOurServeThrow = true;
+  } else if (!isPlayer && state.isServe === 'npc_serve' && state.servePhase !== 'idle') {
+    isOurServeThrow = true;
+  }
+
   // 3. Dynamic Limb Target Tracking
-  if (canCharacterHit(isPlayer) && intercept && intercept.t >= 0 && distanceXY < 100) {
+  if ((canCharacterHit(isPlayer) || isOurServeThrow) && intercept && intercept.t >= 0 && distanceXY < 100) {
 
     function isRacketInRange(ballObject, racketPosition) {
       const speed = Math.sqrt(ballObject.vx * ballObject.vx + ballObject.vy * ballObject.vy);
@@ -1279,7 +1298,7 @@ function processCharacter(charState, isPlayer, dt) {
     };
 
     let reach = null;
-    if (isRacketInRange(state.ball, racketWorldPos)) {
+    if (isOurServeThrow || isRacketInRange(state.ball, racketWorldPos)) {
       reach = calculateArmReach(charState, state.ball);
     } else {
       reach = calculateArmReach(charState, intercept);
@@ -1318,8 +1337,7 @@ function processCharacter(charState, isPlayer, dt) {
 
     // Calculate the mathematical perfect aim unconditionally each frame
     let aim = null;
-
-    if (isRacketInRange(state.ball, racketWorldPos)) {
+    if (isOurServeThrow || isRacketInRange(state.ball, racketWorldPos)) {
       aim = calculateRacketReturnAimAngle(state.ball, charState, target);
     } else {
       aim = calculateRacketReturnAimAngle(intercept, charState, target);
@@ -1339,6 +1357,25 @@ function processCharacter(charState, isPlayer, dt) {
   const charMoved = convergePhysics(charState, dt, isPlayer);
 
   return { moved: charMoved };
+}
+
+function moveToIntercept(character) {
+  if (!character.lastInterceptPoint) {
+    setNewInterceptPoints();
+  }
+
+  if (character.previousMoveToInterceptPoint) {
+    if (character.lastInterceptPoint.x == character.previousMoveToInterceptPoint.x &&
+      character.lastInterceptPoint.y == character.previousMoveToInterceptPoint.y) {
+      return;
+    }
+  }
+
+  const target = getOptimalInterceptPosition(character, character.lastInterceptPoint);
+
+  moveCharacterTo(character, target.x, target.y, target.z);
+
+  character.previousMoveToInterceptPoint = character.lastInterceptPoint;
 }
 
 /**
@@ -1392,8 +1429,6 @@ function run(dt) {
 
     processBallMovement(dt, (netY) => {
 
-      //Update the intercept points for both players
-      setNewInterceptPoints()
 
       if (state.bounceCount === 1 && !state.resetting) {
         if (!state.lastHitter) {
@@ -1433,6 +1468,12 @@ function run(dt) {
             } else {
               triggerPointReset(state.lastHitter === 'player');
             }
+          } else {
+            //Update the intercept points for the player who is about to hit the ball
+            setNewInterceptPoints()
+            if (state.lastHitter === 'player') {
+              moveToIntercept(state.npc);
+            }
           }
         }
       }
@@ -1447,34 +1488,11 @@ function run(dt) {
       }
     });
 
-    function moveToIntercept(character) {
-      if (!character.lastInterceptPoint) {
-        setNewInterceptPoints();
-      }
-
-      if (character.previousMoveToInterceptPoint) {
-        if (character.lastInterceptPoint.x == character.previousMoveToInterceptPoint.x && character.lastInterceptPoint.y == character.previousMoveToInterceptPoint.y) {
-          return;
-        }
-      }
-
-      const target = getOptimalInterceptPosition(character, character.lastInterceptPoint);
-
-      moveCharacterTo(character, target.x, target.y, RESTING_Z);
-
-      character.previousMoveToInterceptPoint = character.lastInterceptPoint;
-    }
-
     const playerAim = processCharacter(state.player, true, dt);
     const playerMoved = playerAim.moved;
 
     if (!playerMoved) {
       state.player.targetPosition.rotation = 270;
-    }
-
-    //If we can hit it move to intercept of if the player has just hit the serve ball
-    if (canCharacterHit(false)) {
-      moveToIntercept(state.npc);
     }
 
     const npcAim = processCharacter(state.npc, false, dt);
@@ -1529,9 +1547,12 @@ function run(dt) {
         if (state.isServe === 'player_serve' && state.isServe !== 'in_play') {
           const landingSpot = getLandingSpot(state.ball);
           moveCharacterTo(state.npc, landingSpot.x + (40 * GAME_SCALE), landingSpot.y - (220 * GAME_SCALE * 0.7));
-        } else {
-          moveCharacterTo(state.npc, COURT_INNER_BOUNDS.x + (COURT_INNER_BOUNDS.width / 2) * (0.5 + Math.random()), NPC_BASE_Y + (50 * GAME_SCALE * (0.5 + Math.random())));
+        } else if (canCharacterHit(false)) {
+          moveToIntercept(state.npc);
         }
+      } else {
+        //Move NPC to back random position in their half
+        moveCharacterTo(state.npc, COURT_INNER_BOUNDS.x + (COURT_INNER_BOUNDS.width / 2) * (0.5 + Math.random()), NPC_BASE_Y + (50 * GAME_SCALE * (0.5 + Math.random())));
       }
     });
 
@@ -1866,7 +1887,8 @@ function run(dt) {
   }
 
   // Draw the interpolated intercept prediction as a Green X
-  if ((canCharacterHit(true) || (state.isServe === 'npc_serve' && state.servePhase === 'live' && state.rallyCount > 0)) && state.ball.vy !== 0 && !state.resetting) {
+  const isNPCInitialServeVolley = (state.isServe === 'npc_serve' && state.servePhase === 'live' && state.rallyCount > 0);
+  if ((canCharacterHit(true) || isNPCInitialServeVolley) && state.ball.vy !== 0 && !state.resetting) {
     const bestPoint = state.player.lastInterceptPoint;
 
     // Only draw the visual if it predicts an approach

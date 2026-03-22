@@ -696,5 +696,19 @@
     "hairStyle": "ponytail",
     "hide_nameplate": true,
     "hairColor": "#4f3920"
+  },
+  {
+    "id": 26,
+    "name": "Archie",
+    "x": 1013,
+    "y": 399,
+    "width": 40,
+    "height": 40,
+    "rotation": -135,
+    "shirtColor": "#3498db",
+    "pantsColor": "#2c3e50",
+    "armColor": "#3498db",
+    "on_enter": [],
+    "on_exit": []
   }
 ]
