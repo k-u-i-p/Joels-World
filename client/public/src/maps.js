@@ -1,16 +1,32 @@
+import * as THREE from 'three';
+
 export class MapManager {
   constructor() {
     this.layers = [];
     this.mapW = 0;
     this.mapH = 0;
+    this.textureLoader = new THREE.TextureLoader();
+    this.textureLoader.setCrossOrigin('anonymous');
+    this.planeCache = {};
+    this.activeMeshes = [];
   }
 
-  /**
-   * Initializes the current map layers, handling dynamic chunking structure creation or 
-   * loading legacy static full-map background images.
-   * @param {Object} mapMetadata - The map data received from the server containing layers.
-   */
-  init(mapMetadata) {
+  getGeometry(size) {
+    if (!this.planeCache[size]) {
+      this.planeCache[size] = new THREE.PlaneGeometry(size, size);
+    }
+    return this.planeCache[size];
+  }
+
+  init(mapMetadata, scene) {
+    if (scene) {
+      this.activeMeshes.forEach(mesh => {
+        scene.remove(mesh);
+        if (mesh.material.map) mesh.material.map.dispose();
+        mesh.material.dispose();
+      });
+    }
+    this.activeMeshes = [];
     this.layers = [];
     this.mapW = mapMetadata?.width || 0;
     this.mapH = mapMetadata?.height || 0;
@@ -20,7 +36,7 @@ export class MapManager {
         const layersList = [];
         layerGroup.forEach(layerData => {
           if (layerData.chunked) {
-            console.log(`[Map Loader] Initializing chunked architecture for: ${layerData.path_template}`);
+            console.log(`[Map Loader] Initializing WebGL chunked architecture for: ${layerData.path_template}`);
             layersList.push({
               chunked: true,
               alpha: layerData.alpha !== undefined ? layerData.alpha : 1,
@@ -28,24 +44,26 @@ export class MapManager {
               grid_w: layerData.grid_w,
               grid_h: layerData.grid_h,
               path_template: layerData.path_template,
-              // Use a 1D flat array to absolutely avoid string allocation in dictionaries
               chunks: new Array(layerData.grid_w * layerData.grid_h)
             });
           } else {
-            const img = new Image();
-            img.crossOrigin = 'anonymous'; // Help with iOS strict permissions
-            const layerObj = { chunked: false, image: img, alpha: layerData.alpha !== undefined ? layerData.alpha : 1 };
+            console.log(`[Map Loader] Initializing WebGL legacy mesh for: ${layerData.image}`);
+            const layerObj = { chunked: false, alpha: layerData.alpha !== undefined ? layerData.alpha : 1, imageLoaded: false };
+            this.textureLoader.load(layerData.image, (tex) => {
+              layerObj.texture = tex;
+              layerObj.imageLoaded = true;
+              this.mapW = Math.max(this.mapW, tex.image.width || 0);
+              this.mapH = Math.max(this.mapH, tex.image.height || 0);
+
+              const geom = new THREE.PlaneGeometry(tex.image.width, tex.image.height);
+              const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: layerObj.alpha });
+              layerObj.mesh = new THREE.Mesh(geom, mat);
+              if (scene) {
+                  scene.add(layerObj.mesh);
+                  this.activeMeshes.push(layerObj.mesh);
+              }
+            });
             layersList.push(layerObj);
-
-            img.onload = () => {
-              console.log(`[Map Loader] Finished loading layer natively: ${layerData.image}`);
-            };
-            img.onerror = () => {
-              console.warn(`[Map Loader] Failed to load layer directly: ${layerData.image}`);
-            };
-
-            console.log(`[Map Loader] Assigning layer src synchronously: ${layerData.image}`);
-            img.src = layerData.image;
           }
         });
         this.layers[index] = layersList;
@@ -53,41 +71,15 @@ export class MapManager {
     }
   }
 
-  /**
-   * Renders a specific z-index layer of the current map background.
-   * If the layer is defined as 'chunked', it dynamically calculates which 512x512 tiles
-   * intersect the player's view camera, loads them on the fly if necessary, and renders them.
-   * @param {number} layerIndex - The index of the layer stack to draw.
-   * @param {CanvasRenderingContext2D} ctx - The canvas graphics context to render into.
-   * @param {HTMLCanvasElement} canvas - The canvas element used to get active resolution.
-   * @param {number} cameraX - player camera X
-   * @param {number} cameraY - player camera Y
-   * @param {number} cameraZoom - player camera Zoom
-   */
-  drawLayer(layerIndex, ctx, canvas, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight) {
+  drawLayer(layerIndex, scene, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight, springX = 0, springY = 0) {
     if (!this.layers || !this.layers[layerIndex]) return;
 
-    if (this.mapW === 0 || this.mapH === 0) {
-      if (this.layers && this.layers[0]) {
-        for (const layer of this.layers[0]) {
-          if (!layer.chunked && layer.image.complete) {
-            this.mapW = Math.max(this.mapW, layer.image.width || 0);
-            this.mapH = Math.max(this.mapH, layer.image.height || 0);
-
-            // if we determined it dynamically, ensure it updates in window.init if needed globally
-            if (window.init?.mapData) {
-              window.init.mapData.width = this.mapW;
-              window.init.mapData.height = this.mapH;
-            }
-          }
-        }
-      }
-    }
-
+    // Layer 0 is Ground (z=0). Characters natively sit at z=5.
+    // Ensure that overlay layers (1, 2, etc.) render physically IN FRONT of characters by pushing them up the Z-axis.
+    let baseZIndex = layerIndex * 10;
     const halfMapW = this.mapW / 2;
     const halfMapH = this.mapH / 2;
 
-    // Calculate active camera boundaries (in map coordinates) once
     const viewHalfW = (viewportWidth / cameraZoom) / 2;
     const viewHalfH = (viewportHeight / cameraZoom) / 2;
     const cameraLeft = cameraX - viewHalfW;
@@ -95,9 +87,6 @@ export class MapManager {
     const cameraTop = cameraY - viewHalfH;
     const cameraBottom = cameraY + viewHalfH;
 
-    // Add a 1-chunk buffer so we load slightly out of frame before they walk into it
-    // We assume all chunked layers use the same chunk_size for the buffer computation
-    // For safety, let's just use a fixed buffer heuristic or compute it based on the first chunked layer.
     let buffer = 512;
     if (this.layers[layerIndex] && this.layers[layerIndex].length > 0) {
       const firstChunked = this.layers[layerIndex].find(l => l.chunked);
@@ -114,11 +103,8 @@ export class MapManager {
     const mapStartY = minYMap + halfMapH;
     const mapEndY = maxYMap + halfMapH;
 
-    this.layers[layerIndex].forEach(layer => {
-      const prevAlpha = ctx.globalAlpha;
-      if (layer.alpha !== 1) {
-        ctx.globalAlpha = layer.alpha;
-      }
+    this.layers[layerIndex].forEach((layer, idxLayerWithinGrid) => {
+      const layerZ = baseZIndex + idxLayerWithinGrid; 
 
       if (layer.chunked) {
         const startCol = Math.max(0, (mapStartX / layer.chunk_size) | 0);
@@ -126,82 +112,84 @@ export class MapManager {
         const startRow = Math.max(0, (mapStartY / layer.chunk_size) | 0);
         const endRow = Math.min(layer.grid_h - 1, (mapEndY / layer.chunk_size) | 0);
 
-        // Precalculate base draw offsets
-        const baseY = -halfMapH | 0;
-        const baseX = -halfMapW | 0;
+        const baseY = -halfMapH;
+        const baseX = -halfMapW;
 
-        // Loop over only the visible tiles
         for (let y = startRow; y <= endRow; y++) {
-          const drawY = (baseY + (y * layer.chunk_size)) | 0;
+          const drawY = baseY + (y * layer.chunk_size);
           for (let x = startCol; x <= endCol; x++) {
             const chunkIndex = y * layer.grid_w + x;
 
             if (!layer.chunks[chunkIndex]) {
-              // Lazy load the chunk if it's never been seen
-              const img = new Image();
-              img.crossOrigin = 'anonymous';
-              img.onerror = () => console.warn(`[Chunk Loader] Failed to load chunk at ${x},${y}`);
-
-              // Generate path /grounds/chunks/background_X_Y.jpg
+              // Generate path for the chunk texture
               const src = layer.path_template.replace('{x}', x).replace('{y}', y);
-              img.src = src;
+              
+              // We pad the geometry very slightly to prevent aliasing seams
+              const paddedGeom = this.getGeometry(layer.chunk_size + 1);
+              const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: layer.alpha });
+              const mesh = new THREE.Mesh(paddedGeom, mat);
 
-              layer.chunks[chunkIndex] = { img, cx: x, cy: y };
-            }
+              // Position the mesh tile
+              const drawX = baseX + (x * layer.chunk_size);
+              mesh.position.set(
+                  drawX + layer.chunk_size/2, 
+                  -(drawY + layer.chunk_size/2), 
+                  layerZ
+              );
+              
+              mesh.visible = false;
+              scene.add(mesh);
+              this.activeMeshes.push(mesh);
 
-            const chunkData = layer.chunks[chunkIndex];
+              layer.chunks[chunkIndex] = { mesh, cx: x, cy: y };
 
-            if (chunkData.img.complete && chunkData.img.naturalWidth > 0) {
-              // Fast truncating for hardware integer drawing
-              const drawX = (baseX + (x * layer.chunk_size)) | 0;
-
-              if (cameraZoom === 1) {
-                // Fast-path natively for 1.0x maps (e.g., Junior School)
-                ctx.drawImage(chunkData.img, drawX, drawY);
-              } else {
-                // If scaled (e.g., Main Building 0.75x), HTML5 Canvas anti-aliases sub-pixel 
-                // edges which causes mathematically transparent bleed lines between seams.
-                // We physically draw the tile +1 pixel larger to forcefully overlap the seam!
-                ctx.drawImage(chunkData.img, drawX, drawY, layer.chunk_size + 1, layer.chunk_size + 1);
-              }
+              this.textureLoader.load(src, (tex) => {
+                  tex.minFilter = THREE.NearestFilter;
+                  tex.magFilter = THREE.NearestFilter;
+                  tex.wrapS = THREE.ClampToEdgeWrapping;
+                  tex.wrapT = THREE.ClampToEdgeWrapping;
+                  tex.colorSpace = THREE.SRGBColorSpace; // Prevent washed out colors
+                  
+                  mat.map = tex;
+                  mat.needsUpdate = true;
+                  mesh.visible = true;
+              }, undefined, () => {
+                  console.warn(`[Chunk Loader] Failed to load WebGL texture at ${x},${y}`);
+              });
+            } else {
+               layer.chunks[chunkIndex].mesh.visible = true;
+               
+               // Layer 2 gets a Parallax spring offset
+               const origDrawX = baseX + x * layer.chunk_size;
+               const origDrawY = baseY + y * layer.chunk_size;
+               layer.chunks[chunkIndex].mesh.position.set(
+                   origDrawX + layer.chunk_size/2 - springX, 
+                   -(origDrawY + layer.chunk_size/2 - springY), 
+                   layerZ
+               );
             }
           }
         }
 
-        /*// --- Memory Cleanup: Unload out-of-frame chunks ---
+        // Memory Cleanup: Visibility culling
         if (!layer.gcTick) layer.gcTick = 0;
         layer.gcTick++;
-
-        // Only run garbage collection sweep once per 600 frames (approx every 10 seconds)
-        if (layer.gcTick > 600) {
+        if (layer.gcTick > 60) {
           layer.gcTick = 0;
-          const gcBuffer = 2; // Unload chunks that are 2 chunks away from view bounds
+          const gcBuffer = 2;
           for (let i = 0; i < layer.chunks.length; i++) {
             const chunkData = layer.chunks[i];
             if (!chunkData) continue;
             if (chunkData.cx < startCol - gcBuffer || chunkData.cx > endCol + gcBuffer ||
-              chunkData.cy < startRow - gcBuffer || chunkData.cy > endRow + gcBuffer) {
-              // Nullify handlers before changing src to prevent false positive onerror logs
-              chunkData.img.onload = null;
-              chunkData.img.onerror = null;
-              // Nullify image source to free memory, then delete from cache
-              chunkData.img.src = '';
-              layer.chunks[i] = null;
+                chunkData.cy < startRow - gcBuffer || chunkData.cy > endRow + gcBuffer) {
+                chunkData.mesh.visible = false;
             }
           }
-        }*/
-      } else {
-        // --- Standard Legacy Image Rendering ---
-        if (layer.image.complete && layer.image.naturalWidth > 0) {
-          const hw = layer.image.width >> 1;
-          const hh = layer.image.height >> 1;
-          ctx.drawImage(layer.image, -hw, -hh);
         }
-      }
-
-      // Cleanup global transparency override without relying on the matrix stack
-      if (layer.alpha !== 1) {
-        ctx.globalAlpha = prevAlpha;
+      } else {
+        if (layer.mesh) {
+            layer.mesh.position.set(-springX, springY, layerZ);
+        }
       }
     });
   }

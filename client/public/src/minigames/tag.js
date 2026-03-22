@@ -5,7 +5,7 @@ import { physicsEngine } from '../physics.js';
 import { camera, player } from '../main.js';
 import { soundManager } from '../sound.js';
 
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('uiCanvas');
 const ctx = canvas.getContext('2d');
 
 let minigameActive = false;
@@ -533,6 +533,8 @@ function drawHUD(ctx, viewportWidth) {
 /** Draws the entire game state */
 function draw() {
   const dpr = window.devicePixelRatio || 1;
+    const ui = document.getElementById('uiCanvas');
+  if (ui && (ui.width !== window.innerWidth * (window.devicePixelRatio||1))) { ui.width = window.innerWidth * (window.devicePixelRatio||1); ui.height = window.innerHeight * (window.devicePixelRatio||1); ui.style.width = window.innerWidth + 'px'; ui.style.height = window.innerHeight + 'px'; }
   const viewportWidth = canvas.clientWidth;
   const viewportHeight = canvas.clientHeight;
 
@@ -596,4 +598,6 @@ function draw() {
 export function cleanupMinigame() {
   minigameActive = false;
   soundManager.stopBackground();
+  const ui = document.getElementById('uiCanvas');
+  if (ui) { const x = ui.getContext('2d'); x.clearRect(0,0,ui.width,ui.height); }
 }

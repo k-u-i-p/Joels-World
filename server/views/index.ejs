@@ -12,6 +12,14 @@
   <title>
     <%= isAdmin ? "Joels World Admin" : "Joels World" %>
   </title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 
 <body>
@@ -353,6 +361,7 @@
           <div id="joystick-move-knob"></div>
         </div>
         <canvas id="gameCanvas"></canvas>
+        <canvas id="uiCanvas" style="position: absolute; top:0; left:0; width:100%; height:100%; z-index: 5; pointer-events:none;"></canvas>
         <% if (isAdmin) { %>
           <script>
             window.isAdmin = true;

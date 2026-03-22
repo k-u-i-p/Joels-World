@@ -15,7 +15,7 @@ import { soundManager } from '../sound.js';
 // ==========================================
 // CONSTANTS & CONFIGURATION
 // ==========================================
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('uiCanvas');
 const ctx = canvas.getContext('2d');
 
 const COURT_INNER_BOUNDS = { x: -60, y: 85, width: 120, height: 205 };
@@ -627,13 +627,13 @@ export function initMinigame() {
 
   if (!touchListenerAdded) {
     touchListenerAdded = true;
-    canvas.addEventListener('pointerdown', (e) => {
+    document.getElementById('gameCanvas').addEventListener('pointerdown', (e) => {
       if (!minigameActive || state.resetting) return;
 
       // Ignore UI clicks outside of canvas bounds
-      if (e.target !== canvas) return;
+      if (e.target.id !== 'gameCanvas') return;
 
-      const canvasRect = canvas.getBoundingClientRect();
+      const canvasRect = document.getElementById('gameCanvas').getBoundingClientRect();
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
 
@@ -1669,18 +1669,29 @@ function run(dt) {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 
+  const expectedWidth = viewportWidth * dpr;
+  const expectedHeight = viewportHeight * dpr;
+  if (canvas.width !== expectedWidth || canvas.height !== expectedHeight) {
+    canvas.width = expectedWidth;
+    canvas.height = expectedHeight;
+    canvas.style.width = viewportWidth + 'px';
+    canvas.style.height = viewportHeight + 'px';
+  }
+
   // Render out-of-bounds grass
   ctx.fillStyle = '#7bed9f';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
 
-  if (!bgImage.complete || bgImage.height === 0) {
+  if (!bgImage.complete || (bgImage.height === 0 && !bgImage.src.endsWith('.svg'))) {
     ctx.restore();
     return;
   }
 
-  const imageAspect = bgImage.width / bgImage.height;
+  const bgW = bgImage.width || 2493;
+  const bgH = bgImage.height || 1260;
+  const imageAspect = bgW / bgH;
 
   // Game native virtual layout dimension explicitly fixed to preserve the static PNG mapping projection independent of mechanical overshoot bounds
   const virtualGameHeight = COURT_INNER_BOUNDS.height + (75 * 2) + 20;

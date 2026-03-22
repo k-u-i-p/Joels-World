@@ -9,11 +9,21 @@ import { networkClient } from './network.js';
 import { uiManager } from './ui.js';
 import { gameLoop } from './gameloop.js';
 
+import * as THREE from 'three';
+
 const MAX_SPRING = 100;
 const SPRING_SPEED = 1.0;
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+export const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: false });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x7bed9f); // Grass green color
+export const scene = new THREE.Scene();
+export const threeCamera = new THREE.OrthographicCamera(-1, 1, -1, 1, -1000, 1000);
+
+// We invert the Y frustum to match HTML5 Canvas standard coordinates (Y-down)
+threeCamera.up.set(0, -1, 0);
 export const camera = {
   x: 0,
   y: 0,
@@ -55,10 +65,16 @@ function resizeCanvas() {
   if (viewportWidth !== targetW || viewportHeight !== renderHeight) {
     viewportWidth = targetW;
     viewportHeight = renderHeight;
-    canvas.width = viewportWidth * dpr;
-    canvas.height = viewportHeight * dpr;
-    canvas.style.width = viewportWidth + 'px';
-    canvas.style.height = viewportHeight + 'px';
+    renderer.setSize(viewportWidth, viewportHeight, true);
+    renderer.setPixelRatio(dpr);
+
+    const aspectOffsetW = viewportWidth / 2;
+    const aspectOffsetH = viewportHeight / 2;
+    threeCamera.left = -aspectOffsetW;
+    threeCamera.right = aspectOffsetW;
+    threeCamera.top = aspectOffsetH;   // HTML5 is Y-Down, so frustum must flip mapping
+    threeCamera.bottom = -aspectOffsetH;
+    threeCamera.updateProjectionMatrix();
   }
 }
 
@@ -401,7 +417,7 @@ function executeEvents(sourceObj, rawActions, eventType = 'on_enter') {
 }
 
 /**
- * Master rendering function. Clears the canvas, applies camera transformations, 
+ * Master rendering function. Updates WebGL camera transformations, 
  * draws the map, all visible characters, and user interface elements.
  */
 function draw() {
@@ -425,78 +441,40 @@ function draw() {
     const maxY = halfMapH - viewHalfH;
 
     if (minX <= maxX) {
-      camera.x = Math.max(minX, Math.min(maxX, camera.x)) | 0;
+      camera.x = Math.max(minX, Math.min(maxX, camera.x));
     } else {
       camera.x = 0;
     }
 
     if (minY <= maxY) {
-      camera.y = Math.max(minY, Math.min(maxY, camera.y)) | 0;
+      camera.y = Math.max(minY, Math.min(maxY, camera.y));
     } else {
       camera.y = 0;
     }
   }
 
-  const dpr = window.devicePixelRatio || 1;
+  // Update Three.js Camera (WebGL Y is UP, game is DOWN)
+  threeCamera.position.set(camera.x - xOffset, -(camera.y - yOffset), 100);
+  threeCamera.zoom = camera.zoom;
+  threeCamera.updateProjectionMatrix();
 
-  // Clear screen (fixed to physical coordinates)
-  ctx.fillStyle = '#7bed9f'; // Grass green color
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  mapManager.drawLayer(0, scene, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
-  // Camera translation (Centers the world on the player)
-  ctx.save();
-  ctx.scale(dpr, dpr);
-  // Truncate translation to integer coordinates to avoid GPU bilinear soft-blur
-  ctx.translate(((viewportWidth / 2) + xOffset) | 0, ((viewportHeight / 2) + yOffset) | 0);
-  ctx.scale(camera.zoom, camera.zoom);
-  ctx.translate(-(camera.x | 0), -(camera.y | 0));
+  // TODO: Implement WebGL Footprints
 
-  mapManager.drawLayer(0, ctx, canvas, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
+  characterManager.drawCharacters('base', scene, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight, threeCamera);
 
-  // Render global footprints underneath characters
-  const now = Date.now();
-  for (let i = footprints.length - 1; i >= 0; i--) {
-    const f = footprints[i];
-    const age = now - f.time;
-    if (age > 10000) {
-      footprints.splice(i, 1);
-      continue;
-    }
-    ctx.save();
-    ctx.globalAlpha = Math.max(0, 0.6 * (1 - age / 10000));
-    ctx.translate(f.x, f.y);
-    ctx.rotate(f.rot * Math.PI / 180);
+  mapManager.drawLayer(1, scene, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
-    ctx.fillStyle = '#74b9ff'; // wet footprint color
+  let layer2SpringOffsetX = clamp(((camera.springX || 0)) * 0.05, -5, 5);
+  let layer2SpringOffsetY = clamp(((camera.springY || 0)) * 0.05, -5, 5);
+  // Pass spring offsets so mapManager can offset layer 2
+  mapManager.drawLayer(2, scene, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight, layer2SpringOffsetX, layer2SpringOffsetY);
 
-    const offsetX = f.isLeft ? -5 : 5;
+  characterManager.drawCharacters('overlay', scene, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight, threeCamera);
+  characterManager.drawCharacters('chat', scene, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight, threeCamera);
 
-    ctx.beginPath();
-    if (ctx.ellipse) {
-      ctx.ellipse(offsetX, -4, 2.5, 4.5, 0, 0, Math.PI * 2);
-    } else {
-      ctx.arc(offsetX, -4, 3, 0, Math.PI * 2);
-    }
-    ctx.fill();
-    ctx.restore();
-  }
-
-  characterManager.drawCharacters('base', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
-
-  mapManager.drawLayer(1, ctx, canvas, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
-
-  ctx.save();
-  let layer2SpringOffsetX = clamp(((camera.springX || 0) | 0) * 0.05, -5, 5);
-  let layer2SpringOffsetY = clamp(((camera.springY || 0) | 0) * 0.05, -5, 5);
-  ctx.translate(-layer2SpringOffsetX, -layer2SpringOffsetY);
-  mapManager.drawLayer(2, ctx, canvas, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
-  ctx.restore();
-
-  characterManager.drawCharacters('overlay', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
-  characterManager.drawCharacters('chat', ctx, canvas, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
-
-  // Restore camera translation
-  ctx.restore();
+  renderer.render(scene, threeCamera);
 }
 
 
@@ -519,6 +497,19 @@ const { nameDialog, nameInput, startBtn } = uiManager.initLobby((playerName) => 
  * @param {Object} data - The map's initialization data payload structured by the server.
  */
 function handleInitData(data) {
+  if (data.type === 'init') {
+    // Scrub existing WebGL meshes and DOM overlays from the outgoing map's players
+    characterManager.clearScene(scene, window.init);
+    characterManager.disposeCharacter(player, scene);
+
+    // Deep clean the hybrid 2D proxy canvas to prevent lingering minigame pixel artifacts
+    const ui = document.getElementById('uiCanvas');
+    if (ui) {
+      const uictx = ui.getContext('2d');
+      uictx.clearRect(0, 0, ui.width, ui.height);
+    }
+  }
+
   console.log(`[Main] handleInitData triggered. Loaded Map: ${data?.mapData?.name}`);
   try {
     window.init = data;
@@ -616,7 +607,7 @@ function handleInitData(data) {
 
       camera.zoom = mapMetadata.default_zoom || 1;
 
-      mapManager.init(mapMetadata);
+      mapManager.init(mapMetadata, scene);
 
       // Initialize the physics clip mask for this map if it has one
       physicsEngine.loadClipMask(mapMetadata.clip_mask, mapMetadata.width, mapMetadata.height);

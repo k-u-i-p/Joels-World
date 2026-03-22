@@ -6,7 +6,7 @@ networkClient.isAdmin = true;
 
 console.log('Setting up admin');
 
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('uiCanvas');
 const ctx = canvas.getContext('2d');
 
 const adminPanel = document.getElementById('admin-panel');
@@ -1128,6 +1128,17 @@ updateAdminPanel();
 
 export function adminDraw() {
   const dpr = window.devicePixelRatio || 1;
+  const expectedWidth = window.innerWidth * dpr;
+  const expectedHeight = window.innerHeight * dpr;
+  if (canvas.width !== expectedWidth || canvas.height !== expectedHeight) {
+      canvas.width = expectedWidth;
+      canvas.height = expectedHeight;
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+  }
+
+  // Clear the canvas each frame specifically for admin overlays
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.scale(dpr, dpr);
   ctx.translate(canvas.clientWidth / 2, canvas.clientHeight / 2);

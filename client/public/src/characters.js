@@ -1,5 +1,6 @@
 import { emotes } from './emotes.js';
 import { physicsEngine } from './physics.js';
+import * as THREE from 'three';
 
 const DEG_TO_RAD = Math.PI / 180;
 const PI2 = Math.PI * 2;
@@ -37,9 +38,37 @@ function shadeColor(color, percent) {
 }
 
 export class CharacterManager {
-  /**
-   * Helper method to stroke a path line between two coordinates.
-   */
+  disposeCharacter(c, scene) {
+    if (c.meshGroup) {
+      scene.remove(c.meshGroup);
+      if (c.canvasTexture) c.canvasTexture.dispose();
+      if (c.spriteMesh) {
+         if (c.spriteMesh.geometry) c.spriteMesh.geometry.dispose();
+         if (c.spriteMesh.material) c.spriteMesh.material.dispose();
+      }
+      if (c.shadowMesh) {
+         if (c.shadowMesh.geometry) c.shadowMesh.geometry.dispose();
+         if (c.shadowMesh.material) {
+            if (c.shadowMesh.material.map) c.shadowMesh.material.map.dispose();
+            c.shadowMesh.material.dispose();
+         }
+      }
+      c.meshGroup = null;
+    }
+    if (c.nameElement && c.nameElement.parentNode) c.nameElement.parentNode.removeChild(c.nameElement);
+    if (c.chatElement && c.chatElement.parentNode) c.chatElement.parentNode.removeChild(c.chatElement);
+  }
+
+  clearScene(scene, oldInitData) {
+    if (!oldInitData) return;
+    if (oldInitData.characters) {
+      oldInitData.characters.forEach(c => this.disposeCharacter(c, scene));
+    }
+    if (oldInitData.npcs) {
+      oldInitData.npcs.forEach(n => this.disposeCharacter(n, scene));
+    }
+  }
+
   drawLine(ctxObj, sx, sy, ex, ey) {
     ctxObj.beginPath();
     ctxObj.moveTo(sx, sy);
@@ -47,25 +76,18 @@ export class CharacterManager {
     ctxObj.stroke();
   }
 
-  /**
-   * Helper method rendering hyper-realistic 3D shoes with lighting gradients.
-   */
   drawShoe(ctxObj, x, y, color, isLeft) {
-    const dirY = isLeft ? -1 : 1; // Used to mirror asymmetry
+    const dirY = isLeft ? -1 : 1;
 
-    // 1. Draw distinct Sole (Offset slightly down and back)
-    ctxObj.fillStyle = '#7f8c8d'; // Dark grey sole
+    ctxObj.fillStyle = '#7f8c8d';
     ctxObj.beginPath();
     ctxObj.moveTo(x - 2, y - 3.5);
     ctxObj.lineTo(x + 5.5, y - 3.5);
-    // Asymmetric toe point
     ctxObj.bezierCurveTo(x + 10, y - 3.5 * dirY, x + 10, y + 3.5, x + 5.5, y + 3.5);
     ctxObj.lineTo(x - 2, y + 3.5);
     ctxObj.quadraticCurveTo(x - 3.5, y + 3.5, x - 3.5, y - 3.5, x - 2, y - 3.5);
     ctxObj.fill();
 
-    // 2. Draw Main Shoe Body (Scaled slightly smaller to leave the sole visible)
-    // Main 3D spherical gradient
     const bodyGrad = ctxObj.createRadialGradient(x + 2, y - 1 * dirY, 0.5, x + 3, y, 6);
     bodyGrad.addColorStop(0, shadeColor(color, 40));
     bodyGrad.addColorStop(0.5, color);
@@ -73,7 +95,6 @@ export class CharacterManager {
 
     ctxObj.fillStyle = bodyGrad;
     ctxObj.beginPath();
-    // Body path (slightly inset from sole)
     ctxObj.moveTo(x - 1.5, y - 3);
     ctxObj.lineTo(x + 4.5, y - 3);
     ctxObj.bezierCurveTo(x + 9, y - 3 * dirY, x + 9, y + 3, x + 4.5, y + 3);
@@ -81,36 +102,30 @@ export class CharacterManager {
     ctxObj.quadraticCurveTo(x - 2.5, y + 3, x - 2.5, y - 3, x - 1.5, y - 3);
     ctxObj.fill();
 
-    // 3. Draw Contrasting Toe Cap
-    ctxObj.fillStyle = '#34495e'; // Dark slate grey toe
+    ctxObj.fillStyle = '#34495e';
     ctxObj.beginPath();
     ctxObj.moveTo(x + 5, y - 2.5);
     ctxObj.bezierCurveTo(x + 9, y - 2.5 * dirY, x + 9, y + 2.5, x + 5, y + 2.5);
     ctxObj.quadraticCurveTo(x + 3.5, y, x + 5, y - 2.5);
     ctxObj.fill();
 
-    // 4. Draw Tongue
-    ctxObj.fillStyle = shadeColor(color, -20); // Darker shade of main color
+    ctxObj.fillStyle = shadeColor(color, -20);
     ctxObj.beginPath();
     ctxObj.moveTo(x - 1, y - 2);
-    ctxObj.lineTo(x + 3, y - 2.5); // Slopes up/forward
+    ctxObj.lineTo(x + 3, y - 2.5);
     ctxObj.lineTo(x + 3, y + 2.5);
     ctxObj.lineTo(x - 1, y + 2);
     ctxObj.fill();
 
-    // 5. Draw Laces (Crossing over the tongue)
     ctxObj.lineWidth = 1;
     ctxObj.strokeStyle = 'rgba(255,255,255,0.4)';
     ctxObj.beginPath();
-    // X pattern 1
     ctxObj.moveTo(x + 0.5, y - 2); ctxObj.lineTo(x + 2, y + 2);
     ctxObj.moveTo(x + 2, y - 2); ctxObj.lineTo(x + 0.5, y + 2);
-    // X pattern 2 (further forward)
     ctxObj.moveTo(x + 1.5, y - 2); ctxObj.lineTo(x + 3, y + 2);
     ctxObj.moveTo(x + 3, y - 2); ctxObj.lineTo(x + 1.5, y + 2);
     ctxObj.stroke();
 
-    // 6. Specular Highlight (Rim lighting on top edge)
     ctxObj.lineWidth = 0.5;
     ctxObj.strokeStyle = 'rgba(255,255,255,0.3)';
     ctxObj.beginPath();
@@ -119,12 +134,6 @@ export class CharacterManager {
     ctxObj.stroke();
   }
 
-  /**
-   * Helper method rendering the shared visual anatomy of a human character based on limb positions.
-   * @param {CanvasRenderingContext2D} ctx - The canvas graphics context.
-   * @param {Object} c - The character data including colors and gender.  
-   * @param {Object} limbs - Pre-calculated limb position coordinates.
-   */
   drawHumanoid(ctx, c, limbs) {
     const angle = (c.rotation || 0) * DEG_TO_RAD;
     const cosA = Math.cos(angle);
@@ -135,8 +144,6 @@ export class CharacterManager {
     const scaleX = baseScale * widthScale;
     const scaleY = baseScale * heightScale;
 
-    // Fast inline helper to mathematically translate local limb coordinates back to absolute
-    // world coordinates by inverting the current canvas scaling and rotation transforms!
     const isVisible = (localX, localY) => {
       const sx = localX * scaleX;
       const sy = localY * scaleY;
@@ -145,7 +152,6 @@ export class CharacterManager {
       return physicsEngine.checkClipMask((c.x || 0) + rotX, (c.y || 0) + rotY, 0);
     };
 
-    // Calculate exact mask intersection by stepping along the hand vector
     const getRaycastEnd = (startX, startY, targetX, targetY) => {
       let dx = targetX - startX;
       let dy = targetY - startY;
@@ -158,7 +164,6 @@ export class CharacterManager {
       let currentX = startX;
       let currentY = startY;
 
-      // Step pixel by pixel along the visual length of the arm
       for (let i = 0; i < dist; i += 1) {
         if (!isVisible(currentX, currentY)) {
           return { x: currentX, y: currentY, hit: true };
@@ -167,7 +172,6 @@ export class CharacterManager {
         currentY += stepY;
       }
 
-      // Reached the hand target without hitting the mask
       return { x: targetX, y: targetY, hit: !isVisible(targetX, targetY) };
     };
 
@@ -175,9 +179,6 @@ export class CharacterManager {
     this.drawHumanoidUpperBody(ctx, c, limbs, isVisible, getRaycastEnd);
   }
 
-  /**
-   * Renders only the legs and shoes of the character.
-   */
   drawHumanoidLowerBody(ctx, c, limbs, isVisible) {
     if (!isVisible) isVisible = () => true;
 
@@ -192,20 +193,15 @@ export class CharacterManager {
     }
   }
 
-  /**
-   * Renders the torso, arms, and head of the character.
-   */
   drawHumanoidUpperBody(ctx, c, limbs, isVisible, getRaycastEnd) {
     if (!isVisible) isVisible = () => true;
     if (!getRaycastEnd) getRaycastEnd = (sx, sy, tx, ty) => ({ x: tx, y: ty, hit: false });
 
-    const armOffset = 11; // Restore normal wide shoulder anchors
+    const armOffset = 11;
 
-    // Raycast both arms to determine exactly where they should physically truncate
     const leftArmEnd = getRaycastEnd(0, -armOffset, limbs.leftArmX, limbs.leftArmY);
     const rightArmEnd = getRaycastEnd(0, armOffset, limbs.rightArmX, limbs.rightArmY);
 
-    // Gradient for arms (cylindrical simulation)
     const armGradient = ctx.createLinearGradient(0, -armOffset, 0, limbs.leftArmY);
     armGradient.addColorStop(0, c.armColor || '#3498db');
     armGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
@@ -226,7 +222,6 @@ export class CharacterManager {
     leftHandGrad.addColorStop(0.6, '#e0ab63');
     leftHandGrad.addColorStop(1, '#a67232');
     ctx.fillStyle = leftHandGrad;
-    // Only draw the fists if the raycast natively reached the end of the limb coordinate
     if (!leftArmEnd.hit) {
       ctx.beginPath();
       ctx.arc(limbs.leftArmX, limbs.leftArmY, 3, 0, PI2);
@@ -244,11 +239,10 @@ export class CharacterManager {
       ctx.fill();
     }
 
-    // Gradient for the body (torso cylinder)
     const bodyGradient = ctx.createLinearGradient(-8, 0, 8, 0);
     bodyGradient.addColorStop(0, c.shirtColor || '#3498db');
-    bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20)); // Highlight
-    bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));  // Core shadow
+    bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20)); 
+    bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));  
     ctx.fillStyle = bodyGradient;
 
     const bodyDepth = c.gender === 'female' ? 10 : 12;
@@ -264,21 +258,19 @@ export class CharacterManager {
 
     ctx.beginPath();
     ctx.arc(2, 0, 8, 0, PI2);
-    // Spherical radial gradient for the head
     const headGradient = ctx.createRadialGradient(0, -2, 2, 2, 0, 8);
-    headGradient.addColorStop(0, '#f5d39e'); // Specular highlight
-    headGradient.addColorStop(0.6, '#e0ab63'); // Base skin tone
-    headGradient.addColorStop(1, '#a67232'); // Shadow rim
+    headGradient.addColorStop(0, '#f5d39e'); 
+    headGradient.addColorStop(0.6, '#e0ab63'); 
+    headGradient.addColorStop(1, '#a67232'); 
     ctx.fillStyle = headGradient;
     ctx.fill();
 
-    // Outline the head
     ctx.lineWidth = 2;
     ctx.strokeStyle = 'rgba(0,0,0,0.4)';
     ctx.stroke();
 
     let hairColor = c.hairColor;
-    if (!hairColor && c.gender === 'female') hairColor = '#e67e22'; // legacy fallback
+    if (!hairColor && c.gender === 'female') hairColor = '#e67e22';
 
     if (hairColor && hairColor !== 'none' && hairColor !== 'bald' && c.hairStyle !== 'bald') {
       let shineColor = hairColor;
@@ -336,298 +328,299 @@ export class CharacterManager {
         ctx.lineTo(-8, 5);
         ctx.lineTo(1, 7.5);
         ctx.fill();
-      } else { // 'long'
+      } else { 
         ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
         ctx.fill();
 
-        // Flowing, wavy long hair draping dynamically behind
         ctx.beginPath();
         ctx.moveTo(1, -5.5);
-        // Pinch tightly over the left shoulder, then flare out wide over the back
         ctx.bezierCurveTo(0, -6, -16, -6, -14, -1);
-        // Swoop back in towards the right shoulder
         ctx.bezierCurveTo(-12, 5, -6, 7, -2, 7.5);
-        // Curve back to the right side of the head
         ctx.bezierCurveTo(-1, 7.5, 0, 7.5, 1, 7.5);
         ctx.fill();
       }
     }
   }
 
-  /**
-   * Optimizes static NPC rendering by painting them onto an OffscreenCanvas once, 
-   * then returning that canvas to be cheaply drawn each frame.
-   * @param {Object} c - The character object data.
-   * @param {number} scaleX - The character horizontal scale multiplier.
-   * @param {number} scaleY - The character vertical scale multiplier.
-   * @returns {HTMLCanvasElement|OffscreenCanvas} Prerendered graphics context instance.
-   */
-  getPrerenderedNpc(c, scaleX = 1, scaleY = 1) {
-    const dpr = window.devicePixelRatio || 1;
-    if (c.prerenderedCanvas && c.prerenderedScaleX === scaleX && c.prerenderedScaleY === scaleY && c.prerenderedDpr === dpr) {
-      return c.prerenderedCanvas;
-    }
-
-    const baseSize = 100;
-    const logicalWidth = baseSize * scaleX;
-    const logicalHeight = baseSize * scaleY;
-    const width = Math.ceil(logicalWidth * dpr);
-    const height = Math.ceil(logicalHeight * dpr);
-
-    const canvas = window.OffscreenCanvas ? new OffscreenCanvas(width, height) : document.createElement('canvas');
-    if (!window.OffscreenCanvas) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-    const octx = canvas.getContext('2d');
-
-    octx.scale(dpr, dpr);
-    octx.translate(logicalWidth / 2, logicalHeight / 2);
-    octx.scale(scaleX, scaleY);
-
-    const limbs = {
-      leftArmX: 4, leftArmY: -14,
-      rightArmX: 4, rightArmY: 14,
-      leftLegStartX: -2, leftLegStartY: -6,
-      leftLegEndX: 4, leftLegEndY: -6,
-      rightLegStartX: -2, rightLegStartY: 6,
-      rightLegEndX: 4, rightLegEndY: 6
-    };
-
-    this.drawHumanoid(octx, c, limbs);
-
-    c.prerenderedScaleX = scaleX;
-    c.prerenderedScaleY = scaleY;
-    c.prerenderedDpr = dpr;
-    c.prerenderedCanvas = canvas;
-    return canvas;
-  }
-
-  /**
-   * Master rendering component for an individual character.
-   * @param {Object} c - The character data including positions, colors, and roles.
-   */
-  drawCharacter(c, isNpc, layerType, ctx, player, syncPlayerToJSON, cameraZoom = 1) {
-    if (layerType === 'all' || layerType === 'base') {
-      ctx.save();
-      // Fast bitwise truncation to prevent sub-pixel antialiasing blurring
-      ctx.translate(c.x | 0, c.y | 0);
+  ensureThreeSetup(c, scene) {
+    if (!c.meshGroup) {
+      c.meshGroup = new THREE.Group();
+      scene.add(c.meshGroup);
 
       const baseScale = window.init?.mapData?.character_scale || 1;
       const widthScale = (c.width || 40) / 40;
       const heightScale = (c.height || 40) / 40;
-      const scaleX = baseScale * widthScale;
-      const scaleY = baseScale * heightScale;
+      const maxScale = baseScale * Math.max(widthScale, heightScale);
 
-      // Draw shadow before rotation so it stays aligned with the world lighting
-      ctx.save();
-      ctx.scale(scaleX, scaleY);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-      ctx.beginPath();
-      ctx.arc(2, 4, 14, 0, PI2); // Offset slightly bottom-right
-      ctx.fill();
-      ctx.restore();
+      const logicalSize = Math.max(120, 120 * maxScale);
 
-      ctx.rotate(c.rotation * DEG_TO_RAD);
-      ctx.scale(scaleX, scaleY);
+      // Procedural character canvas backing
+      const dpr = window.devicePixelRatio || 1;
+      const texSize = logicalSize * dpr;
+      c.animationCanvas = window.OffscreenCanvas ? new OffscreenCanvas(texSize, texSize) : document.createElement('canvas');
+      if (!window.OffscreenCanvas) { c.animationCanvas.width = texSize; c.animationCanvas.height = texSize; }
+      c.offscreenCtx = c.animationCanvas.getContext('2d', { willReadFrequently: true });
+      c.canvasTexture = new THREE.CanvasTexture(c.animationCanvas);
+      c.canvasTexture.colorSpace = THREE.SRGBColorSpace; // Prevent washed out linear colors
+      c.canvasTexture.minFilter = THREE.LinearFilter;
+      c.logicalTexSize = logicalSize;
+      
+      const charGeo = new THREE.PlaneGeometry(logicalSize, logicalSize);
+      const charMat = new THREE.MeshBasicMaterial({ map: c.canvasTexture, transparent: true });
+      c.spriteMesh = new THREE.Mesh(charGeo, charMat);
+      c.spriteMesh.position.set(0, 0, 5); // Base character Z layer
+      c.meshGroup.add(c.spriteMesh);
 
-      if (c.emoji) {
-        ctx.font = '60px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.rotate(-c.rotation * DEG_TO_RAD); // keep it upright
+      // Shadow Mesh
+      const shadowSize = 28 * maxScale;
+      const shadowGeo = new THREE.PlaneGeometry(shadowSize, shadowSize);
+      const shadowCanvas = document.createElement('canvas');
+      shadowCanvas.width = 30 * maxScale; shadowCanvas.height = 30 * maxScale;
+      const sctx = shadowCanvas.getContext('2d');
+      sctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      sctx.beginPath();
+      sctx.arc(15 * maxScale, 15 * maxScale, 14 * maxScale, 0, Math.PI*2);
+      sctx.fill();
+      const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+      const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
+      c.shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+      c.shadowMesh.position.set(2 * maxScale, -4 * maxScale, 4); // Immediately below the character
+      c.meshGroup.add(c.shadowMesh);
+    }
+    
+    if (c.name && !c.hide_nameplate && !c.nameElement) {
+        c.nameElement = document.createElement('div');
+        c.nameElement.textContent = c.name;
+        c.nameElement.style.position = 'absolute';
+        c.nameElement.style.color = 'white';
+        c.nameElement.style.fontWeight = 'bold';
+        c.nameElement.style.fontSize = '12px';
+        c.nameElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+        c.nameElement.style.textShadow = '-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)';
+        c.nameElement.style.transform = 'translate(-50%, -50%)';
+        c.nameElement.style.pointerEvents = 'none';
+        c.nameElement.style.zIndex = '50';
+        document.body.appendChild(c.nameElement);
+    }
 
-        let currentEmote = c.emote;
-        let emoteDef = null;
-        if (currentEmote && emotes[currentEmote.name]) {
-          emoteDef = emotes[currentEmote.name];
-          if (emoteDef.setup) {
-            emoteDef.setup(ctx, currentEmote, c);
-          }
+    if (!c.chatElement) {
+        c.chatElement = document.createElement('div');
+        c.chatElement.style.position = 'absolute';
+        c.chatElement.style.background = 'white';
+        c.chatElement.style.color = '#2c3e50';
+        c.chatElement.style.padding = '6px 10px';
+        c.chatElement.style.borderRadius = '8px';
+        c.chatElement.style.fontWeight = 'normal';
+        c.chatElement.style.fontSize = '14px';
+        c.chatElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+        c.chatElement.style.boxShadow = '0 3px 6px rgba(0,0,0,0.25)';
+        c.chatElement.style.transform = 'translate(-50%, -100%)';
+        c.chatElement.style.pointerEvents = 'none';
+        c.chatElement.style.zIndex = '51';
+        c.chatElement.style.display = 'none';
+        c.chatElement.style.textAlign = 'center';
+        c.chatElement.style.minWidth = '50px';
+        
+        // Tooltip arrow
+        const arrow = document.createElement('div');
+        arrow.style.position = 'absolute';
+        arrow.style.bottom = '-8px';
+        arrow.style.left = '50%';
+        arrow.style.transform = 'translateX(-50%)';
+        arrow.style.borderWidth = '8px 6px 0 6px';
+        arrow.style.borderStyle = 'solid';
+        arrow.style.borderColor = 'white transparent transparent transparent';
+        c.chatElement.appendChild(arrow);
+        
+        c.chatTextNode = document.createElement('span');
+        c.chatElement.appendChild(c.chatTextNode);
+        
+        document.body.appendChild(c.chatElement);
+    }
+  }
+
+  updateCharacterTexture(c, isNpc, player, syncPlayerToJSON) {
+    const ctx = c.offscreenCtx;
+    const dpr = window.devicePixelRatio || 1;
+    const logicalSize = c.logicalTexSize || 120;
+    const texSize = logicalSize * dpr;
+    ctx.clearRect(0, 0, texSize, texSize);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.translate(logicalSize / 2, logicalSize / 2);
+
+    const baseScale = window.init?.mapData?.character_scale || 1;
+    const widthScale = (c.width || 40) / 40;
+    const heightScale = (c.height || 40) / 40;
+    const scaleX = baseScale * widthScale;
+    const scaleY = baseScale * heightScale;
+
+    ctx.rotate(c.rotation * DEG_TO_RAD);
+    ctx.scale(scaleX, scaleY);
+
+    if (c.emoji) {
+      ctx.font = '60px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.rotate(-c.rotation * DEG_TO_RAD); 
+
+      let currentEmote = c.emote;
+      let emoteDef = null;
+      if (currentEmote && emotes[currentEmote.name]) {
+        emoteDef = emotes[currentEmote.name];
+        if (emoteDef.setup) {
+          emoteDef.setup(ctx, currentEmote, c);
         }
+      }
+      ctx.fillText(c.emoji, 0, 0);
+    } else {
+      const isActualNpc = isNpc;
 
-        ctx.fillText(c.emoji, 0, 0);
-      } else {
-        const isActualNpc = isNpc;
-        const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;
+      if (isActualNpc && !c.emote && c.default_emote) {
+        c.emote = JSON.parse(JSON.stringify(c.default_emote));
+      }
 
-        if (isActualNpc && !c.emote && c.default_emote) {
-          c.emote = JSON.parse(JSON.stringify(c.default_emote));
-        }
-
-        if (isActualNpc && !hasMovement && !c.emote) {
-          const prCnv = this.getPrerenderedNpc(c, scaleX, scaleY);
-          ctx.save();
-          ctx.scale(1 / scaleX, 1 / scaleY);
-          const dpr = window.devicePixelRatio || 1;
-          const drawW = prCnv.width / dpr;
-          const drawH = prCnv.height / dpr;
-          ctx.drawImage(prCnv, -drawW / 2, -drawH / 2, drawW, drawH);
-          ctx.restore();
-        } else {
-          let currentEmote = c.emote;
-          let emoteDef = null;
-          if (currentEmote && emotes[currentEmote.name]) {
-            emoteDef = emotes[currentEmote.name];
-            if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
-              if (c.activeEmoteAudio) {
-                c.activeEmoteAudio.fadeOut(500);
-                c.activeEmoteAudio = null;
-              }
-              // Immediately replace the expired emote to prevent a 1-frame visual flicker.
-              // If we only assigned null, the NPC would render in a neutral pose for
-              // this exact frame before line 379 caught it on the next loop.
-              if (isActualNpc && c.default_emote) {
-                c.emote = JSON.parse(JSON.stringify(c.default_emote));
-                currentEmote = c.emote;
-                emoteDef = emotes[currentEmote.name] || null;
-                if (emoteDef && emoteDef.setup) {
-                  emoteDef.setup(ctx, currentEmote, c);
-                }
-              } else {
-                c.emote = null;
-                currentEmote = null;
-                if (c === player && syncPlayerToJSON) syncPlayerToJSON();
-                emoteDef = null;
-              }
-            } else if (emoteDef && emoteDef.setup) {
-              emoteDef.setup(ctx, currentEmote, c);
-            }
+      let currentEmote = c.emote;
+      let emoteDef = null;
+      
+      if (currentEmote && emotes[currentEmote.name]) {
+        emoteDef = emotes[currentEmote.name];
+        if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
+          if (c.activeEmoteAudio) {
+            c.activeEmoteAudio.fadeOut(500);
+            c.activeEmoteAudio = null;
           }
-
-          const legSwing = Math.sin(c.legAnimationTime || 0);
-          const legStride = 9;
-          const armStride = 8;
-
-          let limbs = {
-            leftArmX: 4 - legSwing * armStride,
-            leftArmY: -14,
-            rightArmX: 4 + legSwing * armStride,
-            rightArmY: 14,
-            leftLegStartX: -2,
-            leftLegStartY: -6,
-            leftLegEndX: -2 + 6 + legSwing * legStride,
-            leftLegEndY: -6,
-            rightLegStartX: -2,
-            rightLegStartY: 6,
-            rightLegEndX: -2 + 6 - legSwing * legStride,
-            rightLegEndY: 6
-          };
-
-          if (emoteDef && emoteDef.updateLimbs) {
-            emoteDef.updateLimbs(limbs, currentEmote);
+          if (isActualNpc && c.default_emote) {
+            c.emote = JSON.parse(JSON.stringify(c.default_emote));
+            currentEmote = c.emote;
+            emoteDef = emotes[currentEmote.name] || null;
+            if (emoteDef && emoteDef.setup) { emoteDef.setup(ctx, currentEmote, c); }
+          } else {
+            c.emote = null;
+            currentEmote = null;
+            if (c === player && syncPlayerToJSON) syncPlayerToJSON();
+            emoteDef = null;
           }
-
-          this.drawHumanoid(ctx, c, limbs);
-
-          if (emoteDef && emoteDef.draw) {
-            emoteDef.draw(ctx, currentEmote);
-          }
+        } else if (emoteDef && emoteDef.setup) {
+          emoteDef.setup(ctx, currentEmote, c);
         }
       }
 
-      ctx.restore();
+      const legSwing = Math.sin(c.legAnimationTime || 0);
+      const legStride = 9;
+      const armStride = 8;
+
+      let limbs = {
+        leftArmX: 4 - legSwing * armStride, leftArmY: -14,
+        rightArmX: 4 + legSwing * armStride, rightArmY: 14,
+        leftLegStartX: -2, leftLegStartY: -6,
+        leftLegEndX: -2 + 6 + legSwing * legStride, leftLegEndY: -6,
+        rightLegStartX: -2, rightLegStartY: 6,
+        rightLegEndX: -2 + 6 - legSwing * legStride, rightLegEndY: 6
+      };
+
+      if (emoteDef && emoteDef.updateLimbs) {
+        emoteDef.updateLimbs(limbs, currentEmote);
+      }
+
+      this.drawHumanoid(ctx, c, limbs);
+
+      if (emoteDef && emoteDef.draw) {
+        emoteDef.draw(ctx, currentEmote);
+      }
     }
+    
+    ctx.restore();
+    c.canvasTexture.needsUpdate = true;
+  }
 
-    if (layerType === 'all' || layerType === 'overlay') {
-      if (layerType === 'overlay' && c.name && !c.hide_nameplate) {
-        ctx.save();
-        ctx.translate(c.x | 0, c.y | 0);
-        ctx.scale(1 / cameraZoom, 1 / cameraZoom);
+  drawCharacter(c, isNpc, layerType, scene, player, syncPlayerToJSON, cameraZoom, viewportWidth, viewportHeight, threeCamera) {
+    if (layerType === 'all' || layerType === 'base') {
+      this.ensureThreeSetup(c, scene);
+      
+      // Update position (WebGL Y is UP, so we negate game Y)
+      c.meshGroup.position.set(c.x, -c.y, 0);
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.font = 'bold 12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-        ctx.textAlign = 'center';
+      const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;
+      let isEmoteAnimating = false;
+      if (c.emote && emotes[c.emote.name] && c.emote.startTime > 0) {
+        const age = Date.now() - c.emote.startTime;
+        if (age <= emotes[c.emote.name].duration) {
+           isEmoteAnimating = true;
+        }
+      }
 
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.lineJoin = 'round';
-
-        const baseScale = window.init?.mapData?.character_scale || 1;
-        const nameYOffsetScreen = (((c.height || 40) / 2) * baseScale) * cameraZoom + 15;
-
-        // Draw an optimized hardware stroke instead of expensive gaussian shadow blurring
-        ctx.strokeText(c.name, 0, nameYOffsetScreen);
-        ctx.fillText(c.name, 0, nameYOffsetScreen);
-
-        ctx.restore();
+      const isRedrawForced = isEmoteAnimating || hasMovement || c._lastRenderedEmote !== JSON.stringify(c.emote) || c._lastRenderedRot !== c.rotation || !c._hasInitialRender;
+      
+      if (isRedrawForced) {
+         this.updateCharacterTexture(c, isNpc, player, syncPlayerToJSON);
+         c._lastRenderedEmote = JSON.stringify(c.emote);
+         c._lastRenderedRot = c.rotation;
+         c._hasInitialRender = true;
       }
     }
 
-    if (layerType === 'all' || layerType === 'chat') {
-      if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
-        if (this.currentFrameChatCount >= 3) return;
-        this.currentFrameChatCount++;
+    if (layerType === 'all' || layerType === 'overlay' || layerType === 'chat') {
+      if (c.meshGroup) {
+         const vec = new THREE.Vector3(c.x, -c.y, 0);
+         vec.project(threeCamera);
+         // Map -1 to 1 to exact screen pixels
+         const screenX = (vec.x * 0.5 + 0.5) * viewportWidth;
+         const screenY = (-(vec.y * 0.5) + 0.5) * viewportHeight;
 
-        ctx.save();
-        ctx.translate(c.x | 0, c.y | 0);
-        ctx.scale(1 / cameraZoom, 1 / cameraZoom);
+         if (c.nameElement) {
+             c.nameElement.style.left = `${screenX}px`;
+             // Raise nameplate above head
+             const nameOffsetY = 45 * cameraZoom;
+             c.nameElement.style.top = `${screenY - nameOffsetY}px`;
+         }
 
-        ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-        const textWidth = ctx.measureText(c.chatMessage).width;
-        const bubbleWidth = textWidth + 24;
-        const bubbleHeight = 32;
-        const baseScale = window.init?.mapData?.character_scale || 1;
-
-        // compute offset coordinates physically
-        const bXScreen = -bubbleWidth / 2;
-        const bYScreen = -((((c.height || 40) / 2) * baseScale) * cameraZoom + 10) - bubbleHeight;
-
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
-        ctx.shadowBlur = 6;
-        ctx.shadowOffsetY = 3;
-
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        if (ctx.roundRect) {
-          ctx.roundRect(bXScreen, bYScreen, bubbleWidth, bubbleHeight, 8);
-        } else {
-          ctx.rect(bXScreen, bYScreen, bubbleWidth, bubbleHeight);
-        }
-        ctx.fill();
-
-        ctx.beginPath();
-        // The little arrow tooltip at bottom middle
-        const arrowTopY = bYScreen + bubbleHeight;
-        ctx.moveTo(-6, arrowTopY);
-        ctx.lineTo(6, arrowTopY);
-        ctx.lineTo(0, arrowTopY + 8);
-        ctx.fill();
-
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetY = 0;
-
-        ctx.fillStyle = '#2c3e50';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(c.chatMessage, 0, bYScreen + bubbleHeight / 2);
-
-        ctx.restore();
+         if (c.chatElement) {
+             if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
+                 this.currentFrameChatCount++;
+                 if (this.currentFrameChatCount <= 3) {
+                     c.chatElement.style.display = 'block';
+                     if (c.chatTextNode.innerText !== c.chatMessage) {
+                        c.chatTextNode.innerText = c.chatMessage;
+                     }
+                     c.chatElement.style.left = `${screenX}px`;
+                     const chatOffsetY = 55 * cameraZoom;
+                     c.chatElement.style.top = `${screenY - chatOffsetY}px`;
+                 } else {
+                     c.chatElement.style.display = 'none';
+                 }
+             } else {
+                 c.chatElement.style.display = 'none';
+             }
+         }
       }
     }
   }
 
-  /**
-   * Iterates through all players and NPCs and renders the ones currently visible
-   * within the camera bounds.
-   */
-  drawCharacters(layerType = 'all', ctx, canvas, player, syncPlayerToJSON, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight) {
+  drawCharacters(layerType = 'all', scene, player, syncPlayerToJSON, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight, threeCamera) {
     this.currentFrameChatCount = 0;
-    const viewHalfW = ((viewportWidth / cameraZoom) / 2) | 0;
-    const viewHalfH = ((viewportHeight / cameraZoom) / 2) | 0;
+    const viewHalfW = ((viewportWidth / cameraZoom) / 2);
+    const viewHalfH = ((viewportHeight / cameraZoom) / 2);
 
     const margin = 100;
-    const minX = (cameraX - viewHalfW - margin) | 0;
-    const maxX = (cameraX + viewHalfW + margin) | 0;
-    const minY = (cameraY - viewHalfH - margin) | 0;
-    const maxY = (cameraY + viewHalfH + margin) | 0;
+    const minX = (cameraX - viewHalfW - margin);
+    const maxX = (cameraX + viewHalfW + margin);
+    const minY = (cameraY - viewHalfH - margin);
+    const maxY = (cameraY + viewHalfH + margin);
 
     const processDraw = (char, isNpc) => {
       const c = (char.id === player.id) ? player : char;
+      const isVisible = (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY);
 
-      if (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY) {
-        this.drawCharacter(c, isNpc, layerType, ctx, player, syncPlayerToJSON, cameraZoom);
+      if (isVisible) {
+        if (c.meshGroup) c.meshGroup.visible = true;
+        if (c.nameElement) c.nameElement.style.display = 'block';
+        this.drawCharacter(c, isNpc, layerType, scene, player, syncPlayerToJSON, cameraZoom, viewportWidth, viewportHeight, threeCamera);
+      } else {
+        // Hide immediately to save DOM and GPU
+        if (c.meshGroup) c.meshGroup.visible = false;
+        if (c.nameElement) c.nameElement.style.display = 'none';
+        if (c.chatElement) c.chatElement.style.display = 'none';
       }
     };
 
@@ -642,10 +635,6 @@ export class CharacterManager {
 
 export const characterManager = new CharacterManager();
 
-/**
- * Calculates local NPC movement and wandering behavior per-frame using Delta Time.
- * Completely replaces the old Server-side waypoint and roam patrol loops to eliminate network latency.
- */
 export function updateLocalNPCs(dt) {
   if (!window.init || !window.init.npcs) return;
 
@@ -658,45 +647,33 @@ export function updateLocalNPCs(dt) {
         npc._startX = npc.x !== undefined ? npc.x : 0;
         npc._startY = npc.y !== undefined ? npc.y : 0;
         npc._startRotation = npc.rotation || 0;
-        npc.waitTimer = 1.0 + Math.random() * 3.0; // Wait 1-4 seconds initially
+        npc.waitTimer = 1.0 + Math.random() * 3.0;
       }
 
-      // If we are currently waiting
       if (npc.waitTimer > 0) {
         npc.waitTimer -= dt;
       }
 
-      // Timer just expired, time to evaluate next phase
       if (npc.waitTimer <= 0) {
         if (npc._pendingRoamX !== undefined) {
-          // Phase 2: Start moving towards the calculated roam coordinates
           npc.targetX = npc._pendingRoamX;
           npc.targetY = npc._pendingRoamY;
-
           delete npc._pendingRoamX;
           delete npc._pendingRoamY;
-
-          // Wait 2-5 seconds at the new destination before picking another target
           npc.waitTimer = 2.0 + (Math.random() * 3.0);
         } else {
-          // Phase 1: Pick a random destination and turn to face it
           const angle = Math.random() * Math.PI * 2;
           const distance = Math.random() * npc.roam_radius;
-
           const destX = npc._startX + (Math.cos(angle) * distance);
           const destY = npc._startY + (Math.sin(angle) * distance);
-
           const dx = destX - npc.x;
           const dy = destY - npc.y;
-
           let destRotation = Math.atan2(dy, dx) * (180 / Math.PI);
           destRotation = (destRotation + 360) % 360;
 
           npc.targetRotation = Math.round(destRotation);
           npc._pendingRoamX = destX;
           npc._pendingRoamY = destY;
-
-          // Wait 0.5s for the physical turn interpolation to complete
           npc.waitTimer = 0.5;
         }
       }
@@ -715,7 +692,6 @@ export function updateLocalNPCs(dt) {
 
       if (npc.waitTimer <= 0) {
         npc._moveIdx = (npc._moveIdx + 1) % (npc.waypoints.length + 2);
-
         npc._currentOffsetX = npc._currentOffsetX || 0;
         npc._currentOffsetY = npc._currentOffsetY || 0;
         npc._currentOffsetRotation = npc._currentOffsetRotation || 0;
