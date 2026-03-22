@@ -6,6 +6,16 @@ class SoundManager {
     this.bufferCache = new Map();
     this.bgSourceNode = null;
     this.currentBgSrc = null;
+    
+    // Track preloaded native assets
+    this.nativeAssets = new Set();
+  }
+
+  getNativeAudio() {
+    if (window.Capacitor && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins && window.Capacitor.Plugins.NativeAudio) {
+      return window.Capacitor.Plugins.NativeAudio;
+    }
+    return null;
   }
 
   unlock() {
@@ -51,7 +61,66 @@ class SoundManager {
     }
   }
 
+  async ensureNativePreloaded(src) {
+    const NativeAudio = this.getNativeAudio();
+    if (!NativeAudio) return false;
+
+    if (this.nativeAssets.has(src)) return true;
+
+    // Convert to relative asset path (e.g., /media/sound.mp3 -> public/media/sound.mp3)
+    let assetPath = src.startsWith('/') ? 'public' + src : 'public/' + src;
+
+    try {
+      await NativeAudio.preload({
+        assetId: src,
+        assetPath: assetPath,
+        audioChannelNum: 4,
+        isUrl: false
+      });
+      this.nativeAssets.add(src);
+      return true;
+    } catch (e) {
+      console.warn("Native preloading failed for", src, e);
+      return false;
+    }
+  }
+
   playPooled(src, volume = 1, loop = false) {
+    const NativeAudio = this.getNativeAudio();
+    if (NativeAudio) {
+      const result = {
+        stopped: false,
+        rate: 1,
+        pause: function() {
+          this.stopped = true;
+          NativeAudio.stop({ assetId: src }).catch(()=>{});
+        },
+        fadeOut: function(durationMs = 500) {
+          this.stopped = true;
+          // Native audio lacks fade out, stop after short delay to simulate
+          setTimeout(() => {
+             NativeAudio.stop({ assetId: src }).catch(()=>{});
+          }, Math.min(durationMs, 200));
+        },
+        setRate: function(rate) {
+          this.rate = rate; // Not fully supported by typical NativeAudio API without custom plugin tweaks
+        }
+      };
+
+      this.ensureNativePreloaded(src).then(preloaded => {
+        if (!preloaded || result.stopped) return;
+        NativeAudio.setVolume({ assetId: src, volume: Math.max(0, volume) }).catch(()=>{});
+        if (loop) {
+          NativeAudio.loop({ assetId: src }).catch(()=>{});
+        } else {
+          NativeAudio.play({ assetId: src }).catch(()=>{});
+        }
+      });
+
+      return result;
+    }
+
+    // Web Audio API Fallback
     if (!this.audioCtx) return { pause: () => {}, fadeOut: () => {}, setRate: () => {} };
     if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
 
@@ -110,6 +179,26 @@ class SoundManager {
   }
 
   playBackground(src, volume = 1) {
+    const NativeAudio = this.getNativeAudio();
+    if (NativeAudio) {
+      if (this.currentBgSrc !== src) {
+        if (this.currentBgSrc) {
+          NativeAudio.stop({ assetId: this.currentBgSrc }).catch(()=>{});
+        }
+        this.currentBgSrc = src;
+        
+        this.ensureNativePreloaded(src).then(preloaded => {
+          if (!preloaded || this.currentBgSrc !== src) return;
+          NativeAudio.setVolume({ assetId: src, volume: Math.max(0, volume) }).catch(()=>{});
+          NativeAudio.loop({ assetId: src }).catch(()=>{});
+        });
+      } else {
+        NativeAudio.setVolume({ assetId: src, volume: Math.max(0, volume) }).catch(()=>{});
+      }
+      return;
+    }
+
+    // Web Audio API Fallback
     if (!this.audioCtx) return;
     if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
 
@@ -140,6 +229,14 @@ class SoundManager {
   }
 
   stopBackground() {
+    const NativeAudio = this.getNativeAudio();
+    if (NativeAudio && this.currentBgSrc) {
+      NativeAudio.stop({ assetId: this.currentBgSrc }).catch(()=>{});
+      this.currentBgSrc = null;
+      return;
+    }
+
+    // Web Audio API Fallback
     if (this.bgSourceNode) {
        try { this.bgSourceNode.stop(); } catch(e){}
        this.bgSourceNode.disconnect();
@@ -159,4 +256,3 @@ export function initSound() {
   window.addEventListener('click', unlockAudio, { once: true });
   window.addEventListener('keydown', unlockAudio, { once: true });
 }
-

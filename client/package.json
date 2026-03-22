@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Capacitor client for Joel's World",
   "dependencies": {
+    "@capacitor-community/native-audio": "^8.0.0",
     "@capacitor/cli": "^8.2.0",
     "@capacitor/core": "^8.2.0",
     "@capacitor/ios": "^8.2.0",
