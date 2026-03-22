@@ -212,11 +212,7 @@ function processNPCLogic(npc, itPlayer, dt) {
         npc.tauntAngleOffset = (Math.random() - 0.5) * Math.PI; 
       }
 
-      // If IT is invisible/cooldown, always feel safe
-      if (state.invincibleTime > 0 && npc.tagState === 'flee') {
-        npc.tagState = 'idle';
-      }
-
+      // Purge the naive invincibility "idle" override. Fleers MUST physically run to escape the cooldown gap. 
       // Execute State Behaviors
       if (npc.tagState === 'idle') {
         shouldMove = false; // Resting / Catching breath
@@ -280,7 +276,9 @@ function processNPCLogic(npc, itPlayer, dt) {
     const moveY = (dy / len) * finalSpeed * dt;
 
     // Natively handle physical barriers using the engine's standard sliding logic!
-    const mockEntity = { x: npc.targetPosition.x, y: npc.targetPosition.y, width: npc.width, height: npc.height };
+    const mockEntity = { id: npc.id, x: npc.targetPosition.x, y: npc.targetPosition.y, width: npc.width, height: npc.height };
+    const collisionPlayers = state.players.map(p => ({ id: p.id, x: p.targetPosition.x, y: p.targetPosition.y, width: p.width, height: p.height }));
+
     const result = physicsEngine.processMovement(
       mockEntity,
       moveX,
@@ -288,7 +286,7 @@ function processNPCLogic(npc, itPlayer, dt) {
       window.init?.objects || [],
       window.init?.mapData,
       false,
-      state.players
+      collisionPlayers
     );
 
     npc.targetPosition.x = result.newX;
@@ -348,7 +346,9 @@ function processLocalPlayerLogic(localP, dt) {
     let finalMoveY = (moveY / len) * pSpeed * dt;
 
     // Unify Player physics and sliding constraints to identical collision geometry
-    const mockEntity = { x: localP.targetPosition.x, y: localP.targetPosition.y, width: localP.width, height: localP.height };
+    const mockEntity = { id: localP.id, x: localP.targetPosition.x, y: localP.targetPosition.y, width: localP.width, height: localP.height };
+    const collisionPlayers = state.players.map(p => ({ id: p.id, x: p.targetPosition.x, y: p.targetPosition.y, width: p.width, height: p.height }));
+
     const result = physicsEngine.processMovement(
       mockEntity,
       finalMoveX,
@@ -356,7 +356,7 @@ function processLocalPlayerLogic(localP, dt) {
       window.init?.objects || [],
       window.init?.mapData,
       false,
-      state.players
+      collisionPlayers
     );
 
     localP.targetPosition.x = result.newX;
