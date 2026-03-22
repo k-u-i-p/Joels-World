@@ -113,7 +113,7 @@ export class UIManager {
         const headers = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const response = await fetch(`${PROTOCOL}://${DOMAIN}/api/config`, { headers });
+        const response = await fetch(URL, { headers });
         const data = await response.json();
         const validEmotes = data.validEmotes || [];
 

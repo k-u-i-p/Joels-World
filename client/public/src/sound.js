@@ -93,13 +93,13 @@ class SoundManager {
         rate: 1,
         pause: function() {
           this.stopped = true;
-          NativeAudio.stop({ assetId: src }).catch(()=>{});
+          NativeAudio.stop({ assetId: src }).catch(e => console.warn('NativeAudio stop error:', src, e));
         },
         fadeOut: function(durationMs = 500) {
           this.stopped = true;
           // Native audio lacks fade out, stop after short delay to simulate
           setTimeout(() => {
-             NativeAudio.stop({ assetId: src }).catch(()=>{});
+             NativeAudio.stop({ assetId: src }).catch(e => console.warn('NativeAudio stop error:', src, e));
           }, Math.min(durationMs, 200));
         },
         setRate: function(rate) {
@@ -109,11 +109,11 @@ class SoundManager {
 
       this.ensureNativePreloaded(src).then(preloaded => {
         if (!preloaded || result.stopped) return;
-        NativeAudio.setVolume({ assetId: src, volume: Math.max(0, volume) }).catch(()=>{});
+        NativeAudio.setVolume({ assetId: src, volume: Math.max(0, volume) }).catch(e => console.warn('NativeAudio stop error:', src, e));
         if (loop) {
-          NativeAudio.loop({ assetId: src }).catch(()=>{});
+          NativeAudio.loop({ assetId: src }).catch(e => console.warn('NativeAudio stop error:', src, e));
         } else {
-          NativeAudio.play({ assetId: src }).catch(()=>{});
+          NativeAudio.play({ assetId: src }).catch(e => console.warn('NativeAudio stop error:', src, e));
         }
       });
 
@@ -183,17 +183,17 @@ class SoundManager {
     if (NativeAudio) {
       if (this.currentBgSrc !== src) {
         if (this.currentBgSrc) {
-          NativeAudio.stop({ assetId: this.currentBgSrc }).catch(()=>{});
+          NativeAudio.stop({ assetId: this.currentBgSrc }).catch(e=>console.warn('NativeAudio stop bg error:', e));
         }
         this.currentBgSrc = src;
         
         this.ensureNativePreloaded(src).then(preloaded => {
           if (!preloaded || this.currentBgSrc !== src) return;
-          NativeAudio.setVolume({ assetId: src, volume: Math.max(0, volume) }).catch(()=>{});
-          NativeAudio.loop({ assetId: src }).catch(()=>{});
+          NativeAudio.setVolume({ assetId: src, volume: Math.max(0, volume) }).catch(e=>console.warn('NativeAudio volume error:', e));
+          NativeAudio.loop({ assetId: src }).catch(e=>console.warn('NativeAudio loop error:', e));
         });
       } else {
-        NativeAudio.setVolume({ assetId: src, volume: Math.max(0, volume) }).catch(()=>{});
+        NativeAudio.setVolume({ assetId: src, volume: Math.max(0, volume) }).catch(e=>console.warn('NativeAudio volume error:', e));
       }
       return;
     }
@@ -231,7 +231,7 @@ class SoundManager {
   stopBackground() {
     const NativeAudio = this.getNativeAudio();
     if (NativeAudio && this.currentBgSrc) {
-      NativeAudio.stop({ assetId: this.currentBgSrc }).catch(()=>{});
+      NativeAudio.stop({ assetId: this.currentBgSrc }).catch(e=>console.warn('NativeAudio stop bg error:', e));
       this.currentBgSrc = null;
       return;
     }

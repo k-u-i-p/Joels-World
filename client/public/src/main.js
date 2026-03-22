@@ -537,9 +537,6 @@ function handleInitData(data) {
 
     const wasRunning = gameLoop.isRunning();
 
-    console.log('[Main] wasRunning: ' + wasRunning);
-    console.log('[Main] window.init.mapData: ' + JSON.stringify(window.init.mapData));
-
     gameLoop.clear();
 
     if (window.init.mapData && window.init.mapData.import) {
