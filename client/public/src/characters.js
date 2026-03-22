@@ -371,11 +371,11 @@ export class CharacterManager {
       const pantsMat = new THREE.MeshLambertMaterial({ color: colorToHex(c.pantsColor || '#2c3e50') });
       const shoeMat = new THREE.MeshLambertMaterial({ color: colorToHex(c.shoeColor || '#7f8c8d') });
 
-      // Core skeleton rig
+      // Core skeleton rig (Scaled to match old R=14 Canvas Paths)
       c.rig = {
          bodyPivot: new THREE.Group(),
-         head: new THREE.Mesh(new THREE.SphereGeometry(6, 16, 16), skinMat),
-         torso: new THREE.Mesh(new THREE.CylinderGeometry(5.5, 5.5, 10, 12), shirtMat),
+         head: new THREE.Mesh(new THREE.SphereGeometry(14, 16, 16), skinMat),
+         torso: new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 22, 16), shirtMat),
          leftArm: new THREE.Group(),
          rightArm: new THREE.Group(),
          leftLeg: new THREE.Group(),
@@ -385,13 +385,12 @@ export class CharacterManager {
       c.meshGroup.add(c.rig.bodyPivot);
       c.rig.bodyPivot.add(c.rig.torso);
 
-      // Torso stands UP along the Z axis. CylinderGeometry defaults to Y axis upright.
-      // We must rotate the torso 90 degrees on X so it points up the Z axis!
+      // Torso stands UP along the Z axis
       c.rig.torso.rotation.x = Math.PI / 2;
-      c.rig.torso.position.set(0, 0, 10);
+      c.rig.torso.position.set(0, 0, 20);
 
       // Head is placed above the torso on the Z axis
-      c.rig.head.position.set(2, 0, 16); // Slightly forward on X (face points X+)
+      c.rig.head.position.set(2, 0, 36); // Slightly forward on X (face points X+)
       c.rig.bodyPivot.add(c.rig.head);
 
       // Build Hair
@@ -403,32 +402,32 @@ export class CharacterManager {
       hairGroup.position.set(0, 0, 0); // Local to Head
       
       if (style === 'spiky') {
-          const spikeGeo = new THREE.ConeGeometry(2, 6, 4);
+          const spikeGeo = new THREE.ConeGeometry(5, 12, 6);
           for (let i = 0; i < 5; i++) {
               const spike = new THREE.Mesh(spikeGeo, hairMat);
               spike.rotation.y = (Math.PI / 4) * (i - 2);
               spike.rotation.x = Math.PI / 2;
-              spike.position.set(-1, (i - 2) * 1.5, 5); 
+              spike.position.set(-2, (i - 2) * 2.5, 12); 
               hairGroup.add(spike);
           }
       } else if (style === 'ponytail') {
-          const baseHairGeo = new THREE.SphereGeometry(6.2, 16, 16, 0, Math.PI, 0, Math.PI);
+          const baseHairGeo = new THREE.SphereGeometry(14.5, 16, 16, 0, Math.PI, 0, Math.PI);
           const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
           baseHair.rotation.y = -Math.PI / 2; // Cover back half of head
           hairGroup.add(baseHair);
           
-          const tailGeo = new THREE.ConeGeometry(2, 12, 8);
+          const tailGeo = new THREE.ConeGeometry(5, 24, 8);
           const tail = new THREE.Mesh(tailGeo, hairMat);
           tail.rotation.z = Math.PI / 2;
-          tail.position.set(-8, 0, 2); // Drooping off the back
+          tail.position.set(-18, 0, 4); // Drooping off the back
           hairGroup.add(tail);
       } else if (style === 'messy') {
-          const baseHairGeo = new THREE.IcosahedronGeometry(6.5, 0); // jagged
+          const baseHairGeo = new THREE.IcosahedronGeometry(15, 0); // jagged
           const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
           hairGroup.add(baseHair);
       } else {
           // Base/default flat cap style hair
-          const baseHairGeo = new THREE.SphereGeometry(6.2, 16, 16, 0, Math.PI, 0, Math.PI);
+          const baseHairGeo = new THREE.SphereGeometry(14.5, 16, 16, 0, Math.PI, 0, Math.PI);
           const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
           baseHair.rotation.y = -Math.PI / 2;
           hairGroup.add(baseHair);
@@ -436,45 +435,45 @@ export class CharacterManager {
       c.rig.head.add(hairGroup);
 
       // Build Arms (Cylinders point along Y natively, we rotate them to point along Z)
-      const armGeo = new THREE.CylinderGeometry(2, 2, 8, 8);
+      const armGeo = new THREE.CylinderGeometry(5.5, 5.5, 16, 10);
       
       const lArmMesh = new THREE.Mesh(armGeo, skinMat);
       lArmMesh.rotation.x = Math.PI / 2;
-      lArmMesh.position.set(0, 0, -4); // Drop down from shoulder pivot
+      lArmMesh.position.set(0, 0, -8); // Drop down from shoulder pivot
       c.rig.leftArm.add(lArmMesh);
-      c.rig.leftArm.position.set(0, -7, 13); // Shift left on Y, up on Z
+      c.rig.leftArm.position.set(0, -15, 26); // Shift left on Y, up on Z
       c.rig.bodyPivot.add(c.rig.leftArm);
 
       const rArmMesh = new THREE.Mesh(armGeo, skinMat);
       rArmMesh.rotation.x = Math.PI / 2;
-      rArmMesh.position.set(0, 0, -4);
+      rArmMesh.position.set(0, 0, -8);
       c.rig.rightArm.add(rArmMesh);
-      c.rig.rightArm.position.set(0, 7, 13); // Shift right on Y
+      c.rig.rightArm.position.set(0, 15, 26); // Shift right on Y
       c.rig.bodyPivot.add(c.rig.rightArm);
 
       // Build Legs
-      const legGeo = new THREE.CylinderGeometry(2.5, 2, 8, 8);
+      const legGeo = new THREE.CylinderGeometry(6, 5, 16, 10);
       const lLegMesh = new THREE.Mesh(legGeo, pantsMat);
       lLegMesh.rotation.x = Math.PI / 2;
-      lLegMesh.position.set(0, 0, -4);
+      lLegMesh.position.set(0, 0, -8);
       
-      const shoeGeo = new THREE.BoxGeometry(5, 3, 3);
+      const shoeGeo = new THREE.BoxGeometry(10, 6, 8);
       const lShoe = new THREE.Mesh(shoeGeo, shoeMat);
-      lShoe.position.set(1.5, 0, -8); // Toes point forward (+X)
+      lShoe.position.set(3, 0, -16); // Toes point forward (+X)
       c.rig.leftLeg.add(lLegMesh);
       c.rig.leftLeg.add(lShoe);
-      c.rig.leftLeg.position.set(0, -3.5, 8); // Hips
+      c.rig.leftLeg.position.set(0, -7, 16); // Hips
       c.rig.bodyPivot.add(c.rig.leftLeg);
 
       const rLegMesh = new THREE.Mesh(legGeo, pantsMat);
       rLegMesh.rotation.x = Math.PI / 2;
-      rLegMesh.position.set(0, 0, -4);
+      rLegMesh.position.set(0, 0, -8);
       
       const rShoe = new THREE.Mesh(shoeGeo, shoeMat);
-      rShoe.position.set(1.5, 0, -8);
+      rShoe.position.set(3, 0, -16);
       c.rig.rightLeg.add(rLegMesh);
       c.rig.rightLeg.add(rShoe);
-      c.rig.rightLeg.position.set(0, 3.5, 8);
+      c.rig.rightLeg.position.set(0, 7, 16);
       c.rig.bodyPivot.add(c.rig.rightLeg);
       
       // Apply Master Scale and Base Elevation
