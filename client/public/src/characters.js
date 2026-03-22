@@ -445,11 +445,17 @@ export class CharacterManager {
 
       // Build Arms (Cylinders point along Y natively, we rotate them to point along Z)
       const armGeo = new THREE.CylinderGeometry(5.5, 5.5, 16, 10);
+      const handGeo = new THREE.SphereGeometry(6.5, 12, 12);
       
       const lArmMesh = new THREE.Mesh(armGeo, shirtMat);
       lArmMesh.rotation.x = Math.PI / 2;
       lArmMesh.position.set(0, 0, -8); // Drop down from shoulder pivot
       c.rig.leftArm.add(lArmMesh);
+      
+      const lHand = new THREE.Mesh(handGeo, skinMat);
+      lHand.position.set(0, 0, -17); // Terminus of the sleeve
+      c.rig.leftArm.add(lHand);
+      
       c.rig.leftArm.position.set(0, -15, 26); // Shift left on Y, up on Z
       c.rig.bodyPivot.add(c.rig.leftArm);
 
@@ -457,6 +463,11 @@ export class CharacterManager {
       rArmMesh.rotation.x = Math.PI / 2;
       rArmMesh.position.set(0, 0, -8);
       c.rig.rightArm.add(rArmMesh);
+      
+      const rHand = new THREE.Mesh(handGeo, skinMat);
+      rHand.position.set(0, 0, -17);
+      c.rig.rightArm.add(rHand);
+      
       c.rig.rightArm.position.set(0, 15, 26); // Shift right on Y
       c.rig.bodyPivot.add(c.rig.rightArm);
 
@@ -593,17 +604,20 @@ export class CharacterManager {
     const legSwing = Math.sin(c.legAnimationTime || 0);
     const strideAngle = 0.6; // ~35 degrees
 
-    // Reset default idle pose
-    c.rig.leftArm.rotation.set(0, 0, 0);
-    c.rig.rightArm.rotation.set(0, 0, 0);
+    // Reset default idle pose (A-Pose to make hands visible from top-down orthographic camera)
+    const restPitch = -0.3; // Swing forward slightly (+X axis)
+    const restRoll = 0.4;   // Splay outward laterally (-/+ Y axis)
+    
+    c.rig.leftArm.rotation.set(restRoll, restPitch, 0);
+    c.rig.rightArm.rotation.set(-restRoll, restPitch, 0);
     c.rig.leftLeg.rotation.set(0, 0, 0);
     c.rig.rightLeg.rotation.set(0, 0, 0);
 
     // If moving, oscillate limbs opposite to each other.
     if ((c.legAnimationTime || 0) > 0) {
        // Y axis pivots the limbs longitudinally (forward/backward stride)
-       c.rig.leftArm.rotation.y = -legSwing * strideAngle;
-       c.rig.rightArm.rotation.y = legSwing * strideAngle;
+       c.rig.leftArm.rotation.y = restPitch - legSwing * strideAngle;
+       c.rig.rightArm.rotation.y = restPitch + legSwing * strideAngle;
        c.rig.leftLeg.rotation.y = legSwing * strideAngle;
        c.rig.rightLeg.rotation.y = -legSwing * strideAngle;
     }
