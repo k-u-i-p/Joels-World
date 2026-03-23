@@ -56,8 +56,14 @@ export class MapManager {
               this.mapH = Math.max(this.mapH, tex.image.height || 0);
 
               const geom = new THREE.PlaneGeometry(tex.image.width, tex.image.height);
-              const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: layerObj.alpha });
+              const mat = new THREE.MeshBasicMaterial({ 
+                  map: tex, 
+                  transparent: layerObj.alpha < 1, 
+                  opacity: layerObj.alpha, 
+                  alphaTest: 0.1 
+              });
               layerObj.mesh = new THREE.Mesh(geom, mat);
+              layerObj.mesh.renderOrder = 0; // Legacy layers default to Z=0 baseline
               if (scene) {
                 scene.add(layerObj.mesh);
                 this.activeMeshes.push(layerObj.mesh);
@@ -126,7 +132,11 @@ export class MapManager {
 
               // We pad the geometry very slightly to prevent aliasing seams
               const paddedGeom = this.getGeometry(layer.chunk_size + 1);
-              const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: layer.alpha });
+              const mat = new THREE.MeshBasicMaterial({ 
+                  transparent: layer.alpha < 1, 
+                  opacity: layer.alpha, 
+                  alphaTest: 0.1 
+              });
               const mesh = new THREE.Mesh(paddedGeom, mat);
 
               // Position the mesh tile
@@ -136,6 +146,7 @@ export class MapManager {
                 -(drawY + layer.chunk_size / 2),
                 layerZ
               );
+              mesh.renderOrder = layerZ; // Force explicit rendering order sequence bypassing frustum distance scaling!
 
               mesh.visible = false;
               scene.add(mesh);
