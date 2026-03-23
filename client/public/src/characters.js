@@ -707,20 +707,17 @@ export class CharacterManager {
     
     if ((c.legAnimationTime || 0) > 0) {
         // Dynamic Locomotion Targets
-        const armSwingX = 8; // Punch arms forward/backward
-        const armSwingY = 2; // Subtle side-to-side boxing sway
-        const armLiftZ = 4;  // Lift arms exactly at the swing peak to flex the elbow geometrically!
+        const armSwingX = 12; // Punch arms farther forward/backward
+        const armLiftZ = 12;  // Aggressive vertical pump causing the IK solver to forcefully hinge the elbows up and down!
         
         const legStrideX = 14; 
         const stepLiftZ = 6;
         
         // Left Arm punches Forward (+X) when Left Leg sweeps Backward (-X)
         c.rig.leftHandTarget.x += -legSwing * armSwingX;
-        c.rig.leftHandTarget.y += Math.abs(legSwing) * armSwingY; 
         c.rig.leftHandTarget.z += Math.abs(legSwing) * armLiftZ; 
         
         c.rig.rightHandTarget.x += legSwing * armSwingX;
-        c.rig.rightHandTarget.y -= Math.abs(legSwing) * armSwingY;
         c.rig.rightHandTarget.z += Math.abs(legSwing) * armLiftZ;
         
         c.rig.leftFootTarget.x += legSwing * legStrideX;
