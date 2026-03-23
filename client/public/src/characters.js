@@ -686,8 +686,8 @@ export class CharacterManager {
     }
 
     // 1. Reset explicit IK targets to baseline resting coordinates (Boxer/Runner 90-degree stance)
-    const baseLHand = new THREE.Vector3(8, -5, 17); // Hands forward, inwards towards belly, waist height
-    const baseRHand = new THREE.Vector3(8, 5, 17);
+    const baseLHand = new THREE.Vector3(8, -14, 18); // Hands directly forward from shoulders, forcing elbows beautifully outward
+    const baseRHand = new THREE.Vector3(8, 14, 18);
     const baseLFoot = new THREE.Vector3(2, -6, -14);
     const baseRFoot = new THREE.Vector3(2, 6, -14);
     
