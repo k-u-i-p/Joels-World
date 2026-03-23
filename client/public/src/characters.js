@@ -3,24 +3,45 @@ import { physicsEngine } from './physics.js';
 import * as THREE from 'three';
 import { uiManager } from './ui.js';
 
-// --- STRETCHY IK SOLVER ---
-// Aligns a cylindrical primitive perfectly between two spatial coordinates
-function updateStretchyLimb(sleeveMesh, startPos, endPos, defaultLength) {
+// --- 2-BONE INVERSE KINEMATICS (IK) SOLVER ---
+// Trigonometrically calculates the hinge joint (elbow/knee) between a start and end coordinate.
+function solve2BoneIK(startPos, endPos, L1, L2, poleVector) {
+    const dVector = new THREE.Vector3().subVectors(endPos, startPos);
+    let d = dVector.length();
+    
+    // Stretch limiter (if target is physically out of reach, form a straight line)
+    if (d >= L1 + L2) {
+        return new THREE.Vector3().copy(startPos).add(dVector.normalize().multiplyScalar(L1));
+    }
+    if (d < 0.01) d = 0.01;
+    
+    // Law of Cosines to find inner angle
+    let cosTheta = (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d);
+    cosTheta = Math.max(-1, Math.min(1, cosTheta));
+    const theta = Math.acos(cosTheta);
+    
+    // Calculate the bending plane normal constraint locking the hinge
+    const dir = dVector.clone().normalize();
+    let N = new THREE.Vector3().crossVectors(poleVector, dir);
+    if (N.lengthSq() < 0.001) {
+        N = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), dir);
+    }
+    N.normalize();
+    
+    // Rotate baseline direction around the normal to project the joint outward
+    dir.applyAxisAngle(N, theta);
+    return new THREE.Vector3().copy(startPos).add(dir.multiplyScalar(L1));
+}
+
+// Aligns a limb segment linearly between two localized coordinates without distortion
+function pointLimbSegment(sleeveMesh, startPos, endPos) {
     const dist = startPos.distanceTo(endPos);
-    if (dist < 0.1) return; // Prevent zero-division snapping
-    
-    // 1. Calculate midpoint for the mesh origin
+    if (dist < 0.1) return;
     sleeveMesh.position.copy(startPos).lerp(endPos, 0.5);
-    
-    // 2. Align native Y-axis along the directional vector
     const dir = new THREE.Vector3().subVectors(endPos, startPos).normalize();
-    const up = new THREE.Vector3(0, 1, 0); // Native cylinder up vector
+    const up = new THREE.Vector3(0, 1, 0); // Native capsule +Y alignment
     const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
-    
     sleeveMesh.quaternion.copy(quat);
-    
-    // 3. Stretch geometrically to cover the exact local distance
-    sleeveMesh.scale.set(1, dist / defaultLength, 1);
 }
 const DEG_TO_RAD = Math.PI / 180;
 const PI2 = Math.PI * 2;
@@ -510,32 +531,46 @@ export class CharacterManager {
       }
       c.rig.head.add(hairGroup);
 
-      // Build Arms (Stretchy Capsule Sleeves)
-      const armGeo = new THREE.CapsuleGeometry(4.2, 16, 8, 10);
+      // Build Arms (2-Bone Articulated Capsules)
+      const armL1 = 8; // Upper Arm length
+      const armL2 = 8; // Lower Arm length
+      const upperArmGeo = new THREE.CapsuleGeometry(4.2, armL1, 8, 10);
+      const lowerArmGeo = new THREE.CapsuleGeometry(4.2, armL2, 8, 10);
       const handGeo = new THREE.SphereGeometry(5.2, 12, 12);
       
-      c.rig.lArmMesh = new THREE.Mesh(armGeo, armMat);
+      c.rig.lUpperArm = new THREE.Mesh(upperArmGeo, armMat);
+      c.rig.lLowerArm = new THREE.Mesh(lowerArmGeo, armMat);
       c.rig.lHand = new THREE.Mesh(handGeo, skinMat);
-      c.rig.bodyPivot.add(c.rig.lArmMesh);
+      c.rig.bodyPivot.add(c.rig.lUpperArm);
+      c.rig.bodyPivot.add(c.rig.lLowerArm);
       c.rig.bodyPivot.add(c.rig.lHand);
 
-      c.rig.rArmMesh = new THREE.Mesh(armGeo, armMat);
+      c.rig.rUpperArm = new THREE.Mesh(upperArmGeo, armMat);
+      c.rig.rLowerArm = new THREE.Mesh(lowerArmGeo, armMat);
       c.rig.rHand = new THREE.Mesh(handGeo, skinMat);
-      c.rig.bodyPivot.add(c.rig.rArmMesh);
+      c.rig.bodyPivot.add(c.rig.rUpperArm);
+      c.rig.bodyPivot.add(c.rig.rLowerArm);
       c.rig.bodyPivot.add(c.rig.rHand);
 
-      // Build Legs (Stretchy Capsule Trousers)
-      const legGeo = new THREE.CapsuleGeometry(4.5, 24, 8, 10);
+      // Build Legs (2-Bone Articulated Capsules)
+      const legL1 = 12; // Thigh length
+      const legL2 = 12; // Calf length
+      const upperLegGeo = new THREE.CapsuleGeometry(4.5, legL1, 8, 10);
+      const lowerLegGeo = new THREE.CapsuleGeometry(4.5, legL2, 8, 10);
       const shoeGeo = new THREE.BoxGeometry(11, 8, 5);
       
-      c.rig.lLegMesh = new THREE.Mesh(legGeo, pantsMat);
+      c.rig.lUpperLeg = new THREE.Mesh(upperLegGeo, pantsMat);
+      c.rig.lLowerLeg = new THREE.Mesh(lowerLegGeo, pantsMat);
       c.rig.lShoe = new THREE.Mesh(shoeGeo, shoeMat);
-      c.rig.bodyPivot.add(c.rig.lLegMesh);
+      c.rig.bodyPivot.add(c.rig.lUpperLeg);
+      c.rig.bodyPivot.add(c.rig.lLowerLeg);
       c.rig.bodyPivot.add(c.rig.lShoe);
 
-      c.rig.rLegMesh = new THREE.Mesh(legGeo, pantsMat);
+      c.rig.rUpperLeg = new THREE.Mesh(upperLegGeo, pantsMat);
+      c.rig.rLowerLeg = new THREE.Mesh(lowerLegGeo, pantsMat);
       c.rig.rShoe = new THREE.Mesh(shoeGeo, shoeMat);
-      c.rig.bodyPivot.add(c.rig.rLegMesh);
+      c.rig.bodyPivot.add(c.rig.rUpperLeg);
+      c.rig.bodyPivot.add(c.rig.rLowerLeg);
       c.rig.bodyPivot.add(c.rig.rShoe);
       
       // Apply Master Scale and Base Elevation
@@ -706,11 +741,30 @@ export class CharacterManager {
     c.rig.lShoe.position.copy(c.rig.leftFootTarget);
     c.rig.rShoe.position.copy(c.rig.rightFootTarget);
 
-    // Mathematically stretch local Capsule geometries instantly from rigid Shoulder anchors exactly dynamically to roaming targets!
-    updateStretchyLimb(c.rig.lArmMesh, c.rig.leftShoulderPos, c.rig.leftHandTarget, 16);
-    updateStretchyLimb(c.rig.rArmMesh, c.rig.rightShoulderPos, c.rig.rightHandTarget, 16);
-    updateStretchyLimb(c.rig.lLegMesh, c.rig.leftHipPos, c.rig.leftFootTarget, 24);
-    updateStretchyLimb(c.rig.rLegMesh, c.rig.rightHipPos, c.rig.rightFootTarget, 24);
+    // Compute Hinge Target Pole Vectors
+    // Ensures elbows jut backward/outward, and knees jut cleanly forward
+    const elbowPoleL = new THREE.Vector3(1, -0.2, 0); // +X (forward) flips normal backwards
+    const elbowPoleR = new THREE.Vector3(1, 0.2, 0);
+    const kneePole = new THREE.Vector3(-1, 0, 0); // -X (backward) flips normal forwards
+
+    // Mathematically resolve the 3D hinge coordinate for all four limbs
+    const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8, 8, elbowPoleL);
+    const rightElbow = solve2BoneIK(c.rig.rightShoulderPos, c.rig.rightHandTarget, 8, 8, elbowPoleR);
+    const leftKnee = solve2BoneIK(c.rig.leftHipPos, c.rig.leftFootTarget, 12, 12, kneePole);
+    const rightKnee = solve2BoneIK(c.rig.rightHipPos, c.rig.rightFootTarget, 12, 12, kneePole);
+
+    // Render the rigid geometry limbs tracing the computed bone segments flawlessly!
+    pointLimbSegment(c.rig.lUpperArm, c.rig.leftShoulderPos, leftElbow);
+    pointLimbSegment(c.rig.lLowerArm, leftElbow, c.rig.leftHandTarget);
+    
+    pointLimbSegment(c.rig.rUpperArm, c.rig.rightShoulderPos, rightElbow);
+    pointLimbSegment(c.rig.rLowerArm, rightElbow, c.rig.rightHandTarget);
+    
+    pointLimbSegment(c.rig.lUpperLeg, c.rig.leftHipPos, leftKnee);
+    pointLimbSegment(c.rig.lLowerLeg, leftKnee, c.rig.leftFootTarget);
+    
+    pointLimbSegment(c.rig.rUpperLeg, c.rig.rightHipPos, rightKnee);
+    pointLimbSegment(c.rig.rLowerLeg, rightKnee, c.rig.rightFootTarget);
   }
 
   drawCharacter(c, isNpc, layerType, scene, player, syncPlayerToJSON, cameraZoom, viewportWidth, viewportHeight, threeCamera) {
