@@ -924,7 +924,7 @@ export class CharacterManager {
     const idleTime = timeNow + (hash * 0.1);
 
     const breathOffset = Math.sin(idleTime * 2) * 0.02;
-    vis.rig.torso.scale.set(1 + breathOffset, 0.70 + breathOffset, 1);
+    vis.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 0.70);
 
     vis.rig.bodyPivot.rotation.y = Math.sin(idleTime * 1.5) * 0.05;
 
