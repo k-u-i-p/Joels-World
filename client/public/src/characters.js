@@ -699,18 +699,20 @@ export class CharacterManager {
     c.rig.leftFootTarget.copy(baseLFoot);
     c.rig.rightFootTarget.copy(baseRFoot);
 
-    // 2. Add procedural Idle Breathing (subtle scaling of Torso)
+    // 2. Derive a persistent geometric desync offset from the character ID parsing string bounds!
     const timeNow = Date.now() / 1000;
-    const breathOffset = Math.sin(timeNow * 2) * 0.02;
+    let hash = 0;
+    const strId = String(c.id || 'npc');
+    for (let i = 0; i < strId.length; i++) hash += strId.charCodeAt(i);
+    const idleTime = timeNow + (hash * 0.1);
+
+    // 3. Add procedural Idle Breathing (subtle scaling of Torso) evaluates dynamically across local idleTime!
+    const breathOffset = Math.sin(idleTime * 2) * 0.02;
     c.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 1);
 
-    // 3. Coordinate-Based Locomotion (Walk Cycle)
+    // 4. Coordinate-Based Locomotion (Walk Cycle)
     const isWalking = (c.legAnimationTime || 0) > 0;
     const legSwing = Math.sin(c.legAnimationTime || 0);
-    
-    // Constant global visual tracking parameters to breathe life into the avatar shapes
-    const randOffset = (c.id && c.id.length > 1) ? (c.id.charCodeAt(0) + c.id.charCodeAt(1)) : 0; 
-    const idleTime = timeNow + randOffset;
     
     // Smooth natural leaning of the torso framework across all statuses
     c.rig.bodyPivot.rotation.y = Math.sin(idleTime * 1.5) * 0.05;
