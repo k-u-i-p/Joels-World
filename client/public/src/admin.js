@@ -304,128 +304,69 @@ bindHoldAction('btn-obj-rot-right', () => {
   if (window.selectedObject.get()) networkClient.send({ type: 'rotate_object', id: window.selectedObject.get().id, rotation: window.selectedObject.get().rotation });
 });
 
-bindHoldAction('btn-obj-width-dec', () => {
-  const obj = window.selectedObject.get();
-  if (!obj) return;
-  const anchor = getObjectTopLeftAnchor(obj);
-  let change = Math.max(1, Math.round(obj.width * 0.02));
-  applyResizeWithTopLeftAnchor(obj, Math.max(5, obj.width - change), obj.length, anchor.tlx, anchor.tly);
-}, () => {
-  const obj = window.selectedObject.get();
-  if (obj) networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
-});
-
-bindHoldAction('btn-obj-width-inc', () => {
-  const obj = window.selectedObject.get();
-  if (!obj) return;
-  const anchor = getObjectTopLeftAnchor(obj);
-  let change = Math.max(1, Math.round(obj.width * 0.02));
-  applyResizeWithTopLeftAnchor(obj, obj.width + change, obj.length, anchor.tlx, anchor.tly);
-}, () => {
-  const obj = window.selectedObject.get();
-  if (obj) networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
-});
-
-bindHoldAction('btn-obj-length-dec', () => {
-  const obj = window.selectedObject.get();
-  if (!obj) return;
-  const anchor = getObjectTopLeftAnchor(obj);
-  let change = Math.max(1, Math.round(obj.length * 0.02));
-  applyResizeWithTopLeftAnchor(obj, obj.width, Math.max(5, obj.length - change), anchor.tlx, anchor.tly);
-}, () => {
-  const obj = window.selectedObject.get();
-  if (obj) networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
-});
-
-bindHoldAction('btn-obj-length-inc', () => {
-  const obj = window.selectedObject.get();
-  if (!obj) return;
-  const anchor = getObjectTopLeftAnchor(obj);
-  let change = Math.max(1, Math.round(obj.length * 0.02));
-  applyResizeWithTopLeftAnchor(obj, obj.width, obj.length + change, anchor.tlx, anchor.tly);
-}, () => {
-  const obj = window.selectedObject.get();
-  if (obj) networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
-});
-
-bindHoldAction('btn-obj-z-dec', () => {
-  const obj = window.selectedObject.get();
-  if (obj && obj.shape === '3d_model') obj.z = (obj.z || 0) - 1;
-}, () => {
-  const obj = window.selectedObject.get();
-  if (obj && obj.shape === '3d_model') networkClient.send({ type: 'update_object', id: obj.id, updates: { z: obj.z } });
-});
-
-bindHoldAction('btn-obj-z-inc', () => {
-  const obj = window.selectedObject.get();
-  if (obj && obj.shape === '3d_model') obj.z = (obj.z || 0) + 1;
-}, () => {
-  const obj = window.selectedObject.get();
-  if (obj && obj.shape === '3d_model') networkClient.send({ type: 'update_object', id: obj.id, updates: { z: obj.z } });
-});
-
-const inputObjWidth = document.getElementById('input-obj-width');
-if (inputObjWidth) {
-  inputObjWidth.addEventListener('change', (e) => {
+[
+  { btn: 'btn-obj-width-dec', prop: 'width', dir: -1 },
+  { btn: 'btn-obj-width-inc', prop: 'width', dir: 1 },
+  { btn: 'btn-obj-length-dec', prop: 'length', dir: -1 },
+  { btn: 'btn-obj-length-inc', prop: 'length', dir: 1 }
+].forEach(config => {
+  bindHoldAction(config.btn, () => {
     const obj = window.selectedObject.get();
     if (!obj) return;
-    const v = parseInt(e.target.value, 10);
-    obj.width = isNaN(v) ? 100 : v;
-    networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
+    const anchor = getObjectTopLeftAnchor(obj);
+    let change = Math.max(1, Math.round(obj[config.prop] * 0.02)) * config.dir;
+    if (config.prop === 'width') {
+      applyResizeWithTopLeftAnchor(obj, Math.max(5, obj.width + change), obj.length, anchor.tlx, anchor.tly);
+    } else {
+      applyResizeWithTopLeftAnchor(obj, obj.width, Math.max(5, obj.length + change), anchor.tlx, anchor.tly);
+    }
+  }, () => {
+    const obj = window.selectedObject.get();
+    if (obj) networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
   });
-}
+});
 
-const inputObjLength = document.getElementById('input-obj-length');
-if (inputObjLength) {
-  inputObjLength.addEventListener('change', (e) => {
+[
+  { btn: 'btn-obj-z-dec', dir: -1 },
+  { btn: 'btn-obj-z-inc', dir: 1 }
+].forEach(config => {
+  bindHoldAction(config.btn, () => {
+    const obj = window.selectedObject.get();
+    if (obj && obj.shape === '3d_model') obj.z = (obj.z || 0) + config.dir;
+  }, () => {
+    const obj = window.selectedObject.get();
+    if (obj && obj.shape === '3d_model') networkClient.send({ type: 'update_object', id: obj.id, updates: { z: obj.z } });
+  });
+});
+
+[
+  { id: 'input-obj-width', prop: 'width', type: 'int', def: 100, isResize: true },
+  { id: 'input-obj-length', prop: 'length', type: 'int', def: 100, isResize: true },
+  { id: 'input-obj-clip', prop: 'clip', type: 'int', def: 10 },
+  { id: 'input-obj-scale', prop: 'scale', type: 'float', def: 1.0 },
+  { id: 'input-obj-z', prop: 'z', type: 'int', def: 0 },
+  { id: 'input-obj-model', prop: 'model', type: 'string' }
+].forEach(cfg => {
+  const el = document.getElementById(cfg.id);
+  if (!el) return;
+  el.addEventListener('change', (e) => {
     const obj = window.selectedObject.get();
     if (!obj) return;
-    const v = parseInt(e.target.value, 10);
-    obj.length = isNaN(v) ? 100 : v;
-    networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
+    if (cfg.type === 'string') {
+      const v = e.target.value.trim();
+      if (!v) return;
+      obj[cfg.prop] = v;
+    } else {
+      const v = cfg.type === 'int' ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
+      obj[cfg.prop] = isNaN(v) ? cfg.def : v;
+    }
+    if (cfg.isResize) {
+      networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
+    } else {
+      networkClient.send({ type: 'update_object', id: obj.id, updates: { [cfg.prop]: obj[cfg.prop] } });
+    }
   });
-}
-
-const inputObjClip = document.getElementById('input-obj-clip');
-if (inputObjClip) {
-  inputObjClip.addEventListener('change', (e) => {
-    if (!window.selectedObject.get()) return;
-    const clipVal = parseInt(e.target.value, 10);
-    window.selectedObject.get().clip = isNaN(clipVal) ? 10 : clipVal;
-    networkClient.send({ type: 'update_object', id: window.selectedObject.get().id, updates: { clip: window.selectedObject.get().clip } });
-  });
-}
-
-const inputObjScale = document.getElementById('input-obj-scale');
-if (inputObjScale) {
-  inputObjScale.addEventListener('change', (e) => {
-    if (!window.selectedObject.get()) return;
-    const scaleVal = parseFloat(e.target.value);
-    window.selectedObject.get().scale = isNaN(scaleVal) ? 1.0 : scaleVal;
-    networkClient.send({ type: 'update_object', id: window.selectedObject.get().id, updates: { scale: window.selectedObject.get().scale } });
-  });
-}
-
-const inputObjZ = document.getElementById('input-obj-z');
-if (inputObjZ) {
-  inputObjZ.addEventListener('change', (e) => {
-    if (!window.selectedObject.get()) return;
-    const zVal = parseInt(e.target.value, 10);
-    window.selectedObject.get().z = isNaN(zVal) ? 0 : zVal;
-    networkClient.send({ type: 'update_object', id: window.selectedObject.get().id, updates: { z: window.selectedObject.get().z } });
-  });
-}
-
-const inputObjModel = document.getElementById('input-obj-model');
-if (inputObjModel) {
-  inputObjModel.addEventListener('change', (e) => {
-    if (!window.selectedObject.get()) return;
-    let modVal = e.target.value.trim();
-    if (!modVal) return;
-    window.selectedObject.get().model = modVal;
-    networkClient.send({ type: 'update_object', id: window.selectedObject.get().id, updates: { model: window.selectedObject.get().model } });
-  });
-}
+});
 
 const npcNameInput = document.getElementById('npc-name-input');
 if (npcNameInput) {
@@ -506,110 +447,43 @@ if (npcGenderSelect) {
   };
 }
 
-bindHoldAction('btn-npc-rot-left', () => {
-  if (!window.selectedNpc.get()) return;
-  window.selectedNpc.get().rotation = (window.selectedNpc.get().rotation || 0) - 5;
-}, () => {
-  if (window.selectedNpc.get()) {
-    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { rotation: window.selectedNpc.get().rotation } });
-  }
+[
+  { btn: 'btn-npc-rot-left', prop: 'rotation', amt: -5 },
+  { btn: 'btn-npc-rot-right', prop: 'rotation', amt: 5 },
+  { btn: 'btn-npc-width-dec', prop: 'width', amt: -2, min: 5, def: 40 },
+  { btn: 'btn-npc-width-inc', prop: 'width', amt: 2, def: 40 },
+  { btn: 'btn-npc-height-dec', prop: 'height', amt: -2, min: 5, def: 40 },
+  { btn: 'btn-npc-height-inc', prop: 'height', amt: 2, def: 40 },
+  { btn: 'btn-npc-z-dec', prop: 'z', amt: -1, def: 0 },
+  { btn: 'btn-npc-z-inc', prop: 'z', amt: 1, def: 0 }
+].forEach(cfg => {
+  bindHoldAction(cfg.btn, () => {
+    const npc = window.selectedNpc.get();
+    if (!npc) return;
+    let val = (npc[cfg.prop] !== undefined ? npc[cfg.prop] : cfg.def) + cfg.amt;
+    if (cfg.min !== undefined) val = Math.max(cfg.min, val);
+    npc[cfg.prop] = val;
+  }, () => {
+    const npc = window.selectedNpc.get();
+    if (npc) networkClient.send({ type: 'update_npc', id: npc.id, updates: { [cfg.prop]: npc[cfg.prop] } });
+  });
 });
 
-bindHoldAction('btn-npc-rot-right', () => {
-  if (!window.selectedNpc.get()) return;
-  window.selectedNpc.get().rotation = (window.selectedNpc.get().rotation || 0) + 5;
-}, () => {
-  if (window.selectedNpc.get()) {
-    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { rotation: window.selectedNpc.get().rotation } });
-  }
-});
-
-bindHoldAction('btn-npc-width-dec', () => {
-  if (!window.selectedNpc.get()) return;
-  window.selectedNpc.get().width = Math.max(5, (window.selectedNpc.get().width || 40) - 2);
-}, () => {
-  if (window.selectedNpc.get()) {
-    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { width: window.selectedNpc.get().width } });
-  }
-});
-
-bindHoldAction('btn-npc-width-inc', () => {
-  if (!window.selectedNpc.get()) return;
-  window.selectedNpc.get().width = (window.selectedNpc.get().width || 40) + 2;
-}, () => {
-  if (window.selectedNpc.get()) {
-    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { width: window.selectedNpc.get().width } });
-  }
-});
-
-bindHoldAction('btn-npc-height-dec', () => {
-  if (!window.selectedNpc.get()) return;
-  window.selectedNpc.get().height = Math.max(5, (window.selectedNpc.get().height || 40) - 2);
-}, () => {
-  if (window.selectedNpc.get()) {
-    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { height: window.selectedNpc.get().height } });
-  }
-});
-
-bindHoldAction('btn-npc-height-inc', () => {
-  if (!window.selectedNpc.get()) return;
-  window.selectedNpc.get().height = (window.selectedNpc.get().height || 40) + 2;
-}, () => {
-  if (window.selectedNpc.get()) {
-    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { height: window.selectedNpc.get().height } });
-  }
-});
-
-bindHoldAction('btn-npc-z-dec', () => {
-  if (!window.selectedNpc.get()) return;
-  window.selectedNpc.get().z = (window.selectedNpc.get().z || 0) - 1;
-}, () => {
-  if (window.selectedNpc.get()) {
-    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { z: window.selectedNpc.get().z } });
-  }
-});
-
-bindHoldAction('btn-npc-z-inc', () => {
-  if (!window.selectedNpc.get()) return;
-  window.selectedNpc.get().z = (window.selectedNpc.get().z || 0) + 1;
-}, () => {
-  if (window.selectedNpc.get()) {
-    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { z: window.selectedNpc.get().z } });
-  }
-});
-
-const inputNpcWidth = document.getElementById('input-npc-width');
-if (inputNpcWidth) {
-  inputNpcWidth.addEventListener('change', (e) => {
+[
+  { id: 'input-npc-width', prop: 'width', def: 40 },
+  { id: 'input-npc-height', prop: 'height', def: 40 },
+  { id: 'input-npc-z', prop: 'z', def: 0 }
+].forEach(cfg => {
+  const el = document.getElementById(cfg.id);
+  if (!el) return;
+  el.addEventListener('change', (e) => {
     const npc = window.selectedNpc.get();
     if (!npc) return;
     const v = parseInt(e.target.value, 10);
-    npc.width = isNaN(v) ? 40 : v;
-    networkClient.send({ type: 'update_npc', id: npc.id, updates: { width: npc.width } });
+    npc[cfg.prop] = isNaN(v) ? cfg.def : v;
+    networkClient.send({ type: 'update_npc', id: npc.id, updates: { [cfg.prop]: npc[cfg.prop] } });
   });
-}
-
-const inputNpcHeight = document.getElementById('input-npc-height');
-if (inputNpcHeight) {
-  inputNpcHeight.addEventListener('change', (e) => {
-    const npc = window.selectedNpc.get();
-    if (!npc) return;
-    const v = parseInt(e.target.value, 10);
-    npc.height = isNaN(v) ? 40 : v;
-    networkClient.send({ type: 'update_npc', id: npc.id, updates: { height: npc.height } });
-  });
-}
-
-const inputNpcZ = document.getElementById('input-npc-z');
-if (inputNpcZ) {
-  inputNpcZ.addEventListener('change', (e) => {
-    const npc = window.selectedNpc.get();
-    if (!npc) return;
-    const v = parseInt(e.target.value, 10);
-    npc.z = isNaN(v) ? 0 : v;
-    networkClient.send({ type: 'update_npc', id: npc.id, updates: { z: npc.z } });
-  });
-}
+});
 
 const btnSaveNpcDialog = document.getElementById('btn-save-npc-dialog');
 const npcOnEnterInput = document.getElementById('npc-on-enter-input');
