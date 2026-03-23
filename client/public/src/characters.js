@@ -576,7 +576,9 @@ export class CharacterManager {
       
       // Apply Master Scale and Base Elevation
       c.meshGroup.scale.set(maxScale, maxScale, maxScale);
-      c.rig.bodyPivot.position.set(0, 0, 18); // Lift entire rig 18 units off the Z=0 ground plane
+      // Elevate the entire mathematical group structure off the WebGL zero-plane natively!
+      // This pushes the feet perfectly onto the Z=0 ground bounds.
+      c.rig.bodyPivot.position.set(0, 0, 15.5);
 
       // Shadow Mesh
       const shadowSize = 28; // Scale is handled by meshGroup now
@@ -689,8 +691,8 @@ export class CharacterManager {
     // 1. Reset explicit IK targets to baseline resting coordinates (A-Pose 30-degree stance)
     const baseLHand = new THREE.Vector3(6, -16, 12); // Hands forward, significantly outward and downward to relax the elbow
     const baseRHand = new THREE.Vector3(6, 16, 12);
-    const baseLFoot = new THREE.Vector3(2, -6, -14);
-    const baseRFoot = new THREE.Vector3(2, 6, -14);
+    const baseLFoot = new THREE.Vector3(2, -6, -13); // Pulled slightly upwards to maintain IK knee bend
+    const baseRFoot = new THREE.Vector3(2, 6, -13);
     
     c.rig.leftHandTarget.copy(baseLHand);
     c.rig.rightHandTarget.copy(baseRHand);
