@@ -15,29 +15,6 @@
           "grid_h": 8,
           "path_template": "/junior_school/chunks/new_map_2_{x}_{y}.png"
         }
-      ],
-      [],
-      [
-        {
-          "alpha": 1.0,
-          "overlay": true,
-          "chunked": true,
-          "source_image": "/junior_school/background_overlay.png",
-          "chunk_size": 512,
-          "grid_w": 9,
-          "grid_h": 8,
-          "path_template": "/junior_school/chunks/background_overlay_{x}_{y}.png"
-        },
-        {
-          "alpha": 0.9,
-          "overlay": true,
-          "chunked": true,
-          "source_image": "/junior_school/trees.png",
-          "chunk_size": 512,
-          "grid_w": 9,
-          "grid_h": 8,
-          "path_template": "/junior_school/chunks/trees_{x}_{y}.png"
-        }
       ]
     ],
     "clip_mask": "junior_school/clip_mask.svg",

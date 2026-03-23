@@ -150,5 +150,19 @@
       }
     ],
     "clip": -1
+  },
+  {
+    "id": 100,
+    "name": "Junior School Building 3D",
+    "shape": "3d_model",
+    "modelPath": "junior_school/buildings_model/junior_school.gltf",
+    "x": 1250,
+    "y": -3300,
+    "z": -14,
+    "rotation": -55,
+    "scale": 450,
+    "width": 100,
+    "length": 100,
+    "clip": -1
   }
 ]

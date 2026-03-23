@@ -9,7 +9,7 @@
 import { gameLoop } from '../gameloop.js';
 import { inputManager } from '../input.js';
 import { characterManager } from '../characters.js';
-import { camera } from '../main.js';
+import { camera, screenToWorld } from '../main.js';
 import { soundManager } from '../sound.js';
 
 // ==========================================
@@ -637,8 +637,7 @@ export function initMinigame() {
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
 
-      const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
-      const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
+      const { worldX, worldY } = screenToWorld(mouseX, mouseY, canvas.clientWidth, canvas.clientHeight);
 
       if (state.player.lastInterceptPoint) {
         const dx = worldX - state.player.lastInterceptPoint.x;

@@ -53,7 +53,7 @@ shadowPlane.position.z = 0.5; // Slightly above ground
 shadowPlane.receiveShadow = true;
 shadowPlane.renderOrder = 50; // Explicitly queue after RenderOrder 0 (Ground chunks)
 scene.add(shadowPlane);
-export const threeCamera = new THREE.OrthographicCamera(-1, 1, -1, 1, -1000, 1000);
+export const threeCamera = new THREE.OrthographicCamera(-1, 1, -1, 1, -5000, 5000);
 
 // We invert the Y frustum to match HTML5 Canvas standard coordinates (Y-down)
 threeCamera.up.set(0, -1, 0);
@@ -64,6 +64,40 @@ export const camera = {
   springX: 0,
   springY: 0
 };
+
+export function screenToWorld(mouseX, mouseY, canvasWidth, canvasHeight) {
+  const ndcX = (mouseX / canvasWidth) * 2 - 1;
+  const ndcY = -(mouseY / canvasHeight) * 2 + 1;
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera({ x: ndcX, y: ndcY }, threeCamera);
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  const target = new THREE.Vector3();
+  raycaster.ray.intersectPlane(plane, target);
+  return { worldX: target.x, worldY: -target.y };
+}
+
+export function getScreenTransformMatrix(canvasWidth, canvasHeight) {
+  const getScreenPt = (wx, wy) => {
+    const v = new THREE.Vector3(wx, -wy, 0).project(threeCamera);
+    return {
+      x: (v.x * 0.5 + 0.5) * canvasWidth,
+      y: (-(v.y * 0.5) + 0.5) * canvasHeight
+    };
+  };
+
+  const pt0 = getScreenPt(0, 0);
+  const ptX = getScreenPt(1, 0);
+  const ptY = getScreenPt(0, 1);
+
+  return [
+    ptX.x - pt0.x,
+    ptX.y - pt0.y,
+    ptY.x - pt0.x,
+    ptY.y - pt0.y,
+    pt0.x,
+    pt0.y
+  ];
+}
 
 // --- WEBSOCKET CLIENT ---
 networkClient.connect((data) => {
@@ -534,13 +568,14 @@ function draw() {
   // Condense the 2048x2048 shadow texture dynamically trapping it inside the camera's active zooming bounds
   dirLight.shadow.camera.left = -shadowRadiusW;
   dirLight.shadow.camera.right = shadowRadiusW;
-  dirLight.shadow.camera.top = -shadowRadiusH;
-  dirLight.shadow.camera.bottom = shadowRadiusH;
+  dirLight.shadow.camera.top = shadowRadiusH;
+  dirLight.shadow.camera.bottom = -shadowRadiusH;
   dirLight.shadow.camera.updateProjectionMatrix();
 
   threeCamera.zoom = camera.zoom;
   threeCamera.updateProjectionMatrix();
 
+  mapManager.updateDynamicModels(window.init?.objects);
   mapManager.drawLayer(0, scene, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
   characterManager.drawCharacters('base', scene, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight, threeCamera);

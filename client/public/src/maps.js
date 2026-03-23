@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { threeCamera } from './main.js';
 
 export class MapManager {
   constructor() {
@@ -7,6 +9,7 @@ export class MapManager {
     this.mapH = 0;
     this.textureLoader = new THREE.TextureLoader();
     this.textureLoader.setCrossOrigin('anonymous');
+    this.gltfLoader = new GLTFLoader();
     this.planeCache = {};
     this.activeMeshes = [];
   }
@@ -22,8 +25,22 @@ export class MapManager {
     if (scene) {
       this.activeMeshes.forEach(mesh => {
         scene.remove(mesh);
-        if (mesh.material.map) mesh.material.map.dispose();
-        mesh.material.dispose();
+        mesh.traverse((child) => {
+          if (child.isMesh) {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              const materials = Array.isArray(child.material) ? child.material : [child.material];
+              materials.forEach(m => {
+                if (m.map) m.map.dispose();
+                m.dispose();
+              });
+            }
+          }
+        });
+        if (mesh.material) {
+          if (mesh.material.map) mesh.material.map.dispose();
+          mesh.material.dispose();
+        }
       });
     }
     this.activeMeshes = [];
@@ -56,16 +73,16 @@ export class MapManager {
               this.mapH = Math.max(this.mapH, tex.image.height || 0);
 
               const geom = new THREE.PlaneGeometry(tex.image.width, tex.image.height);
-              
+
               // Enable physical Lambert reactive lighting exclusively on the structural foundation ground layer 
               // This permits PCF Soft Shadows to cast flawlessly right onto the geographic geometry, bypassing transparent overlaps completely!
               const isGround = index === 0;
               const MaterialType = isGround ? THREE.MeshLambertMaterial : THREE.MeshBasicMaterial;
-              
-              const mat = new MaterialType({ 
-                  map: tex, 
-                  transparent: !isGround, // Layer 0 writes sequentially to the Opaque buffers
-                  opacity: layerObj.alpha
+
+              const mat = new MaterialType({
+                map: tex,
+                transparent: !isGround, // Layer 0 writes sequentially to the Opaque buffers
+                opacity: layerObj.alpha
               });
               layerObj.mesh = new THREE.Mesh(geom, mat);
               if (isGround) layerObj.mesh.receiveShadow = true; // Bake native geometry shadows!
@@ -80,6 +97,62 @@ export class MapManager {
         this.layers[index] = layersList;
       });
     }
+
+    if (window.init && window.init.objects && scene) {
+      window.init.objects.forEach(obj => {
+        if (obj.shape !== '3d_model' || !obj.modelPath) return;
+
+        const src = obj.modelPath.startsWith('/') ? obj.modelPath : '/' + obj.modelPath;
+        console.log(`[Map Loader] Initializing 3D Model Object: ${src}`);
+
+        this.gltfLoader.load(src, (gltf) => {
+          const model = gltf.scene;
+          const pos = obj;
+
+          // Reset the raw imported model to a flat upright stance at 0,0,0
+          model.position.set(0, 0, 0);
+          model.scale.set(1, 1, 1);
+          // By default Three.js GLTFLoader usually imports Y-up.
+          // Because this game natively uses Z-up (threeCamera.up.set(0,0,1)),
+          // rotate 90 degrees on X so the model stands upright.
+          model.rotation.set(Math.PI / 2, 0, 0);
+          model.updateMatrixWorld(true);
+
+          // Calculate its physical Bounds natively
+          const box = new THREE.Box3().setFromObject(model);
+
+          // Offset the model itself so that its absolute Top-Left corner is shifted to exactly 0,0,0
+          // World +Y is Top of screen (Canvas -Y). Top-Left is (min.x, max.y). Bottom is min.z.
+          model.position.set(-box.min.x, -box.max.y, -box.min.z);
+
+          // Wrap it safely over a custom pivot hook 
+          const pivotGroup = new THREE.Group();
+          pivotGroup.add(model);
+
+          pivotGroup.position.set(pos.x || 0, -(pos.y || 0), pos.z || 0);
+
+          const scale = pos.scale !== undefined ? pos.scale : 1;
+          pivotGroup.scale.setScalar(scale);
+
+          // Now safely apply horizontal orientation exclusively to the anchor hook
+          const userRot = (pos.rotation || 0) * (Math.PI / 180);
+          pivotGroup.rotation.z = userRot;
+
+          pivotGroup.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+
+          pivotGroup.userData = { id: obj.id };
+          scene.add(pivotGroup);
+          this.activeMeshes.push(pivotGroup);
+        }, undefined, (err) => {
+          console.error(`[Map Loader] Failed to load 3D Model at ${src}`, err);
+        });
+      });
+    }
   }
 
   drawLayer(layerIndex, scene, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight, springX = 0, springY = 0) {
@@ -91,12 +164,40 @@ export class MapManager {
     const halfMapW = this.mapW / 2;
     const halfMapH = this.mapH / 2;
 
-    const viewHalfW = (viewportWidth / cameraZoom) / 2;
-    const viewHalfH = (viewportHeight / cameraZoom) / 2;
-    const cameraLeft = cameraX - viewHalfW;
-    const cameraRight = cameraX + viewHalfW;
-    const cameraTop = cameraY - viewHalfH;
-    const cameraBottom = cameraY + viewHalfH;
+    const cornersNDC = [
+      new THREE.Vector3(-1, 1, 0),
+      new THREE.Vector3(1, 1, 0),
+      new THREE.Vector3(1, -1, 0),
+      new THREE.Vector3(-1, -1, 0)
+    ];
+    const raycaster = new THREE.Raycaster();
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    
+    let cameraLeft = Infinity, cameraRight = -Infinity;
+    let cameraTop = Infinity, cameraBottom = -Infinity;
+
+    cornersNDC.forEach(ndc => {
+      raycaster.setFromCamera(ndc, threeCamera);
+      const target = new THREE.Vector3();
+      const hit = raycaster.ray.intersectPlane(plane, target);
+      if (hit) {
+        if (target.x < cameraLeft) cameraLeft = target.x;
+        if (target.x > cameraRight) cameraRight = target.x;
+        if (-target.y < cameraTop) cameraTop = -target.y; 
+        if (-target.y > cameraBottom) cameraBottom = -target.y;
+      } else {
+        // Ray aims above horizon, stretch bounds infinitely towards edge of map
+        if (ndc.y > 0) cameraTop = -halfMapH;
+        if (ndc.y < 0) cameraBottom = halfMapH;
+        if (ndc.x < 0) cameraLeft = -halfMapW;
+        if (ndc.x > 0) cameraRight = halfMapW;
+      }
+    });
+
+    if (cameraLeft === Infinity) cameraLeft = -halfMapW;
+    if (cameraRight === -Infinity) cameraRight = halfMapW;
+    if (cameraTop === Infinity) cameraTop = -halfMapH;
+    if (cameraBottom === -Infinity) cameraBottom = halfMapH;
 
     let buffer = 512;
     if (this.layers[layerIndex] && this.layers[layerIndex].length > 0) {
@@ -136,14 +237,14 @@ export class MapManager {
               const src = layer.path_template.replace('{x}', x).replace('{y}', y);
 
               // Distinguish flat ground geometries from floating overhead masking textures
-              const isOverlay = layerIndex > 0; 
+              const isOverlay = layerIndex > 0;
               const paddedGeom = this.getGeometry(layer.chunk_size);
-              
+
               // Leverage Lambert lighting natively so shadows trace seamlessly ignoring transparency queues
               const MaterialType = !isOverlay ? THREE.MeshLambertMaterial : THREE.MeshBasicMaterial;
-              const mat = new MaterialType({ 
-                  transparent: isOverlay, 
-                  opacity: layer.alpha
+              const mat = new MaterialType({
+                transparent: isOverlay,
+                opacity: layer.alpha
               });
               const mesh = new THREE.Mesh(paddedGeom, mat);
               if (!isOverlay) mesh.receiveShadow = true; // Actively catch intersecting PCF matrices
@@ -212,6 +313,25 @@ export class MapManager {
       }
     });
   }
+
+  updateDynamicModels(objects) {
+    if (!objects || !this.activeMeshes) return;
+    this.activeMeshes.forEach(mesh => {
+      if (mesh.userData && mesh.userData.id !== undefined) {
+        const obj = objects.find(o => o.id === mesh.userData.id);
+        if (obj) {
+           mesh.position.set(obj.x || 0, -(obj.y || 0), obj.z || 0);
+           const userRot = (obj.rotation || 0) * (Math.PI / 180);
+           mesh.rotation.z = userRot;
+           
+           if (obj.scale !== undefined) {
+               mesh.scale.setScalar(obj.scale);
+           }
+        }
+      }
+    });
+  }
+
 }
 
 export const mapManager = new MapManager();

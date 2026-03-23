@@ -164,7 +164,7 @@ export class MapManager {
     const { spawnX, spawnY } = this.generateSpawnCoords(mapId);
 
     const skinColor = '#f1c40f'; // Default character canvas skin-tone (Lego Yellow)
-    
+
     // Mathematically filter the active skin color out of the available wardrobe selection arrays to prevent "naked" overlap
     const availableClothes = colors.filter(c => c !== skinColor);
     const availableShoes = shoeColors.filter(c => c !== skinColor);
@@ -179,7 +179,7 @@ export class MapManager {
       height: 40,
       rotation: 0,
       gender: Math.random() > 0.5 ? 'male' : 'female',
-      color: skinColor, 
+      color: skinColor,
       shirtColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
       pantsColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
       armColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
@@ -231,7 +231,8 @@ export class MapManager {
         character_scale: mapData.character_scale || 1,
         default_zoom: mapData.default_zoom || 1,
         on_enter: mapData.on_enter,
-        import: mapData.import
+        import: mapData.import,
+        models: mapData.models
       },
       mapsList: this.mapsList
     });

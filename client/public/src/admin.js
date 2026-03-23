@@ -1,5 +1,5 @@
 import { gameLoop } from './gameloop.js';
-import { player, camera } from './main.js';
+import { player, camera, screenToWorld, getScreenTransformMatrix } from './main.js';
 import { networkClient } from './network.js';
 
 networkClient.isAdmin = true;
@@ -1141,9 +1141,8 @@ export function adminDraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.scale(dpr, dpr);
-  ctx.translate(canvas.clientWidth / 2, canvas.clientHeight / 2);
-  ctx.scale(camera.zoom, camera.zoom);
-  ctx.translate(-camera.x, -camera.y);
+  const [a, b, c, d, e, f] = getScreenTransformMatrix(canvas.clientWidth, canvas.clientHeight);
+  ctx.transform(a, b, c, d, e, f);
 
   if (window.adminBackgroundImage && window.adminBackgroundImage.complete) {
     ctx.drawImage(window.adminBackgroundImage, window.adminBackgroundImage._x || 0, window.adminBackgroundImage._y || 0);
@@ -1163,6 +1162,10 @@ export function adminDraw() {
       ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
     } else {
       ctx.fillStyle = obj.name ? 'rgba(255, 0, 0, 0.5)' : 'rgba(155, 89, 182, 0.5)';
+    }
+
+    if (obj.shape === '3d_model') {
+      ctx.fillStyle = 'rgba(0, 191, 255, 0.6)'; // Deep Sky Blue 
     }
 
     ctx.beginPath();
