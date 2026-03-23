@@ -1,7 +1,27 @@
 import { emotes } from './emotes.js';
 import { physicsEngine } from './physics.js';
 import * as THREE from 'three';
+import { uiManager } from './ui.js';
 
+// --- STRETCHY IK SOLVER ---
+// Aligns a cylindrical primitive perfectly between two spatial coordinates
+function updateStretchyLimb(sleeveMesh, startPos, endPos, defaultLength) {
+    const dist = startPos.distanceTo(endPos);
+    if (dist < 0.1) return; // Prevent zero-division snapping
+    
+    // 1. Calculate midpoint for the mesh origin
+    sleeveMesh.position.copy(startPos).lerp(endPos, 0.5);
+    
+    // 2. Align native Y-axis along the directional vector
+    const dir = new THREE.Vector3().subVectors(endPos, startPos).normalize();
+    const up = new THREE.Vector3(0, 1, 0); // Native cylinder up vector
+    const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
+    
+    sleeveMesh.quaternion.copy(quat);
+    
+    // 3. Stretch geometrically to cover the exact local distance
+    sleeveMesh.scale.set(1, dist / defaultLength, 1);
+}
 const DEG_TO_RAD = Math.PI / 180;
 const PI2 = Math.PI * 2;
 const PI_HALF = Math.PI / 2;
@@ -358,19 +378,18 @@ export class CharacterManager {
 
       const logicalSize = Math.max(120, 120 * maxScale);
 
-      // Procedural character canvas backing
-      // WebGL Materials naturally evaluate basic HTML5 string-formatted colors!
-      const skinMat = new THREE.MeshLambertMaterial({ color: c.color || '#f1c40f' });
-      const shirtMat = new THREE.MeshLambertMaterial({ color: c.shirtColor || '#3498db' });
-      const armMat = new THREE.MeshLambertMaterial({ color: c.armColor || c.shirtColor || '#3498db' });
-      const pantsMat = new THREE.MeshLambertMaterial({ color: c.pantsColor || '#2c3e50' });
-      const shoeMat = new THREE.MeshLambertMaterial({ color: c.shoeColor || '#7f8c8d' });
+      // Procedurally generated PBR Materials
+      const skinMat = new THREE.MeshStandardMaterial({ color: c.color || '#f1c40f', roughness: 0.6, metalness: 0.1 });
+      const shirtMat = new THREE.MeshStandardMaterial({ color: c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 });
+      const armMat = new THREE.MeshStandardMaterial({ color: c.armColor || c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 });
+      const pantsMat = new THREE.MeshStandardMaterial({ color: c.pantsColor || '#2c3e50', roughness: 0.9, metalness: 0.0 });
+      const shoeMat = new THREE.MeshStandardMaterial({ color: c.shoeColor || '#7f8c8d', roughness: 0.7, metalness: 0.2 });
 
-      // Core skeleton rig (Scaled to match old R=14 Canvas Paths)
+      // Core skeleton rig
       c.rig = {
          bodyPivot: new THREE.Group(),
          head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), skinMat),
-         torso: new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 22, 16), shirtMat),
+         torso: new THREE.Mesh(new THREE.CapsuleGeometry(13, 22, 10, 16), shirtMat),
          leftArm: new THREE.Group(),
          rightArm: new THREE.Group(),
          leftLeg: new THREE.Group(),
@@ -388,10 +407,35 @@ export class CharacterManager {
       // Head is placed above the torso on the Z axis
       c.rig.head.position.set(2, 0, 36); // Slightly forward on X (face points X+)
       c.rig.bodyPivot.add(c.rig.head);
+      
+      // Eyes mapping (Sphere dots)
+      const eyeGeo = new THREE.SphereGeometry(1.5, 8, 8);
+      const eyeMat = new THREE.MeshStandardMaterial({ color: '#111111', roughness: 0.4 });
+      
+      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+      leftEye.position.set(9.2, -4.5, 3.5); // +X (forward off face), -Y (left), +Z (up towards forehead)
+      c.rig.head.add(leftEye);
+      
+      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+      rightEye.position.set(9.2, 4.5, 3.5);
+      c.rig.head.add(rightEye);
+
+      // ----- INVERSE KINEMATICS (IK) TARGETS -----
+      // Local coordinate targets relative to the `bodyPivot` centerline
+      c.rig.leftHandTarget = new THREE.Vector3(0, -15, 9); // Native resting A-Pose down by the waist
+      c.rig.rightHandTarget = new THREE.Vector3(0, 15, 9);
+      c.rig.leftFootTarget = new THREE.Vector3(2, -6, -14); // Native resting firmly on the floor
+      c.rig.rightFootTarget = new THREE.Vector3(2, 6, -14);
+      
+      // Native geometric shoulder/hip anchors (Static referencing bounds)
+      c.rig.leftShoulderPos = new THREE.Vector3(0, -14, 26);
+      c.rig.rightShoulderPos = new THREE.Vector3(0, 14, 26);
+      c.rig.leftHipPos = new THREE.Vector3(0, -6, 10);
+      c.rig.rightHipPos = new THREE.Vector3(0, 6, 10);
 
       // Build Hair
       const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
-      const hairMat = new THREE.MeshLambertMaterial({ color: c.hairColor || '#8e44ad' });
+      const hairMat = new THREE.MeshStandardMaterial({ color: c.hairColor || '#8e44ad', roughness: 0.5, metalness: 0.1 });
       
       const hairGroup = new THREE.Group();
       hairGroup.position.set(0, 0, 0); // Local to Head
@@ -466,69 +510,33 @@ export class CharacterManager {
       }
       c.rig.head.add(hairGroup);
 
-      // Build Arms (Cylinders point along Y natively, we rotate them to point along Z)
-      const armGeo = new THREE.CylinderGeometry(4.2, 4.2, 16, 10);
+      // Build Arms (Stretchy Capsule Sleeves)
+      const armGeo = new THREE.CapsuleGeometry(4.2, 16, 8, 10);
       const handGeo = new THREE.SphereGeometry(5.2, 12, 12);
-      const shoulderGeo = new THREE.SphereGeometry(4.2, 12, 12);
       
-      const lArmMesh = new THREE.Mesh(armGeo, armMat);
-      lArmMesh.rotation.x = Math.PI / 2;
-      lArmMesh.position.set(0, 0, -8); // Drop down from shoulder pivot
-      c.rig.leftArm.add(lArmMesh);
-      
-      const lHand = new THREE.Mesh(handGeo, skinMat);
-      lHand.position.set(0, 0, -17); // Terminus of the sleeve
-      c.rig.leftArm.add(lHand);
-      
-      const lShoulder = new THREE.Mesh(shoulderGeo, armMat);
-      lShoulder.position.set(0, 0, 0); // Anchors precisely at the joint rotation pivot
-      c.rig.leftArm.add(lShoulder);
-      
-      c.rig.leftArm.position.set(0, -15, 26); // Shift left on Y, up on Z
-      c.rig.bodyPivot.add(c.rig.leftArm);
+      c.rig.lArmMesh = new THREE.Mesh(armGeo, armMat);
+      c.rig.lHand = new THREE.Mesh(handGeo, skinMat);
+      c.rig.bodyPivot.add(c.rig.lArmMesh);
+      c.rig.bodyPivot.add(c.rig.lHand);
 
-      const rArmMesh = new THREE.Mesh(armGeo, armMat);
-      rArmMesh.rotation.x = Math.PI / 2;
-      rArmMesh.position.set(0, 0, -8);
-      c.rig.rightArm.add(rArmMesh);
-      
-      const rHand = new THREE.Mesh(handGeo, skinMat);
-      rHand.position.set(0, 0, -17);
-      c.rig.rightArm.add(rHand);
-      
-      const rShoulder = new THREE.Mesh(shoulderGeo, armMat);
-      rShoulder.position.set(0, 0, 0);
-      c.rig.rightArm.add(rShoulder);
-      
-      c.rig.rightArm.position.set(0, 15, 26); // Shift right on Y
-      c.rig.bodyPivot.add(c.rig.rightArm);
+      c.rig.rArmMesh = new THREE.Mesh(armGeo, armMat);
+      c.rig.rHand = new THREE.Mesh(handGeo, skinMat);
+      c.rig.bodyPivot.add(c.rig.rArmMesh);
+      c.rig.bodyPivot.add(c.rig.rHand);
 
-      // Build Legs
-      const legGeo = new THREE.CylinderGeometry(5.5, 4.5, 24, 10);
-      const lLegMesh = new THREE.Mesh(legGeo, pantsMat);
-      lLegMesh.rotation.x = Math.PI / 2;
-      lLegMesh.position.set(0, 0, -12); // Pushed down to map center of 24
+      // Build Legs (Stretchy Capsule Trousers)
+      const legGeo = new THREE.CapsuleGeometry(4.5, 24, 8, 10);
+      const shoeGeo = new THREE.BoxGeometry(11, 8, 5);
       
-      const shoeGeo = new THREE.BoxGeometry(11, 8, 5); // Wider (Y=8) than taller (Z=5) 
-      const lShoe = new THREE.Mesh(shoeGeo, shoeMat);
-      lShoe.position.set(3, 0, -25); // Pulled slightly forward (+X) for toes
-      
-      c.rig.leftLeg.add(lLegMesh);
-      c.rig.leftLeg.add(lShoe);
-      c.rig.leftLeg.position.set(0, -6, 10);
-      c.rig.bodyPivot.add(c.rig.leftLeg);
+      c.rig.lLegMesh = new THREE.Mesh(legGeo, pantsMat);
+      c.rig.lShoe = new THREE.Mesh(shoeGeo, shoeMat);
+      c.rig.bodyPivot.add(c.rig.lLegMesh);
+      c.rig.bodyPivot.add(c.rig.lShoe);
 
-      const rLegMesh = new THREE.Mesh(legGeo, pantsMat);
-      rLegMesh.rotation.x = Math.PI / 2;
-      rLegMesh.position.set(0, 0, -12);
-      
-      const rShoe = new THREE.Mesh(shoeGeo, shoeMat);
-      rShoe.position.set(3, 0, -25);
-      
-      c.rig.rightLeg.add(rLegMesh);
-      c.rig.rightLeg.add(rShoe);
-      c.rig.rightLeg.position.set(0, 6, 10);
-      c.rig.bodyPivot.add(c.rig.rightLeg);
+      c.rig.rLegMesh = new THREE.Mesh(legGeo, pantsMat);
+      c.rig.rShoe = new THREE.Mesh(shoeGeo, shoeMat);
+      c.rig.bodyPivot.add(c.rig.rLegMesh);
+      c.rig.bodyPivot.add(c.rig.rShoe);
       
       // Apply Master Scale and Base Elevation
       c.meshGroup.scale.set(maxScale, maxScale, maxScale);
@@ -549,6 +557,14 @@ export class CharacterManager {
       c.shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
       c.shadowMesh.position.set(0, 0, 1); // Ground flush
       c.meshGroup.add(c.shadowMesh);
+      
+      // Enable native geometric shadows across the entire hierarchical grouping
+      c.meshGroup.traverse((node) => {
+         if (node.isMesh && node !== c.shadowMesh) {
+             node.castShadow = true;
+             node.receiveShadow = true;
+         }
+      });
     }
     
     if (c.name && !c.hide_nameplate && !c.nameElement) {
@@ -634,39 +650,67 @@ export class CharacterManager {
       }
     }
 
-    // Walking Animation (Limb Oscillation)
-    const legSwing = Math.sin(c.legAnimationTime || 0);
-    const strideAngle = 0.6; // ~35 degrees
-
-    // Reset default idle pose (A-Pose to make hands visible from top-down orthographic camera)
-    const restPitch = -0.3; // Swing forward slightly (+X axis)
-    const restRoll = 0.4;   // Splay outward laterally (-/+ Y axis)
+    // 1. Reset explicit IK targets to baseline resting coordinates
+    const baseLHand = new THREE.Vector3(0, -15, 9);
+    const baseRHand = new THREE.Vector3(0, 15, 9);
+    const baseLFoot = new THREE.Vector3(2, -6, -14);
+    const baseRFoot = new THREE.Vector3(2, 6, -14);
     
-    // Invert the signs so the rotation pushes them outwards geometrically
-    c.rig.leftArm.rotation.set(-restRoll, restPitch, 0);
-    c.rig.rightArm.rotation.set(restRoll, restPitch, 0);
-    c.rig.leftLeg.rotation.set(0, 0, 0);
-    c.rig.rightLeg.rotation.set(0, 0, 0);
+    c.rig.leftHandTarget.copy(baseLHand);
+    c.rig.rightHandTarget.copy(baseRHand);
+    c.rig.leftFootTarget.copy(baseLFoot);
+    c.rig.rightFootTarget.copy(baseRFoot);
 
-    // If moving, oscillate limbs opposite to each other.
+    // 2. Add procedural Idle Breathing (subtle scaling of Torso)
+    const timeNow = Date.now() / 1000;
+    const breathOffset = Math.sin(timeNow * 2) * 0.02;
+    c.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 1);
+
+    // 3. Coordinate-Based Locomotion (Walk Cycle)
+    const legSwing = Math.sin(c.legAnimationTime || 0);
+    
     if ((c.legAnimationTime || 0) > 0) {
-       // Y axis pivots the limbs longitudinally (forward/backward stride)
-       c.rig.leftArm.rotation.y = restPitch - legSwing * strideAngle;
-       c.rig.rightArm.rotation.y = restPitch + legSwing * strideAngle;
-       c.rig.leftLeg.rotation.y = legSwing * strideAngle;
-       c.rig.rightLeg.rotation.y = -legSwing * strideAngle;
+        // Swing explicit targets forward and backward (+/- X axis), and lift upwards slightly (+Z axis) during the swing apex
+        const armStrideX = 12; // Far reach
+        const legStrideX = 14; 
+        const stepLiftZ = 6;
+        
+        // Left Arm sweeps Backward when Left Leg sweeps Forward
+        c.rig.leftHandTarget.x += -legSwing * armStrideX;
+        c.rig.leftHandTarget.z += Math.abs(legSwing) * (stepLiftZ * 0.5); // Slight elbow bend lift
+        
+        c.rig.rightHandTarget.x += legSwing * armStrideX;
+        c.rig.rightHandTarget.z += Math.abs(legSwing) * (stepLiftZ * 0.5);
+        
+        c.rig.leftFootTarget.x += legSwing * legStrideX;
+        c.rig.leftFootTarget.z += Math.abs(legSwing) * stepLiftZ; // Lift foot mid-stride
+        
+        c.rig.rightFootTarget.x += -legSwing * legStrideX;
+        c.rig.rightFootTarget.z += Math.abs(legSwing) * stepLiftZ;
     }
 
-    // Emote overrides for 3D skeleton
+    // 4. Emote Overrides (Coordinate based)
     if (emoteDef && emoteDef.updateLimbs3D) {
+       // Allow emotes to explicitly mutate the Target vectors natively!
        emoteDef.updateLimbs3D(c.rig, currentEmote);
     } else if (c.emoji) {
-       // Basic cheer pose fallback for string emojis
-       c.rig.leftArm.rotation.y = -2.0; // Raise arms forward
-       c.rig.rightArm.rotation.y = -2.0;
-       c.rig.leftArm.rotation.x = -0.5; // Splay slightly outwards laterally
-       c.rig.rightArm.rotation.x = 0.5; 
+       // Fallback Cheer: Throw Hands upwards in the air (+Z) and slightly outwards (+Y/-Y)
+       c.rig.leftHandTarget.set(5, -20, 35);
+       c.rig.rightHandTarget.set(5, 20, 35);
     }
+
+    // 5. RESOLVE INVERSE KINEMATICS (IK)
+    // Snap geometric extremities physically to final calculated Cartesian coordinates
+    c.rig.lHand.position.copy(c.rig.leftHandTarget);
+    c.rig.rHand.position.copy(c.rig.rightHandTarget);
+    c.rig.lShoe.position.copy(c.rig.leftFootTarget);
+    c.rig.rShoe.position.copy(c.rig.rightFootTarget);
+
+    // Mathematically stretch local Capsule geometries instantly from rigid Shoulder anchors exactly dynamically to roaming targets!
+    updateStretchyLimb(c.rig.lArmMesh, c.rig.leftShoulderPos, c.rig.leftHandTarget, 16);
+    updateStretchyLimb(c.rig.rArmMesh, c.rig.rightShoulderPos, c.rig.rightHandTarget, 16);
+    updateStretchyLimb(c.rig.lLegMesh, c.rig.leftHipPos, c.rig.leftFootTarget, 24);
+    updateStretchyLimb(c.rig.rLegMesh, c.rig.rightHipPos, c.rig.rightFootTarget, 24);
   }
 
   drawCharacter(c, isNpc, layerType, scene, player, syncPlayerToJSON, cameraZoom, viewportWidth, viewportHeight, threeCamera) {

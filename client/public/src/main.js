@@ -19,6 +19,8 @@ export const renderer = new THREE.WebGLRenderer({ canvas: document.getElementByI
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setClearColor(0x7bed9f); // Grass green color
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 export const scene = new THREE.Scene();
 
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Base visibility
@@ -26,7 +28,26 @@ scene.add(ambientLight);
 
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
 dirLight.position.set(50, -100, 150); // Angled down from top-front
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 1024;
+dirLight.shadow.mapSize.height = 1024;
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 1500;
+dirLight.shadow.camera.left = -500;
+dirLight.shadow.camera.right = 500;
+dirLight.shadow.camera.top = -500;
+dirLight.shadow.camera.bottom = 500;
+dirLight.shadow.bias = -0.001;
 scene.add(dirLight);
+
+// Invisible Plane to catch the geometric shadows
+const shadowPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(10000, 10000),
+    new THREE.ShadowMaterial({ opacity: 0.3 })
+);
+shadowPlane.position.z = 0.5;
+shadowPlane.receiveShadow = true;
+scene.add(shadowPlane);
 export const threeCamera = new THREE.OrthographicCamera(-1, 1, -1, 1, -1000, 1000);
 
 // We invert the Y frustum to match HTML5 Canvas standard coordinates (Y-down)
