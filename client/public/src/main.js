@@ -2,7 +2,7 @@ import { initSound, soundManager } from './sound.js';
 import { emotes, getEmoteMessage } from './emotes.js';
 import { processEvents } from './events.js';
 import { mapManager } from './maps.js';
-import { characterManager, updateLocalNPCs } from './characters.js';
+import { characterManager, updateLocalNPCs, loadSharedModels } from './characters.js';
 import { physicsEngine } from './physics.js';
 import { inputManager } from './input.js';
 import { networkClient } from './network.js';
@@ -10,6 +10,9 @@ import { uiManager } from './ui.js';
 import { gameLoop } from './gameloop.js';
 
 import * as THREE from 'three';
+
+// Trigger native GLTF parsing routines immediately on script load!
+loadSharedModels();
 
 const MAX_SPRING = 100;
 const SPRING_SPEED = 1.0;

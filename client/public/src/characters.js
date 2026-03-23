@@ -1,7 +1,99 @@
 import { emotes } from './emotes.js';
 import { physicsEngine } from './physics.js';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { uiManager } from './ui.js';
+
+export let sharedShoeMeshL = null;
+export let sharedShoeMeshR = null;
+const awaitingShoeRigs = [];
+
+export function loadSharedModels() {
+  if (sharedShoeMeshL) return;
+
+  const loader = new GLTFLoader();
+  loader.load('./models/slip_on_shoes/slip_ons.gltf', (gltf) => {
+    // Single mesh anchor format replaces [shoes_l, shoes_r] split matrix
+    const shoe = gltf.scene.getObjectByName('shoes_r') || gltf.scene.children[0];
+
+    if (shoe) {
+      shoe.removeFromParent();
+
+      const box = new THREE.Box3().setFromObject(shoe);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 20.0 / maxDim;
+      shoe.scale.set(scale, scale, scale * 0.75); // 25% shorter natively retaining full 100% width/height ratios!
+      shoe.updateMatrixWorld(true);
+
+      // Trust the user's native (y=0, x=0) mesh translation offsets explicitly without mutating 'position'!
+      shoe.position.z = -5.0;
+
+      shoe.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.material) child.material.color.setHex(0xffffff);
+        }
+      });
+    }
+
+    const wrapperL = new THREE.Group();
+    if (shoe) {
+      const leftShoe = shoe.clone();
+      leftShoe.scale.x *= -1; // Symmetrically flip the right shoe converting it to a Left arch natively!
+      wrapperL.add(leftShoe);
+    }
+    wrapperL.rotation.set(Math.PI / 2, -Math.PI / 2, 0);
+
+    const wrapperR = new THREE.Group();
+    if (shoe) {
+      const rightShoe = shoe.clone();
+      wrapperR.add(rightShoe);
+    }
+    wrapperR.rotation.set(Math.PI / 2, -Math.PI / 2, 0);
+
+    sharedShoeMeshL = wrapperL;
+    sharedShoeMeshR = wrapperR;
+
+    console.log("Cached Slip-on shoes locally!");
+
+    // Asynchronously backfill any avatars spawned prior to loader resolving
+    for (const data of awaitingShoeRigs) {
+      applyShoeModel(data.rig, data.mats, data.c);
+    }
+    awaitingShoeRigs.length = 0;
+  });
+}
+
+function applyShoeModel(rig, mats, c) {
+  if (!sharedShoeMeshL || !sharedShoeMeshR) return;
+
+  for (let i = rig.lShoe.children.length - 1; i >= 0; i--) {
+    if (rig.lShoe.children[i].userData.isFallback) rig.lShoe.children[i].removeFromParent();
+  }
+  for (let i = rig.rShoe.children.length - 1; i >= 0; i--) {
+    if (rig.rShoe.children[i].userData.isFallback) rig.rShoe.children[i].removeFromParent();
+  }
+
+  const cloneL = sharedShoeMeshL.clone();
+  const cloneR = sharedShoeMeshR.clone();
+
+  const tintShoe = (shoe) => {
+    shoe.traverse(child => {
+      if (child.isMesh && child.material) {
+        child.material = child.material.clone();
+        // Override raw GLTF diffuse relying exclusively on character's cosmetic config!
+        child.material.color.set(mats.shoe.color);
+      }
+    });
+  };
+  tintShoe(cloneL);
+  tintShoe(cloneR);
+
+  rig.lShoe.add(cloneL);
+  rig.rShoe.add(cloneR);
+}
 
 // --- 2-BONE INVERSE KINEMATICS (IK) SOLVER ---
 /*
@@ -10,38 +102,38 @@ import { uiManager } from './ui.js';
  * explicitly locking the articulation plane using a constant `bendingNormal` to prevent horizon-flip breaking.
  */
 function solve2BoneIK(startPos, endPos, L1, L2, bendingNormal) {
-    const dVector = new THREE.Vector3().subVectors(endPos, startPos);
-    const d = dVector.length();
-    
-    // Check if unreachable (stretch to max distance)
-    if (d >= L1 + L2) {
-        return new THREE.Vector3().copy(startPos).add(dVector.normalize().multiplyScalar(L1));
-    }
-    
-    // Check if target is perfectly touching the socket (fold identically in half)
-    if (d <= Math.abs(L1 - L2)) {
-        return new THREE.Vector3().copy(startPos).add(bendingNormal.clone().multiplyScalar(L1));
-    }
-    
-    // Law of Cosines to find inner angle
-    let cosTheta = (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d);
-    cosTheta = Math.max(-1, Math.min(1, cosTheta));
-    const theta = Math.acos(cosTheta);
-    
-    // Constant bending plane constraint explicitly guarantees no inverted chicken-wing elbows!
-    const dir = dVector.clone().normalize();
-    return new THREE.Vector3().copy(startPos).add(dir.applyAxisAngle(bendingNormal, theta).multiplyScalar(L1));
+  const dVector = new THREE.Vector3().subVectors(endPos, startPos);
+  const d = dVector.length();
+
+  // Check if unreachable (stretch to max distance)
+  if (d >= L1 + L2) {
+    return new THREE.Vector3().copy(startPos).add(dVector.normalize().multiplyScalar(L1));
+  }
+
+  // Check if target is perfectly touching the socket (fold identically in half)
+  if (d <= Math.abs(L1 - L2)) {
+    return new THREE.Vector3().copy(startPos).add(bendingNormal.clone().multiplyScalar(L1));
+  }
+
+  // Law of Cosines to find inner angle
+  let cosTheta = (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d);
+  cosTheta = Math.max(-1, Math.min(1, cosTheta));
+  const theta = Math.acos(cosTheta);
+
+  // Constant bending plane constraint explicitly guarantees no inverted chicken-wing elbows!
+  const dir = dVector.clone().normalize();
+  return new THREE.Vector3().copy(startPos).add(dir.applyAxisAngle(bendingNormal, theta).multiplyScalar(L1));
 }
 
 // Aligns a limb segment linearly between two localized coordinates without distortion
 function pointLimbSegment(sleeveMesh, startPos, endPos) {
-    const dist = startPos.distanceTo(endPos);
-    if (dist < 0.1) return;
-    sleeveMesh.position.copy(startPos).lerp(endPos, 0.5);
-    const dir = new THREE.Vector3().subVectors(endPos, startPos).normalize();
-    const up = new THREE.Vector3(0, 1, 0); // Native capsule +Y alignment
-    const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
-    sleeveMesh.quaternion.copy(quat);
+  const dist = startPos.distanceTo(endPos);
+  if (dist < 0.1) return;
+  sleeveMesh.position.copy(startPos).lerp(endPos, 0.5);
+  const dir = new THREE.Vector3().subVectors(endPos, startPos).normalize();
+  const up = new THREE.Vector3(0, 1, 0); // Native capsule +Y alignment
+  const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
+  sleeveMesh.quaternion.copy(quat);
 }
 const DEG_TO_RAD = Math.PI / 180;
 const PI2 = Math.PI * 2;
@@ -83,20 +175,20 @@ export class CharacterManager {
     if (c.meshGroup) {
       scene.remove(c.meshGroup);
       c.meshGroup.traverse((child) => {
-         if (child.isMesh) {
-             if (child.geometry) child.geometry.dispose();
-             if (child.material) {
-                 if (Array.isArray(child.material)) {
-                     child.material.forEach(m => {
-                         if (m.map) m.map.dispose();
-                         m.dispose();
-                     });
-                 } else {
-                     if (child.material.map) child.material.map.dispose();
-                     child.material.dispose();
-                 }
-             }
-         }
+        if (child.isMesh) {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach(m => {
+                if (m.map) m.map.dispose();
+                m.dispose();
+              });
+            } else {
+              if (child.material.map) child.material.map.dispose();
+              child.material.dispose();
+            }
+          }
+        }
       });
       c.meshGroup = null;
     }
@@ -286,8 +378,8 @@ export class CharacterManager {
 
     const bodyGradient = ctx.createLinearGradient(-8, 0, 8, 0);
     bodyGradient.addColorStop(0, c.shirtColor || '#3498db');
-    bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20)); 
-    bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));  
+    bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20));
+    bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));
     ctx.fillStyle = bodyGradient;
 
     const bodyDepth = c.gender === 'female' ? 10 : 12;
@@ -304,9 +396,9 @@ export class CharacterManager {
     ctx.beginPath();
     ctx.arc(2, 0, 8, 0, PI2);
     const headGradient = ctx.createRadialGradient(0, -2, 2, 2, 0, 8);
-    headGradient.addColorStop(0, '#f5d39e'); 
-    headGradient.addColorStop(0.6, '#e0ab63'); 
-    headGradient.addColorStop(1, '#a67232'); 
+    headGradient.addColorStop(0, '#f5d39e');
+    headGradient.addColorStop(0.6, '#e0ab63');
+    headGradient.addColorStop(1, '#a67232');
     ctx.fillStyle = headGradient;
     ctx.fill();
 
@@ -373,7 +465,7 @@ export class CharacterManager {
         ctx.lineTo(-8, 5);
         ctx.lineTo(1, 7.5);
         ctx.fill();
-      } else { 
+      } else {
         ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
         ctx.fill();
 
@@ -388,209 +480,251 @@ export class CharacterManager {
   }
 
   buildSkeletonMaterials(c) {
-      return {
-          skin: new THREE.MeshStandardMaterial({ color: c.color || '#f1c40f', roughness: 0.6, metalness: 0.1 }),
-          shirt: new THREE.MeshStandardMaterial({ color: c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
-          arm: new THREE.MeshStandardMaterial({ color: c.armColor || c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
-          pants: new THREE.MeshStandardMaterial({ color: c.pantsColor || '#2c3e50', roughness: 0.9, metalness: 0.0 }),
-          shoe: new THREE.MeshStandardMaterial({ color: c.shoeColor || '#7f8c8d', roughness: 0.7, metalness: 0.2 }),
-          hair: new THREE.MeshStandardMaterial({ color: c.hairColor || '#8e44ad', roughness: 0.5, metalness: 0.1 })
-      };
+    return {
+      skin: new THREE.MeshStandardMaterial({ color: c.color || '#f1c40f', roughness: 0.6, metalness: 0.1 }),
+      shirt: new THREE.MeshStandardMaterial({ color: c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
+      arm: new THREE.MeshStandardMaterial({ color: c.armColor || c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
+      pants: new THREE.MeshStandardMaterial({ color: c.pantsColor || '#2c3e50', roughness: 0.9, metalness: 0.0 }),
+      shoe: new THREE.MeshStandardMaterial({ color: c.shoeColor || '#7f8c8d', roughness: 0.7, metalness: 0.2 }),
+      hair: new THREE.MeshStandardMaterial({ color: c.hairColor || '#8e44ad', roughness: 0.5, metalness: 0.1 })
+    };
   }
 
   buildSkeletonRig(c, mats) {
-      c.rig = {
-         bodyPivot: new THREE.Group(),
-         head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), mats.skin),
-         torso: new THREE.Mesh(new THREE.CapsuleGeometry(12, 2, 10, 16), mats.shirt),
-         leftArm: new THREE.Group(), rightArm: new THREE.Group(),
-         leftLeg: new THREE.Group(), rightLeg: new THREE.Group()
-      };
-      c.rig.meshGroup = c.meshGroup;
-      c.meshGroup.add(c.rig.bodyPivot);
-      c.rig.bodyPivot.add(c.rig.torso);
+    c.rig = {
+      bodyPivot: new THREE.Group(),
+      emotePropsDirectional: new THREE.Group(),
+      head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), mats.skin),
+      torso: new THREE.Mesh(new THREE.CapsuleGeometry(12, 2, 10, 16), mats.shirt),
+      leftArm: new THREE.Group(), rightArm: new THREE.Group(),
+      leftLeg: new THREE.Group(), rightLeg: new THREE.Group()
+    };
+    c.rig.meshGroup = c.meshGroup;
+    c.meshGroup.add(c.rig.bodyPivot);
+    c.meshGroup.add(c.rig.emotePropsDirectional);
+    c.rig.bodyPivot.add(c.rig.torso);
 
-      c.rig.torso.rotation.x = Math.PI / 2;
-      c.rig.torso.position.set(0, 0, 20);
+    c.rig.torso.rotation.x = Math.PI / 2;
+    c.rig.torso.position.set(0, 0, 20);
 
-      c.rig.head.position.set(2, 0, 36); 
-      c.rig.bodyPivot.add(c.rig.head);
-      
-      const eyeGeo = new THREE.SphereGeometry(1.5, 8, 8);
-      const eyeMat = new THREE.MeshStandardMaterial({ color: '#111111', roughness: 0.4 });
-      
-      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-      leftEye.position.set(9.2, -4.5, 3.5); 
-      c.rig.head.add(leftEye);
-      
-      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-      rightEye.position.set(9.2, 4.5, 3.5);
-      c.rig.head.add(rightEye);
+    c.rig.head.position.set(2, 0, 36);
+    c.rig.bodyPivot.add(c.rig.head);
 
-      c.rig.leftHandTarget = new THREE.Vector3(0, -15, 9); 
-      c.rig.rightHandTarget = new THREE.Vector3(0, 15, 9);
-      c.rig.leftFootTarget = new THREE.Vector3(2, -6, -14); 
-      c.rig.rightFootTarget = new THREE.Vector3(2, 6, -14);
-      
-      c.rig.leftShoulderPos = new THREE.Vector3(0, -14, 26);
-      c.rig.rightShoulderPos = new THREE.Vector3(0, 14, 26);
-      c.rig.leftHipPos = new THREE.Vector3(0, -6, 10);
-      c.rig.rightHipPos = new THREE.Vector3(0, 6, 10);
+    const eyeGeo = new THREE.SphereGeometry(1.5, 8, 8);
+    const eyeMat = new THREE.MeshStandardMaterial({ color: '#111111', roughness: 0.4 });
+
+    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+    leftEye.position.set(9.2, -4.5, 3.5);
+    c.rig.head.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+    rightEye.position.set(9.2, 4.5, 3.5);
+    c.rig.head.add(rightEye);
+
+    c.rig.leftHandTarget = new THREE.Vector3(0, -15, 9);
+    c.rig.rightHandTarget = new THREE.Vector3(0, 15, 9);
+    c.rig.leftFootTarget = new THREE.Vector3(2, -6, -14);
+    c.rig.rightFootTarget = new THREE.Vector3(2, 6, -14);
+
+    c.rig.leftShoulderPos = new THREE.Vector3(0, -11, 26);
+    c.rig.rightShoulderPos = new THREE.Vector3(0, 11, 26);
+    c.rig.leftHipPos = new THREE.Vector3(0, -6, 10);
+    c.rig.rightHipPos = new THREE.Vector3(0, 6, 10);
   }
 
   buildSkeletonHair(c, mats) {
-      const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
-      const hairGroup = new THREE.Group();
-      hairGroup.position.set(0, 0, 0); 
-      
-      const baseHairGeo = new THREE.SphereGeometry(11, 16, 16, 0, Math.PI, 0, Math.PI);
-      
-      if (style === 'spiky') {
-          const spikeGeo = new THREE.ConeGeometry(3.5, 10, 6);
-          for (let i = 0; i < 5; i++) {
-              const spike = new THREE.Mesh(spikeGeo, mats.hair);
-              spike.rotation.y = (Math.PI / 4) * (i - 2);
-              spike.rotation.x = Math.PI / 2;
-              spike.position.set(-1.5, (i - 2) * 2.0, 9); 
-              hairGroup.add(spike);
-          }
-      } else if (style === 'ponytail') {
-          const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
-          baseHair.rotation.y = -Math.PI / 2; 
-          hairGroup.add(baseHair);
-          const tailGeo = new THREE.ConeGeometry(4, 18, 8);
-          const tail = new THREE.Mesh(tailGeo, mats.hair);
-          tail.rotation.z = Math.PI / 2;
-          tail.position.set(-14, 0, 3); 
-          hairGroup.add(tail);
-      } else if (style === 'messy') {
-          const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
-          baseHair.rotation.y = -Math.PI / 2;
-          hairGroup.add(baseHair);
-          const tuftGeo = new THREE.ConeGeometry(3.5, 10, 5);
-          const t1 = new THREE.Mesh(tuftGeo, mats.hair);
-          t1.rotation.y = -Math.PI / 5; t1.rotation.x = Math.PI / 2; t1.position.set(-8, -7, 5);
-          hairGroup.add(t1);
-          const t2 = new THREE.Mesh(tuftGeo, mats.hair);
-          t2.rotation.y = Math.PI / 12; t2.rotation.x = Math.PI / 2; t2.position.set(-11, -1, 4);
-          hairGroup.add(t2);
-          const t3 = new THREE.Mesh(tuftGeo, mats.hair);
-          t3.rotation.y = Math.PI / 5; t3.rotation.x = Math.PI / 2; t3.position.set(-8, 6, 7);
-          hairGroup.add(t3);
-      } else if (style === 'long') {
-          const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
-          baseHair.rotation.y = -Math.PI / 2;
-          hairGroup.add(baseHair);
-          const lockGeo = new THREE.ConeGeometry(4.5, 16, 6);
-          const rightLock = new THREE.Mesh(lockGeo, mats.hair);
-          rightLock.rotation.z = Math.PI / 2; rightLock.position.set(-10, 8, -1);
-          hairGroup.add(rightLock);
-          const leftLock = new THREE.Mesh(lockGeo, mats.hair);
-          leftLock.rotation.z = Math.PI / 2; leftLock.position.set(-10, -8, -1);
-          hairGroup.add(leftLock);
-      } else {
-          const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
-          baseHair.rotation.y = -Math.PI / 2;
-          hairGroup.add(baseHair);
+    const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
+    const hairGroup = new THREE.Group();
+    hairGroup.position.set(0, 0, 0);
+
+    const baseHairGeo = new THREE.SphereGeometry(11, 16, 16, 0, Math.PI, 0, Math.PI);
+
+    if (style === 'spiky') {
+      const spikeGeo = new THREE.ConeGeometry(3.5, 10, 6);
+      for (let i = 0; i < 5; i++) {
+        const spike = new THREE.Mesh(spikeGeo, mats.hair);
+        spike.rotation.y = (Math.PI / 4) * (i - 2);
+        spike.rotation.x = Math.PI / 2;
+        spike.position.set(-1.5, (i - 2) * 2.0, 9);
+        hairGroup.add(spike);
       }
-      c.rig.head.add(hairGroup);
+    } else if (style === 'ponytail') {
+      const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
+      baseHair.rotation.y = -Math.PI / 2;
+      hairGroup.add(baseHair);
+      const tailGeo = new THREE.ConeGeometry(4, 18, 8);
+      const tail = new THREE.Mesh(tailGeo, mats.hair);
+      tail.rotation.z = Math.PI / 2;
+      tail.position.set(-14, 0, 3);
+      hairGroup.add(tail);
+    } else if (style === 'messy') {
+      const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
+      baseHair.rotation.y = -Math.PI / 2;
+      hairGroup.add(baseHair);
+      const tuftGeo = new THREE.ConeGeometry(3.5, 10, 5);
+      const t1 = new THREE.Mesh(tuftGeo, mats.hair);
+      t1.rotation.y = -Math.PI / 5; t1.rotation.x = Math.PI / 2; t1.position.set(-8, -7, 5);
+      hairGroup.add(t1);
+      const t2 = new THREE.Mesh(tuftGeo, mats.hair);
+      t2.rotation.y = Math.PI / 12; t2.rotation.x = Math.PI / 2; t2.position.set(-11, -1, 4);
+      hairGroup.add(t2);
+      const t3 = new THREE.Mesh(tuftGeo, mats.hair);
+      t3.rotation.y = Math.PI / 5; t3.rotation.x = Math.PI / 2; t3.position.set(-8, 6, 7);
+      hairGroup.add(t3);
+    } else if (style === 'long') {
+      const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
+      baseHair.rotation.y = -Math.PI / 2;
+      hairGroup.add(baseHair);
+      const lockGeo = new THREE.ConeGeometry(4.5, 16, 6);
+      const rightLock = new THREE.Mesh(lockGeo, mats.hair);
+      rightLock.rotation.z = Math.PI / 2; rightLock.position.set(-10, 8, -1);
+      hairGroup.add(rightLock);
+      const leftLock = new THREE.Mesh(lockGeo, mats.hair);
+      leftLock.rotation.z = Math.PI / 2; leftLock.position.set(-10, -8, -1);
+      hairGroup.add(leftLock);
+    } else {
+      const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
+      baseHair.rotation.y = -Math.PI / 2;
+      hairGroup.add(baseHair);
+    }
+    c.rig.head.add(hairGroup);
   }
 
   buildSkeletonLimbs(c, mats) {
-      const upperArmGeo = new THREE.CapsuleGeometry(4.2, 8, 8, 10);
-      const lowerArmGeo = new THREE.CapsuleGeometry(4.2, 8, 8, 10);
-      const handGeo = new THREE.SphereGeometry(5.2, 12, 12);
-      
-      c.rig.lUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
-      c.rig.lLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
-      c.rig.lHand = new THREE.Mesh(handGeo, mats.skin);
-      c.rig.bodyPivot.add(c.rig.lUpperArm, c.rig.lLowerArm, c.rig.lHand);
+    const upperArmGeo = new THREE.CapsuleGeometry(3.3, 8, 8, 10);
+    const lowerArmGeo = new THREE.CapsuleGeometry(3.3, 8, 8, 10);
+    const handGeo = new THREE.SphereGeometry(4.2, 12, 12);
 
-      c.rig.rUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
-      c.rig.rLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
-      c.rig.rHand = new THREE.Mesh(handGeo, mats.skin);
-      c.rig.bodyPivot.add(c.rig.rUpperArm, c.rig.rLowerArm, c.rig.rHand);
+    c.rig.lUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
+    c.rig.lLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
+    c.rig.lHand = new THREE.Mesh(handGeo, mats.skin);
+    c.rig.bodyPivot.add(c.rig.lUpperArm, c.rig.lLowerArm, c.rig.lHand);
 
-      const upperLegGeo = new THREE.CapsuleGeometry(4.5, 12, 8, 10);
-      const lowerLegGeo = new THREE.CapsuleGeometry(4.5, 12, 8, 10);
-      const shoeGeo = new THREE.BoxGeometry(11, 8, 5);
-      
-      c.rig.lUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
-      c.rig.lLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
-      c.rig.lShoe = new THREE.Mesh(shoeGeo, mats.shoe);
-      c.rig.bodyPivot.add(c.rig.lUpperLeg, c.rig.lLowerLeg, c.rig.lShoe);
+    c.rig.rUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
+    c.rig.rLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
+    c.rig.rHand = new THREE.Mesh(handGeo, mats.skin);
+    c.rig.bodyPivot.add(c.rig.rUpperArm, c.rig.rLowerArm, c.rig.rHand);
 
-      c.rig.rUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
-      c.rig.rLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
-      c.rig.rShoe = new THREE.Mesh(shoeGeo, mats.shoe);
-      c.rig.bodyPivot.add(c.rig.rUpperLeg, c.rig.rLowerLeg, c.rig.rShoe);
+    const upperLegGeo = new THREE.CapsuleGeometry(3.6, 12, 8, 10);
+    const lowerLegGeo = new THREE.CapsuleGeometry(3.6, 9.7, 8, 10);
+
+    const applyTaper = (geometry, topScale, bottomScale, isLower) => {
+      const pos = geometry.attributes.position;
+      const len = isLower ? 9.7 : 12;
+      const halfLen = len / 2;
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        let scale;
+        if (y >= halfLen) {
+          scale = topScale;
+        } else if (y <= -halfLen) {
+          scale = bottomScale;
+        } else {
+          // Progressively taper linearly across the cylindrical midsection
+          const t = (y + halfLen) / len;
+          scale = bottomScale + t * (topScale - bottomScale);
+        }
+        pos.setX(i, pos.getX(i) * scale);
+        pos.setZ(i, pos.getZ(i) * scale);
+      }
+      geometry.computeVertexNormals();
+    };
+
+    // Thighs remain natively uniform preventing hip tapering.
+    applyTaper(upperLegGeo, 1.0, 1.0, false);
+    // Taper calves from interlocking 100% bounds down to 60% thin at the ankle
+    applyTaper(lowerLegGeo, 1.0, 0.6, true);
+
+    const shoeGeo = new THREE.BoxGeometry(11, 8, 5);
+
+    c.rig.lUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
+    c.rig.lLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
+    c.rig.lShoe = new THREE.Group();
+    c.rig.bodyPivot.add(c.rig.lUpperLeg, c.rig.lLowerLeg, c.rig.lShoe);
+
+    c.rig.rUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
+    c.rig.rLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
+    c.rig.rShoe = new THREE.Group();
+    c.rig.bodyPivot.add(c.rig.rUpperLeg, c.rig.rLowerLeg, c.rig.rShoe);
+
+    if (sharedShoeMeshL && sharedShoeMeshR) {
+      applyShoeModel(c.rig, mats, c);
+    } else {
+      const leftBox = new THREE.Mesh(shoeGeo, mats.shoe);
+      const rightBox = new THREE.Mesh(shoeGeo, mats.shoe);
+      leftBox.userData.isFallback = true;
+      rightBox.userData.isFallback = true;
+      c.rig.lShoe.add(leftBox);
+      c.rig.rShoe.add(rightBox);
+      awaitingShoeRigs.push({ rig: c.rig, mats, c });
+    }
   }
 
   buildShadowBlob(c) {
-      const shadowSize = 28; 
-      const shadowCanvas = document.createElement('canvas');
-      shadowCanvas.width = 30; shadowCanvas.height = 30;
-      const sctx = shadowCanvas.getContext('2d');
-      sctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-      sctx.beginPath(); sctx.arc(15, 15, 14, 0, Math.PI*2); sctx.fill();
-      
-      const shadowTex = new THREE.CanvasTexture(shadowCanvas);
-      const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
-      c.shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(shadowSize, shadowSize), shadowMat);
-      c.shadowMesh.position.set(0, 0, 0.5); 
-      c.shadowMesh.renderOrder = 55; 
-      c.meshGroup.add(c.shadowMesh);
+    const shadowSize = 28;
+    const shadowCanvas = document.createElement('canvas');
+    shadowCanvas.width = 30; shadowCanvas.height = 30;
+    const sctx = shadowCanvas.getContext('2d');
+    sctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    sctx.beginPath(); sctx.arc(15, 15, 14, 0, Math.PI * 2); sctx.fill();
+
+    const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+    const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
+    c.shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(shadowSize, shadowSize), shadowMat);
+    c.shadowMesh.position.set(0, 0, 0.5);
+    c.shadowMesh.renderOrder = 55;
+    c.meshGroup.add(c.shadowMesh);
   }
 
   ensureDomElements(c) {
-      if (c.name && !c.hide_nameplate && !c.nameElement) {
-          c.nameElement = document.createElement('div');
-          c.nameElement.textContent = c.name;
-          c.nameElement.style.position = 'absolute';
-          c.nameElement.style.color = 'white';
-          c.nameElement.style.fontWeight = 'bold';
-          c.nameElement.style.fontSize = '12px';
-          c.nameElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-          c.nameElement.style.textShadow = '-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)';
-          c.nameElement.style.transform = 'translate(-50%, -50%)';
-          c.nameElement.style.pointerEvents = 'none';
-          c.nameElement.style.zIndex = '50';
-          document.body.appendChild(c.nameElement);
-      }
+    if (c.name && !c.hide_nameplate && !c.nameElement) {
+      c.nameElement = document.createElement('div');
+      c.nameElement.textContent = c.name;
+      c.nameElement.style.position = 'absolute';
+      c.nameElement.style.color = 'white';
+      c.nameElement.style.fontWeight = 'bold';
+      c.nameElement.style.fontSize = '12px';
+      c.nameElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+      c.nameElement.style.textShadow = '-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)';
+      c.nameElement.style.transform = 'translate(-50%, -50%)';
+      c.nameElement.style.pointerEvents = 'none';
+      c.nameElement.style.zIndex = '50';
+      document.body.appendChild(c.nameElement);
+    }
 
-      if (!c.chatElement) {
-          c.chatElement = document.createElement('div');
-          c.chatElement.style.position = 'absolute';
-          c.chatElement.style.background = 'white';
-          c.chatElement.style.color = '#2c3e50';
-          c.chatElement.style.padding = '6px 10px';
-          c.chatElement.style.borderRadius = '8px';
-          c.chatElement.style.fontWeight = 'normal';
-          c.chatElement.style.fontSize = '14px';
-          c.chatElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-          c.chatElement.style.boxShadow = '0 3px 6px rgba(0,0,0,0.25)';
-          c.chatElement.style.transform = 'translate(-50%, -100%)';
-          c.chatElement.style.pointerEvents = 'none';
-          c.chatElement.style.zIndex = '51';
-          c.chatElement.style.display = 'none';
-          c.chatElement.style.textAlign = 'center';
-          c.chatElement.style.minWidth = '50px';
-          
-          const arrow = document.createElement('div');
-          arrow.style.position = 'absolute';
-          arrow.style.bottom = '-8px';
-          arrow.style.left = '50%';
-          arrow.style.transform = 'translateX(-50%)';
-          arrow.style.borderWidth = '8px 6px 0 6px';
-          arrow.style.borderStyle = 'solid';
-          arrow.style.borderColor = 'white transparent transparent transparent';
-          c.chatElement.appendChild(arrow);
-          
-          c.chatTextNode = document.createElement('span');
-          c.chatElement.appendChild(c.chatTextNode);
-          
-          document.body.appendChild(c.chatElement);
-      }
+    if (!c.chatElement) {
+      c.chatElement = document.createElement('div');
+      c.chatElement.style.position = 'absolute';
+      c.chatElement.style.background = 'white';
+      c.chatElement.style.color = '#2c3e50';
+      c.chatElement.style.padding = '6px 10px';
+      c.chatElement.style.borderRadius = '8px';
+      c.chatElement.style.fontWeight = 'normal';
+      c.chatElement.style.fontSize = '14px';
+      c.chatElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+      c.chatElement.style.boxShadow = '0 3px 6px rgba(0,0,0,0.25)';
+      c.chatElement.style.transform = 'translate(-50%, -100%)';
+      c.chatElement.style.pointerEvents = 'none';
+      c.chatElement.style.zIndex = '51';
+      c.chatElement.style.display = 'none';
+      c.chatElement.style.textAlign = 'center';
+      c.chatElement.style.minWidth = '50px';
+
+      const arrow = document.createElement('div');
+      arrow.style.position = 'absolute';
+      arrow.style.bottom = '-8px';
+      arrow.style.left = '50%';
+      arrow.style.transform = 'translateX(-50%)';
+      arrow.style.borderWidth = '8px 6px 0 6px';
+      arrow.style.borderStyle = 'solid';
+      arrow.style.borderColor = 'white transparent transparent transparent';
+      c.chatElement.appendChild(arrow);
+
+      c.chatTextNode = document.createElement('span');
+      c.chatElement.appendChild(c.chatTextNode);
+
+      document.body.appendChild(c.chatElement);
+    }
   }
 
   ensureThreeSetup(c, scene) {
@@ -604,98 +738,108 @@ export class CharacterManager {
       const maxScale = baseScale * Math.max(widthScale, heightScale);
 
       const mats = this.buildSkeletonMaterials(c);
-      
+
       this.buildSkeletonRig(c, mats);
       this.buildSkeletonHair(c, mats);
       this.buildSkeletonLimbs(c, mats);
-      
+
       c.meshGroup.scale.set(maxScale, maxScale, maxScale);
       c.rig.bodyPivot.position.set(0, 0, 15.5);
 
       this.buildShadowBlob(c);
-      
+
       c.meshGroup.traverse((node) => {
-         if (node.isMesh && node !== c.shadowMesh) {
-             node.castShadow = true;
-             node.receiveShadow = true;
-         }
+        if (node.isMesh && node !== c.shadowMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
       });
     }
-    
+
     this.ensureDomElements(c);
   }
 
-  applyWalkCycle(c, legSwing) {
-      const armSwingX = 12; 
-      const armLiftZ = 12;  
-      const legStrideX = 14; 
-      const stepLiftZ = 6;
-      
-      c.rig.leftHandTarget.x += -legSwing * armSwingX;
-      c.rig.leftHandTarget.z += Math.abs(legSwing) * armLiftZ; 
-      c.rig.rightHandTarget.x += legSwing * armSwingX;
-      c.rig.rightHandTarget.z += Math.abs(legSwing) * armLiftZ;
-      
-      c.rig.leftFootTarget.x += legSwing * legStrideX;
-      c.rig.leftFootTarget.z += Math.abs(legSwing) * stepLiftZ; 
-      c.rig.rightFootTarget.x += -legSwing * legStrideX;
-      c.rig.rightFootTarget.z += Math.abs(legSwing) * stepLiftZ;
+  applyWalkCycle(c, legTimer) {
+    const legSwing = Math.sin(legTimer);
+    const legVelocity = Math.cos(legTimer);
+
+    const armSwingX = 12;
+    const armLiftZ = 12;
+    const legStrideX = 14;
+    const stepLiftZ = 8; // Boost to 8 highlighting the alternating lift arch
+
+    c.rig.leftHandTarget.x += -legSwing * armSwingX;
+    c.rig.leftHandTarget.z += Math.abs(legSwing) * armLiftZ;
+    c.rig.rightHandTarget.x += legSwing * armSwingX;
+    c.rig.rightHandTarget.z += Math.abs(legSwing) * armLiftZ;
+
+    c.rig.leftFootTarget.x += legSwing * legStrideX;
+    c.rig.leftFootTarget.z += Math.max(0, legVelocity) * stepLiftZ;
+    c.rig.rightFootTarget.x += -legSwing * legStrideX;
+    c.rig.rightFootTarget.z += Math.max(0, -legVelocity) * stepLiftZ;
   }
 
   applyIdleSway(c, idleTime) {
-      const armSwayZ = Math.sin(idleTime * 2.0) * 0.6; 
-      const armSwayX = Math.cos(idleTime * 1.5) * 0.4; 
-      
-      c.rig.leftHandTarget.z += armSwayZ;
-      c.rig.leftHandTarget.x += armSwayX;
-      c.rig.rightHandTarget.z += armSwayZ;
-      c.rig.rightHandTarget.x -= armSwayX; 
+    const armSwayZ = Math.sin(idleTime * 2.0) * 0.6;
+    const armSwayX = Math.cos(idleTime * 1.5) * 0.4;
+
+    c.rig.leftHandTarget.z += armSwayZ;
+    c.rig.leftHandTarget.x += armSwayX;
+    c.rig.rightHandTarget.z += armSwayZ;
+    c.rig.rightHandTarget.x -= armSwayX;
   }
 
   applyEmoteOverrides(c, emoteDef, currentEmote) {
-      if (emoteDef && emoteDef.updateLimbs3D) {
-         c.rig.bodyPivot.rotation.y = 0; 
-         emoteDef.updateLimbs3D(c.rig, currentEmote);
-      } else if (c.emoji) {
-         c.rig.bodyPivot.rotation.y = 0; 
-         c.rig.leftHandTarget.set(5, -20, 35);
-         c.rig.rightHandTarget.set(5, 20, 35);
-      }
+    if (emoteDef && emoteDef.updateLimbs3D) {
+      c.rig.bodyPivot.rotation.y = 0;
+      emoteDef.updateLimbs3D(c.rig, currentEmote, c);
+    } else if (c.emoji) {
+      c.rig.bodyPivot.rotation.y = 0;
+      c.rig.leftHandTarget.set(5, -20, 35);
+      c.rig.rightHandTarget.set(5, 20, 35);
+    }
   }
 
   resolveInverseKinematics(c) {
-      c.rig.lHand.position.copy(c.rig.leftHandTarget);
-      c.rig.rHand.position.copy(c.rig.rightHandTarget);
-      c.rig.lShoe.position.copy(c.rig.leftFootTarget);
-      c.rig.rShoe.position.copy(c.rig.rightFootTarget);
+    c.rig.lHand.position.copy(c.rig.leftHandTarget);
+    c.rig.rHand.position.copy(c.rig.rightHandTarget);
+    c.rig.lShoe.position.copy(c.rig.leftFootTarget);
+    c.rig.rShoe.position.copy(c.rig.rightFootTarget);
 
-      const bendNormalArmL = new THREE.Vector3(0, 1, -0.5).normalize(); 
-      const bendNormalArmR = new THREE.Vector3(0, 1, 0.5).normalize();  
-      const bendNormalLegL = new THREE.Vector3(0, -1, -0.2).normalize();
-      const bendNormalLegR = new THREE.Vector3(0, -1, 0.2).normalize(); 
+    const bendNormalArmL = new THREE.Vector3(0, 1, -0.5).normalize();
+    const bendNormalArmR = new THREE.Vector3(0, 1, 0.5).normalize();
+    const bendNormalLegL = new THREE.Vector3(0, -1, -0.2).normalize();
+    const bendNormalLegR = new THREE.Vector3(0, -1, 0.2).normalize();
 
-      const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8, 8, bendNormalArmL);
-      const rightElbow = solve2BoneIK(c.rig.rightShoulderPos, c.rig.rightHandTarget, 8, 8, bendNormalArmR);
-      const leftKnee = solve2BoneIK(c.rig.leftHipPos, c.rig.leftFootTarget, 12, 12, bendNormalLegL);
-      const rightKnee = solve2BoneIK(c.rig.rightHipPos, c.rig.rightFootTarget, 12, 12, bendNormalLegR);
+    // Raise ankles 19% (roughly 2.3 units relative to FootTarget) ensuring the calves don't clip through short slip_ons safely
+    const leftAnklePos = new THREE.Vector3().copy(c.rig.leftFootTarget);
+    leftAnklePos.z += 2.3;
+    const rightAnklePos = new THREE.Vector3().copy(c.rig.rightFootTarget);
+    rightAnklePos.z += 2.3;
 
-      pointLimbSegment(c.rig.lUpperArm, c.rig.leftShoulderPos, leftElbow);
-      pointLimbSegment(c.rig.lLowerArm, leftElbow, c.rig.leftHandTarget);
-      
-      pointLimbSegment(c.rig.rUpperArm, c.rig.rightShoulderPos, rightElbow);
-      pointLimbSegment(c.rig.rLowerArm, rightElbow, c.rig.rightHandTarget);
-      
-      pointLimbSegment(c.rig.lUpperLeg, c.rig.leftHipPos, leftKnee);
-      pointLimbSegment(c.rig.lLowerLeg, leftKnee, c.rig.leftFootTarget);
-      
-      pointLimbSegment(c.rig.rUpperLeg, c.rig.rightHipPos, rightKnee);
-      pointLimbSegment(c.rig.rLowerLeg, rightKnee, c.rig.rightFootTarget);
+    const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8.5, 8.5, bendNormalArmL);
+    const rightElbow = solve2BoneIK(c.rig.rightShoulderPos, c.rig.rightHandTarget, 8.5, 8.5, bendNormalArmR);
+    const leftKnee = solve2BoneIK(c.rig.leftHipPos, leftAnklePos, 12, 9.7, bendNormalLegL);
+    const rightKnee = solve2BoneIK(c.rig.rightHipPos, rightAnklePos, 12, 9.7, bendNormalLegR);
+
+    pointLimbSegment(c.rig.lUpperArm, c.rig.leftShoulderPos, leftElbow);
+    pointLimbSegment(c.rig.lLowerArm, leftElbow, c.rig.leftHandTarget);
+
+    pointLimbSegment(c.rig.rUpperArm, c.rig.rightShoulderPos, rightElbow);
+    pointLimbSegment(c.rig.rLowerArm, rightElbow, c.rig.rightHandTarget);
+
+    pointLimbSegment(c.rig.lUpperLeg, c.rig.leftHipPos, leftKnee);
+    pointLimbSegment(c.rig.lLowerLeg, leftKnee, leftAnklePos);
+
+    pointLimbSegment(c.rig.rUpperLeg, c.rig.rightHipPos, rightKnee);
+    pointLimbSegment(c.rig.rLowerLeg, rightKnee, rightAnklePos);
   }
 
   updateCharacter3D(c, isNpc, player, syncPlayerToJSON) {
     if (!c.rig) return;
 
     c.rig.bodyPivot.rotation.z = -c.rotation * (Math.PI / 180);
+    c.rig.emotePropsDirectional.rotation.z = -c.rotation * (Math.PI / 180);
 
     const isActualNpc = isNpc;
     if (isActualNpc && !c.emote && c.default_emote) {
@@ -704,7 +848,23 @@ export class CharacterManager {
 
     let currentEmote = c.emote;
     let emoteDef = null;
-    
+
+    const newEmoteName = currentEmote ? currentEmote.name : null;
+    if (c.rig.currentEmoteName !== newEmoteName) {
+      if (c.rig.emoteProps) {
+        c.rig.emoteProps.removeFromParent();
+        c.rig.emoteProps = null;
+      }
+      if (c.rig.crumbProps) {
+        c.rig.crumbProps.removeFromParent();
+        c.rig.crumbProps = null;
+      }
+      c.rig.bodyPivot.position.set(0, 0, 15.5);
+      c.rig.bodyPivot.rotation.x = 0;
+      c.rig.bodyPivot.rotation.y = 0;
+      c.rig.currentEmoteName = newEmoteName;
+    }
+
     if (currentEmote && emotes[currentEmote.name]) {
       emoteDef = emotes[currentEmote.name];
       if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
@@ -721,11 +881,11 @@ export class CharacterManager {
       }
     }
 
-    const baseLHand = new THREE.Vector3(6, -16, 12); 
+    const baseLHand = new THREE.Vector3(6, -16, 12);
     const baseRHand = new THREE.Vector3(6, 16, 12);
-    const baseLFoot = new THREE.Vector3(2, -6, -13); 
+    const baseLFoot = new THREE.Vector3(2, -6, -13);
     const baseRFoot = new THREE.Vector3(2, 6, -13);
-    
+
     c.rig.leftHandTarget.copy(baseLHand);
     c.rig.rightHandTarget.copy(baseRHand);
     c.rig.leftFootTarget.copy(baseLFoot);
@@ -739,16 +899,26 @@ export class CharacterManager {
 
     const breathOffset = Math.sin(idleTime * 2) * 0.02;
     c.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 1);
-    
+
     c.rig.bodyPivot.rotation.y = Math.sin(idleTime * 1.5) * 0.05;
 
     const isWalking = (c.legAnimationTime || 0) > 0;
-    const legSwing = Math.sin(c.legAnimationTime || 0);
+    const legTimer = c.legAnimationTime || 0;
+    const legSwing = Math.sin(legTimer);
 
     if (isWalking) {
-        this.applyWalkCycle(c, legSwing);
+      // Procedurally bob vertical Z twice per sequence (when feet cross mid-stride)
+      c.rig.bodyPivot.position.z = 7.5 + Math.cos(legTimer * 2) * 1.0;
+      // Shift natively Forward (+X) identically pulsing outward whenever the lifted stride leg passes the midpoint 
+      c.rig.bodyPivot.position.x = Math.cos(legTimer * 2) * 1.5;
+
+      this.applyWalkCycle(c, legTimer);
     } else if (!emoteDef || !emoteDef.updateLimbs3D) {
-        this.applyIdleSway(c, idleTime);
+      // Wipe dynamic strides and seamlessly restore neutral geometry during standstill
+      c.rig.bodyPivot.position.z = 7.5;
+      c.rig.bodyPivot.position.x = 0;
+
+      this.applyIdleSway(c, idleTime);
     }
 
     this.applyEmoteOverrides(c, emoteDef, currentEmote);
@@ -758,7 +928,7 @@ export class CharacterManager {
   drawCharacter(c, isNpc, layerType, scene, player, syncPlayerToJSON, cameraZoom, viewportWidth, viewportHeight, threeCamera) {
     if (layerType === 'all' || layerType === 'base') {
       this.ensureThreeSetup(c, scene);
-      
+
       // Update position (WebGL Y is UP, so we negate game Y)
       c.meshGroup.position.set(c.x, -c.y, 0);
 
@@ -767,53 +937,53 @@ export class CharacterManager {
       if (c.emote && emotes[c.emote.name] && c.emote.startTime > 0) {
         const age = Date.now() - c.emote.startTime;
         if (age <= emotes[c.emote.name].duration) {
-           isEmoteAnimating = true;
+          isEmoteAnimating = true;
         }
       }
 
       const isRedrawForced = true; // Completely rip out the animation cull boundary allowing infinite evaluation mapping Native idle breathing.
-      
+
       if (isRedrawForced) {
-         this.updateCharacter3D(c, isNpc, player, syncPlayerToJSON);
-         c._lastRenderedEmote = JSON.stringify(c.emote);
-         c._lastRenderedRot = c.rotation;
-         c._hasInitialRender = true;
+        this.updateCharacter3D(c, isNpc, player, syncPlayerToJSON);
+        c._lastRenderedEmote = JSON.stringify(c.emote);
+        c._lastRenderedRot = c.rotation;
+        c._hasInitialRender = true;
       }
     }
 
     if (layerType === 'all' || layerType === 'overlay' || layerType === 'chat') {
       if (c.meshGroup) {
-         const vec = new THREE.Vector3(c.x, -c.y, 0);
-         vec.project(threeCamera);
-         // Map -1 to 1 to exact screen pixels
-         const screenX = (vec.x * 0.5 + 0.5) * viewportWidth;
-         const screenY = (-(vec.y * 0.5) + 0.5) * viewportHeight;
+        const vec = new THREE.Vector3(c.x, -c.y, 0);
+        vec.project(threeCamera);
+        // Map -1 to 1 to exact screen pixels
+        const screenX = (vec.x * 0.5 + 0.5) * viewportWidth;
+        const screenY = (-(vec.y * 0.5) + 0.5) * viewportHeight;
 
-         if (c.nameElement) {
-             c.nameElement.style.left = `${screenX}px`;
-             // Raise nameplate above head
-             const nameOffsetY = 45 * cameraZoom;
-             c.nameElement.style.top = `${screenY - nameOffsetY}px`;
-         }
+        if (c.nameElement) {
+          c.nameElement.style.left = `${screenX}px`;
+          // Raise nameplate above head
+          const nameOffsetY = 45 * cameraZoom;
+          c.nameElement.style.top = `${screenY - nameOffsetY}px`;
+        }
 
-         if (c.chatElement) {
-             if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
-                 this.currentFrameChatCount++;
-                 if (this.currentFrameChatCount <= 3) {
-                     c.chatElement.style.display = 'block';
-                     if (c.chatTextNode.innerText !== c.chatMessage) {
-                        c.chatTextNode.innerText = c.chatMessage;
-                     }
-                     c.chatElement.style.left = `${screenX}px`;
-                     const chatOffsetY = 55 * cameraZoom;
-                     c.chatElement.style.top = `${screenY - chatOffsetY}px`;
-                 } else {
-                     c.chatElement.style.display = 'none';
-                 }
-             } else {
-                 c.chatElement.style.display = 'none';
-             }
-         }
+        if (c.chatElement) {
+          if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
+            this.currentFrameChatCount++;
+            if (this.currentFrameChatCount <= 3) {
+              c.chatElement.style.display = 'block';
+              if (c.chatTextNode.innerText !== c.chatMessage) {
+                c.chatTextNode.innerText = c.chatMessage;
+              }
+              c.chatElement.style.left = `${screenX}px`;
+              const chatOffsetY = 55 * cameraZoom;
+              c.chatElement.style.top = `${screenY - chatOffsetY}px`;
+            } else {
+              c.chatElement.style.display = 'none';
+            }
+          } else {
+            c.chatElement.style.display = 'none';
+          }
+        }
       }
     }
   }

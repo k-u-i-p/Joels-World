@@ -1,5 +1,6 @@
 import { footprints } from './main.js';
 import { physicsEngine } from './physics.js';
+import * as THREE from 'three';
 
 /**
  * Generates the chat message text for a given emote, automatically handling string templating
@@ -65,60 +66,45 @@ export const emotes = {
     message: "{name} is firing backwards lasers!",
     message_when_near: "{name} shot a laser at {target_name}!",
     sound: "/media/laser.mp3",
-    setup: (ctx, emote, c) => {
-      // Float up slightly
+    updateLimbs3D: (rig, emote) => {
+      // Hover translation up
       const hover = Math.sin((Date.now() - emote.startTime) / 100) * 3;
-      ctx.translate(0, hover - 10);
-    },
-    updateLimbs: (limbs, emote) => {
-      // Arms out to the sides
-      limbs.leftArmX = 5; limbs.leftArmY = -20;
-      limbs.rightArmX = 5; limbs.rightArmY = 20;
+      rig.bodyPivot.position.set(0, 0, 15.5 + hover + 10);
+      
+      // Arms out into a flat T-Pose for maximum laser stability
+      rig.leftHandTarget.set(0, -25, 15);
+      rig.rightHandTarget.set(0, 25, 15);
 
-      // Legs dangling down
-      limbs.leftLegStartX = -2; limbs.leftLegStartY = -4;
-      limbs.leftLegEndX = -8; limbs.leftLegEndY = -4;
+      // Legs dangling down and slightly forward
+      rig.leftFootTarget.set(-4, -6, -20);
+      rig.rightFootTarget.set(-4, 6, -20);
+      
+      // Look upwards slightly
+      rig.bodyPivot.rotation.x = Math.PI / 16; 
 
-      limbs.rightLegStartX = -2; limbs.rightLegStartY = 4;
-      limbs.rightLegEndX = -8; limbs.rightLegEndY = 4;
-    },
-    draw: (ctx, emote) => {
-      ctx.save();
-      const timeActive = Date.now() - emote.startTime;
+      // Lazy load 3D Laser Beam Meshes onto the active skeleton
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          
+          const beamGeo = new THREE.CylinderGeometry(0.5, 0.5, 300, 8);
+          beamGeo.rotateZ(Math.PI / 2); // Point straight along the X axis
+          const beamMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
+          
+          const eyeL = new THREE.Mesh(beamGeo, beamMat);
+          eyeL.position.set(150, -4.5, 3.5); // Originate deeply inside the sphere eyes
+          rig.emoteProps.add(eyeL);
 
-      // Draw glowing eyes
-      ctx.fillStyle = '#ff0000';
-      ctx.shadowColor = '#ff0000';
-      ctx.shadowBlur = 10;
-      ctx.beginPath(); ctx.arc(6, -3, 2.5, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(6, 3, 2.5, 0, Math.PI * 2); ctx.fill();
-
-      // Draw lazer beams with a pulsing effect
-      const alpha = 0.7 + Math.sin(timeActive / 50) * 0.3;
-      ctx.globalAlpha = alpha;
-
-      // Outer red beam
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = '#ff0000';
-      ctx.beginPath();
-      // Beam from left eye
-      ctx.moveTo(6, -3);
-      ctx.lineTo(2000, -3);
-      // Beam from right eye
-      ctx.moveTo(6, 3);
-      ctx.lineTo(2000, 3);
-      ctx.stroke();
-
-      // Inner white core
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#ffffff';
-      ctx.shadowBlur = 0;
-      ctx.beginPath();
-      ctx.moveTo(6, -3); ctx.lineTo(2000, -3);
-      ctx.moveTo(6, 3); ctx.lineTo(2000, 3);
-      ctx.stroke();
-
-      ctx.restore();
+          const eyeR = new THREE.Mesh(beamGeo, beamMat);
+          eyeR.position.set(150, 4.5, 3.5);
+          rig.emoteProps.add(eyeR);
+          
+          // Anchor the lasers natively to the Head node so they rotate flawlessly with the user!
+          rig.head.add(rig.emoteProps);
+      }
+      
+      // Pulse opacity
+      const alpha = 0.5 + Math.sin((Date.now() - emote.startTime) / 50) * 0.5;
+      rig.emoteProps.children.forEach(c => c.material.opacity = alpha);
     }
   },
   bounce: {
@@ -126,144 +112,169 @@ export const emotes = {
     message: "{name} is bouncing",
     message_when_near: "{name} is bouncing with {target_name}",
     sound: "/media/jump.mp3",
-    setup: (ctx, emote, c) => {
+    updateLimbs3D: (rig, emote) => {
       const danceTime = (Date.now() - emote.startTime) / 150;
-      const bounce = Math.abs(Math.sin(danceTime)) * -15;
+      const bounce = Math.abs(Math.sin(danceTime)) * 20; 
       const tilt = Math.sin(danceTime * 0.8) * 0.3;
 
-      ctx.translate(0, bounce);
-      ctx.rotate(tilt);
-    },
-    updateLimbs: (limbs, emote) => { },
-    draw: (ctx, emote) => { }
+      // Translate core hierarchy rapidly upward
+      rig.bodyPivot.position.z = 15.5 + bounce;
+      rig.bodyPivot.rotation.x = tilt; 
+      
+      // Fling arms playfully upward upon liftoff
+      rig.leftHandTarget.z += bounce * 0.5;
+      rig.rightHandTarget.z += bounce * 0.5;
+      
+      // Legs drag heavily behind the leaping torso natively
+      rig.leftFootTarget.z -= bounce;
+      rig.rightFootTarget.z -= bounce;
+    }
   },
   wave: {
     duration: 3000,
     message: "{name} waves",
     message_when_near: "{name} waved at {target_name}",
     sound: null,
-    setup: (ctx, emote, c) => { },
-    updateLimbs: (limbs, emote) => {
+    updateLimbs3D: (rig, emote) => {
       const waveTime = (Date.now() - emote.startTime) / 80;
-      const armSwing = Math.sin(waveTime) * 6;
-
-      // Right arm waving (closer to body, swinging forward and back)
-      limbs.rightArmX = 4 + armSwing;
-      limbs.rightArmY = 16;
-
-      // Left arm resting
-      limbs.leftArmX = 4;
-      limbs.leftArmY = -14;
-    },
-    draw: (ctx, emote) => { }
+      const armSwing = Math.sin(waveTime) * 10;
+      
+      // Rapidly oscillate the right hand deeply over the head!
+      rig.rightHandTarget.set(0, 20, 25 + armSwing);
+    }
   },
   wet: {
     duration: 10000,
     message: "{name} is dripping wet",
     message_when_near: "{name} dripped water all over {target_name}",
     sound: "/media/wet_footprints.mp3",
-    setup: (ctx, emote, c) => {
-      if (!c._lastFootprintCoords) {
-        c._lastFootprintCoords = { x: c.x, y: c.y, leg: 'left' };
+    updateLimbs3D: (rig, emote, c) => {
+      // Procedurally drop 3D Blueprint decals into the Global Scene Root
+      if (!rig.crumbProps) {
+          rig.crumbProps = new THREE.Group();
+          const printGeo = new THREE.PlaneGeometry(6, 4); // X=length, Y=width
+          const printMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.6, depthWrite: false });
+          for (let i = 0; i < 3; i++) {
+              const print = new THREE.Mesh(printGeo, printMat);
+              print.userData = { lastDrop: 0 };
+              print.visible = false;
+              rig.crumbProps.add(print);
+          }
+          // Global map root so footprints stay behind!
+          if (c.meshGroup && c.meshGroup.parent) {
+              c.meshGroup.parent.add(rig.crumbProps); 
+          }
+      }
+      
+      const elapsed = Date.now() - emote.startTime;
+      const stepIdx = Math.floor(elapsed / 500) % 3;
+      const print = rig.crumbProps.children[stepIdx];
+      
+      const worldPos = new THREE.Vector3();
+      c.meshGroup.getWorldPosition(worldPos);
+      
+      if (!print.visible || print.userData.lastDrop < elapsed - 1500) {
+          print.position.copy(worldPos);
+          print.position.z = 0.5; // flush with the floor
+          print.rotation.z = -c.rotation * Math.PI / 180; // match footprint orientation to player yaw!
+          print.visible = true;
+          print.userData.lastDrop = elapsed;
+      }
+      
+      rig.crumbProps.children.forEach(p => {
+         if (p.visible) {
+             const age = elapsed - p.userData.lastDrop;
+             if (age > 1500) { p.visible = false; }
+             else { 
+                 p.material.opacity = 0.6 * (1 - age / 1500); 
+                 p.scale.setScalar(1 - age / 3000); 
+             }
+         }
+      });
+
+      // Prop Instantiate 3D Dripping Water Orbs
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          const dropGeo = new THREE.SphereGeometry(1.5, 6, 6);
+          const dropMat = new THREE.MeshStandardMaterial({ color: 0x3498db, transparent: true, opacity: 0.6, roughness: 0.1 });
+          
+          for (let i = 0; i < 3; i++) {
+              rig.emoteProps.add(new THREE.Mesh(dropGeo, dropMat));
+          }
+          rig.emotePropsDirectional.add(rig.emoteProps);
       }
 
-      const dx = c.x - c._lastFootprintCoords.x;
-      const dy = c.y - c._lastFootprintCoords.y;
-      const distSq = dx * dx + dy * dy;
-
-      // Drop footprint every 15 pixels of movement
-      if (distSq > Math.pow(15, 2)) {
-        const isLeft = c._lastFootprintCoords.leg === 'left';
-        footprints.push({
-          x: c.x,
-          y: c.y,
-          rot: c.rotation,
-          time: Date.now(),
-          isLeft
-        });
-        c._lastFootprintCoords = { x: c.x, y: c.y, leg: isLeft ? 'right' : 'left' };
-      }
-
-      // Render constant dripping effect on character
       const swimTime = Date.now() - emote.startTime;
-      ctx.save();
-      ctx.fillStyle = '#3498db';
-      ctx.globalAlpha = 0.6;
       for (let i = 0; i < 3; i++) {
         const offset = i * 333;
         const progress = ((swimTime + offset) % 1000) / 1000;
-        ctx.beginPath();
-        const dropX = (i - 1) * 8;
-        const dropY = -15 + progress * 30;
-        ctx.arc(dropX, dropY, 2 * (1 - progress), 0, Math.PI * 2);
-        ctx.fill();
+        
+        const dropY = (i - 1) * 8; 
+        const dropZ = 25 - progress * 30; // Shower straight down to the floor
+        
+        const drop = rig.emoteProps.children[i];
+        drop.position.set(0, dropY, dropZ);
+        drop.scale.setScalar(1 - progress);
       }
-      ctx.restore();
-    },
-    updateLimbs: (limbs, emote) => { },
-    draw: (ctx, emote) => { }
+    }
   },
   eat: {
     duration: 5000,
     message: "{name} is eating an apple",
     message_when_near: "{name} is eating an apple in front of {target_name}",
     sound: "/media/chewing.mp3",
-    setup: (ctx, emote, c) => {
-      const eatTime = (Date.now() - emote.startTime) / 150;
-    },
-    updateLimbs: (limbs, emote) => {
-      const eatTime = (Date.now() - emote.startTime) / 150;
-      // Bring arm up in a sine wave
-      const bringToMouth = Math.max(0, Math.sin(eatTime));
-
-      // Right arm holds food and brings to face
-      limbs.rightArmX = 4 + bringToMouth * 3;
-      limbs.rightArmY = 14 - bringToMouth * 12; // Bring towards centerline
-
-      // Left arm stays at rest
-      limbs.leftArmX = 4; limbs.leftArmY = -14;
-    },
-    draw: (ctx, emote) => {
-      ctx.save();
+    updateLimbs3D: (rig, emote) => {
       const eatTime = (Date.now() - emote.startTime) / 150;
       const bringToMouth = Math.max(0, Math.sin(eatTime));
 
-      // Calculate hand coordinates (same as updateLimbs)
-      const handX = 4 + bringToMouth * 3;
-      const handY = 14 - bringToMouth * 12;
+      // Right arm lifts the apple drastically up and inward to the Face (+Z, -Y)
+      rig.rightHandTarget.set(10, 16 - bringToMouth * 16, 12 + bringToMouth * 24);
 
-      ctx.translate(handX, handY);
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          
+          const appleGeo = new THREE.SphereGeometry(3.5, 10, 10);
+          const appleMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c, roughness: 0.5 });
+          const apple = new THREE.Mesh(appleGeo, appleMat);
+          apple.position.set(0, 0, 0);
+          rig.emoteProps.add(apple);
+          
+          const stemGeo = new THREE.CylinderGeometry(0.3, 0.3, 3, 5);
+          const stemMat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
+          const stem = new THREE.Mesh(stemGeo, stemMat);
+          stem.position.set(0, 0, 3.5);
+          rig.emoteProps.add(stem);
+          
+          // Apple rigidly anchored into the right hand primitive!
+          rig.rHand.add(rig.emoteProps);
+      }
+      
+      // Handle aggressive chewing particle physics (instanced as loose prop meshes)
+      if (!rig.crumbProps) {
+          rig.crumbProps = new THREE.Group();
+          const crumbGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+          const crumbMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
+          for (let i = 0; i < 3; i++) {
+              rig.crumbProps.add(new THREE.Mesh(crumbGeo, crumbMat));
+          }
+          rig.head.add(rig.crumbProps);
+      }
 
-      // Draw an apple
-      ctx.fillStyle = '#e74c3c'; // red
-      ctx.beginPath();
-      ctx.arc(4, 0, 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Draw leaf/stem
-      ctx.strokeStyle = '#27ae60';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(4, -3);
-      ctx.lineTo(6, -5);
-      ctx.stroke();
-
-      ctx.restore();
-
-      // Crumbs / apple pieces flying from face
       if (bringToMouth > 0.8) {
-        ctx.save();
-        ctx.fillStyle = '#e74c3c'; // red crumbs
+        rig.crumbProps.visible = true;
         for (const i of [0, 1, 2]) {
           const crumbTime = ((Date.now() - emote.startTime) % (200 + i * 50)) / 250;
-          ctx.globalAlpha = 1 - crumbTime;
-          const dropX = 8 + crumbTime * (5 + i); // Fly forward
-          const dropY = (i - 1) * 3 + crumbTime * 4; // Spread out slightly
-          ctx.beginPath();
-          ctx.arc(dropX, dropY, 1.5, 0, Math.PI * 2);
-          ctx.fill();
+          const dropX = 8 + crumbTime * (5 + i * 2); 
+          const dropY = (i - 1) * 3 + crumbTime * 4; 
+          const dropZ = -crumbTime * 10; 
+          
+          const crumb = rig.crumbProps.children[i];
+          crumb.position.set(dropX, dropY, dropZ);
+          crumb.material.opacity = 1 - crumbTime;
+          crumb.material.transparent = true;
         }
-        ctx.restore();
+      } else {
+        rig.crumbProps.visible = false;
       }
     }
   },
@@ -272,167 +283,105 @@ export const emotes = {
     message: "{name} is having lunch",
     message_when_near: "{name} is having lunch with {target_name}",
     sound: "/media/chewing.mp3",
-    setup: (ctx, emote, c) => {
-      // Translate slightly to look lower to the ground like sitting
-      ctx.translate(-2, 0);
-    },
-    updateLimbs: (limbs, emote) => {
-      // Sit legs
-      limbs.leftLegStartX = 0; limbs.leftLegStartY = -6;
-      limbs.leftLegEndX = 14; limbs.leftLegEndY = -6;
-      limbs.rightLegStartX = 0; limbs.rightLegStartY = 6;
-      limbs.rightLegEndX = 14; limbs.rightLegEndY = 6;
-
+    updateLimbs3D: (rig, emote) => {
+      // Lower Torso to floor
+      rig.bodyPivot.position.z = 8;
+      
+      // Sit legs out front
+      rig.leftFootTarget.set(15, -6, -4);
+      rig.rightFootTarget.set(15, 6, -4);
+      
       const eatTime = (Date.now() - emote.startTime) / 200;
-      const armMove = Math.sin(eatTime);
+      const armMove = Math.sin(eatTime); 
 
+      // Prop Instantiate: Plate, Steak, Utensils
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          
+          const plateGeo = new THREE.CylinderGeometry(8, 6, 1, 16);
+          plateGeo.rotateX(Math.PI / 2);
+          const plateMat = new THREE.MeshStandardMaterial({ color: 0xecf0f1, roughness: 0.3 });
+          const plate = new THREE.Mesh(plateGeo, plateMat);
+          plate.position.set(22, 0, -14); 
+          rig.emoteProps.add(plate);
+          
+          const steakGeo = new THREE.CylinderGeometry(4, 4, 1.2, 8);
+          steakGeo.rotateX(Math.PI / 2);
+          const steakMat = new THREE.MeshStandardMaterial({ color: 0x8e44ad, roughness: 0.8 });
+          const steak = new THREE.Mesh(steakGeo, steakMat);
+          steak.position.set(22, 0, -13);
+          rig.emoteProps.add(steak);
+          
+          const knifeGeo = new THREE.BoxGeometry(0.5, 6, 2);
+          const knifeMat = new THREE.MeshStandardMaterial({ color: 0xbdc3c7 });
+          const knife = new THREE.Mesh(knifeGeo, knifeMat);
+          knife.position.set(0, 0, -5);
+          rig.rHand.add(knife);
+          
+          const fork = new THREE.Mesh(knifeGeo, knifeMat);
+          fork.position.set(0, 0, -5);
+          rig.lHand.add(fork);
+          
+          // Plate stays fixed relative to the body pivot bounds
+          rig.meshGroup.add(rig.emoteProps); 
+      }
+      
+      // Animate oscillating utensil swing
       if (armMove > 0) {
-        // Right arm moving to mouth
-        limbs.rightArmX = 14 - armMove * 10;
-        limbs.rightArmY = 8 - armMove * 8;
-        limbs.leftArmX = 14; limbs.leftArmY = -12;
+        // Right hand to face
+        rig.rightHandTarget.set(8 + armMove * 2, 8 - armMove * 8, 12 + armMove * 14);
+        // Left hand to plate
+        rig.leftHandTarget.set(20, -12, -10);
       } else {
-        // Left arm moving to mouth
-        limbs.rightArmX = 14; limbs.rightArmY = 12;
-        limbs.leftArmX = 14 + armMove * 10; // armMove is negative here
-        limbs.leftArmY = -8 - armMove * 8;
+        // Left hand to face
+        rig.leftHandTarget.set(8 - armMove * 2, -8 - armMove * 8, 12 - armMove * 14);
+        // Right hand to plate
+        rig.rightHandTarget.set(20, 12, -10);
       }
-    },
-    draw: (ctx, emote) => {
-      const eatTime = (Date.now() - emote.startTime) / 200;
-      const armMove = Math.sin(eatTime);
-
-      ctx.save();
-      // Draw Plate in front
-      ctx.fillStyle = '#ecf0f1'; // white
-      ctx.beginPath();
-      if (ctx.ellipse) {
-        ctx.ellipse(22, 0, 4, 8, 0, 0, Math.PI * 2);
-      } else {
-        ctx.arc(22, 0, 6, 0, Math.PI * 2);
-      }
-      ctx.fill();
-
-      // Inner plate detail
-      ctx.strokeStyle = '#bdc3c7';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      if (ctx.ellipse) {
-        ctx.ellipse(22, 0, 2.5, 6, 0, 0, Math.PI * 2);
-      } else {
-        ctx.arc(22, 0, 4, 0, Math.PI * 2);
-      }
-      ctx.stroke();
-
-      // Delicious Steak
-      ctx.fillStyle = '#8e44ad'; // Purple steak
-      ctx.beginPath();
-      if (ctx.ellipse) {
-        ctx.ellipse(22, 0, 2, 4, 0, 0, Math.PI * 2);
-      } else {
-        ctx.arc(22, 0, 3, 0, Math.PI * 2);
-      }
-      ctx.fill();
-
-      // Draw utensils in hands
-      // Knife in right hand
-      ctx.save();
-      const rightX = armMove > 0 ? 14 - armMove * 10 : 14;
-      const rightY = armMove > 0 ? 8 - armMove * 8 : 12;
-      ctx.translate(rightX, rightY);
-      ctx.rotate(-Math.PI / 4);
-      // Handle
-      ctx.fillStyle = '#2c3e50';
-      ctx.fillRect(-2, -1, 4, 2);
-      // Blade
-      ctx.fillStyle = '#bdc3c7';
-      ctx.fillRect(2, -1, 5, 2);
-      ctx.restore();
-
-      // Fork in left hand
-      ctx.save();
-      const leftX = armMove <= 0 ? 14 + armMove * 10 : 14;
-      const leftY = armMove <= 0 ? -8 - armMove * 8 : -12;
-      ctx.translate(leftX, leftY);
-      ctx.rotate(Math.PI / 4);
-      // Handle
-      ctx.fillStyle = '#2c3e50';
-      ctx.fillRect(-2, -0.5, 5, 1);
-      // Prongs base
-      ctx.fillStyle = '#bdc3c7';
-      ctx.fillRect(3, -1.5, 2, 3); // base
-      // Prongs
-      ctx.fillRect(5, -1.5, 3, 0.5);
-      ctx.fillRect(5, -0.25, 3, 0.5);
-      ctx.fillRect(5, 1, 3, 0.5);
-      ctx.restore();
-
-      ctx.restore();
     }
   },
   write: {
     duration: 3600000, // 1 hour duration or until moved
     message: "{name} is writing",
     message_when_near: "{name} is writing with {target_name}",
-    setup: (ctx, emote, c) => {
-      // Translate slightly to look lower to the ground like sitting
-      ctx.translate(-2, 0);
-    },
-    updateLimbs: (limbs, emote) => {
-      // Sit legs
-      limbs.leftLegStartX = 0; limbs.leftLegStartY = -6;
-      limbs.leftLegEndX = 14; limbs.leftLegEndY = -6;
-      limbs.rightLegStartX = 0; limbs.rightLegStartY = 6;
-      limbs.rightLegEndX = 14; limbs.rightLegEndY = 6;
-
+    updateLimbs3D: (rig, emote) => {
+      // Lower Torso to floor
+      rig.bodyPivot.position.z = 8;
+      
+      // Sit legs out front
+      rig.leftFootTarget.set(15, -6, -4);
+      rig.rightFootTarget.set(15, 6, -4);
+      
       const writeTime = (Date.now() - emote.startTime) / 50;
       const armMoveX = Math.sin(writeTime) * 3;
       const armMoveY = Math.cos(writeTime * 1.3) * 2;
-
-      // Right arm moving to write
-      limbs.rightArmX = 14 + armMoveX;
-      limbs.rightArmY = 6 + armMoveY;
-
-      // Left arm resting
-      limbs.leftArmX = 12;
-      limbs.leftArmY = -8;
-    },
-    draw: (ctx, emote) => {
-      const writeTime = (Date.now() - emote.startTime) / 50;
-      const armMoveX = Math.sin(writeTime) * 3;
-      const armMoveY = Math.cos(writeTime * 1.3) * 2;
-
-      ctx.save();
-      // Draw Paper in front
-      ctx.fillStyle = '#ecf0f1'; // white
-      ctx.translate(16, 0);
-      ctx.rotate(0.2);
-      ctx.fillRect(-5, -7, 10, 14);
-
-      // Inner paper lines
-      ctx.strokeStyle = '#bdc3c7';
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      for (let i = -4; i <= 4; i += 2) {
-        ctx.moveTo(-4, i);
-        ctx.lineTo(4, i);
+      
+      // Prop Instantiate: Book and Pen
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          const bookGeo = new THREE.BoxGeometry(10, 12, 0.5);
+          const bookMat = new THREE.MeshStandardMaterial({ color: 0xecf0f1, roughness: 0.9 });
+          const book = new THREE.Mesh(bookGeo, bookMat);
+          book.position.set(16, 0, -2);
+          book.rotation.x = 0.2;
+          book.rotation.y = 0.2;
+          rig.emoteProps.add(book);
+          
+          const penGeo = new THREE.CylinderGeometry(0.5, 0.5, 6, 6);
+          const penMat = new THREE.MeshStandardMaterial({ color: 0x3498db });
+          const pen = new THREE.Mesh(penGeo, penMat);
+          pen.position.set(0, 0, 5);
+          pen.rotation.x = Math.PI / 4;
+          rig.rHand.add(pen);
+          
+          rig.bodyPivot.add(rig.emoteProps);
       }
-      ctx.stroke();
-      ctx.restore();
-
-      // Pen in right hand
-      ctx.save();
-      ctx.translate(14 + armMoveX, 6 + armMoveY);
-      ctx.rotate(-Math.PI / 4);
-      // Pen body
-      ctx.fillStyle = '#34495e';
-      ctx.fillRect(-1, -1, 6, 2);
-      // Pen tip
-      ctx.fillStyle = '#3498db'; // blue ink
-      ctx.beginPath();
-      ctx.arc(6, 0, 1, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      
+      // Writing right hand bounding
+      rig.rightHandTarget.set(15 + armMoveX, 4 + armMoveY, 0);
+      
+      // Left arm resting firmly on paper
+      rig.leftHandTarget.set(15, -8, 0);
     }
   },
   jump: {
@@ -440,97 +389,47 @@ export const emotes = {
     message: "{name} leaps forward",
     message_when_near: "{name} leaped over {target_name}!",
     sound: "/media/jump.mp3",
-    setup: (ctx, emote, c) => {
+    updateLimbs3D: (rig, emote) => {
       const age = Date.now() - emote.startTime;
-      if (age < 800) {
-        // Parabolic jump arc: max height at 400ms
-        const progress = age / 800;
-        // y = -x * (x - 1) * 4 * height
-        const height = progress * (1 - progress) * 4 * 20; // 20 pixels high
 
-        // Draw shadow on the ground before translating up
-        ctx.save();
-        ctx.globalAlpha = 0.3 * (1 - height / 60);
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        // Since ctx.ellipse might not be supported on very old browsers, we use arc + scale
-        ctx.scale(1, 0.5);
-        ctx.arc(0, 0, Math.max(0.1, 20 - height / 3), 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        ctx.translate(0, -height);
-
-        // Slight lean forward while jumping
-        const tilt = Math.sin(progress * Math.PI) * 0.4;
-        ctx.rotate(tilt);
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          const dustGeo = new THREE.SphereGeometry(4, 6, 6);
+          const dustMat = new THREE.MeshStandardMaterial({ color: 0xbdc3c7, transparent: true, opacity: 0 });
+          for (let i = 0; i < 4; i++) {
+              rig.emoteProps.add(new THREE.Mesh(dustGeo, dustMat));
+          }
+          // Dust tracks player Yaw independently!
+          rig.emotePropsDirectional.add(rig.emoteProps);
       }
-    },
-    updateLimbs: (limbs, emote) => {
-      const age = Date.now() - emote.startTime;
+      
       if (age < 800) {
         const progress = age / 800;
+        const height = progress * (1 - progress) * 4 * 30; // Native Parabolic altitude lift
 
-        // Easing function for tucking knees (smooth instead of sharp)
-        // A parabola that peaks at 0.5
+        rig.bodyPivot.position.z = 15.5 + height;
+        rig.bodyPivot.rotation.y = Math.sin(progress * Math.PI) * 0.4;
+        
         const tuck = Math.sin(progress * Math.PI);
-
-        // Smoothly tuck knees up toward the body
-        limbs.leftLegStartY = -6;
-        limbs.leftLegEndY = -6 - 2 * tuck;
-        limbs.leftLegEndX = -2 - 12 * tuck;
-
-        limbs.rightLegStartY = 6;
-        limbs.rightLegEndY = 6 + 2 * tuck;
-        limbs.rightLegEndX = -2 - 12 * tuck;
-
-        // Arms swing forward on jump, throw back in air, forward on land.
-        // Let's make arms follow a cosine wave.
+        rig.leftFootTarget.set(-2, -6, -13 + tuck * 15);
+        rig.rightFootTarget.set(-2, 6, -13 + tuck * 15);
+        
         const armSwing = Math.cos(progress * Math.PI * 2);
-
-        limbs.leftArmX = 4 + armSwing * 10;
-        limbs.leftArmY = -14 + armSwing * 4;
-
-        limbs.rightArmX = 4 + armSwing * 10;
-        limbs.rightArmY = 14 - armSwing * 4;
-      }
-    },
-    draw: (ctx, emote) => {
-      const age = Date.now() - emote.startTime;
-      if (age < 800) {
-        const progress = age / 800;
-        // Draw little motion lines trailing behind
-        ctx.save();
-        ctx.globalAlpha = 0.5 * (1 - progress);
-        const trailOffset = -20 * progress;
-        ctx.beginPath();
-        ctx.moveTo(-15 + trailOffset, -10); ctx.lineTo(-35 + trailOffset, -15);
-        ctx.moveTo(-15 + trailOffset, 10); ctx.lineTo(-35 + trailOffset, 15);
-        ctx.strokeStyle = '#ecf0f1';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Dust clouds on takeoff and landing
-        if (progress < 0.25) {
-          const dustP = progress / 0.25;
-          ctx.globalAlpha = Math.max(0, 1 - dustP * 1.5);
-          ctx.fillStyle = '#bdc3c7';
-          ctx.beginPath();
-          ctx.arc(-10 - dustP * 20, 10 + dustP * 10, 4 + dustP * 4, 0, Math.PI * 2);
-          ctx.arc(-10 - dustP * 20, -10 - dustP * 10, 4 + dustP * 4, 0, Math.PI * 2);
-          ctx.arc(-5 - dustP * 10, 0 + dustP * 4, 5 + dustP * 6, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (progress > 0.75) {
-          const dustP = (progress - 0.75) / 0.25;
-          ctx.globalAlpha = Math.max(0, 1 - dustP * 1.5);
-          ctx.fillStyle = '#bdc3c7';
-          ctx.beginPath();
-          ctx.arc(10 + dustP * 20, 10 + dustP * 10, 5 + dustP * 5, 0, Math.PI * 2);
-          ctx.arc(10 + dustP * 20, -10 - dustP * 10, 5 + dustP * 5, 0, Math.PI * 2);
-          ctx.arc(5 + dustP * 10, 0 + dustP * 4, 6 + dustP * 7, 0, Math.PI * 2);
-          ctx.fill();
+        rig.leftHandTarget.set(10 * armSwing, -16, 20 - armSwing * 10);
+        rig.rightHandTarget.set(10 * armSwing, 16, 20 - armSwing * 10);
+        
+        // Procedurally scale and evaluate Cloud dust opacity relative to lift progress
+        if (progress < 0.25 || progress > 0.75) {
+            const dustP = progress < 0.25 ? (progress / 0.25) : ((progress - 0.75) / 0.25);
+            const opac = Math.max(0, 1 - dustP * 1.5);
+            rig.emoteProps.children.forEach((c, idx) => {
+               c.material.opacity = opac;
+               c.position.set(-10 + (idx%2)*20 + dustP * 10, -10 + (Math.floor(idx/2))*20, 0);
+               c.scale.setScalar(1 + dustP * 2);
+            });
         }
-        ctx.restore();
+      } else {
+        rig.emoteProps.children.forEach(c => c.material.opacity = 0);
       }
     }
   },
@@ -538,57 +437,50 @@ export const emotes = {
     duration: 8000,
     message: "{name} is busting a move",
     message_when_near: "{name} is dancing with {target_name}",
-    setup: (ctx, emote, c) => {
+    updateLimbs3D: (rig, emote) => {
       const danceTime = (Date.now() - emote.startTime) / 150;
-      const bob = Math.abs(Math.sin(danceTime * 2)) * -4; // bounce up and down
-      const tilt = Math.sin(danceTime) * 0.2; // slight sway
+      const bob = Math.abs(Math.sin(danceTime * 2)) * 6; // bounce up
+      const tilt = Math.sin(danceTime) * 0.3; // sway
+      
+      rig.bodyPivot.position.z = 15.5 + bob;
+      rig.bodyPivot.rotation.x = tilt;
 
-      ctx.translate(0, bob);
-      ctx.rotate(tilt);
-    },
-    updateLimbs: (limbs, emote) => {
-      const danceTime = (Date.now() - emote.startTime) / 150;
       const armSwing = Math.sin(danceTime * 2);
       const legStep = Math.cos(danceTime * 2);
 
-      // Arms alternating up and down disco style
-      limbs.leftArmX = 8 + armSwing * 6;
-      limbs.leftArmY = -14 - armSwing * 6;
+      // Disco Pointing!
+      rig.leftHandTarget.set(0, -20 - armSwing * 10, 20 + armSwing * 15);
+      rig.rightHandTarget.set(0, 20 - armSwing * 10, 20 - armSwing * 15);
 
-      limbs.rightArmX = 8 - armSwing * 6;
-      limbs.rightArmY = 14 + armSwing * 6;
+      // Legs swing dynamically out horizontally across the map grid
+      rig.leftFootTarget.set(0, -6 - Math.max(0, -legStep * 10), -13);
+      rig.rightFootTarget.set(0, 6 + Math.max(0, legStep * 10), -13);
 
-      // Legs stepping out side to side
-      limbs.leftLegStartX = -2; limbs.leftLegStartY = -6;
-      limbs.leftLegEndX = -2 + Math.max(0, legStep * 8);
-      limbs.leftLegEndY = -6 - Math.max(0, -legStep * 6);
-
-      limbs.rightLegStartX = -2; limbs.rightLegStartY = 6;
-      limbs.rightLegEndX = -2 + Math.max(0, -legStep * 8);
-      limbs.rightLegEndY = 6 + Math.max(0, legStep * 6);
-    },
-    draw: (ctx, emote) => {
-      ctx.save();
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          const noteGeo = new THREE.BoxGeometry(3, 3, 3);
+          const noteMat = new THREE.MeshStandardMaterial({ color: 0x9b59b6 });
+          for (let i = 0; i < 3; i++) {
+              rig.emoteProps.add(new THREE.Mesh(noteGeo, noteMat));
+          }
+          rig.emotePropsDirectional.add(rig.emoteProps);
+      }
+      
       const timeActive = Date.now() - emote.startTime;
-
-      // Emit floating music notes
       for (let i = 0; i < 3; i++) {
         const offset = i * 400;
-        const noteAge = (timeActive + offset) % 1200;
-        const progress = noteAge / 1200;
-
-        ctx.globalAlpha = 1 - progress;
-
-        // Float up and drift sinusoidally
+        const progress = ((timeActive + offset) % 1200) / 1200;
+        
         const noteX = Math.sin(progress * Math.PI * 4 + i) * 15;
-        const noteY = -20 - progress * 40;
-
-        ctx.font = `${10 + progress * 10}px sans-serif`;
-        const symbol = i % 2 === 0 ? '🎵' : '🎶';
-
-        ctx.fillText(symbol, noteX, noteY);
+        const noteZ = 15 + progress * 40;
+        
+        const note = rig.emoteProps.children[i];
+        note.position.set(noteX, 0, noteZ);
+        note.rotation.x += 0.1;
+        note.rotation.y += 0.1;
+        
+        note.scale.setScalar(Math.max(0.01, 1 - progress));
       }
-      ctx.restore();
     }
   },
   fart: {
@@ -596,56 +488,48 @@ export const emotes = {
     message: "{name} is farting",
     message_when_near: "{name} farted on {target_name}",
     sound: "/media/fart.mp3",
-    setup: (ctx, emote, c) => { },
-    updateLimbs: (limbs, emote) => { },
-    draw: (ctx, emote) => {
+    updateLimbs3D: (rig, emote) => {
       const fartAge = Date.now() - emote.startTime;
-      if (fartAge > 1000) return;
-
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, 1 - (fartAge / 1000));
-      ctx.fillStyle = '#2ecc71'; // Greenish cloud
-      ctx.beginPath();
-      ctx.arc(-20 - (fartAge / 50), 0, 10 + (fartAge / 30), 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(-15 - (fartAge / 40), 10, 6 + (fartAge / 40), 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(-15 - (fartAge / 40), -10, 6 + (fartAge / 40), 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
+      
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          const gasGeo = new THREE.SphereGeometry(8, 8, 8);
+          const gasMat = new THREE.MeshBasicMaterial({ color: 0x2ecc71, transparent: true, opacity: 0.8 });
+          for (let i = 0; i < 3; i++) {
+              rig.emoteProps.add(new THREE.Mesh(gasGeo, gasMat));
+          }
+          rig.emotePropsDirectional.add(rig.emoteProps);
+      }
+      
+      if (fartAge < 1000) {
+          const progress = fartAge / 1000;
+          const alpha = Math.max(0, 1 - progress);
+          rig.emoteProps.children.forEach((cloud, i) => {
+             cloud.material.opacity = alpha;
+             cloud.position.set(-8 - progress * 15 - i*5, (i-1)*5, 10 + progress * 5);
+             cloud.scale.setScalar(1 + progress);
+          });
+      } else {
+          rig.emoteProps.children.forEach(c => c.material.opacity = 0);
+      }
     }
   },
   dead: {
     duration: 10000,
     message: "{name} is dead",
     message_when_near: "{name} died in front of {target_name}",
-    setup: (ctx, emote, c) => {
-      ctx.globalAlpha = 0.5;
-    },
-    updateLimbs: (limbs, emote) => {
-      limbs.leftArmX = -4; limbs.leftArmY = -22;
-      limbs.rightArmX = -4; limbs.rightArmY = 22;
-      limbs.leftLegStartX = -8; limbs.leftLegStartY = -4;
-      limbs.leftLegEndX = -22; limbs.leftLegEndY = -10;
-      limbs.rightLegStartX = -8; limbs.rightLegStartY = 4;
-      limbs.rightLegEndX = -22; limbs.rightLegEndY = 10;
-    },
-    draw: (ctx, emote) => {
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(3, -3); ctx.lineTo(7, 1);
-      ctx.moveTo(7, -3); ctx.lineTo(3, 1);
-      ctx.moveTo(3, -1); ctx.lineTo(7, 3);
-      ctx.moveTo(7, -1); ctx.lineTo(3, 3);
-      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.restore();
+    updateLimbs3D: (rig, emote) => {
+      // Lay flat on their back, completely lifeless
+      rig.bodyPivot.position.set(0, 0, 4); 
+      rig.bodyPivot.rotation.y = -Math.PI / 2;
+      
+      // Arms splayed outwards heavily along the ground grid
+      rig.leftHandTarget.set(10, -25, 4);
+      rig.rightHandTarget.set(10, 25, 4);
+      
+      // Legs lazily splayed
+      rig.leftFootTarget.set(-15, -15, 4);
+      rig.rightFootTarget.set(-15, 15, 4);
     }
   },
   cry: {
@@ -653,118 +537,105 @@ export const emotes = {
     message: "{name} is crying",
     message_when_near: "{name} cried on {target_name}",
     sound: "/media/violin.mp3",
-    setup: (ctx, emote, c) => { },
-    updateLimbs: (limbs, emote) => { },
-    draw: (ctx, emote) => {
-      ctx.save();
-      // Draw eyes
-      ctx.fillStyle = '#111';
-      ctx.beginPath(); ctx.arc(5, -1, 1, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(5, 1, 1, 0, Math.PI * 2); ctx.fill();
+    updateLimbs3D: (rig, emote) => {
+      // Tilt head softly downward
+      rig.bodyPivot.rotation.y = Math.PI / 16;
+      
+      // Hands rubbing eyes
+      rig.leftHandTarget.set(8, -4, 20);
+      rig.rightHandTarget.set(8, 4, 20);
 
-      // Animated tears
-      ctx.fillStyle = '#3498db'; // blue tear
-
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          const tearGeo = new THREE.SphereGeometry(1, 4, 4);
+          const tearMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.8 });
+          for (let i = 0; i < 6; i++) {
+              rig.emoteProps.add(new THREE.Mesh(tearGeo, tearMat));
+          }
+          // Tears stream rigidly proportional to the native Head bone matrix!
+          rig.head.add(rig.emoteProps); 
+      }
+      
       for (let i = 0; i < 6; i++) {
         const offset = i * (1000 / 6);
         const progress = ((Date.now() + offset) % 1000) / 1000;
 
-        // Fade out as they move
-        ctx.globalAlpha = 1 - Math.pow(progress, 2);
-        const tearSize = 4 * (1 - progress * 0.5);
-
-        // Spread much further back and outward
-        const curX = 4 - progress * 25;
-        const leftY = -2 - progress * 15;
-        const rightY = 2 + progress * 15;
-
-        ctx.beginPath(); ctx.arc(curX, leftY, tearSize, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(curX, rightY, tearSize, 0, Math.PI * 2); ctx.fill();
+        const tearSize = 1 - progress * 0.5;
+        const tearZ = 2 - progress * 15; // Track steeply down the Z axis
+        const tearX = 4 + progress * 2; // Project slightly forward to clear the static mesh
+        
+        const tear = rig.emoteProps.children[i];
+        tear.position.set(tearX, i % 2 === 0 ? 3 : -3, tearZ); // Toggle L/R streams
+        tear.scale.setScalar(tearSize);
+        tear.material.opacity = 1 - Math.pow(progress, 2);
       }
-      ctx.restore();
     }
   },
   gritty: {
     duration: 5000,
     message: "{name} is doing the gritty",
     message_when_near: "{name} hit the gritty on {target_name}!",
-    setup: (ctx, emote, c) => {
-      const danceTime = (Date.now() - emote.startTime) / 150;
-      const fastSwing = Math.sin(danceTime * 2);
-      ctx.translate(fastSwing * 2, -Math.abs(fastSwing * 4)); // bobbing
-    },
-    updateLimbs: (limbs, emote) => {
+    updateLimbs3D: (rig, emote) => {
       const danceTime = (Date.now() - emote.startTime) / 150;
       const swing = Math.sin(danceTime);
+      const fastSwing = Math.sin(danceTime * 2);
+      
+      // Rigorous core bobbing
+      rig.bodyPivot.position.z = 15.5 - Math.abs(fastSwing * 4);
+      rig.bodyPivot.position.x = fastSwing * 2;
 
-      // Alternating heel taps
+      // Alternating forward heel taps!
       if (swing > 0) {
-        limbs.leftLegStartY = -6; limbs.leftLegEndY = -2; limbs.leftLegEndX = -4;
-        limbs.rightLegStartY = 6; limbs.rightLegEndY = 6 + 10; limbs.rightLegEndX = -2;
+        rig.leftFootTarget.set(-2, -6, -13);
+        rig.rightFootTarget.set(10, 16, -13); // Force heel outwards
       } else {
-        limbs.leftLegStartY = -6; limbs.leftLegEndY = -6 + 10; limbs.leftLegEndX = -2;
-        limbs.rightLegStartY = 6; limbs.rightLegEndY = 2; limbs.rightLegEndX = -4;
+        rig.leftFootTarget.set(10, -16, -13);
+        rig.rightFootTarget.set(-2, 6, -13);
       }
-
-      // Arms swinging back and forth in front
-      limbs.leftArmX = 10 + swing * 8; limbs.leftArmY = -6;
-      limbs.rightArmX = 10 - swing * 8; limbs.rightArmY = 6;
-    },
-    draw: (ctx, emote) => { }
+      
+      // Aggressive rigid arm flailing
+      rig.leftHandTarget.set(10 + swing * 8, -6, 12);
+      rig.rightHandTarget.set(10 - swing * 8, 6, 12);
+    }
   },
   laugh: {
     duration: 5000,
     message: "{name} is rolling on the floor laughing",
     message_when_near: "{name} laughed at {target_name}",
     sound: "/media/laugh.mp3",
-    setup: (ctx, emote, c) => {
-      const laughTime = (Date.now() - emote.startTime) / 150;
-      const rock = Math.sin(laughTime) * 2; // pixels to shift
-      // Translate down slightly to appear "on the floor", and bob back and forth to simulate rolling
-      ctx.translate(0, rock);
-    },
-    updateLimbs: (limbs, emote) => {
+    updateLimbs3D: (rig, emote) => {
       const laughTime = (Date.now() - emote.startTime) / 100;
-      const kick = Math.sin(laughTime * 2) * 4;
+      const rock = Math.sin(laughTime) * 6; 
+      const kick = Math.sin(laughTime * 2) * 8;
+      
+      // Fling body backward onto the floor, rolling slightly!
+      rig.bodyPivot.position.set(0, rock, 8);
+      rig.bodyPivot.rotation.x = -Math.PI / 4 + rock * 0.05;
 
-      // Arms clutching stomach (moved inwards towards center)
-      limbs.leftArmX = 2; limbs.leftArmY = 0;
-      limbs.rightArmX = 2; limbs.rightArmY = 0;
+      // Arms aggressively clasping the stomach
+      rig.leftHandTarget.set(10, -4, 12 + kick * 0.5);
+      rig.rightHandTarget.set(10, 4, 12 - kick * 0.5);
 
-      // Legs bent and kicking erratically in front
-      limbs.leftLegStartX = 4; limbs.leftLegStartY = -4;
-      limbs.leftLegEndX = 12 + kick; limbs.leftLegEndY = -8 + kick;
+      // Legs violently kicking wildly in the air
+      rig.leftFootTarget.set(15 + kick, -8, 8 - kick);
+      rig.rightFootTarget.set(15 - kick, 8, 8 + kick);
 
-      limbs.rightLegStartX = 4; limbs.rightLegStartY = 4;
-      limbs.rightLegEndX = 12 - kick; limbs.rightLegEndY = 8 + kick;
-    },
-    draw: (ctx, emote) => {
-      ctx.save();
+      // Joyful Tears
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          const tearGeo = new THREE.SphereGeometry(1.5, 4, 4);
+          const tearMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.8 });
+          for (let i = 0; i < 2; i++) {
+              rig.emoteProps.add(new THREE.Mesh(tearGeo, tearMat));
+          }
+          rig.head.add(rig.emoteProps);
+      }
 
-      // Draw closed laughing eyes (^ ^)
-      ctx.beginPath();
-      // Left eye
-      ctx.moveTo(4, -2); ctx.lineTo(5, -3); ctx.lineTo(6, -2);
-      // Right eye
-      ctx.moveTo(4, 2); ctx.lineTo(5, 1); ctx.lineTo(6, 2);
-      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // BIG laughing open mouth
-      ctx.beginPath();
-      ctx.arc(6, 0, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#c0392b'; // Dark red/mouth color
-      ctx.fill();
-
-      // Optional tears of joy!
       const progress = ((Date.now() - emote.startTime) % 1000) / 1000;
-      ctx.fillStyle = '#3498db';
-      ctx.globalAlpha = 1 - progress;
-      ctx.beginPath(); ctx.arc(4, -5 - progress * 5, 1.5, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(4, 5 + progress * 5, 1.5, 0, Math.PI * 2); ctx.fill();
-
-      ctx.restore();
+      rig.emoteProps.children.forEach((tear, idx) => {
+          tear.position.set(4, idx === 0 ? -5 - progress*5 : 5 + progress*5, 0);
+          tear.material.opacity = 1 - progress;
+      });
     }
   },
   love: {
@@ -772,308 +643,216 @@ export const emotes = {
     message: "{name} is in love",
     sound: "/media/romance.mp3",
     message_when_near: "{name} blew a kiss to {target_name}",
-    setup: (ctx, emote, c) => {
-      const hover = Math.sin((Date.now() - emote.startTime) / 150) * 2;
-      ctx.translate(hover, 0); // slight rhythmic bobbing
-    },
-    updateLimbs: (limbs, emote) => {
-      // Arms clasped forward
-      limbs.leftArmX = 8; limbs.leftArmY = -2;
-      limbs.rightArmX = 8; limbs.rightArmY = 2;
+    updateLimbs3D: (rig, emote) => {
+      const age = Date.now() - emote.startTime;
+      const hover = Math.sin(age / 150) * 2;
+      
+      rig.bodyPivot.position.z = 15.5 + hover;
 
-      // Legs together, kicking back adorably
-      const kick = Math.sin((Date.now() - emote.startTime) / 150) * 3;
-      limbs.leftLegStartX = -2; limbs.leftLegStartY = -3;
-      limbs.leftLegEndX = -4 + kick; limbs.leftLegEndY = -3;
+      // Arms clasped beautifully forward
+      rig.leftHandTarget.set(10, -2, 12);
+      rig.rightHandTarget.set(10, 2, 12);
 
-      limbs.rightLegStartX = -2; limbs.rightLegStartY = 3;
-      limbs.rightLegEndX = -4 + kick; limbs.rightLegEndY = 3;
-    },
-    draw: (ctx, emote) => {
-      ctx.save();
-      ctx.fillStyle = '#ff69b4'; // ensure hearts are pink, overriding inherited hair color
+      // Legs kicking back in unison adorably (-Z trajectory)
+      const kick = Math.max(0, -Math.sin(age / 150) * 8); 
+      rig.leftFootTarget.set(-kick, -3, -13 + kick * 0.5);
+      rig.rightFootTarget.set(-kick, 3, -13 + kick * 0.5);
 
-      // Heart eyes
-      ctx.font = '8px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('❤️', 5, -3);
-      ctx.fillText('❤️', 5, 3);
-
-      // Smiling mouth
-      ctx.beginPath();
-      ctx.arc(6, 0, 1.5, -Math.PI / 2, Math.PI / 2);
-      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Floating hearts effect
-      for (let i = 0; i < 4; i++) {
-        const offset = i * (2000 / 4);
-        const timeActive = Date.now() - emote.startTime + offset;
-        const progress = (timeActive % 2000) / 2000;
-
-        ctx.globalAlpha = 1 - Math.pow(progress, 2);
-        const heartSize = 14 * (1 - progress * 0.3);
-
-        // Bubbling outwards and wavy
-        const curX = 8 + progress * 35;
-        const curY = Math.sin(progress * Math.PI * 6 + i) * 20;
-
-        ctx.font = `${heartSize}px sans-serif`;
-        ctx.fillText('❤️', curX, curY);
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          
+          const c2d = document.createElement('canvas');
+          c2d.width = 64; c2d.height = 64;
+          const c2dCtx = c2d.getContext('2d');
+          c2dCtx.font = '50px sans-serif';
+          c2dCtx.textAlign = 'center'; c2dCtx.textBaseline = 'middle';
+          c2dCtx.fillText('❤️', 32, 36);
+          const tex = new THREE.CanvasTexture(c2d);
+          const heartMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+          
+          for (let i = 0; i < 4; i++) {
+              rig.emoteProps.add(new THREE.Sprite(heartMat));
+          }
+          // Attach strictly to directional root for independent particle trajectories frontward!
+          rig.emotePropsDirectional.add(rig.emoteProps); 
       }
 
-      ctx.restore();
+      for (let i = 0; i < 4; i++) {
+        const offset = i * 500;
+        const progress = ((age + offset) % 2000) / 2000;
+        const heart = rig.emoteProps.children[i];
+        
+        heart.material.opacity = 1 - Math.pow(progress, 2);
+        
+        const curZ = 15 + progress * 40; 
+        const curY = Math.sin(progress * Math.PI * 6 + i) * 6; 
+        const curX = 8 + progress * 10; 
+        
+        heart.position.set(curX, curY, curZ);
+        heart.scale.setScalar(5 - progress * 2);
+      }
     }
   },
   tennis: {
     duration: 5000,
     message: "{name} is serving a tennis ball",
     message_when_near: "{name} hit a tennis ball at {target_name}!",
-    setup: (ctx, emote, c) => {
-      // Slight translation to simulate a wide stance
-      ctx.translate(-2, 0);
-    },
-    updateLimbs: (limbs, emote) => {
-      const timeActive = (Date.now() - emote.startTime) / 200;
-      const swing = Math.sin(timeActive);
+    updateLimbs3D: (rig, emote) => {
+      // Wide Stance rigidly anchored
+      rig.bodyPivot.position.z = 15.5; 
+      rig.leftFootTarget.set(-5, -10, -13);
+      rig.rightFootTarget.set(-5, 10, -13);
 
-      // Wide stance for legs
-      limbs.leftLegStartX = 0; limbs.leftLegStartY = -6;
-      limbs.leftLegEndX = 4; limbs.leftLegEndY = -10;
-      limbs.rightLegStartX = 0; limbs.rightLegStartY = 6;
-      limbs.rightLegEndX = 4; limbs.rightLegEndY = 10;
+      const cycle = (Date.now() - emote.startTime) % 2000;
+      const progress = cycle / 2000;
 
-      // Arm swings the racket
-      limbs.rightArmX = 8 + swing * 6; 
-      limbs.rightArmY = 14; 
-      limbs.leftArmX = 4; 
-      limbs.leftArmY = -12;
-    },
-    draw: (ctx, emote) => {
-      ctx.save();
-      const timeActive = (Date.now() - emote.startTime);
-      const swingTime = timeActive / 200;
-      const swing = Math.sin(swingTime);
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          
+          // Racket Sub-Group
+          const racketGroup = new THREE.Group();
+          const handleGeo = new THREE.CylinderGeometry(0.5, 0.5, 8);
+          handleGeo.rotateX(Math.PI / 2);
+          const handleMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
+          racketGroup.add(new THREE.Mesh(handleGeo, handleMat));
+          
+          const hoopGeo = new THREE.TorusGeometry(4, 0.5, 8, 24);
+          hoopGeo.rotateY(Math.PI / 2);
+          hoopGeo.position.set(0, 8, 0); 
+          const hoopMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
+          racketGroup.add(new THREE.Mesh(hoopGeo, hoopMat));
+          
+          // Tie racket strictly to the isolated Right Hand node!
+          rig.rHand.add(racketGroup);
 
-      // --- Draw the Racket in the Right Hand ---
-      ctx.save();
-      // Move to the right hand position
-      const rightHandX = 8 + swing * 6;
-      const rightHandY = 14;
-      ctx.translate(rightHandX, rightHandY);
+          // Render isolated bouncing Tennis Ball primitive
+          const ballGeo = new THREE.SphereGeometry(1.5, 8, 8);
+          const ballMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f });
+          const ball = new THREE.Mesh(ballGeo, ballMat);
+          rig.emoteProps.add(ball);
+          
+          // Attach Prop strictly to directional root for Serve trajectories
+          rig.emotePropsDirectional.add(rig.emoteProps); 
+      }
+
+      const ball = rig.emoteProps.children[0];
       
-      // Rotate the racket based on the swing
-      ctx.rotate(Math.PI / 4 + swing * 0.5);
-
-      // Draw the Handle
-      ctx.fillStyle = '#2c3e50'; 
-      ctx.fillRect(-2, -1, 10, 3);
-      
-      // Draw the racket head (shaft and hoop)
-      ctx.translate(14, 0.5); // Move to end of handle
-      
-      // Strings/Hoop
-      ctx.beginPath();
-      if (ctx.ellipse) {
-        ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2);
+      // Toss ball from left hand to the air!
+      if (progress < 0.3) {
+          rig.leftHandTarget.set(10, -12, 12 + (progress/0.3) * 20); 
+          ball.position.set(10, -12, 12 + (progress/0.3) * 20);
+          ball.visible = true;
+      } else if (progress < 0.5) {
+          rig.leftHandTarget.set(10, -12, 12); 
+          ball.position.set(10, -12, 32 - ((progress - 0.3)/0.2) * 5); 
+          ball.visible = true;
+      } else if (progress < 0.7) {
+          rig.leftHandTarget.set(10, -12, 12);
+          ball.position.set(10 + ((progress - 0.5)/0.2) * 80, -12, 27); 
+          ball.visible = true;
       } else {
-        // Fallback for older browsers
-        ctx.arc(0, 0, 6, 0, Math.PI * 2);
-      }
-      // Fill the strings with a faint white grid or solid translucent color
-      ctx.fillStyle = 'rgba(236, 240, 241, 0.5)';
-      ctx.fill();
-      
-      // Draw the frame of the hoop
-      ctx.strokeStyle = '#e74c3c'; // Red frame
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Draw a grid for the strings
-      ctx.strokeStyle = 'rgba(189, 195, 199, 0.8)'; // Light grey strings
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      for (let i = -6; i <= 6; i += 3) {
-        ctx.moveTo(i, -4); ctx.lineTo(i, 4);
-        ctx.moveTo(-6, i * 0.6); ctx.lineTo(6, i * 0.6);
-      }
-      ctx.stroke();
-
-      ctx.restore();
-
-      // --- Draw the Bouncing Tennis Ball ---
-      // The ball should fly back and forth relative to the character
-      // We use a faster sine wave to make it bounce
-      const ballTime = timeActive / 100;
-      
-      // X travels away and comes back (or continually flies away if we want a serve)
-      const ballX = 30 + (timeActive / 15); 
-      // Y bounces
-      const ballBounce = Math.abs(Math.sin(ballTime)) * -15;
-
-      // Only draw the ball for the first 3 seconds of the emote
-      if (timeActive < 3000) {
-        ctx.translate(ballX, ballBounce);
-        
-        ctx.fillStyle = '#f1c40f'; // Bright tennis yellow/green
-        ctx.beginPath();
-        ctx.arc(0, 0, 3, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw the white seam characteristic of a tennis ball
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(-1, 0, 2, -Math.PI/2, Math.PI/2);
-        ctx.stroke();
+          rig.leftHandTarget.set(10, -12, 12);
+          ball.visible = false;
       }
 
-      ctx.restore();
+      // Racket swing (Right hand)
+      if (progress < 0.4) {
+          rig.rightHandTarget.set(0, 12, 25);
+      } else if (progress < 0.6) {
+          rig.rightHandTarget.set(20 + ((progress-0.4)/0.2)*10, 12, 25 - ((progress-0.4)/0.2)*15);
+      } else {
+          rig.rightHandTarget.set(10, 12, 10);
+      }
     }
   },
   rugby: {
     duration: 3600000, // Lasts for 1 hour, or until player moves
     message: "{name} is holding a rugby ball",
     message_when_near: "{name} passed the ball to {target_name}!",
-    setup: (ctx, emote, c) => { },
-    updateLimbs: (limbs, emote) => {
-      // Hold ball under right arm
-      limbs.rightArmX = 4; limbs.rightArmY = 12; // arm tucked
-    },
-    draw: (ctx, emote) => {
-      ctx.save();
-      // Draw a white english rugby ball at the right arm position
-      ctx.translate(6, 10); // move to right arm area
-      ctx.rotate(Math.PI / 4); // tilt the ball
-
-      // White ball body
-      ctx.fillStyle = '#f0f0f0';
-      ctx.beginPath();
-      if (ctx.ellipse) {
-        ctx.ellipse(0, 0, 7, 4.5, 0, 0, Math.PI * 2);
-      } else {
-        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+    updateLimbs3D: (rig, emote) => {
+      // Hold ball tightly with BOTH hands centrally tracking the chest mass
+      rig.rightHandTarget.set(12, 5, 12); 
+      rig.leftHandTarget.set(12, -5, 12); 
+      
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          const ballGeo = new THREE.SphereGeometry(3.5, 12, 12);
+          // Mutate origin primitive geometry scaling it dynamically to an Oblong format
+          ballGeo.scale(1.5, 1, 1);
+          const ballMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0 });
+          const ball = new THREE.Mesh(ballGeo, ballMat);
+          
+          ball.position.set(10, 0, 12); 
+          ball.rotation.x = Math.PI / 2;
+          
+          rig.emoteProps.add(ball);
+          rig.emotePropsDirectional.add(rig.emoteProps);
       }
-      ctx.fill();
-
-      // Dark outline for visibility
-      ctx.strokeStyle = '#333333';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Subtle seams along the length typical of a rugby ball
-      ctx.strokeStyle = '#aaaaaa';
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(-7, 0);
-      ctx.quadraticCurveTo(0, -2.5, 7, 0);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(-7, 0);
-      ctx.quadraticCurveTo(0, 2.5, 7, 0);
-      ctx.stroke();
-
-      // Colored grips/patterns on the ends (like standard Gilbert balls)
-      ctx.fillStyle = '#2ecc71'; // green accent
-      ctx.beginPath();
-      if (ctx.ellipse) {
-        ctx.ellipse(-5, 0, 2, 3, 0, -Math.PI / 2, Math.PI / 2);
-      }
-      ctx.fill();
-
-      ctx.beginPath();
-      if (ctx.ellipse) {
-        ctx.ellipse(5, 0, 2, 3, 0, Math.PI / 2, -Math.PI / 2);
-      }
-      ctx.fill();
-
-      ctx.restore();
     }
   },
   sit: {
     duration: 3600000, // Lasts for 1 hour, or until player moves
     message: "{name} sat down",
     message_when_near: "{name} sat next to {target_name}",
-    setup: (ctx, emote, c) => {
-      // Translate slightly to look lower to the ground
-      ctx.translate(-2, 0);
-    },
-    updateLimbs: (limbs, emote) => {
-      // Legs spread out straight in front (thighs visible)
-      limbs.leftLegStartX = 0; limbs.leftLegStartY = -6;
-      limbs.leftLegEndX = 16; limbs.leftLegEndY = -6;
-
-      limbs.rightLegStartX = 0; limbs.rightLegStartY = 6;
-      limbs.rightLegEndX = 16; limbs.rightLegEndY = 6;
-
-      // Arms resting on sides
-      limbs.leftArmX = 2; limbs.leftArmY = -12;
-      limbs.rightArmX = 2; limbs.rightArmY = 12;
-    },
-    draw: (ctx, emote) => { }
+    updateLimbs3D: (rig, emote) => {
+      rig.bodyPivot.position.z = 8; 
+      
+      rig.leftFootTarget.set(15, -6, -4);
+      rig.rightFootTarget.set(15, 6, -4);
+      
+      rig.leftHandTarget.set(8, -12, -4);
+      rig.rightHandTarget.set(8, 12, -4);
+    }
   },
   swim: {
     duration: 3600000, // 1 hour duration or until moved/canceled
     message: "{name} is swimming",
     message_when_near: "{name} splashed {target_name}!",
     sound: "/media/splash.mp3",
-    setup: (ctx, emote, c) => {
+    updateLimbs3D: (rig, emote) => {
       const swimTime = (Date.now() - emote.startTime) / 200;
       const bob = Math.sin(swimTime) * 3;
+      
+      // Lie flat aggressively on stomach (+Y pitch projection)
+      rig.bodyPivot.position.set(0, 0, 15.5 + bob);
+      rig.bodyPivot.rotation.y = Math.PI / 2; 
 
-      // and bob them slightly.
-      ctx.translate(0, bob);
-    },
-    updateLimbs: (limbs, emote) => {
-      const swimTime = (Date.now() - emote.startTime) / 200;
       const stroke = Math.sin(swimTime);
       const sweep = Math.cos(swimTime);
       const kick = Math.sin(swimTime * 3) * 5;
 
-      // Breaststroke arms sweeping back and forth
-      // Forward push
-      limbs.leftArmX = 14 - stroke * 8;
-      limbs.leftArmY = -6 - sweep * 5;
+      // Breast stroke arms sweeping back and forth relative to body
+      rig.leftHandTarget.set(15 - stroke * 10, -8 - sweep * 10, 15.5);
+      rig.rightHandTarget.set(15 - stroke * 10, 8 + sweep * 10, 15.5);
+      
+      // Flutter kicks tracking Z elevation
+      rig.leftFootTarget.set(-15, -6, 15 + kick);
+      rig.rightFootTarget.set(-15, 6, 15 - kick);
 
-      limbs.rightArmX = 14 - stroke * 8;
-      limbs.rightArmY = 6 + sweep * 5;
-
-      // Flutter kicks pushed further back down the body to look elongated
-      limbs.leftLegStartX = -10; limbs.leftLegStartY = -4;
-      limbs.leftLegEndX = -24; limbs.leftLegEndY = -4 + kick;
-
-      limbs.rightLegStartX = -10; limbs.rightLegStartY = 4;
-      limbs.rightLegEndX = -24; limbs.rightLegEndY = 4 - kick;
-    },
-    draw: (ctx, emote) => {
-      ctx.save();
-      // Draw splash particles / water ripples at the feet and hands
-      const swimTime = Date.now() - emote.startTime;
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 1.5;
+      // Procedural 3D Water Ripple Ring generation
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          const ripGeo = new THREE.TorusGeometry(5, 0.5, 4, 16);
+          ripGeo.rotateX(Math.PI / 2); 
+          const ripMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.8 });
+          
+          for (let i = 0; i < 3; i++) {
+              rig.emoteProps.add(new THREE.Mesh(ripGeo, ripMat));
+          }
+          // Tormented strictly outside rig so Torus scale independently of character tilt
+          rig.emotePropsDirectional.add(rig.emoteProps); 
+      }
 
       for (let i = 0; i < 3; i++) {
         const offset = i * 400;
-        const progress = ((swimTime + offset) % 1200) / 1200;
+        const noteAge = (Date.now() - emote.startTime + offset) % 1200;
+        const progress = noteAge / 1200;
 
-        ctx.globalAlpha = 1 - progress;
-        const rippleSize = 5 + progress * 15;
-
-        // Feet splashes moved further back
-        ctx.beginPath();
-        ctx.arc(-22, 0, rippleSize, -Math.PI / 2, Math.PI / 2);
-        ctx.stroke();
-
-        // Arm splashes
-        ctx.beginPath();
-        ctx.arc(10, 0, rippleSize * 1.5, Math.PI / 2, Math.PI * 1.5);
-        ctx.stroke();
+        const ripple = rig.emoteProps.children[i];
+        ripple.scale.setScalar(0.1 + progress * 3);
+        ripple.material.opacity = 1 - progress;
+        ripple.position.set(0, 0, 0.5); 
       }
-      ctx.restore();
     }
   },
   sleep: {
@@ -1081,52 +860,53 @@ export const emotes = {
     message: "{name} fell asleep",
     message_when_near: "{name} fell asleep next to {target_name}",
     sound: "/media/snoring.mp3",
-    setup: (ctx, emote, c) => {
-      // Bob up and down gently like breathing instead of rotating 90 degrees
+    updateLimbs3D: (rig, emote) => {
+      // Recline beautifully tracking -90 degrees flat
+      rig.bodyPivot.position.set(0, 0, 4);
+      rig.bodyPivot.rotation.x = -Math.PI / 2;
+
       const breathe = Math.sin((Date.now() - emote.startTime) / 500) * 1;
-      ctx.translate(breathe, 0);
-    },
-    updateLimbs: (limbs, emote) => {
-      // Relaxed limbs
-      limbs.leftArmX = 4; limbs.leftArmY = -12;
-      limbs.rightArmX = 4; limbs.rightArmY = 12;
+      rig.bodyPivot.position.z += breathe; 
 
-      limbs.leftLegStartX = 6; limbs.leftLegStartY = -4;
-      limbs.leftLegEndX = 16; limbs.leftLegEndY = -4;
+      rig.leftHandTarget.set(10, -15, 4);
+      rig.rightHandTarget.set(10, 15, 4);
+      rig.leftFootTarget.set(-15, -6, 4);
+      rig.rightFootTarget.set(-15, 6, 4);
 
-      limbs.rightLegStartX = 6; limbs.rightLegStartY = 4;
-      limbs.rightLegEndX = 16; limbs.rightLegEndY = 4;
-    },
-    draw: (ctx, emote) => {
-      ctx.save();
+      if (!rig.emoteProps) {
+          rig.emoteProps = new THREE.Group();
+          
+          // Retro geometric compound rendering for the 'ZZZ' floating texts
+          const zGroup = new THREE.Group();
+          const zMat = new THREE.MeshStandardMaterial({ color: 0x2ecc71, transparent: true });
+          
+          const top = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 1), zMat); top.position.set(0, 0, 2);
+          const mid = new THREE.Mesh(new THREE.BoxGeometry(1, 4, 1), zMat); mid.rotation.y = Math.PI/4;
+          const bot = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 1), zMat); bot.position.set(0, 0, -2);
+          zGroup.add(top, mid, bot);
+          
+          for (let i = 0; i < 3; i++) {
+              rig.emoteProps.add(zGroup.clone());
+          }
+          // Global mesh binding allowing letters to drift independently 
+          rig.meshGroup.add(rig.emoteProps);
+      }
+
       const timeActive = Date.now() - emote.startTime;
-
-      // Draw closed sleeping eyes (- -)
-      ctx.beginPath();
-      ctx.moveTo(4, -3); ctx.lineTo(6, -3);
-      ctx.moveTo(4, 3); ctx.lineTo(6, 3);
-      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Floating Zzzs
       for (let i = 0; i < 3; i++) {
         const offset = i * 800;
-        const zAge = (timeActive + offset) % 2400;
-        const progress = zAge / 2400;
+        const progress = ((timeActive + offset) % 2400) / 2400;
 
-        ctx.globalAlpha = 1 - Math.pow(progress, 2);
-
-        // Drift backwards from head (local -X) and bob sideways
         const zX = -5 - progress * 30;
         const zY = Math.sin(progress * Math.PI * 4 + i * 2) * 8;
+        const zZ = 10 + progress * 20; 
 
-        const size = 6 + progress * 8;
-        ctx.font = `${size}px sans-serif`;
-        ctx.fillStyle = '#2ecc71'; // Green sleepy color
-        ctx.fillText('Z', zX, zY);
+        const zMesh = rig.emoteProps.children[i];
+        zMesh.position.set(zX, zY, zZ);
+        zMesh.scale.setScalar(0.5 + progress * 1.5);
+        
+        zMesh.children.forEach(c => c.material.opacity = 1 - Math.pow(progress, 2));
       }
-      ctx.restore();
     }
   }
 };
