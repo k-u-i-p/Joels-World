@@ -387,6 +387,212 @@ export class CharacterManager {
     }
   }
 
+  buildSkeletonMaterials(c) {
+      return {
+          skin: new THREE.MeshStandardMaterial({ color: c.color || '#f1c40f', roughness: 0.6, metalness: 0.1 }),
+          shirt: new THREE.MeshStandardMaterial({ color: c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
+          arm: new THREE.MeshStandardMaterial({ color: c.armColor || c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
+          pants: new THREE.MeshStandardMaterial({ color: c.pantsColor || '#2c3e50', roughness: 0.9, metalness: 0.0 }),
+          shoe: new THREE.MeshStandardMaterial({ color: c.shoeColor || '#7f8c8d', roughness: 0.7, metalness: 0.2 }),
+          hair: new THREE.MeshStandardMaterial({ color: c.hairColor || '#8e44ad', roughness: 0.5, metalness: 0.1 })
+      };
+  }
+
+  buildSkeletonRig(c, mats) {
+      c.rig = {
+         bodyPivot: new THREE.Group(),
+         head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), mats.skin),
+         torso: new THREE.Mesh(new THREE.CapsuleGeometry(12, 2, 10, 16), mats.shirt),
+         leftArm: new THREE.Group(), rightArm: new THREE.Group(),
+         leftLeg: new THREE.Group(), rightLeg: new THREE.Group()
+      };
+      c.rig.meshGroup = c.meshGroup;
+      c.meshGroup.add(c.rig.bodyPivot);
+      c.rig.bodyPivot.add(c.rig.torso);
+
+      c.rig.torso.rotation.x = Math.PI / 2;
+      c.rig.torso.position.set(0, 0, 20);
+
+      c.rig.head.position.set(2, 0, 36); 
+      c.rig.bodyPivot.add(c.rig.head);
+      
+      const eyeGeo = new THREE.SphereGeometry(1.5, 8, 8);
+      const eyeMat = new THREE.MeshStandardMaterial({ color: '#111111', roughness: 0.4 });
+      
+      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+      leftEye.position.set(9.2, -4.5, 3.5); 
+      c.rig.head.add(leftEye);
+      
+      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+      rightEye.position.set(9.2, 4.5, 3.5);
+      c.rig.head.add(rightEye);
+
+      c.rig.leftHandTarget = new THREE.Vector3(0, -15, 9); 
+      c.rig.rightHandTarget = new THREE.Vector3(0, 15, 9);
+      c.rig.leftFootTarget = new THREE.Vector3(2, -6, -14); 
+      c.rig.rightFootTarget = new THREE.Vector3(2, 6, -14);
+      
+      c.rig.leftShoulderPos = new THREE.Vector3(0, -14, 26);
+      c.rig.rightShoulderPos = new THREE.Vector3(0, 14, 26);
+      c.rig.leftHipPos = new THREE.Vector3(0, -6, 10);
+      c.rig.rightHipPos = new THREE.Vector3(0, 6, 10);
+  }
+
+  buildSkeletonHair(c, mats) {
+      const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
+      const hairGroup = new THREE.Group();
+      hairGroup.position.set(0, 0, 0); 
+      
+      const baseHairGeo = new THREE.SphereGeometry(11, 16, 16, 0, Math.PI, 0, Math.PI);
+      
+      if (style === 'spiky') {
+          const spikeGeo = new THREE.ConeGeometry(3.5, 10, 6);
+          for (let i = 0; i < 5; i++) {
+              const spike = new THREE.Mesh(spikeGeo, mats.hair);
+              spike.rotation.y = (Math.PI / 4) * (i - 2);
+              spike.rotation.x = Math.PI / 2;
+              spike.position.set(-1.5, (i - 2) * 2.0, 9); 
+              hairGroup.add(spike);
+          }
+      } else if (style === 'ponytail') {
+          const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
+          baseHair.rotation.y = -Math.PI / 2; 
+          hairGroup.add(baseHair);
+          const tailGeo = new THREE.ConeGeometry(4, 18, 8);
+          const tail = new THREE.Mesh(tailGeo, mats.hair);
+          tail.rotation.z = Math.PI / 2;
+          tail.position.set(-14, 0, 3); 
+          hairGroup.add(tail);
+      } else if (style === 'messy') {
+          const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
+          baseHair.rotation.y = -Math.PI / 2;
+          hairGroup.add(baseHair);
+          const tuftGeo = new THREE.ConeGeometry(3.5, 10, 5);
+          const t1 = new THREE.Mesh(tuftGeo, mats.hair);
+          t1.rotation.y = -Math.PI / 5; t1.rotation.x = Math.PI / 2; t1.position.set(-8, -7, 5);
+          hairGroup.add(t1);
+          const t2 = new THREE.Mesh(tuftGeo, mats.hair);
+          t2.rotation.y = Math.PI / 12; t2.rotation.x = Math.PI / 2; t2.position.set(-11, -1, 4);
+          hairGroup.add(t2);
+          const t3 = new THREE.Mesh(tuftGeo, mats.hair);
+          t3.rotation.y = Math.PI / 5; t3.rotation.x = Math.PI / 2; t3.position.set(-8, 6, 7);
+          hairGroup.add(t3);
+      } else if (style === 'long') {
+          const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
+          baseHair.rotation.y = -Math.PI / 2;
+          hairGroup.add(baseHair);
+          const lockGeo = new THREE.ConeGeometry(4.5, 16, 6);
+          const rightLock = new THREE.Mesh(lockGeo, mats.hair);
+          rightLock.rotation.z = Math.PI / 2; rightLock.position.set(-10, 8, -1);
+          hairGroup.add(rightLock);
+          const leftLock = new THREE.Mesh(lockGeo, mats.hair);
+          leftLock.rotation.z = Math.PI / 2; leftLock.position.set(-10, -8, -1);
+          hairGroup.add(leftLock);
+      } else {
+          const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
+          baseHair.rotation.y = -Math.PI / 2;
+          hairGroup.add(baseHair);
+      }
+      c.rig.head.add(hairGroup);
+  }
+
+  buildSkeletonLimbs(c, mats) {
+      const upperArmGeo = new THREE.CapsuleGeometry(4.2, 8, 8, 10);
+      const lowerArmGeo = new THREE.CapsuleGeometry(4.2, 8, 8, 10);
+      const handGeo = new THREE.SphereGeometry(5.2, 12, 12);
+      
+      c.rig.lUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
+      c.rig.lLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
+      c.rig.lHand = new THREE.Mesh(handGeo, mats.skin);
+      c.rig.bodyPivot.add(c.rig.lUpperArm, c.rig.lLowerArm, c.rig.lHand);
+
+      c.rig.rUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
+      c.rig.rLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
+      c.rig.rHand = new THREE.Mesh(handGeo, mats.skin);
+      c.rig.bodyPivot.add(c.rig.rUpperArm, c.rig.rLowerArm, c.rig.rHand);
+
+      const upperLegGeo = new THREE.CapsuleGeometry(4.5, 12, 8, 10);
+      const lowerLegGeo = new THREE.CapsuleGeometry(4.5, 12, 8, 10);
+      const shoeGeo = new THREE.BoxGeometry(11, 8, 5);
+      
+      c.rig.lUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
+      c.rig.lLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
+      c.rig.lShoe = new THREE.Mesh(shoeGeo, mats.shoe);
+      c.rig.bodyPivot.add(c.rig.lUpperLeg, c.rig.lLowerLeg, c.rig.lShoe);
+
+      c.rig.rUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
+      c.rig.rLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
+      c.rig.rShoe = new THREE.Mesh(shoeGeo, mats.shoe);
+      c.rig.bodyPivot.add(c.rig.rUpperLeg, c.rig.rLowerLeg, c.rig.rShoe);
+  }
+
+  buildShadowBlob(c) {
+      const shadowSize = 28; 
+      const shadowCanvas = document.createElement('canvas');
+      shadowCanvas.width = 30; shadowCanvas.height = 30;
+      const sctx = shadowCanvas.getContext('2d');
+      sctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      sctx.beginPath(); sctx.arc(15, 15, 14, 0, Math.PI*2); sctx.fill();
+      
+      const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+      const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
+      c.shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(shadowSize, shadowSize), shadowMat);
+      c.shadowMesh.position.set(0, 0, 0.5); 
+      c.shadowMesh.renderOrder = 55; 
+      c.meshGroup.add(c.shadowMesh);
+  }
+
+  ensureDomElements(c) {
+      if (c.name && !c.hide_nameplate && !c.nameElement) {
+          c.nameElement = document.createElement('div');
+          c.nameElement.textContent = c.name;
+          c.nameElement.style.position = 'absolute';
+          c.nameElement.style.color = 'white';
+          c.nameElement.style.fontWeight = 'bold';
+          c.nameElement.style.fontSize = '12px';
+          c.nameElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+          c.nameElement.style.textShadow = '-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)';
+          c.nameElement.style.transform = 'translate(-50%, -50%)';
+          c.nameElement.style.pointerEvents = 'none';
+          c.nameElement.style.zIndex = '50';
+          document.body.appendChild(c.nameElement);
+      }
+
+      if (!c.chatElement) {
+          c.chatElement = document.createElement('div');
+          c.chatElement.style.position = 'absolute';
+          c.chatElement.style.background = 'white';
+          c.chatElement.style.color = '#2c3e50';
+          c.chatElement.style.padding = '6px 10px';
+          c.chatElement.style.borderRadius = '8px';
+          c.chatElement.style.fontWeight = 'normal';
+          c.chatElement.style.fontSize = '14px';
+          c.chatElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+          c.chatElement.style.boxShadow = '0 3px 6px rgba(0,0,0,0.25)';
+          c.chatElement.style.transform = 'translate(-50%, -100%)';
+          c.chatElement.style.pointerEvents = 'none';
+          c.chatElement.style.zIndex = '51';
+          c.chatElement.style.display = 'none';
+          c.chatElement.style.textAlign = 'center';
+          c.chatElement.style.minWidth = '50px';
+          
+          const arrow = document.createElement('div');
+          arrow.style.position = 'absolute';
+          arrow.style.bottom = '-8px';
+          arrow.style.left = '50%';
+          arrow.style.transform = 'translateX(-50%)';
+          arrow.style.borderWidth = '8px 6px 0 6px';
+          arrow.style.borderStyle = 'solid';
+          arrow.style.borderColor = 'white transparent transparent transparent';
+          c.chatElement.appendChild(arrow);
+          
+          c.chatTextNode = document.createElement('span');
+          c.chatElement.appendChild(c.chatTextNode);
+          
+          document.body.appendChild(c.chatElement);
+      }
+  }
+
   ensureThreeSetup(c, scene) {
     if (!c.meshGroup) {
       c.meshGroup = new THREE.Group();
@@ -397,206 +603,17 @@ export class CharacterManager {
       const heightScale = (c.height || 40) / 40;
       const maxScale = baseScale * Math.max(widthScale, heightScale);
 
-      const logicalSize = Math.max(120, 120 * maxScale);
-
-      // Procedurally generated PBR Materials
-      const skinMat = new THREE.MeshStandardMaterial({ color: c.color || '#f1c40f', roughness: 0.6, metalness: 0.1 });
-      const shirtMat = new THREE.MeshStandardMaterial({ color: c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 });
-      const armMat = new THREE.MeshStandardMaterial({ color: c.armColor || c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 });
-      const pantsMat = new THREE.MeshStandardMaterial({ color: c.pantsColor || '#2c3e50', roughness: 0.9, metalness: 0.0 });
-      const shoeMat = new THREE.MeshStandardMaterial({ color: c.shoeColor || '#7f8c8d', roughness: 0.7, metalness: 0.2 });
-
-      // Core skeleton rig
-      c.rig = {
-         bodyPivot: new THREE.Group(),
-         head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), skinMat),
-         torso: new THREE.Mesh(new THREE.CapsuleGeometry(12, 2, 10, 16), shirtMat),
-         leftArm: new THREE.Group(),
-         rightArm: new THREE.Group(),
-         leftLeg: new THREE.Group(),
-         rightLeg: new THREE.Group()
-      };
-
-      c.rig.meshGroup = c.meshGroup;
-      c.meshGroup.add(c.rig.bodyPivot);
-      c.rig.bodyPivot.add(c.rig.torso);
-
-      // Torso stands UP along the Z axis
-      c.rig.torso.rotation.x = Math.PI / 2;
-      c.rig.torso.position.set(0, 0, 20);
-
-      // Head is placed above the torso on the Z axis
-      c.rig.head.position.set(2, 0, 36); // Slightly forward on X (face points X+)
-      c.rig.bodyPivot.add(c.rig.head);
+      const mats = this.buildSkeletonMaterials(c);
       
-      // Eyes mapping (Sphere dots)
-      const eyeGeo = new THREE.SphereGeometry(1.5, 8, 8);
-      const eyeMat = new THREE.MeshStandardMaterial({ color: '#111111', roughness: 0.4 });
+      this.buildSkeletonRig(c, mats);
+      this.buildSkeletonHair(c, mats);
+      this.buildSkeletonLimbs(c, mats);
       
-      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-      leftEye.position.set(9.2, -4.5, 3.5); // +X (forward off face), -Y (left), +Z (up towards forehead)
-      c.rig.head.add(leftEye);
-      
-      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-      rightEye.position.set(9.2, 4.5, 3.5);
-      c.rig.head.add(rightEye);
-
-      // ----- INVERSE KINEMATICS (IK) TARGETS -----
-      // Local coordinate targets relative to the `bodyPivot` centerline
-      c.rig.leftHandTarget = new THREE.Vector3(0, -15, 9); // Native resting A-Pose down by the waist
-      c.rig.rightHandTarget = new THREE.Vector3(0, 15, 9);
-      c.rig.leftFootTarget = new THREE.Vector3(2, -6, -14); // Native resting firmly on the floor
-      c.rig.rightFootTarget = new THREE.Vector3(2, 6, -14);
-      
-      // Native geometric shoulder/hip anchors (Static referencing bounds)
-      c.rig.leftShoulderPos = new THREE.Vector3(0, -14, 26);
-      c.rig.rightShoulderPos = new THREE.Vector3(0, 14, 26);
-      c.rig.leftHipPos = new THREE.Vector3(0, -6, 10);
-      c.rig.rightHipPos = new THREE.Vector3(0, 6, 10);
-
-      // Build Hair
-      const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
-      const hairMat = new THREE.MeshStandardMaterial({ color: c.hairColor || '#8e44ad', roughness: 0.5, metalness: 0.1 });
-      
-      const hairGroup = new THREE.Group();
-      hairGroup.position.set(0, 0, 0); // Local to Head
-      
-      const baseHairGeo = new THREE.SphereGeometry(11, 16, 16, 0, Math.PI, 0, Math.PI);
-      
-      if (style === 'spiky') {
-          const spikeGeo = new THREE.ConeGeometry(3.5, 10, 6);
-          for (let i = 0; i < 5; i++) {
-              const spike = new THREE.Mesh(spikeGeo, hairMat);
-              spike.rotation.y = (Math.PI / 4) * (i - 2);
-              spike.rotation.x = Math.PI / 2;
-              spike.position.set(-1.5, (i - 2) * 2.0, 9); 
-              hairGroup.add(spike);
-          }
-      } else if (style === 'ponytail') {
-          const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
-          baseHair.rotation.y = -Math.PI / 2; // Cover back half of head
-          hairGroup.add(baseHair);
-          
-          const tailGeo = new THREE.ConeGeometry(4, 18, 8);
-          const tail = new THREE.Mesh(tailGeo, hairMat);
-          tail.rotation.z = Math.PI / 2;
-          tail.position.set(-14, 0, 3); // Drooping off the back
-          hairGroup.add(tail);
-      } else if (style === 'messy') {
-          const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
-          baseHair.rotation.y = -Math.PI / 2;
-          hairGroup.add(baseHair);
-          
-          const tuftGeo = new THREE.ConeGeometry(3.5, 10, 5);
-          
-          // Replicate the zig-zag sawtooth path of the original 2D stroke
-          const t1 = new THREE.Mesh(tuftGeo, hairMat);
-          t1.rotation.y = -Math.PI / 5; // Angle outward left
-          t1.rotation.x = Math.PI / 2;
-          t1.position.set(-8, -7, 5);
-          hairGroup.add(t1);
-
-          const t2 = new THREE.Mesh(tuftGeo, hairMat);
-          t2.rotation.y = Math.PI / 12; // Angle backward
-          t2.rotation.x = Math.PI / 2;
-          t2.position.set(-11, -1, 4);
-          hairGroup.add(t2);
-
-          const t3 = new THREE.Mesh(tuftGeo, hairMat);
-          t3.rotation.y = Math.PI / 5; // Angle outward right
-          t3.rotation.x = Math.PI / 2;
-          t3.position.set(-8, 6, 7);
-          hairGroup.add(t3);
-      } else if (style === 'long') {
-          const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
-          baseHair.rotation.y = -Math.PI / 2;
-          hairGroup.add(baseHair);
-          
-          // Long flowing locks down the back/sides
-          const lockGeo = new THREE.ConeGeometry(4.5, 16, 6);
-          const rightLock = new THREE.Mesh(lockGeo, hairMat);
-          rightLock.rotation.z = Math.PI / 2;
-          rightLock.position.set(-10, 8, -1);
-          hairGroup.add(rightLock);
-          
-          const leftLock = new THREE.Mesh(lockGeo, hairMat);
-          leftLock.rotation.z = Math.PI / 2;
-          leftLock.position.set(-10, -8, -1);
-          hairGroup.add(leftLock);
-      } else {
-          // 'short' / Base flat cap style hair
-          const baseHair = new THREE.Mesh(baseHairGeo, hairMat);
-          baseHair.rotation.y = -Math.PI / 2;
-          hairGroup.add(baseHair);
-      }
-      c.rig.head.add(hairGroup);
-
-      // Build Arms (2-Bone Articulated Capsules)
-      const armL1 = 8; // Upper Arm length
-      const armL2 = 8; // Lower Arm length
-      const upperArmGeo = new THREE.CapsuleGeometry(4.2, armL1, 8, 10);
-      const lowerArmGeo = new THREE.CapsuleGeometry(4.2, armL2, 8, 10);
-      const handGeo = new THREE.SphereGeometry(5.2, 12, 12);
-      
-      c.rig.lUpperArm = new THREE.Mesh(upperArmGeo, armMat);
-      c.rig.lLowerArm = new THREE.Mesh(lowerArmGeo, armMat);
-      c.rig.lHand = new THREE.Mesh(handGeo, skinMat);
-      c.rig.bodyPivot.add(c.rig.lUpperArm);
-      c.rig.bodyPivot.add(c.rig.lLowerArm);
-      c.rig.bodyPivot.add(c.rig.lHand);
-
-      c.rig.rUpperArm = new THREE.Mesh(upperArmGeo, armMat);
-      c.rig.rLowerArm = new THREE.Mesh(lowerArmGeo, armMat);
-      c.rig.rHand = new THREE.Mesh(handGeo, skinMat);
-      c.rig.bodyPivot.add(c.rig.rUpperArm);
-      c.rig.bodyPivot.add(c.rig.rLowerArm);
-      c.rig.bodyPivot.add(c.rig.rHand);
-
-      // Build Legs (2-Bone Articulated Capsules)
-      const legL1 = 12; // Thigh length
-      const legL2 = 12; // Calf length
-      const upperLegGeo = new THREE.CapsuleGeometry(4.5, legL1, 8, 10);
-      const lowerLegGeo = new THREE.CapsuleGeometry(4.5, legL2, 8, 10);
-      const shoeGeo = new THREE.BoxGeometry(11, 8, 5);
-      
-      c.rig.lUpperLeg = new THREE.Mesh(upperLegGeo, pantsMat);
-      c.rig.lLowerLeg = new THREE.Mesh(lowerLegGeo, pantsMat);
-      c.rig.lShoe = new THREE.Mesh(shoeGeo, shoeMat);
-      c.rig.bodyPivot.add(c.rig.lUpperLeg);
-      c.rig.bodyPivot.add(c.rig.lLowerLeg);
-      c.rig.bodyPivot.add(c.rig.lShoe);
-
-      c.rig.rUpperLeg = new THREE.Mesh(upperLegGeo, pantsMat);
-      c.rig.rLowerLeg = new THREE.Mesh(lowerLegGeo, pantsMat);
-      c.rig.rShoe = new THREE.Mesh(shoeGeo, shoeMat);
-      c.rig.bodyPivot.add(c.rig.rUpperLeg);
-      c.rig.bodyPivot.add(c.rig.rLowerLeg);
-      c.rig.bodyPivot.add(c.rig.rShoe);
-      
-      // Apply Master Scale and Base Elevation
       c.meshGroup.scale.set(maxScale, maxScale, maxScale);
-      // Elevate the entire mathematical group structure off the WebGL zero-plane natively!
-      // This pushes the feet perfectly onto the Z=0 ground bounds.
       c.rig.bodyPivot.position.set(0, 0, 15.5);
 
-      // Shadow Mesh
-      const shadowSize = 28; // Scale is handled by meshGroup now
-      const shadowGeo = new THREE.PlaneGeometry(shadowSize, shadowSize);
-      const shadowCanvas = document.createElement('canvas');
-      shadowCanvas.width = 30; shadowCanvas.height = 30;
-      const sctx = shadowCanvas.getContext('2d');
-      sctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-      sctx.beginPath();
-      sctx.arc(15, 15, 14, 0, Math.PI*2);
-      sctx.fill();
-      const shadowTex = new THREE.CanvasTexture(shadowCanvas);
-      const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
-      c.shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(shadowSize, shadowSize), shadowMat);
-      c.shadowMesh.position.set(0, 0, 0.5); // Slightly above ground
-      c.shadowMesh.renderOrder = 55; // Evaluate blob shadows after Ground maps (0) and PCF light maps (50)
-      c.meshGroup.add(c.shadowMesh);
+      this.buildShadowBlob(c);
       
-      // Enable native geometric shadows across the entire hierarchical grouping
       c.meshGroup.traverse((node) => {
          if (node.isMesh && node !== c.shadowMesh) {
              node.castShadow = true;
@@ -605,65 +622,81 @@ export class CharacterManager {
       });
     }
     
-    if (c.name && !c.hide_nameplate && !c.nameElement) {
-        c.nameElement = document.createElement('div');
-        c.nameElement.textContent = c.name;
-        c.nameElement.style.position = 'absolute';
-        c.nameElement.style.color = 'white';
-        c.nameElement.style.fontWeight = 'bold';
-        c.nameElement.style.fontSize = '12px';
-        c.nameElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-        c.nameElement.style.textShadow = '-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)';
-        c.nameElement.style.transform = 'translate(-50%, -50%)';
-        c.nameElement.style.pointerEvents = 'none';
-        c.nameElement.style.zIndex = '50';
-        document.body.appendChild(c.nameElement);
-    }
+    this.ensureDomElements(c);
+  }
 
-    if (!c.chatElement) {
-        c.chatElement = document.createElement('div');
-        c.chatElement.style.position = 'absolute';
-        c.chatElement.style.background = 'white';
-        c.chatElement.style.color = '#2c3e50';
-        c.chatElement.style.padding = '6px 10px';
-        c.chatElement.style.borderRadius = '8px';
-        c.chatElement.style.fontWeight = 'normal';
-        c.chatElement.style.fontSize = '14px';
-        c.chatElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-        c.chatElement.style.boxShadow = '0 3px 6px rgba(0,0,0,0.25)';
-        c.chatElement.style.transform = 'translate(-50%, -100%)';
-        c.chatElement.style.pointerEvents = 'none';
-        c.chatElement.style.zIndex = '51';
-        c.chatElement.style.display = 'none';
-        c.chatElement.style.textAlign = 'center';
-        c.chatElement.style.minWidth = '50px';
-        
-        // Tooltip arrow
-        const arrow = document.createElement('div');
-        arrow.style.position = 'absolute';
-        arrow.style.bottom = '-8px';
-        arrow.style.left = '50%';
-        arrow.style.transform = 'translateX(-50%)';
-        arrow.style.borderWidth = '8px 6px 0 6px';
-        arrow.style.borderStyle = 'solid';
-        arrow.style.borderColor = 'white transparent transparent transparent';
-        c.chatElement.appendChild(arrow);
-        
-        c.chatTextNode = document.createElement('span');
-        c.chatElement.appendChild(c.chatTextNode);
-        
-        document.body.appendChild(c.chatElement);
-    }
+  applyWalkCycle(c, legSwing) {
+      const armSwingX = 12; 
+      const armLiftZ = 12;  
+      const legStrideX = 14; 
+      const stepLiftZ = 6;
+      
+      c.rig.leftHandTarget.x += -legSwing * armSwingX;
+      c.rig.leftHandTarget.z += Math.abs(legSwing) * armLiftZ; 
+      c.rig.rightHandTarget.x += legSwing * armSwingX;
+      c.rig.rightHandTarget.z += Math.abs(legSwing) * armLiftZ;
+      
+      c.rig.leftFootTarget.x += legSwing * legStrideX;
+      c.rig.leftFootTarget.z += Math.abs(legSwing) * stepLiftZ; 
+      c.rig.rightFootTarget.x += -legSwing * legStrideX;
+      c.rig.rightFootTarget.z += Math.abs(legSwing) * stepLiftZ;
+  }
+
+  applyIdleSway(c, idleTime) {
+      const armSwayZ = Math.sin(idleTime * 2.0) * 0.6; 
+      const armSwayX = Math.cos(idleTime * 1.5) * 0.4; 
+      
+      c.rig.leftHandTarget.z += armSwayZ;
+      c.rig.leftHandTarget.x += armSwayX;
+      c.rig.rightHandTarget.z += armSwayZ;
+      c.rig.rightHandTarget.x -= armSwayX; 
+  }
+
+  applyEmoteOverrides(c, emoteDef, currentEmote) {
+      if (emoteDef && emoteDef.updateLimbs3D) {
+         c.rig.bodyPivot.rotation.y = 0; 
+         emoteDef.updateLimbs3D(c.rig, currentEmote);
+      } else if (c.emoji) {
+         c.rig.bodyPivot.rotation.y = 0; 
+         c.rig.leftHandTarget.set(5, -20, 35);
+         c.rig.rightHandTarget.set(5, 20, 35);
+      }
+  }
+
+  resolveInverseKinematics(c) {
+      c.rig.lHand.position.copy(c.rig.leftHandTarget);
+      c.rig.rHand.position.copy(c.rig.rightHandTarget);
+      c.rig.lShoe.position.copy(c.rig.leftFootTarget);
+      c.rig.rShoe.position.copy(c.rig.rightFootTarget);
+
+      const bendNormalArmL = new THREE.Vector3(0, 1, -0.5).normalize(); 
+      const bendNormalArmR = new THREE.Vector3(0, 1, 0.5).normalize();  
+      const bendNormalLegL = new THREE.Vector3(0, -1, -0.2).normalize();
+      const bendNormalLegR = new THREE.Vector3(0, -1, 0.2).normalize(); 
+
+      const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8, 8, bendNormalArmL);
+      const rightElbow = solve2BoneIK(c.rig.rightShoulderPos, c.rig.rightHandTarget, 8, 8, bendNormalArmR);
+      const leftKnee = solve2BoneIK(c.rig.leftHipPos, c.rig.leftFootTarget, 12, 12, bendNormalLegL);
+      const rightKnee = solve2BoneIK(c.rig.rightHipPos, c.rig.rightFootTarget, 12, 12, bendNormalLegR);
+
+      pointLimbSegment(c.rig.lUpperArm, c.rig.leftShoulderPos, leftElbow);
+      pointLimbSegment(c.rig.lLowerArm, leftElbow, c.rig.leftHandTarget);
+      
+      pointLimbSegment(c.rig.rUpperArm, c.rig.rightShoulderPos, rightElbow);
+      pointLimbSegment(c.rig.rLowerArm, rightElbow, c.rig.rightHandTarget);
+      
+      pointLimbSegment(c.rig.lUpperLeg, c.rig.leftHipPos, leftKnee);
+      pointLimbSegment(c.rig.lLowerLeg, leftKnee, c.rig.leftFootTarget);
+      
+      pointLimbSegment(c.rig.rUpperLeg, c.rig.rightHipPos, rightKnee);
+      pointLimbSegment(c.rig.rLowerLeg, rightKnee, c.rig.rightFootTarget);
   }
 
   updateCharacter3D(c, isNpc, player, syncPlayerToJSON) {
     if (!c.rig) return;
 
-    // Apply entire body rotation on the Z-axis (Top-Down perspective)
-    // WebGL Z-rotation is counter-clockwise, HTML5 Canvas is clockwise. We must invert the angle!
     c.rig.bodyPivot.rotation.z = -c.rotation * (Math.PI / 180);
 
-    // Emote Handling
     const isActualNpc = isNpc;
     if (isActualNpc && !c.emote && c.default_emote) {
       c.emote = JSON.parse(JSON.stringify(c.default_emote));
@@ -688,10 +721,9 @@ export class CharacterManager {
       }
     }
 
-    // 1. Reset explicit IK targets to baseline resting coordinates (A-Pose 30-degree stance)
-    const baseLHand = new THREE.Vector3(6, -16, 12); // Hands forward, significantly outward and downward to relax the elbow
+    const baseLHand = new THREE.Vector3(6, -16, 12); 
     const baseRHand = new THREE.Vector3(6, 16, 12);
-    const baseLFoot = new THREE.Vector3(2, -6, -13); // Pulled slightly upwards to maintain IK knee bend
+    const baseLFoot = new THREE.Vector3(2, -6, -13); 
     const baseRFoot = new THREE.Vector3(2, 6, -13);
     
     c.rig.leftHandTarget.copy(baseLHand);
@@ -699,102 +731,28 @@ export class CharacterManager {
     c.rig.leftFootTarget.copy(baseLFoot);
     c.rig.rightFootTarget.copy(baseRFoot);
 
-    // 2. Derive a persistent geometric desync offset from the character ID parsing string bounds!
     const timeNow = Date.now() / 1000;
     let hash = 0;
     const strId = String(c.id || 'npc');
     for (let i = 0; i < strId.length; i++) hash += strId.charCodeAt(i);
     const idleTime = timeNow + (hash * 0.1);
 
-    // 3. Add procedural Idle Breathing (subtle scaling of Torso) evaluates dynamically across local idleTime!
     const breathOffset = Math.sin(idleTime * 2) * 0.02;
     c.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 1);
-
-    // 4. Coordinate-Based Locomotion (Walk Cycle)
-    const isWalking = (c.legAnimationTime || 0) > 0;
-    const legSwing = Math.sin(c.legAnimationTime || 0);
     
-    // Smooth natural leaning of the torso framework across all statuses
     c.rig.bodyPivot.rotation.y = Math.sin(idleTime * 1.5) * 0.05;
 
+    const isWalking = (c.legAnimationTime || 0) > 0;
+    const legSwing = Math.sin(c.legAnimationTime || 0);
+
     if (isWalking) {
-        // Dynamic Locomotion Targets
-        const armSwingX = 12; // Punch arms farther forward/backward
-        const armLiftZ = 12;  // Aggressive vertical pump causing the IK solver to forcefully hinge the elbows up and down!
-        
-        const legStrideX = 14; 
-        const stepLiftZ = 6;
-        
-        // Left Arm punches Forward (+X) when Left Leg sweeps Backward (-X)
-        c.rig.leftHandTarget.x += -legSwing * armSwingX;
-        c.rig.leftHandTarget.z += Math.abs(legSwing) * armLiftZ; 
-        
-        c.rig.rightHandTarget.x += legSwing * armSwingX;
-        c.rig.rightHandTarget.z += Math.abs(legSwing) * armLiftZ;
-        
-        c.rig.leftFootTarget.x += legSwing * legStrideX;
-        c.rig.leftFootTarget.z += Math.abs(legSwing) * stepLiftZ; // Lift foot mid-stride
-        
-        c.rig.rightFootTarget.x += -legSwing * legStrideX;
-        c.rig.rightFootTarget.z += Math.abs(legSwing) * stepLiftZ;
+        this.applyWalkCycle(c, legSwing);
     } else if (!emoteDef || !emoteDef.updateLimbs3D) {
-        // Subdued Idle Animation explicitly firing when stationary
-        const armSwayZ = Math.sin(idleTime * 2.0) * 0.6; // Hands gently drift vertically
-        const armSwayX = Math.cos(idleTime * 1.5) * 0.4; // Hands gracefully squeeze in and out
-        
-        c.rig.leftHandTarget.z += armSwayZ;
-        c.rig.leftHandTarget.x += armSwayX;
-        
-        c.rig.rightHandTarget.z += armSwayZ;
-        c.rig.rightHandTarget.x -= armSwayX; // Mirrors Left Arm horizontally
+        this.applyIdleSway(c, idleTime);
     }
 
-    // 4. Emote Overrides (Coordinate based)
-    if (emoteDef && emoteDef.updateLimbs3D) {
-       // Allow emotes to explicitly mutate the Target vectors natively!
-       c.rig.bodyPivot.rotation.y = 0; // Lock structural core rigid for predictable emote geometry mappings
-       emoteDef.updateLimbs3D(c.rig, currentEmote);
-    } else if (c.emoji) {
-       // Fallback Cheer: Throw Hands upwards in the air (+Z) and slightly outwards (+Y/-Y)
-       c.rig.bodyPivot.rotation.y = 0; 
-       c.rig.leftHandTarget.set(5, -20, 35);
-       c.rig.rightHandTarget.set(5, 20, 35);
-    }
-
-    // 5. RESOLVE INVERSE KINEMATICS (IK)
-    // Snap geometric extremities physically to final calculated Cartesian coordinates
-    c.rig.lHand.position.copy(c.rig.leftHandTarget);
-    c.rig.rHand.position.copy(c.rig.rightHandTarget);
-    c.rig.lShoe.position.copy(c.rig.leftFootTarget);
-    c.rig.rShoe.position.copy(c.rig.rightFootTarget);
-
-    // Explicit constant Orbital Normals eliminating IK pole-cross-product flipping!
-    // Arms ALWAYS rotate around the +Y Sagittal axis (bending Down/Back). 
-    // Legs ALWAYS rotate around the -Y Sagittal axis (bending Forward/Up).
-    const bendNormalArmL = new THREE.Vector3(0, 1, -0.5).normalize(); 
-    const bendNormalArmR = new THREE.Vector3(0, 1, 0.5).normalize();  
-    
-    const bendNormalLegL = new THREE.Vector3(0, -1, -0.2).normalize();
-    const bendNormalLegR = new THREE.Vector3(0, -1, 0.2).normalize(); 
-
-    // Mathematically resolve the 3D hinge coordinate for all four limbs
-    const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8, 8, bendNormalArmL);
-    const rightElbow = solve2BoneIK(c.rig.rightShoulderPos, c.rig.rightHandTarget, 8, 8, bendNormalArmR);
-    const leftKnee = solve2BoneIK(c.rig.leftHipPos, c.rig.leftFootTarget, 12, 12, bendNormalLegL);
-    const rightKnee = solve2BoneIK(c.rig.rightHipPos, c.rig.rightFootTarget, 12, 12, bendNormalLegR);
-
-    // Render the rigid geometry limbs tracing the computed bone segments flawlessly!
-    pointLimbSegment(c.rig.lUpperArm, c.rig.leftShoulderPos, leftElbow);
-    pointLimbSegment(c.rig.lLowerArm, leftElbow, c.rig.leftHandTarget);
-    
-    pointLimbSegment(c.rig.rUpperArm, c.rig.rightShoulderPos, rightElbow);
-    pointLimbSegment(c.rig.rLowerArm, rightElbow, c.rig.rightHandTarget);
-    
-    pointLimbSegment(c.rig.lUpperLeg, c.rig.leftHipPos, leftKnee);
-    pointLimbSegment(c.rig.lLowerLeg, leftKnee, c.rig.leftFootTarget);
-    
-    pointLimbSegment(c.rig.rUpperLeg, c.rig.rightHipPos, rightKnee);
-    pointLimbSegment(c.rig.rLowerLeg, rightKnee, c.rig.rightFootTarget);
+    this.applyEmoteOverrides(c, emoteDef, currentEmote);
+    this.resolveInverseKinematics(c);
   }
 
   drawCharacter(c, isNpc, layerType, scene, player, syncPlayerToJSON, cameraZoom, viewportWidth, viewportHeight, threeCamera) {
