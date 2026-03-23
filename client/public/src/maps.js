@@ -74,9 +74,9 @@ export class MapManager {
   drawLayer(layerIndex, scene, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight, springX = 0, springY = 0) {
     if (!this.layers || !this.layers[layerIndex]) return;
 
-    // Layer 0 is Ground (z=0). Characters natively sit at z=5.
-    // Ensure that overlay layers (1, 2, etc.) render physically IN FRONT of characters by pushing them up the Z-axis.
-    let baseZIndex = layerIndex * 10;
+    // Layer 0 is Ground (z=0). Characters natively sit at z=18 and their physical 3D geometries extend up to z=60.
+    // To ensure overlay map layers visually obscure the character natively via the engine Depth Buffer, they must explicitly clear Z=60!
+    let baseZIndex = layerIndex === 0 ? 0 : (layerIndex * 100);
     const halfMapW = this.mapW / 2;
     const halfMapH = this.mapH / 2;
 
