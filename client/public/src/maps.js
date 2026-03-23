@@ -58,11 +58,10 @@ export class MapManager {
               const geom = new THREE.PlaneGeometry(tex.image.width, tex.image.height);
               const mat = new THREE.MeshBasicMaterial({ 
                   map: tex, 
-                  transparent: true, 
+                  transparent: index > 0, // Layer 0 writes sequentially to the Opaque buffers
                   opacity: layerObj.alpha
               });
               layerObj.mesh = new THREE.Mesh(geom, mat);
-              layerObj.mesh.renderOrder = 0; // Legacy layers default to Z=0 baseline
               if (scene) {
                 scene.add(layerObj.mesh);
                 this.activeMeshes.push(layerObj.mesh);
@@ -129,10 +128,11 @@ export class MapManager {
               // Generate path for the chunk texture
               const src = layer.path_template.replace('{x}', x).replace('{y}', y);
 
+              const isOverlay = layerIndex > 0; // Distinguish flat ground geometries from floating overhead masking textures
               // We pad the geometry very slightly to prevent aliasing seams
               const paddedGeom = this.getGeometry(layer.chunk_size + 1);
               const mat = new THREE.MeshBasicMaterial({ 
-                  transparent: true, 
+                  transparent: isOverlay, 
                   opacity: layer.alpha
               });
               const mesh = new THREE.Mesh(paddedGeom, mat);
@@ -144,7 +144,6 @@ export class MapManager {
                 -(drawY + layer.chunk_size / 2),
                 layerZ
               );
-              mesh.renderOrder = layerZ; // Force explicit rendering order sequence bypassing frustum distance scaling!
 
               mesh.visible = false;
               scene.add(mesh);
