@@ -1772,8 +1772,8 @@ function run(dt) {
     ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
 
     // Draw the shoes anchored to the translation floor
-    characterManager.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
-    characterManager.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
+    characterManager.drawShoe2D(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
+    characterManager.drawShoe2D(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
 
     // Dynamic Physics Legs: Draw stretching joint connections perfectly linking the jumping Torso cleanly down to the Shoes!
     const torsoOffsetScreen = -torsoZ / (camera.zoom * COURT_SCALE);
@@ -1815,7 +1815,7 @@ function run(dt) {
       courtScale: COURT_SCALE
     };
     drawRacket(ctx, limbs, aimPitch, aimYaw, aimRoll, transform);
-    characterManager.drawHumanoidUpperBody(ctx, characterData, limbs);
+    characterManager.drawHumanoidUpperBody2D(ctx, characterData, limbs);
     ctx.restore();
   }
 

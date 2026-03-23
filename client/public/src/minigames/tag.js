@@ -497,7 +497,7 @@ function drawCharacter(ctx, p, isIt) {
     ctx.stroke();
 
     // Render native hyper-realistic shoe
-    characterManager.drawShoe(ctx, ex, ey, p.shoeColor || '#111111', isLeft);
+    characterManager.drawShoe2D(ctx, ex, ey, p.shoeColor || '#111111', isLeft);
   };
 
   drawStretchingLeg(limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY, true);
@@ -508,7 +508,7 @@ function drawCharacter(ctx, p, isIt) {
   ctx.translate(0, -15); // Torso altitude raise
   ctx.rotate(bodyRotRad);
 
-  characterManager.drawHumanoidUpperBody(ctx, p, limbs);
+  characterManager.drawHumanoidUpperBody2D(ctx, p, limbs);
 
   ctx.restore();
 }

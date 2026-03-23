@@ -114,14 +114,14 @@ export class CharacterManager {
     }
   }
 
-  drawLine(ctxObj, sx, sy, ex, ey) {
+  drawLine2D(ctxObj, sx, sy, ex, ey) {
     ctxObj.beginPath();
     ctxObj.moveTo(sx, sy);
     ctxObj.lineTo(ex, ey);
     ctxObj.stroke();
   }
 
-  drawShoe(ctxObj, x, y, color, isLeft) {
+  drawShoe2D(ctxObj, x, y, color, isLeft) {
     const dirY = isLeft ? -1 : 1;
 
     ctxObj.fillStyle = '#7f8c8d';
@@ -179,7 +179,7 @@ export class CharacterManager {
     ctxObj.stroke();
   }
 
-  drawHumanoid(ctx, c, limbs) {
+  drawHumanoid2D(ctx, c, limbs) {
     const angle = (c.rotation || 0) * DEG_TO_RAD;
     const cosA = Math.cos(angle);
     const sinA = Math.sin(angle);
@@ -220,25 +220,25 @@ export class CharacterManager {
       return { x: targetX, y: targetY, hit: !isVisible(targetX, targetY) };
     };
 
-    this.drawHumanoidLowerBody(ctx, c, limbs, isVisible);
-    this.drawHumanoidUpperBody(ctx, c, limbs, isVisible, getRaycastEnd);
+    this.drawHumanoidLowerBody2D(ctx, c, limbs, isVisible);
+    this.drawHumanoidUpperBody2D(ctx, c, limbs, isVisible, getRaycastEnd);
   }
 
-  drawHumanoidLowerBody(ctx, c, limbs, isVisible) {
+  drawHumanoidLowerBody2D(ctx, c, limbs, isVisible) {
     if (!isVisible) isVisible = () => true;
 
     if (!c.emote || (c.emote.name !== 'sit' && c.emote.name !== 'lunch' && c.emote.name !== 'write')) {
       const shoeColor = c.shoeColor || '#1a252f';
       if (isVisible(limbs.leftLegEndX, limbs.leftLegEndY)) {
-        this.drawShoe(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
+        this.drawShoe2D(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
       }
       if (isVisible(limbs.rightLegEndX, limbs.rightLegEndY)) {
-        this.drawShoe(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
+        this.drawShoe2D(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
       }
     }
   }
 
-  drawHumanoidUpperBody(ctx, c, limbs, isVisible, getRaycastEnd) {
+  drawHumanoidUpperBody2D(ctx, c, limbs, isVisible, getRaycastEnd) {
     if (!isVisible) isVisible = () => true;
     if (!getRaycastEnd) getRaycastEnd = (sx, sy, tx, ty) => ({ x: tx, y: ty, hit: false });
 
@@ -254,13 +254,13 @@ export class CharacterManager {
     ctx.lineWidth = 5;
     ctx.strokeStyle = armGradient;
 
-    this.drawLine(ctx, 0, -armOffset, leftArmEnd.x, leftArmEnd.y);
+    this.drawLine2D(ctx, 0, -armOffset, leftArmEnd.x, leftArmEnd.y);
 
     const rightArmGradient = ctx.createLinearGradient(0, armOffset, 0, limbs.rightArmY);
     rightArmGradient.addColorStop(0, c.armColor || '#3498db');
     rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
     ctx.strokeStyle = rightArmGradient;
-    this.drawLine(ctx, 0, armOffset, rightArmEnd.x, rightArmEnd.y);
+    this.drawLine2D(ctx, 0, armOffset, rightArmEnd.x, rightArmEnd.y);
 
     const leftHandGrad = ctx.createRadialGradient(limbs.leftArmX, limbs.leftArmY - 1, 0.5, limbs.leftArmX, limbs.leftArmY, 3);
     leftHandGrad.addColorStop(0, '#f5d39e');
