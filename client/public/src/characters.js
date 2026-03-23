@@ -699,31 +699,23 @@ export class CharacterManager {
     c.rig.leftFootTarget.copy(baseLFoot);
     c.rig.rightFootTarget.copy(baseRFoot);
 
-    // 2. Add procedural organic swaying (applies continuously during walk or idle)
-    // Avoid swaying explicitly while tied up in an emote evaluation sequence
-    const isEmoting = c.emote && ((window.emotes ? window.emotes[c.emote.type] : null) || c.emoji);
-    const idOffset = (Number(c.id) || 0) * 0.5;
-    const idleTime = (Date.now() / 1000) * 1.5 + idOffset; 
-    
-    // Smooth, un-synchronized breathing on the torso
-    const breathOffset = isEmoting ? 0 : Math.sin(idleTime * 2) * 0.02;
+    // 2. Add procedural Idle Breathing (subtle scaling of Torso)
+    const timeNow = Date.now() / 1000;
+    const breathOffset = Math.sin(timeNow * 2) * 0.02;
     c.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 1);
-    
-    // Gentle spine twisting and leaning overrides
-    if (!isEmoting) {
-        c.rig.bodyPivot.rotation.set(
-            Math.sin(idleTime * 0.7) * 0.03, // Slight forward/back leaning pitch
-            0, 
-            Math.sin(idleTime * 0.5) * 0.04  // Slight left/right spinal twisting yaw
-        );
-    } else {
-        c.rig.bodyPivot.rotation.set(0, 0, 0); // Flush rigid if dancing or cheering
-    }
 
     // 3. Coordinate-Based Locomotion (Walk Cycle)
+    const isWalking = (c.legAnimationTime || 0) > 0;
     const legSwing = Math.sin(c.legAnimationTime || 0);
     
-    if ((c.legAnimationTime || 0) > 0) {
+    // Constant global visual tracking parameters to breathe life into the avatar shapes
+    const randOffset = (c.id && c.id.length > 1) ? (c.id.charCodeAt(0) + c.id.charCodeAt(1)) : 0; 
+    const idleTime = timeNow + randOffset;
+    
+    // Smooth natural leaning of the torso framework across all statuses
+    c.rig.bodyPivot.rotation.y = Math.sin(idleTime * 1.5) * 0.05;
+
+    if (isWalking) {
         // Dynamic Locomotion Targets
         const armSwingX = 12; // Punch arms farther forward/backward
         const armLiftZ = 12;  // Aggressive vertical pump causing the IK solver to forcefully hinge the elbows up and down!
@@ -743,21 +735,26 @@ export class CharacterManager {
         
         c.rig.rightFootTarget.x += -legSwing * legStrideX;
         c.rig.rightFootTarget.z += Math.abs(legSwing) * stepLiftZ;
-    } else {
-        // Procedural Idle Animation (Subtle arm drifting while standing entirely still)
-        c.rig.leftHandTarget.z += Math.sin(idleTime) * 1.5; 
-        c.rig.leftHandTarget.y += Math.cos(idleTime * 0.8) * 1.0;
+    } else if (!emoteDef || !emoteDef.updateLimbs3D) {
+        // Subdued Idle Animation explicitly firing when stationary
+        const armSwayZ = Math.sin(idleTime * 2.0) * 0.6; // Hands gently drift vertically
+        const armSwayX = Math.cos(idleTime * 1.5) * 0.4; // Hands gracefully squeeze in and out
         
-        c.rig.rightHandTarget.z += Math.cos(idleTime + 1.5) * 1.5;
-        c.rig.rightHandTarget.y += Math.sin(idleTime * 0.8 + 1.0) * 1.0;
+        c.rig.leftHandTarget.z += armSwayZ;
+        c.rig.leftHandTarget.x += armSwayX;
+        
+        c.rig.rightHandTarget.z += armSwayZ;
+        c.rig.rightHandTarget.x -= armSwayX; // Mirrors Left Arm horizontally
     }
 
     // 4. Emote Overrides (Coordinate based)
     if (emoteDef && emoteDef.updateLimbs3D) {
        // Allow emotes to explicitly mutate the Target vectors natively!
+       c.rig.bodyPivot.rotation.y = 0; // Lock structural core rigid for predictable emote geometry mappings
        emoteDef.updateLimbs3D(c.rig, currentEmote);
     } else if (c.emoji) {
        // Fallback Cheer: Throw Hands upwards in the air (+Z) and slightly outwards (+Y/-Y)
+       c.rig.bodyPivot.rotation.y = 0; 
        c.rig.leftHandTarget.set(5, -20, 35);
        c.rig.rightHandTarget.set(5, 20, 35);
     }
@@ -814,7 +811,7 @@ export class CharacterManager {
         }
       }
 
-      const isRedrawForced = isEmoteAnimating || hasMovement || c._lastRenderedEmote !== JSON.stringify(c.emote) || c._lastRenderedRot !== c.rotation || !c._hasInitialRender;
+      const isRedrawForced = true; // Completely rip out the animation cull boundary allowing infinite evaluation mapping Native idle breathing.
       
       if (isRedrawForced) {
          this.updateCharacter3D(c, isNpc, player, syncPlayerToJSON);
