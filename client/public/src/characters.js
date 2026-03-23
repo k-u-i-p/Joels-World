@@ -522,7 +522,8 @@ export class CharacterManager {
     if (!c) return;
     const vis = getCharacterProxy(c.id);
 
-    const torsoGeo = new THREE.CapsuleGeometry(12, 2, 10, 16);
+    // Maintain total torso height of 26 natively (length 8 + radius 9*2)
+    const torsoGeo = new THREE.CapsuleGeometry(9, 8, 10, 16);
     torsoGeo.scale(0.65, 1, 1);
 
     vis.rig = {
