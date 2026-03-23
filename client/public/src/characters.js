@@ -521,11 +521,15 @@ export class CharacterManager {
   buildSkeletonRig(c, mats) {
     if (!c) return;
     const vis = getCharacterProxy(c.id);
+
+    const torsoGeo = new THREE.CapsuleGeometry(12, 2, 10, 16);
+    torsoGeo.scale(0.65, 1, 1);
+
     vis.rig = {
       bodyPivot: new THREE.Group(),
       emotePropsDirectional: new THREE.Group(),
       head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), mats.skin),
-      torso: new THREE.Mesh(new THREE.CapsuleGeometry(12, 2, 10, 16).scale(0.65, 1, 1), mats.shirt),
+      torso: new THREE.Mesh(torsoGeo, mats.shirt),
       leftArm: new THREE.Group(), rightArm: new THREE.Group(),
       leftLeg: new THREE.Group(), rightLeg: new THREE.Group()
     };
@@ -538,6 +542,7 @@ export class CharacterManager {
     vis.rig.torso.position.set(0, 0, 20);
 
     vis.rig.head.position.set(2, 0, 36);
+    vis.rig.head.scale.set(0.8, 0.8, 0.8);
     vis.rig.bodyPivot.add(vis.rig.head);
 
     const eyeGeo = new THREE.SphereGeometry(1.5, 8, 8);
