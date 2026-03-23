@@ -522,9 +522,9 @@ export class CharacterManager {
     if (!c) return;
     const vis = getCharacterProxy(c.id);
 
-    // Maintain total torso height of 26 natively (length 8 + radius 9*2)
+    // Maintain total torso height of 26 natively (length 8 + radius 9*2). Widen Z by 25% natively matching the +/-11 arm anchor offsets!
     const torsoGeo = new THREE.CapsuleGeometry(9, 8, 10, 16);
-    torsoGeo.scale(0.65, 1, 1);
+    torsoGeo.scale(0.65, 1, 1.25);
 
     vis.rig = {
       bodyPivot: new THREE.Group(),
