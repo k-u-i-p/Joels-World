@@ -4,34 +4,33 @@ import * as THREE from 'three';
 import { uiManager } from './ui.js';
 
 // --- 2-BONE INVERSE KINEMATICS (IK) SOLVER ---
-// Trigonometrically calculates the hinge joint (elbow/knee) between a start and end coordinate.
-function solve2BoneIK(startPos, endPos, L1, L2, poleVector) {
+/*
+ * Fast 2-Bone Inverse Kinematics utilizing Trigonometry (Law of Cosines)
+ * Extracts the exact interior angles necessary for a limb to physically reach a target coordinate,
+ * explicitly locking the articulation plane using a constant `bendingNormal` to prevent horizon-flip breaking.
+ */
+function solve2BoneIK(startPos, endPos, L1, L2, bendingNormal) {
     const dVector = new THREE.Vector3().subVectors(endPos, startPos);
-    let d = dVector.length();
+    const d = dVector.length();
     
-    // Stretch limiter (if target is physically out of reach, form a straight line)
+    // Check if unreachable (stretch to max distance)
     if (d >= L1 + L2) {
         return new THREE.Vector3().copy(startPos).add(dVector.normalize().multiplyScalar(L1));
     }
-    if (d < 0.01) d = 0.01;
+    
+    // Check if target is perfectly touching the socket (fold identically in half)
+    if (d <= Math.abs(L1 - L2)) {
+        return new THREE.Vector3().copy(startPos).add(bendingNormal.clone().multiplyScalar(L1));
+    }
     
     // Law of Cosines to find inner angle
     let cosTheta = (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d);
     cosTheta = Math.max(-1, Math.min(1, cosTheta));
     const theta = Math.acos(cosTheta);
     
-    // Calculate the bending plane normal constraint locking the hinge
+    // Constant bending plane constraint explicitly guarantees no inverted chicken-wing elbows!
     const dir = dVector.clone().normalize();
-    // Use `dir x pole` so the joint displaces exactly TOWARDS the poleVector!
-    let N = new THREE.Vector3().crossVectors(dir, poleVector);
-    if (N.lengthSq() < 0.001) {
-        N = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0));
-    }
-    N.normalize();
-    
-    // Rotate baseline direction around the normal to project the joint outward
-    dir.applyAxisAngle(N, theta);
-    return new THREE.Vector3().copy(startPos).add(dir.multiplyScalar(L1));
+    return new THREE.Vector3().copy(startPos).add(dir.applyAxisAngle(bendingNormal, theta).multiplyScalar(L1));
 }
 
 // Aligns a limb segment linearly between two localized coordinates without distortion
@@ -746,18 +745,20 @@ export class CharacterManager {
     c.rig.lShoe.position.copy(c.rig.leftFootTarget);
     c.rig.rShoe.position.copy(c.rig.rightFootTarget);
 
-    // Compute Hinge Target Pole Vectors
-    // The explicit direction the hinge should point towards natively!
-    // Gravity points DOWN (-Z), heavily anchoring the elbow drop, while splaying slightly OUTWARDS (+/- Y) to clear the chest. 
-    const elbowPoleL = new THREE.Vector3(0, -0.5, -1);
-    const elbowPoleR = new THREE.Vector3(0, 0.5, -1);
-    const kneePole = new THREE.Vector3(1, 0, 0); // Knees forcefully project forward (+X)
+    // Explicit constant Orbital Normals eliminating IK pole-cross-product flipping!
+    // Arms ALWAYS rotate around the +Y Sagittal axis (bending Down/Back). 
+    // Legs ALWAYS rotate around the -Y Sagittal axis (bending Forward/Up).
+    const bendNormalArmL = new THREE.Vector3(0, 1, -0.5).normalize(); 
+    const bendNormalArmR = new THREE.Vector3(0, 1, 0.5).normalize();  
+    
+    const bendNormalLegL = new THREE.Vector3(0, -1, -0.2).normalize();
+    const bendNormalLegR = new THREE.Vector3(0, -1, 0.2).normalize(); 
 
     // Mathematically resolve the 3D hinge coordinate for all four limbs
-    const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8, 8, elbowPoleL);
-    const rightElbow = solve2BoneIK(c.rig.rightShoulderPos, c.rig.rightHandTarget, 8, 8, elbowPoleR);
-    const leftKnee = solve2BoneIK(c.rig.leftHipPos, c.rig.leftFootTarget, 12, 12, kneePole);
-    const rightKnee = solve2BoneIK(c.rig.rightHipPos, c.rig.rightFootTarget, 12, 12, kneePole);
+    const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8, 8, bendNormalArmL);
+    const rightElbow = solve2BoneIK(c.rig.rightShoulderPos, c.rig.rightHandTarget, 8, 8, bendNormalArmR);
+    const leftKnee = solve2BoneIK(c.rig.leftHipPos, c.rig.leftFootTarget, 12, 12, bendNormalLegL);
+    const rightKnee = solve2BoneIK(c.rig.rightHipPos, c.rig.rightFootTarget, 12, 12, bendNormalLegR);
 
     // Render the rigid geometry limbs tracing the computed bone segments flawlessly!
     pointLimbSegment(c.rig.lUpperArm, c.rig.leftShoulderPos, leftElbow);
