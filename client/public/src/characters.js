@@ -20,9 +20,7 @@ export function loadSharedModels() {
       shoe.removeFromParent();
 
       const box = new THREE.Box3().setFromObject(shoe);
-      const size = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const scale = 20.0 / maxDim;
+      const scale = 60;
       shoe.scale.set(scale, scale, scale * 0.75); // 25% shorter natively retaining full 100% width/height ratios!
       shoe.updateMatrixWorld(true);
 
@@ -67,8 +65,8 @@ export function loadSharedModels() {
 }
 
 function applyShoeModel(rig, mats, c) {
-    if (!c) return;
-    const vis = getCharacterProxy(c.id);
+  if (!c) return;
+  const vis = getCharacterProxy(c.id);
   if (!sharedShoeMeshL || !sharedShoeMeshR) return;
 
   for (let i = rig.lShoe.children.length - 1; i >= 0; i--) {
