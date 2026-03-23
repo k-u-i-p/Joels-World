@@ -701,7 +701,7 @@ export class CharacterManager {
 
     // 2. Add procedural organic swaying (applies continuously during walk or idle)
     // Avoid swaying explicitly while tied up in an emote evaluation sequence
-    const isEmoting = c.emote && (emoteCache[c.emote.type] || c.emoji);
+    const isEmoting = c.emote && ((window.emotes ? window.emotes[c.emote.type] : null) || c.emoji);
     const idOffset = (Number(c.id) || 0) * 0.5;
     const idleTime = (Date.now() / 1000) * 1.5 + idOffset; 
     
