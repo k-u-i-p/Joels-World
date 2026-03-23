@@ -487,7 +487,7 @@ function draw() {
   }
 
   // Determine dynamic spherical camera positioning using Pitch and Yaw
-  const pitch = camera.pitch || 0; // 0 = Top down, PI/2 = Ground Level
+  const pitch = Math.max(0.001, camera.pitch || 0.001); // Prevent top-down Gimbal Lock collision
   const yaw = camera.yaw || 0;     // Rotation around Z axis
   const orbDistance = 500;
 
@@ -500,8 +500,8 @@ function draw() {
   threeCamera.position.y = targetY - Math.cos(yaw) * Math.sin(pitch) * orbDistance;
   threeCamera.position.z = Math.cos(pitch) * orbDistance;
 
-  // Maintain rigid orientation upwards relative to the 2D plane so we don't spin uncontrollably when looking straight down
-  threeCamera.up.set(Math.sin(yaw), Math.cos(yaw), 0);
+  // Maintain rigid orientation upwards relative to the celestial Z-axis to physically lock the horizontal viewing compass
+  threeCamera.up.set(0, 0, 1);
   threeCamera.lookAt(targetX, targetY, 0);
 
   threeCamera.zoom = camera.zoom;

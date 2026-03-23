@@ -746,8 +746,8 @@ export class CharacterManager {
 
     // Compute Hinge Target Pole Vectors
     // The explicit direction the hinge should point towards natively!
-    const elbowPoleL = new THREE.Vector3(0, -1, 0); // Displaces exactly Left/Outward
-    const elbowPoleR = new THREE.Vector3(0, 1, 0);  // Displaces exactly Right/Outward
+    const elbowPoleL = new THREE.Vector3(-1, -1, 0); // Displaces Backward and Left/Outward
+    const elbowPoleR = new THREE.Vector3(-1, 1, 0);  // Displaces Backward and Right/Outward
     const kneePole = new THREE.Vector3(1, 0, 0); // Displaces exactly Forward (+X)
 
     // Mathematically resolve the 3D hinge coordinate for all four limbs
