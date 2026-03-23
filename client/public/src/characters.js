@@ -377,8 +377,12 @@ export class CharacterManager {
          rightLeg: new THREE.Group()
       };
 
+      c.rig.meshGroup = c.meshGroup;
       c.meshGroup.add(c.rig.bodyPivot);
       c.rig.bodyPivot.add(c.rig.torso);
+      
+      // Elevate the entire root pivot to accommodate uniquely elongated legs natively!
+      c.rig.bodyPivot.position.set(0, 0, 8);
 
       // Torso stands UP along the Z axis
       c.rig.torso.rotation.x = Math.PI / 2;
@@ -503,33 +507,35 @@ export class CharacterManager {
       c.rig.bodyPivot.add(c.rig.rightArm);
 
       // Build Legs
-      const legGeo = new THREE.CylinderGeometry(6, 5, 16, 10);
+      const legGeo = new THREE.CylinderGeometry(5.5, 4.5, 24, 10);
       const lLegMesh = new THREE.Mesh(legGeo, pantsMat);
       lLegMesh.rotation.x = Math.PI / 2;
-      lLegMesh.position.set(0, 0, -8);
+      lLegMesh.position.set(0, 0, -12); // Pushed down to map center of 24
       
-      const shoeGeo = new THREE.BoxGeometry(10, 6, 8);
+      const shoeGeo = new THREE.BoxGeometry(11, 8, 5); // Wider (Y=8) than taller (Z=5) 
       const lShoe = new THREE.Mesh(shoeGeo, shoeMat);
-      lShoe.position.set(3, 0, -16); // Toes point forward (+X)
+      lShoe.position.set(3, 0, -25); // Pulled slightly forward (+X) for toes
+      
       c.rig.leftLeg.add(lLegMesh);
       c.rig.leftLeg.add(lShoe);
-      c.rig.leftLeg.position.set(0, -7, 16); // Hips
+      c.rig.leftLeg.position.set(0, -6, 10);
       c.rig.bodyPivot.add(c.rig.leftLeg);
 
       const rLegMesh = new THREE.Mesh(legGeo, pantsMat);
       rLegMesh.rotation.x = Math.PI / 2;
-      rLegMesh.position.set(0, 0, -8);
+      rLegMesh.position.set(0, 0, -12);
       
       const rShoe = new THREE.Mesh(shoeGeo, shoeMat);
-      rShoe.position.set(3, 0, -16);
+      rShoe.position.set(3, 0, -25);
+      
       c.rig.rightLeg.add(rLegMesh);
       c.rig.rightLeg.add(rShoe);
-      c.rig.rightLeg.position.set(0, 7, 16);
+      c.rig.rightLeg.position.set(0, 6, 10);
       c.rig.bodyPivot.add(c.rig.rightLeg);
       
       // Apply Master Scale and Base Elevation
       c.meshGroup.scale.set(maxScale, maxScale, maxScale);
-      c.rig.bodyPivot.position.set(0, 0, 5); // Lift entire rig off the ground map
+      c.rig.bodyPivot.position.set(0, 0, 10); // Lift entire rig off the ground map
 
       // Shadow Mesh
       const shadowSize = 28; // Scale is handled by meshGroup now
