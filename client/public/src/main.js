@@ -43,11 +43,12 @@ scene.add(dirLight.target); // Expose the light target to the engine scene graph
 
 // Invisible Plane to catch the geometric shadows
 const shadowPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(10000, 10000),
-    new THREE.ShadowMaterial({ opacity: 0.3 })
+    new THREE.PlaneGeometry(20000, 20000),
+    new THREE.ShadowMaterial({ opacity: 0.4 })
 );
-shadowPlane.position.z = 0.5;
+shadowPlane.position.z = 0.5; // Slightly above ground
 shadowPlane.receiveShadow = true;
+shadowPlane.renderOrder = 50; // Explicitly queue after RenderOrder 0 (Ground chunks)
 scene.add(shadowPlane);
 export const threeCamera = new THREE.OrthographicCamera(-1, 1, -1, 1, -1000, 1000);
 

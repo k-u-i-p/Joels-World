@@ -58,9 +58,8 @@ export class MapManager {
               const geom = new THREE.PlaneGeometry(tex.image.width, tex.image.height);
               const mat = new THREE.MeshBasicMaterial({ 
                   map: tex, 
-                  transparent: layerObj.alpha < 1, 
-                  opacity: layerObj.alpha, 
-                  alphaTest: 0.1 
+                  transparent: true, 
+                  opacity: layerObj.alpha
               });
               layerObj.mesh = new THREE.Mesh(geom, mat);
               layerObj.mesh.renderOrder = 0; // Legacy layers default to Z=0 baseline
@@ -133,9 +132,8 @@ export class MapManager {
               // We pad the geometry very slightly to prevent aliasing seams
               const paddedGeom = this.getGeometry(layer.chunk_size + 1);
               const mat = new THREE.MeshBasicMaterial({ 
-                  transparent: layer.alpha < 1, 
-                  opacity: layer.alpha, 
-                  alphaTest: 0.1 
+                  transparent: true, 
+                  opacity: layer.alpha
               });
               const mesh = new THREE.Mesh(paddedGeom, mat);
 

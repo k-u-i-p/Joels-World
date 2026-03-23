@@ -591,8 +591,9 @@ export class CharacterManager {
       sctx.fill();
       const shadowTex = new THREE.CanvasTexture(shadowCanvas);
       const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
-      c.shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
-      c.shadowMesh.position.set(0, 0, 1); // Ground flush
+      c.shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(shadowSize, shadowSize), shadowMat);
+      c.shadowMesh.position.set(0, 0, 0.5); // Slightly above ground
+      c.shadowMesh.renderOrder = 55; // Evaluate blob shadows after Ground maps (0) and PCF light maps (50)
       c.meshGroup.add(c.shadowMesh);
       
       // Enable native geometric shadows across the entire hierarchical grouping
