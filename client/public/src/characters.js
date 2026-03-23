@@ -389,7 +389,7 @@ export class CharacterManager {
       c.rig = {
          bodyPivot: new THREE.Group(),
          head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), skinMat),
-         torso: new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 22, 16), shirtMat),
+         torso: new THREE.Mesh(new THREE.CapsuleGeometry(12, 2, 10, 16), shirtMat),
          leftArm: new THREE.Group(),
          rightArm: new THREE.Group(),
          leftLeg: new THREE.Group(),
