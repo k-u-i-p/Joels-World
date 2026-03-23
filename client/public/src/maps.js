@@ -59,8 +59,8 @@ export class MapManager {
               const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: layerObj.alpha });
               layerObj.mesh = new THREE.Mesh(geom, mat);
               if (scene) {
-                  scene.add(layerObj.mesh);
-                  this.activeMeshes.push(layerObj.mesh);
+                scene.add(layerObj.mesh);
+                this.activeMeshes.push(layerObj.mesh);
               }
             });
             layersList.push(layerObj);
@@ -74,9 +74,9 @@ export class MapManager {
   drawLayer(layerIndex, scene, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight, springX = 0, springY = 0) {
     if (!this.layers || !this.layers[layerIndex]) return;
 
-    // Layer 0 is Ground (z=0). Characters natively sit at z=18 and their physical 3D geometries extend up to z=60.
-    // To ensure overlay map layers visually obscure the character natively via the engine Depth Buffer, they must explicitly clear Z=60!
-    let baseZIndex = layerIndex === 0 ? 0 : (layerIndex * 100);
+    // Layer 0 is Ground (z=0). Characters natively sit at z=5.
+    // Ensure that overlay layers (1, 2, etc.) render physically IN FRONT of characters by pushing them up the Z-axis.
+    let baseZIndex = layerIndex * 10;
     const halfMapW = this.mapW / 2;
     const halfMapH = this.mapH / 2;
 
@@ -104,7 +104,7 @@ export class MapManager {
     const mapEndY = maxYMap + halfMapH;
 
     this.layers[layerIndex].forEach((layer, idxLayerWithinGrid) => {
-      const layerZ = baseZIndex + idxLayerWithinGrid; 
+      const layerZ = baseZIndex + idxLayerWithinGrid;
 
       if (layer.chunked) {
         const startCol = Math.max(0, (mapStartX / layer.chunk_size) | 0);
@@ -123,7 +123,7 @@ export class MapManager {
             if (!layer.chunks[chunkIndex]) {
               // Generate path for the chunk texture
               const src = layer.path_template.replace('{x}', x).replace('{y}', y);
-              
+
               // We pad the geometry very slightly to prevent aliasing seams
               const paddedGeom = this.getGeometry(layer.chunk_size + 1);
               const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: layer.alpha });
@@ -132,11 +132,11 @@ export class MapManager {
               // Position the mesh tile
               const drawX = baseX + (x * layer.chunk_size);
               mesh.position.set(
-                  drawX + layer.chunk_size/2, 
-                  -(drawY + layer.chunk_size/2), 
-                  layerZ
+                drawX + layer.chunk_size / 2,
+                -(drawY + layer.chunk_size / 2),
+                layerZ
               );
-              
+
               mesh.visible = false;
               scene.add(mesh);
               this.activeMeshes.push(mesh);
@@ -144,29 +144,29 @@ export class MapManager {
               layer.chunks[chunkIndex] = { mesh, cx: x, cy: y };
 
               this.textureLoader.load(src, (tex) => {
-                  tex.minFilter = THREE.NearestFilter;
-                  tex.magFilter = THREE.NearestFilter;
-                  tex.wrapS = THREE.ClampToEdgeWrapping;
-                  tex.wrapT = THREE.ClampToEdgeWrapping;
-                  tex.colorSpace = THREE.SRGBColorSpace; // Prevent washed out colors
-                  
-                  mat.map = tex;
-                  mat.needsUpdate = true;
-                  mesh.visible = true;
+                tex.minFilter = THREE.NearestFilter;
+                tex.magFilter = THREE.NearestFilter;
+                tex.wrapS = THREE.ClampToEdgeWrapping;
+                tex.wrapT = THREE.ClampToEdgeWrapping;
+                tex.colorSpace = THREE.SRGBColorSpace; // Prevent washed out colors
+
+                mat.map = tex;
+                mat.needsUpdate = true;
+                mesh.visible = true;
               }, undefined, () => {
-                  console.warn(`[Chunk Loader] Failed to load WebGL texture at ${x},${y}`);
+                console.warn(`[Chunk Loader] Failed to load WebGL texture at ${x},${y}`);
               });
             } else {
-               layer.chunks[chunkIndex].mesh.visible = true;
-               
-               // Layer 2 gets a Parallax spring offset
-               const origDrawX = baseX + x * layer.chunk_size;
-               const origDrawY = baseY + y * layer.chunk_size;
-               layer.chunks[chunkIndex].mesh.position.set(
-                   origDrawX + layer.chunk_size/2 - springX, 
-                   -(origDrawY + layer.chunk_size/2 - springY), 
-                   layerZ
-               );
+              layer.chunks[chunkIndex].mesh.visible = true;
+
+              // Layer 2 gets a Parallax spring offset
+              const origDrawX = baseX + x * layer.chunk_size;
+              const origDrawY = baseY + y * layer.chunk_size;
+              layer.chunks[chunkIndex].mesh.position.set(
+                origDrawX + layer.chunk_size / 2 - springX,
+                -(origDrawY + layer.chunk_size / 2 - springY),
+                layerZ
+              );
             }
           }
         }
@@ -181,14 +181,14 @@ export class MapManager {
             const chunkData = layer.chunks[i];
             if (!chunkData) continue;
             if (chunkData.cx < startCol - gcBuffer || chunkData.cx > endCol + gcBuffer ||
-                chunkData.cy < startRow - gcBuffer || chunkData.cy > endRow + gcBuffer) {
-                chunkData.mesh.visible = false;
+              chunkData.cy < startRow - gcBuffer || chunkData.cy > endRow + gcBuffer) {
+              chunkData.mesh.visible = false;
             }
           }
         }
       } else {
         if (layer.mesh) {
-            layer.mesh.position.set(-springX, springY, layerZ);
+          layer.mesh.position.set(-springX, springY, layerZ);
         }
       }
     });

@@ -746,9 +746,10 @@ export class CharacterManager {
 
     // Compute Hinge Target Pole Vectors
     // The explicit direction the hinge should point towards natively!
-    const elbowPoleL = new THREE.Vector3(-1, -1, 0); // Displaces Backward and Left/Outward
-    const elbowPoleR = new THREE.Vector3(-1, 1, 0);  // Displaces Backward and Right/Outward
-    const kneePole = new THREE.Vector3(1, 0, 0); // Displaces exactly Forward (+X)
+    // Gravity points DOWN (-Z), heavily anchoring the elbow drop, while splaying slightly OUTWARDS (+/- Y) to clear the chest. 
+    const elbowPoleL = new THREE.Vector3(0, -0.5, -1);
+    const elbowPoleR = new THREE.Vector3(0, 0.5, -1);
+    const kneePole = new THREE.Vector3(1, 0, 0); // Knees forcefully project forward (+X)
 
     // Mathematically resolve the 3D hinge coordinate for all four limbs
     const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8, 8, elbowPoleL);
