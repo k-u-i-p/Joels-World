@@ -22,9 +22,10 @@ function solve2BoneIK(startPos, endPos, L1, L2, poleVector) {
     
     // Calculate the bending plane normal constraint locking the hinge
     const dir = dVector.clone().normalize();
-    let N = new THREE.Vector3().crossVectors(poleVector, dir);
+    // Use `dir x pole` so the joint displaces exactly TOWARDS the poleVector!
+    let N = new THREE.Vector3().crossVectors(dir, poleVector);
     if (N.lengthSq() < 0.001) {
-        N = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), dir);
+        N = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0));
     }
     N.normalize();
     
@@ -747,10 +748,10 @@ export class CharacterManager {
     c.rig.rShoe.position.copy(c.rig.rightFootTarget);
 
     // Compute Hinge Target Pole Vectors
-    // Ensures elbows jut dynamically OUTWARD orthogonally from the torso!
-    const elbowPoleL = new THREE.Vector3(0, -1, 0); // -Y (Left/Outward) flips Left normal backward/outward
-    const elbowPoleR = new THREE.Vector3(0, 1, 0);  // +Y (Right/Outward) flips Right normal backward/outward
-    const kneePole = new THREE.Vector3(-1, 0, 0); // -X (backward) flips leg normal forwards
+    // The explicit direction the hinge should point towards natively!
+    const elbowPoleL = new THREE.Vector3(0, -1, 0); // Displaces exactly Left/Outward
+    const elbowPoleR = new THREE.Vector3(0, 1, 0);  // Displaces exactly Right/Outward
+    const kneePole = new THREE.Vector3(1, 0, 0); // Displaces exactly Forward (+X)
 
     // Mathematically resolve the 3D hinge coordinate for all four limbs
     const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8, 8, elbowPoleL);
