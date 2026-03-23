@@ -244,7 +244,7 @@ if (btnCreate3d) {
     networkClient.send({ 
        type: 'create_object', 
        shape: '3d_model', 
-       model: 'models/chair/chair.glb', 
+       model: 'models/chair.glb', 
        scale: 1.0, 
        x: Math.round(player.x), 
        y: Math.round(player.y), 

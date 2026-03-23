@@ -2,7 +2,7 @@
   {
     "id": 5,
     "shape": "3d_model",
-    "model": "models/chair/chair.glb",
+    "model": "models/chair.glb",
     "scale": 1.9,
     "x": 204,
     "y": -204,
@@ -105,7 +105,7 @@
     "shape": "3d_model",
     "x": -187,
     "y": -200,
-    "model": "models/chair/chair.glb",
+    "model": "models/chair.glb",
     "scale": 1.9,
     "z": 2,
     "width": 196,
@@ -123,7 +123,7 @@
     "width": 190,
     "length": 132,
     "scale": 1.9,
-    "model": "models/desk/desk.glb",
+    "model": "models/desk.glb",
     "rotation": 13
   },
   {
@@ -136,7 +136,7 @@
     "width": 201,
     "length": 153,
     "scale": 1.9,
-    "model": "models/desk/desk.glb",
+    "model": "models/desk.glb",
     "rotation": -2
   },
   {
@@ -149,14 +149,14 @@
     "width": 190,
     "length": 130,
     "scale": 1.9,
-    "model": "models/desk/desk.glb"
+    "model": "models/desk.glb"
   },
   {
     "id": 34,
     "shape": "3d_model",
     "x": -576,
     "y": -202,
-    "model": "models/chair/chair.glb",
+    "model": "models/chair.glb",
     "scale": 1.9,
     "z": 2,
     "width": 196,
@@ -169,7 +169,7 @@
     "shape": "3d_model",
     "x": 204,
     "y": 144,
-    "model": "models/chair/chair.glb",
+    "model": "models/chair.glb",
     "scale": 1.9,
     "z": 2,
     "width": 196,
@@ -187,7 +187,7 @@
     "width": 189,
     "length": 132,
     "scale": 1.9,
-    "model": "models/desk/desk.glb",
+    "model": "models/desk.glb",
     "rotation": 2
   },
   {
@@ -200,7 +200,7 @@
     "width": 201,
     "length": 153,
     "scale": 1.9,
-    "model": "models/desk/desk.glb",
+    "model": "models/desk.glb",
     "rotation": -4
   },
   {
@@ -208,7 +208,7 @@
     "shape": "3d_model",
     "x": -246,
     "y": 536,
-    "model": "models/chair/chair.glb",
+    "model": "models/chair.glb",
     "scale": 1.9,
     "z": 2,
     "width": 196,
@@ -221,7 +221,7 @@
     "shape": "3d_model",
     "x": -658,
     "y": 685,
-    "model": "models/chair/chair.glb",
+    "model": "models/chair.glb",
     "scale": 1.9,
     "z": 2,
     "width": 196,
@@ -234,7 +234,7 @@
     "shape": "3d_model",
     "x": -668,
     "y": 370,
-    "model": "models/chair/chair.glb",
+    "model": "models/chair.glb",
     "scale": 1.9,
     "z": 2,
     "width": 196,
@@ -247,7 +247,7 @@
     "shape": "3d_model",
     "x": -578,
     "y": 98,
-    "model": "models/chair/chair.glb",
+    "model": "models/chair.glb",
     "scale": 1.9,
     "z": 2,
     "width": 196,
@@ -260,7 +260,7 @@
     "shape": "3d_model",
     "x": -152,
     "y": 112,
-    "model": "models/chair/chair.glb",
+    "model": "models/chair.glb",
     "scale": 1.9,
     "z": 2,
     "width": 196,
@@ -278,7 +278,7 @@
     "width": 189,
     "length": 132,
     "scale": 1.9,
-    "model": "models/desk/desk.glb",
+    "model": "models/desk.glb",
     "rotation": 5
   },
   {
@@ -291,7 +291,7 @@
     "width": 189,
     "length": 132,
     "scale": 1.9,
-    "model": "models/desk/desk.glb",
+    "model": "models/desk.glb",
     "rotation": 1
   },
   {
@@ -304,7 +304,7 @@
     "width": 189,
     "length": 132,
     "scale": 1.9,
-    "model": "models/desk/desk.glb",
+    "model": "models/desk.glb",
     "rotation": 0
   },
   {
@@ -317,7 +317,7 @@
     "width": 189,
     "length": 132,
     "scale": 1.9,
-    "model": "models/desk/desk.glb",
+    "model": "models/desk.glb",
     "rotation": 4
   },
   {
@@ -325,7 +325,7 @@
     "shape": "3d_model",
     "x": 724,
     "y": -9,
-    "model": "models/chair/chair.glb",
+    "model": "models/chair.glb",
     "scale": 1.9,
     "z": 2,
     "width": 196,
@@ -337,7 +337,7 @@
     "id": 51,
     "shape": "3d_model",
     "name": "Teacher's Desk",
-    "model": "models/antique_desk/antique_desk.glb",
+    "model": "models/antique_desk.glb",
     "scale": 250,
     "x": -6,
     "y": -600,

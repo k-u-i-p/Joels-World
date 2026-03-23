@@ -12,7 +12,7 @@ export function loadSharedModels() {
   if (sharedShoeMeshL) return;
 
   const loader = new GLTFLoader();
-  loader.load('./models/slip_on_shoes/slip_ons.gltf', (gltf) => {
+  loader.load('./models/slip_on_shoes.glb', (gltf) => {
     // Single mesh anchor format replaces [shoes_l, shoes_r] split matrix
     const shoe = gltf.scene.getObjectByName('shoes_r') || gltf.scene.children[0];
 
