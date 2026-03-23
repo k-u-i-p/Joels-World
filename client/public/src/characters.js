@@ -525,7 +525,7 @@ export class CharacterManager {
       bodyPivot: new THREE.Group(),
       emotePropsDirectional: new THREE.Group(),
       head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), mats.skin),
-      torso: new THREE.Mesh(new THREE.CapsuleGeometry(12, 2, 10, 16), mats.shirt),
+      torso: new THREE.Mesh(new THREE.CapsuleGeometry(12, 2, 10, 16).scale(0.65, 1, 1), mats.shirt),
       leftArm: new THREE.Group(), rightArm: new THREE.Group(),
       leftLeg: new THREE.Group(), rightLeg: new THREE.Group()
     };
@@ -924,7 +924,7 @@ export class CharacterManager {
     const idleTime = timeNow + (hash * 0.1);
 
     const breathOffset = Math.sin(idleTime * 2) * 0.02;
-    vis.rig.torso.scale.set(1.3 + breathOffset, 0.65 + breathOffset, 1);
+    vis.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 1);
 
     vis.rig.bodyPivot.rotation.y = Math.sin(idleTime * 1.5) * 0.05;
 
