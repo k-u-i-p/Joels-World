@@ -244,6 +244,23 @@ uiManager.initMinimapDialog();
  * Processes all user inputs, updates the player coordinates, evaluates collisions,
  * triggers object entry/exit logics, and interpolates remote entity positions.
  */
+
+function clearEmoteAudio() {
+  const proxy = getCharacterProxy(player.id);
+  if (proxy && proxy.activeEmoteAudio) {
+    proxy.activeEmoteAudio.fadeOut(500);
+    proxy.activeEmoteAudio = null;
+  }
+}
+
+function clearWalkingAudio() {
+  const proxy = getCharacterProxy(player.id);
+  if (proxy && proxy.walkingAudio) {
+    proxy.walkingAudio.pause();
+    proxy.walkingAudio = null;
+  }
+}
+
 function update(dt = 0.016) {
   const timeScale = (dt * 60) || 1;
 

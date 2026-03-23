@@ -111,34 +111,23 @@ export class UIManager {
     return { nameDialog, nameInput, startBtn };
   }
 
+  _bindDialog(btnId, dialogId, closeId, onOpen) {
+    const btn = document.getElementById(btnId);
+    const dialog = document.getElementById(dialogId);
+    const closeBtn = document.getElementById(closeId);
+    if (!btn || !dialog || !closeBtn) return;
+    btn.addEventListener('click', () => {
+      if (onOpen) onOpen();
+      dialog.style.display = 'flex';
+    });
+    const hide = () => dialog.style.display = 'none';
+    closeBtn.addEventListener('click', hide);
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) hide(); });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dialog.style.display === 'flex') hide(); });
+  }
+
   initHelpDialog() {
-    const helpBtn = document.getElementById('help-button');
-    const helpDialog = document.getElementById('help-dialog');
-    const closeHelpBtn = document.getElementById('close-help-btn');
-
-    if (helpBtn && helpDialog && closeHelpBtn) {
-      helpBtn.addEventListener('click', () => {
-        helpDialog.style.display = 'flex';
-      });
-
-      closeHelpBtn.addEventListener('click', () => {
-        helpDialog.style.display = 'none';
-      });
-
-      // Close when clicking outside of the dialog box
-      helpDialog.addEventListener('click', (e) => {
-        if (e.target === helpDialog) {
-          helpDialog.style.display = 'none';
-        }
-      });
-
-      // Keyboard Shortcuts
-      window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && helpDialog.style.display === 'flex') {
-          closeHelpBtn.click();
-        }
-      });
-    }
+    this._bindDialog('help-button', 'help-dialog', 'close-help-btn');
   }
 
   showDisconnectDialog(message) {
@@ -211,57 +200,12 @@ export class UIManager {
         console.error('Failed to load emotes config, URL: ' + URL, e);
       }
 
-      emotesButton.addEventListener('click', () => {
-        emotesDialog.style.display = 'flex';
-      });
-
-      closeEmotesBtn.addEventListener('click', () => {
-        emotesDialog.style.display = 'none';
-      });
-
-      // Close when clicking outside of the dialog box
-      emotesDialog.addEventListener('click', (e) => {
-        if (e.target === emotesDialog) {
-          emotesDialog.style.display = 'none';
-        }
-      });
-
-      // Keyboard Shortcuts
-      window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && emotesDialog.style.display === 'flex') {
-          closeEmotesBtn.click();
-        }
-      });
+      this._bindDialog('emotes-button', 'emotes-dialog', 'close-emotes-btn');
     }
   }
 
   initBadgesDialog() {
-    const badgesButton = document.getElementById('badges-button');
-    const badgesDialog = document.getElementById('badges-dialog');
-    const closeBadgesBtn = document.getElementById('close-badges-btn');
-
-    if (badgesButton && badgesDialog && closeBadgesBtn) {
-      badgesButton.addEventListener('click', () => {
-        this.populateBadgesList();
-        badgesDialog.style.display = 'flex';
-      });
-
-      closeBadgesBtn.addEventListener('click', () => {
-        badgesDialog.style.display = 'none';
-      });
-
-      badgesDialog.addEventListener('click', (e) => {
-        if (e.target === badgesDialog) {
-          badgesDialog.style.display = 'none';
-        }
-      });
-
-      window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && badgesDialog.style.display === 'flex') {
-          closeBadgesBtn.click();
-        }
-      });
-    }
+    this._bindDialog('badges-button', 'badges-dialog', 'close-badges-btn', () => this.populateBadgesList());
   }
 
   populateBadgesList() {

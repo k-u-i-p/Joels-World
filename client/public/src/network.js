@@ -3,6 +3,7 @@ import { emotes, getEmoteMessage } from './emotes.js';
 import { uiManager } from './ui.js';
 import { player } from './main.js';
 import { characterManager } from './characters.js';
+import { soundManager } from './sound.js';
 
 const isLocalBrowser = window.location.hostname === 'localhost' && !window.Capacitor?.isNativePlatform();
 export const DOMAIN = isLocalBrowser ? 'localhost' : 'joels-world.com';
@@ -174,6 +175,9 @@ export class NetworkClient {
         } else if (data.type === 'map_change_rejected') {
           if (typeof uiManager !== 'undefined') {
             uiManager.showMapChangeRejected();
+          }
+          if (typeof soundManager !== 'undefined') {
+            soundManager.playPooled('/media/buzzer.mp3', 1, false);
           }
         } else if (data.type === 'update' || data.type === 'tick') {
           const charactersToUpdate = data.type === 'tick' ? data.characters : [data.character];

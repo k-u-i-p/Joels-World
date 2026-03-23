@@ -96,6 +96,50 @@ body {
   transition: all 0.2s;
 }
 
+.admin-btn:active {
+  transform: translateY(1px);
+}
+
+.character-nameplate {
+  position: absolute;
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  text-shadow: -1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 50;
+}
+
+.character-chat-bubble {
+  position: absolute;
+  background: white;
+  color: #2c3e50;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-weight: normal;
+  font-size: 14px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.25);
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  z-index: 51;
+  display: none;
+  text-align: center;
+  min-width: 50px;
+}
+
+.character-chat-arrow {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 8px 6px 0 6px;
+  border-style: solid;
+  border-color: white transparent transparent transparent;
+}
+
 .btn:active {
   transform: translateY(0);
 }

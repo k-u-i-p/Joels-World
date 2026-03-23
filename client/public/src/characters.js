@@ -723,45 +723,17 @@ export class CharacterManager {
     const vis = getCharacterProxy(c.id);
     if (c.name && !c.hide_nameplate && !vis.nameElement) {
       vis.nameElement = document.createElement('div');
+      vis.nameElement.className = 'character-nameplate';
       vis.nameElement.textContent = c.name;
-      vis.nameElement.style.position = 'absolute';
-      vis.nameElement.style.color = 'white';
-      vis.nameElement.style.fontWeight = 'bold';
-      vis.nameElement.style.fontSize = '12px';
-      vis.nameElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-      vis.nameElement.style.textShadow = '-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)';
-      vis.nameElement.style.transform = 'translate(-50%, -50%)';
-      vis.nameElement.style.pointerEvents = 'none';
-      vis.nameElement.style.zIndex = '50';
       document.body.appendChild(vis.nameElement);
     }
 
     if (!vis.chatElement) {
       vis.chatElement = document.createElement('div');
-      vis.chatElement.style.position = 'absolute';
-      vis.chatElement.style.background = 'white';
-      vis.chatElement.style.color = '#2c3e50';
-      vis.chatElement.style.padding = '6px 10px';
-      vis.chatElement.style.borderRadius = '8px';
-      vis.chatElement.style.fontWeight = 'normal';
-      vis.chatElement.style.fontSize = '14px';
-      vis.chatElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-      vis.chatElement.style.boxShadow = '0 3px 6px rgba(0,0,0,0.25)';
-      vis.chatElement.style.transform = 'translate(-50%, -100%)';
-      vis.chatElement.style.pointerEvents = 'none';
-      vis.chatElement.style.zIndex = '51';
-      vis.chatElement.style.display = 'none';
-      vis.chatElement.style.textAlign = 'center';
-      vis.chatElement.style.minWidth = '50px';
+      vis.chatElement.className = 'character-chat-bubble';
 
       const arrow = document.createElement('div');
-      arrow.style.position = 'absolute';
-      arrow.style.bottom = '-8px';
-      arrow.style.left = '50%';
-      arrow.style.transform = 'translateX(-50%)';
-      arrow.style.borderWidth = '8px 6px 0 6px';
-      arrow.style.borderStyle = 'solid';
-      arrow.style.borderColor = 'white transparent transparent transparent';
+      arrow.className = 'character-chat-arrow';
       vis.chatElement.appendChild(arrow);
 
       vis.chatTextNode = document.createElement('span');
