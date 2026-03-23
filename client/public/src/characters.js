@@ -700,20 +700,25 @@ export class CharacterManager {
     c.rig.rightFootTarget.copy(baseRFoot);
 
     // 2. Add procedural organic swaying (applies continuously during walk or idle)
-    // Offset by character ID so a grid of NPCs doesn't sway in perfect unison
+    // Avoid swaying explicitly while tied up in an emote evaluation sequence
+    const isEmoting = c.emote && (emoteCache[c.emote.type] || c.emoji);
     const idOffset = (Number(c.id) || 0) * 0.5;
     const idleTime = (Date.now() / 1000) * 1.5 + idOffset; 
     
     // Smooth, un-synchronized breathing on the torso
-    const breathOffset = Math.sin(idleTime * 2) * 0.02;
+    const breathOffset = isEmoting ? 0 : Math.sin(idleTime * 2) * 0.02;
     c.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 1);
     
-    // Gentle spine twisting and leaning
-    c.rig.bodyPivot.rotation.set(
-        Math.sin(idleTime * 0.7) * 0.03, // Slight forward/back leaning pitch
-        0, 
-        Math.sin(idleTime * 0.5) * 0.04  // Slight left/right spinal twisting yaw
-    );
+    // Gentle spine twisting and leaning overrides
+    if (!isEmoting) {
+        c.rig.bodyPivot.rotation.set(
+            Math.sin(idleTime * 0.7) * 0.03, // Slight forward/back leaning pitch
+            0, 
+            Math.sin(idleTime * 0.5) * 0.04  // Slight left/right spinal twisting yaw
+        );
+    } else {
+        c.rig.bodyPivot.rotation.set(0, 0, 0); // Flush rigid if dancing or cheering
+    }
 
     // 3. Coordinate-Based Locomotion (Walk Cycle)
     const legSwing = Math.sin(c.legAnimationTime || 0);
