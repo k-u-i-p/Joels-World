@@ -380,9 +380,6 @@ export class CharacterManager {
       c.rig.meshGroup = c.meshGroup;
       c.meshGroup.add(c.rig.bodyPivot);
       c.rig.bodyPivot.add(c.rig.torso);
-      
-      // Elevate the entire root pivot to accommodate uniquely elongated legs natively!
-      c.rig.bodyPivot.position.set(0, 0, 8);
 
       // Torso stands UP along the Z axis
       c.rig.torso.rotation.x = Math.PI / 2;
@@ -535,7 +532,7 @@ export class CharacterManager {
       
       // Apply Master Scale and Base Elevation
       c.meshGroup.scale.set(maxScale, maxScale, maxScale);
-      c.rig.bodyPivot.position.set(0, 0, 10); // Lift entire rig off the ground map
+      c.rig.bodyPivot.position.set(0, 0, 18); // Lift entire rig 18 units off the Z=0 ground plane
 
       // Shadow Mesh
       const shadowSize = 28; // Scale is handled by meshGroup now
