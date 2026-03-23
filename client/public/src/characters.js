@@ -685,9 +685,9 @@ export class CharacterManager {
       }
     }
 
-    // 1. Reset explicit IK targets to baseline resting coordinates
-    const baseLHand = new THREE.Vector3(0, -15, 9);
-    const baseRHand = new THREE.Vector3(0, 15, 9);
+    // 1. Reset explicit IK targets to baseline resting coordinates (Boxer/Runner 90-degree stance)
+    const baseLHand = new THREE.Vector3(8, -5, 17); // Hands forward, inwards towards belly, waist height
+    const baseRHand = new THREE.Vector3(8, 5, 17);
     const baseLFoot = new THREE.Vector3(2, -6, -14);
     const baseRFoot = new THREE.Vector3(2, 6, -14);
     
@@ -705,17 +705,22 @@ export class CharacterManager {
     const legSwing = Math.sin(c.legAnimationTime || 0);
     
     if ((c.legAnimationTime || 0) > 0) {
-        // Swing explicit targets forward and backward (+/- X axis), and lift upwards slightly (+Z axis) during the swing apex
-        const armStrideX = 12; // Far reach
+        // Dynamic Locomotion Targets
+        const armSwingX = 8; // Punch arms forward/backward
+        const armSwingY = 2; // Subtle side-to-side boxing sway
+        const armLiftZ = 4;  // Lift arms exactly at the swing peak to flex the elbow geometrically!
+        
         const legStrideX = 14; 
         const stepLiftZ = 6;
         
-        // Left Arm sweeps Backward when Left Leg sweeps Forward
-        c.rig.leftHandTarget.x += -legSwing * armStrideX;
-        c.rig.leftHandTarget.z += Math.abs(legSwing) * (stepLiftZ * 0.5); // Slight elbow bend lift
+        // Left Arm punches Forward (+X) when Left Leg sweeps Backward (-X)
+        c.rig.leftHandTarget.x += -legSwing * armSwingX;
+        c.rig.leftHandTarget.y += Math.abs(legSwing) * armSwingY; 
+        c.rig.leftHandTarget.z += Math.abs(legSwing) * armLiftZ; 
         
-        c.rig.rightHandTarget.x += legSwing * armStrideX;
-        c.rig.rightHandTarget.z += Math.abs(legSwing) * (stepLiftZ * 0.5);
+        c.rig.rightHandTarget.x += legSwing * armSwingX;
+        c.rig.rightHandTarget.y -= Math.abs(legSwing) * armSwingY;
+        c.rig.rightHandTarget.z += Math.abs(legSwing) * armLiftZ;
         
         c.rig.leftFootTarget.x += legSwing * legStrideX;
         c.rig.leftFootTarget.z += Math.abs(legSwing) * stepLiftZ; // Lift foot mid-stride
@@ -742,10 +747,10 @@ export class CharacterManager {
     c.rig.rShoe.position.copy(c.rig.rightFootTarget);
 
     // Compute Hinge Target Pole Vectors
-    // Ensures elbows jut backward/outward, and knees jut cleanly forward
-    const elbowPoleL = new THREE.Vector3(1, -0.2, 0); // +X (forward) flips normal backwards
-    const elbowPoleR = new THREE.Vector3(1, 0.2, 0);
-    const kneePole = new THREE.Vector3(-1, 0, 0); // -X (backward) flips normal forwards
+    // Ensures elbows jut dynamically OUTWARD orthogonally from the torso!
+    const elbowPoleL = new THREE.Vector3(0, 1, 0); // +Y (Right) flips Left normal backwards/outwards
+    const elbowPoleR = new THREE.Vector3(0, -1, 0); // -Y (Left) flips Right normal backwards/outwards
+    const kneePole = new THREE.Vector3(-1, 0, 0); // -X (backward) flips leg normal forwards
 
     // Mathematically resolve the 3D hinge coordinate for all four limbs
     const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8, 8, elbowPoleL);
