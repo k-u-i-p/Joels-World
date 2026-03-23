@@ -59,6 +59,7 @@
     "name": "Detention",
     "width": 2048,
     "height": 2048,
+    "background_color": "#000000",
     "layers": [
       {
         "z": 0,
@@ -71,7 +72,7 @@
         "path_template": "/detention/chunks/map_{x}_{y}.png"
       },
       {
-        "z": 1,
+        "z": 100,
         "alpha": 0.9,
         "overlay": true,
         "chunked": true,

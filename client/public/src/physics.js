@@ -1,4 +1,3 @@
-import { getCharacterProxy } from './characters.js';
 export class PhysicsEngine {
   constructor() {
     this.clipMaskCanvas = null;
@@ -472,9 +471,10 @@ export class PhysicsEngine {
    * @param {Object} c - The character/entity object to interpolate. Expects x,y,rotation and target equivalents.
    * @param {string} [ignoreId=null] - Character ID to prevent processing (usually local player).
    */
-  processInterpolation(c, ignoreId = null, timeScale = 1) {
+  processInterpolation(c, getCharacterProxyFn, ignoreId = null, timeScale = 1) {
     if (!c) return;
-    const vis = getCharacterProxy(c.id);
+    const vis = getCharacterProxyFn ? getCharacterProxyFn(c.id) : null;
+    if (!vis) return;
     if (ignoreId && c.id === ignoreId) return;
 
     if (vis.targetX !== undefined && vis.targetY !== undefined) {
@@ -538,7 +538,7 @@ export class PhysicsEngine {
    * @param {Function} processEventsFn - The global processEvents orchestration callback.
    * @returns {Array} The new array of active NPC IDs.
    */
-  processInteractions(player, initData, activeNpcIds = [], processEventsFn) {
+  processInteractions(player, initData, activeNpcIds = [], processEventsFn, getCharacterProxyFn) {
     if (!initData) return activeNpcIds;
 
     const allInRange = [
@@ -554,10 +554,11 @@ export class PhysicsEngine {
         if (!currentInRangeIds.includes(oldId)) {
             const prevNpc = [...(initData.characters || []), ...(initData.npcs || [])].find(c => c.id === oldId);
             if (prevNpc) {
-              if (getCharacterProxy(prevNpc.id).activeAudio) {
-                getCharacterProxy(prevNpc.id).activeAudio.pause();
-                getCharacterProxy(prevNpc.id).activeAudio.currentTime = 0;
-                getCharacterProxy(prevNpc.id).activeAudio = null;
+              const vis = getCharacterProxyFn ? getCharacterProxyFn(prevNpc.id) : null;
+              if (vis && vis.activeAudio) {
+                vis.activeAudio.pause();
+                vis.activeAudio.currentTime = 0;
+                vis.activeAudio = null;
               }
               if (prevNpc.on_exit && (typeof prevNpc.on_exit === 'number' || prevNpc.on_exit.length > 0)) {
                 processEventsFn(prevNpc, prevNpc.on_exit, 'on_exit');

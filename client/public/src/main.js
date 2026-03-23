@@ -456,18 +456,18 @@ function update(dt = 0.016) {
   // Smoothly interpolate other characters to their server positions
   if (window.init?.characters) {
     for (let i = 0; i < window.init.characters.length; i++) {
-      physicsEngine.processInterpolation(window.init.characters[i], player.id, timeScale);
+      physicsEngine.processInterpolation(window.init.characters[i], getCharacterProxy, player.id, timeScale);
     }
   }
   if (window.init?.npcs) {
     for (let i = 0; i < window.init.npcs.length; i++) {
-      physicsEngine.processInterpolation(window.init.npcs[i], player.id, timeScale);
+      physicsEngine.processInterpolation(window.init.npcs[i], getCharacterProxy, player.id, timeScale);
     }
   }
 
   // Check NPC radius interactions
   const oldActiveNpcs = [...activeNpc];
-  activeNpc = physicsEngine.processInteractions(player, window.init, activeNpc, executeEvents);
+  activeNpc = physicsEngine.processInteractions(player, window.init, activeNpc, executeEvents, getCharacterProxy);
 
   for (let i = 0; i < oldActiveNpcs.length; i++) {
     if (!activeNpc.includes(oldActiveNpcs[i])) {
@@ -737,6 +737,14 @@ function handleInitData(data) {
     if (mapMetadata) {
       if (mapNameDisplay && mapMetadata.name) {
         mapNameDisplay.textContent = mapMetadata.name;
+      }
+
+      if (mapMetadata.background_colour) {
+        document.body.style.backgroundColor = mapMetadata.background_colour;
+        renderer.setClearColor(mapMetadata.background_colour);
+      } else {
+        document.body.style.backgroundColor = 'var(--color-bg-primary)';
+        renderer.setClearColor(0x7bed9f); // Default Grass green
       }
 
       camera.zoom = mapMetadata.default_zoom || 1;
