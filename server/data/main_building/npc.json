@@ -150,9 +150,9 @@
     "height": 35,
     "rotation": 180,
     "gender": "female",
-    "shirtColor": "#f1c40f",
+    "shirtColor": "#8e44ad",
     "pantsColor": "#34495e",
-    "armColor": "#f1c40f",
+    "armColor": "#8e44ad",
     "interaction_radius": 150,
     "on_enter": [
       {
@@ -172,7 +172,7 @@
     "on_exit": [],
     "shoeColor": "#7f8c8d",
     "hairStyle": "messy",
-    "hairColor": "#f1c40f"
+    "hairColor": "#000000"
   },
   {
     "id": 6,

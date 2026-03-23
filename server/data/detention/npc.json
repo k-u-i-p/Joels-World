@@ -107,7 +107,7 @@
       }
     ],
     "hairStyle": "ponytail",
-    "hairColor": "#f1c40f",
+    "hairColor": "#000000",
     "default_emote": {
       "name": "write",
       "startTime": 0
@@ -121,9 +121,9 @@
     "width": 40,
     "height": 40,
     "rotation": -90,
-    "shirtColor": "#f1c40f",
+    "shirtColor": "#e67e22",
     "pantsColor": "#34495e",
-    "armColor": "#f1c40f",
+    "armColor": "#e67e22",
     "interaction_radius": 200,
     "on_enter": [
       {

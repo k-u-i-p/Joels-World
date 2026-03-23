@@ -163,6 +163,13 @@ export class MapManager {
   generateNewCharacter(mapId, playerId, playerName) {
     const { spawnX, spawnY } = this.generateSpawnCoords(mapId);
 
+    const skinColor = '#f1c40f'; // Default character canvas skin-tone (Lego Yellow)
+    
+    // Mathematically filter the active skin color out of the available wardrobe selection arrays to prevent "naked" overlap
+    const availableClothes = colors.filter(c => c !== skinColor);
+    const availableShoes = shoeColors.filter(c => c !== skinColor);
+    const availableHair = ['#f1c40f', '#5c3a21', '#2c3e50', '#000000'].filter(c => c !== skinColor);
+
     return {
       id: playerId,
       name: playerName.substring(0, 15),
@@ -172,12 +179,13 @@ export class MapManager {
       height: 40,
       rotation: 0,
       gender: Math.random() > 0.5 ? 'male' : 'female',
-      shirtColor: colors[Math.floor(Math.random() * colors.length)],
-      pantsColor: colors[Math.floor(Math.random() * colors.length)],
-      armColor: colors[Math.floor(Math.random() * colors.length)],
-      shoeColor: shoeColors[Math.floor(Math.random() * shoeColors.length)],
+      color: skinColor, 
+      shirtColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
+      pantsColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
+      armColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
+      shoeColor: availableShoes[Math.floor(Math.random() * availableShoes.length)],
       hairStyle: ['short', 'long', 'ponytail', 'spiky', 'messy', 'bald'][Math.floor(Math.random() * 6)],
-      hairColor: ['#f1c40f', '#5c3a21', '#2c3e50', '#000000'][Math.floor(Math.random() * 4)],
+      hairColor: availableHair[Math.floor(Math.random() * availableHair.length)],
       interaction_radius: 150
     };
   }
