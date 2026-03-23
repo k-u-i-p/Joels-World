@@ -232,7 +232,8 @@ export class MapManager {
         default_zoom: mapData.default_zoom || 1,
         on_enter: mapData.on_enter,
         import: mapData.import,
-        models: mapData.models
+        models: mapData.models,
+        background_color: mapData.background_color
       },
       mapsList: this.mapsList
     });

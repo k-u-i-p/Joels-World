@@ -454,7 +454,7 @@ body {
 #top-center-ui {
   display: none;
   flex-direction: column;
-  z-index: 40;
+  z-index: 60;
   background-color: transparent;
   pointer-events: none;
   align-items: center;

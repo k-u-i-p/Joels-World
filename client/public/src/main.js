@@ -571,7 +571,7 @@ function draw() {
   // Dynamically iterate over ALL valid Z-mapped layers inside MapManager sequentially handling parallax shifts automatically
   mapManager.layers.forEach((layerGroup, z) => {
     if (!layerGroup) return;
-    
+
     // Characters natively sit at physical depth Z = 5. Draw them precisely when Z escalates beyond that threshold.
     if (z >= 5 && !drawnBaseChars) {
       characterManager.drawCharacters('base', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
@@ -739,9 +739,10 @@ function handleInitData(data) {
         mapNameDisplay.textContent = mapMetadata.name;
       }
 
-      if (mapMetadata.background_colour) {
-        document.body.style.backgroundColor = mapMetadata.background_colour;
-        renderer.setClearColor(mapMetadata.background_colour);
+      const bgColor = mapMetadata.background_color;
+      if (bgColor) {
+        document.body.style.backgroundColor = bgColor;
+        renderer.setClearColor(bgColor);
       } else {
         document.body.style.backgroundColor = 'var(--color-bg-primary)';
         renderer.setClearColor(0x7bed9f); // Default Grass green

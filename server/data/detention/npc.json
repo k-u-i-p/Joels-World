@@ -11,7 +11,7 @@
     "shirtColor": "#1c2833",
     "pantsColor": "#2c3e50",
     "armColor": "#1c2833",
-    "interaction_radius": 500,
+    "interaction_radius": 600,
     "agent": {
       "prompt_file": "detention/agent_mr_hardy.md",
       "log_file": "detention/mr_hardy_log.txt"
