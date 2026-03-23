@@ -24,8 +24,7 @@ export async function ensureMapChunks() {
   for (const map of mapsData) {
     if (!map.layers) continue;
     
-    for (const layerGroup of map.layers) {
-      for (const layer of layerGroup) {
+    for (const layer of map.layers) {
         if (layer.chunked && layer.source_image) {
           const sourceRel = layer.source_image.startsWith('/') ? layer.source_image.substring(1) : layer.source_image;
           const inputPath = path.join(basePath, sourceRel);
@@ -84,7 +83,6 @@ export async function ensureMapChunks() {
         }
       }
     }
-  }
 
   if (mapsModified) {
     fs.writeFileSync(mapsJsonPath, JSON.stringify(mapsData, null, 2));
@@ -123,11 +121,13 @@ async function processLayer(inputPath, chunksDir, baseName, ext, chunkSize) {
         const extractWidth = Math.min(chunkSize, width - left);
         const extractHeight = Math.min(chunkSize, height - top);
 
-        const outputPath = path.join(chunksDir, `${baseName}_${x}_${y}${ext}`);
+        // Force SVG vectors to explicitly rasterize and output strictly as transparent PNGs
+        const outExt = ext.toLowerCase() === '.svg' ? '.png' : ext;
+        const outputPath = path.join(chunksDir, `${baseName}_${x}_${y}${outExt}`);
 
         let extractor = image.clone().extract({ left, top, width: extractWidth, height: extractHeight });
         
-        if (isPng) {
+        if (isPng || ext.toLowerCase() === '.svg') {
           extractor = extractor.png({
             compressionLevel: 9,
             adaptiveFiltering: true,

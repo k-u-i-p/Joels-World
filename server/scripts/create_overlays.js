@@ -33,8 +33,7 @@ export async function processOverlays() {
 
     console.log(`\n[OverlayGen] Processing map: "${map.name}" utilizing mask: ${clipMaskRel}`);
 
-    for (const layerGroup of map.layers) {
-      for (const layer of layerGroup) {
+    for (const layer of map.layers) {
         if (!layer.source_image || layer.overlay || layer.source_image.includes('_overlay.')) continue;
 
         const sourceRel = layer.source_image.startsWith('/') ? layer.source_image.substring(1) : layer.source_image;
@@ -115,7 +114,6 @@ export async function processOverlays() {
         } catch (err) {
           console.error(`     [Error] Failed to generate overlay for ${sourceRel}:`, err);
         }
-      }
     }
   }
 

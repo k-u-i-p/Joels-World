@@ -42,10 +42,34 @@ export class UIManager {
         }, 300);
       }
     }
-    
+
     // Generic dialog overlay cleanup that handles "show_dialog" closures
     if (this.dialogOverlay) {
       this.dialogOverlay.style.display = 'none';
+    }
+  }
+
+  showActionDialog(message, onConfirm) {
+    console.log('[UIManager] showActionDialog called with message:', message);
+    console.log('[UIManager] DOM Nodes -> dialogOverlay:', !!this.dialogOverlay, 'dialogText:', !!this.dialogText, 'btnYes:', !!this.btnYes, 'btnNo:', !!this.btnNo);
+
+    if (this.dialogOverlay && this.dialogText && this.btnYes && this.btnNo) {
+      console.log('[UIManager] All action dialog nodes found, displaying overlay');
+      this.dialogText.textContent = message;
+      this.dialogOverlay.style.display = 'flex';
+
+      this.btnNo.onclick = () => {
+        console.log('[UIManager] btnNo clicked, hiding overlay');
+        this.dialogOverlay.style.display = 'none';
+      };
+
+      this.btnYes.onclick = () => {
+        console.log('[UIManager] btnYes clicked, hiding overlay and proceeding to onConfirm');
+        this.dialogOverlay.style.display = 'none';
+        if (onConfirm) onConfirm();
+      };
+    } else {
+      console.error('[UIManager] showActionDialog failed to find required DOM elements!');
     }
   }
 

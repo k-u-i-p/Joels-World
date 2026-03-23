@@ -1,3 +1,4 @@
+import { getCharacterProxy } from './characters.js';
 export class PhysicsEngine {
   constructor() {
     this.clipMaskCanvas = null;
@@ -46,7 +47,7 @@ export class PhysicsEngine {
       if (effectiveR < 0) effectiveR = 0;
       effectiveR += radius;
       return (dx * dx + dy * dy) <= (effectiveR * effectiveR);
-    } else if (obj.shape === 'rect') {
+    } else if (obj.shape === 'rect' || obj.shape === '3d_model') {
       let testX, testY;
 
       if (obj.rotation) {
@@ -403,7 +404,7 @@ export class PhysicsEngine {
           }
         }
 
-        if (hitObj && hitObj.shape === 'rect' && hitObj.rotation) {
+        if (hitObj && (hitObj.shape === 'rect' || hitObj.shape === '3d_model') && hitObj.rotation) {
           // Slide along the rotated edge
           const angle = -hitObj.rotation * (Math.PI / 180);
           const cosA = Math.cos(angle);
@@ -472,18 +473,20 @@ export class PhysicsEngine {
    * @param {string} [ignoreId=null] - Character ID to prevent processing (usually local player).
    */
   processInterpolation(c, ignoreId = null, timeScale = 1) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     if (ignoreId && c.id === ignoreId) return;
 
-    if (c.targetX !== undefined && c.targetY !== undefined) {
-      const cdx = c.targetX - c.x;
-      const cdy = c.targetY - c.y;
+    if (vis.targetX !== undefined && vis.targetY !== undefined) {
+      const cdx = vis.targetX - c.x;
+      const cdy = vis.targetY - c.y;
       const distSq = cdx * cdx + cdy * cdy;
 
       // Snap if teleported really far (5000^2 = 25000000)
       if (distSq > 25000000) {
-        c.x = c.targetX;
-        c.y = c.targetY;
-        c.rotation = c.targetRotation;
+        c.x = vis.targetX;
+        c.y = vis.targetY;
+        c.rotation = vis.targetRotation;
       } else if (distSq > 0.1) {
         // Continuous pursuit velocity based on base speed (with a dynamic catchup boost if far behind)
         const distance = Math.sqrt(distSq);
@@ -502,16 +505,16 @@ export class PhysicsEngine {
         c.x += cdx * ratio;
         c.y += cdy * ratio;
 
-        c.legAnimationTime = (c.legAnimationTime || 0) + 0.2 * timeScale;
+        vis.legAnimationTime = (vis.legAnimationTime || 0) + 0.2 * timeScale;
       } else {
-        c.x = c.targetX;
-        c.y = c.targetY;
-        c.legAnimationTime = 0; // stop moving legs when we catch up
+        c.x = vis.targetX;
+        c.y = vis.targetY;
+        vis.legAnimationTime = 0; // stop moving legs when we catch up
       }
 
       // Interpolate rotation efficiently via shortest angle (even if not moving XY)
-      if (c.targetRotation !== undefined) {
-        let rotDiff = c.targetRotation - (c.rotation || 0);
+      if (vis.targetRotation !== undefined) {
+        let rotDiff = vis.targetRotation - (c.rotation || 0);
         while (rotDiff > 180) rotDiff -= 360;
         while (rotDiff < -180) rotDiff += 360;
 
@@ -520,7 +523,7 @@ export class PhysicsEngine {
           const rotStep = Math.min(Math.abs(rotDiff), rotSpeed * timeScale);
           c.rotation = (c.rotation || 0) + Math.sign(rotDiff) * rotStep;
         } else {
-          c.rotation = c.targetRotation;
+          c.rotation = vis.targetRotation;
         }
       }
     }
@@ -551,10 +554,10 @@ export class PhysicsEngine {
         if (!currentInRangeIds.includes(oldId)) {
             const prevNpc = [...(initData.characters || []), ...(initData.npcs || [])].find(c => c.id === oldId);
             if (prevNpc) {
-              if (prevNpc.activeAudio) {
-                prevNpc.activeAudio.pause();
-                prevNpc.activeAudio.currentTime = 0;
-                prevNpc.activeAudio = null;
+              if (getCharacterProxy(prevNpc.id).activeAudio) {
+                getCharacterProxy(prevNpc.id).activeAudio.pause();
+                getCharacterProxy(prevNpc.id).activeAudio.currentTime = 0;
+                getCharacterProxy(prevNpc.id).activeAudio = null;
               }
               if (prevNpc.on_exit && (typeof prevNpc.on_exit === 'number' || prevNpc.on_exit.length > 0)) {
                 processEventsFn(prevNpc, prevNpc.on_exit, 'on_exit');

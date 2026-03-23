@@ -5,17 +5,38 @@
     "width": 4372,
     "height": 3841,
     "layers": [
-      [
-        {
-          "alpha": 1,
-          "chunked": true,
-          "source_image": "/junior_school/new_map_2.png",
-          "chunk_size": 512,
-          "grid_w": 9,
-          "grid_h": 8,
-          "path_template": "/junior_school/chunks/new_map_2_{x}_{y}.png"
-        }
-      ]
+      {
+        "z": 0,
+        "alpha": 1,
+        "chunked": true,
+        "source_image": "/junior_school/new_map_2.png",
+        "chunk_size": 512,
+        "grid_w": 9,
+        "grid_h": 8,
+        "path_template": "/junior_school/chunks/new_map_2_{x}_{y}.png"
+      },
+      {
+        "z": 100,
+        "alpha": 1,
+        "overlay": true,
+        "chunked": true,
+        "source_image": "/junior_school/background_overlay.png",
+        "chunk_size": 512,
+        "grid_w": 9,
+        "grid_h": 8,
+        "path_template": "/junior_school/chunks/background_overlay_{x}_{y}.png"
+      },
+      {
+        "z": 100,
+        "alpha": 0.9,
+        "overlay": true,
+        "chunked": true,
+        "source_image": "/junior_school/trees.png",
+        "chunk_size": 512,
+        "grid_w": 9,
+        "grid_h": 8,
+        "path_template": "/junior_school/chunks/trees_{x}_{y}.png"
+      }
     ],
     "clip_mask": "junior_school/clip_mask.svg",
     "npcs": "junior_school/npc.json",
@@ -39,29 +60,27 @@
     "width": 2048,
     "height": 2048,
     "layers": [
-      [
-        {
-          "alpha": 1,
-          "chunked": true,
-          "source_image": "/detention/background.png",
-          "chunk_size": 512,
-          "grid_w": 4,
-          "grid_h": 4,
-          "path_template": "/detention/chunks/background_{x}_{y}.png"
-        }
-      ],
-      [
-        {
-          "alpha": 0.9,
-          "overlay": true,
-          "chunked": true,
-          "source_image": "/detention/background_overlay.png",
-          "chunk_size": 512,
-          "grid_w": 4,
-          "grid_h": 4,
-          "path_template": "/detention/chunks/background_overlay_{x}_{y}.png"
-        }
-      ]
+      {
+        "z": 0,
+        "alpha": 1,
+        "chunked": true,
+        "source_image": "/detention/map.svg",
+        "chunk_size": 512,
+        "grid_w": 4,
+        "grid_h": 4,
+        "path_template": "/detention/chunks/map_{x}_{y}.png"
+      },
+      {
+        "z": 1,
+        "alpha": 0.9,
+        "overlay": true,
+        "chunked": true,
+        "source_image": "/detention/background_overlay.png",
+        "chunk_size": 512,
+        "grid_w": 4,
+        "grid_h": 4,
+        "path_template": "/detention/chunks/background_overlay_{x}_{y}.png"
+      }
     ],
     "npcs": "detention/npc.json",
     "clip_mask": "detention/clip_mask.png",
@@ -86,29 +105,27 @@
     "height": 3072,
     "can_leave": true,
     "layers": [
-      [
-        {
-          "alpha": 1,
-          "chunked": true,
-          "source_image": "/main_building/new_background.png",
-          "chunk_size": 512,
-          "grid_w": 11,
-          "grid_h": 7,
-          "path_template": "/main_building/chunks/new_background_{x}_{y}.png"
-        }
-      ],
-      [
-        {
-          "alpha": 0.9,
-          "overlay": true,
-          "chunked": true,
-          "source_image": "/main_building/new_background_overlay.png",
-          "chunk_size": 512,
-          "grid_w": 11,
-          "grid_h": 7,
-          "path_template": "/main_building/chunks/new_background_overlay_{x}_{y}.png"
-        }
-      ]
+      {
+        "z": 0,
+        "alpha": 1,
+        "chunked": true,
+        "source_image": "/main_building/new_background.png",
+        "chunk_size": 512,
+        "grid_w": 11,
+        "grid_h": 7,
+        "path_template": "/main_building/chunks/new_background_{x}_{y}.png"
+      },
+      {
+        "z": 1,
+        "alpha": 0.9,
+        "overlay": true,
+        "chunked": true,
+        "source_image": "/main_building/new_background_overlay.png",
+        "chunk_size": 512,
+        "grid_w": 11,
+        "grid_h": 7,
+        "path_template": "/main_building/chunks/new_background_overlay_{x}_{y}.png"
+      }
     ],
     "npcs": "main_building/npc.json",
     "clip_mask": "main_building/clip_mask.png",
@@ -132,29 +149,27 @@
     "height": 1536,
     "can_leave": true,
     "layers": [
-      [
-        {
-          "alpha": 1,
-          "chunked": true,
-          "source_image": "/pool/background.png",
-          "chunk_size": 512,
-          "grid_w": 6,
-          "grid_h": 3,
-          "path_template": "/pool/chunks/background_{x}_{y}.png"
-        }
-      ],
-      [
-        {
-          "alpha": 0.9,
-          "overlay": true,
-          "chunked": true,
-          "source_image": "/pool/background_overlay.png",
-          "chunk_size": 512,
-          "grid_w": 6,
-          "grid_h": 3,
-          "path_template": "/pool/chunks/background_overlay_{x}_{y}.png"
-        }
-      ]
+      {
+        "z": 0,
+        "alpha": 1,
+        "chunked": true,
+        "source_image": "/pool/background.png",
+        "chunk_size": 512,
+        "grid_w": 6,
+        "grid_h": 3,
+        "path_template": "/pool/chunks/background_{x}_{y}.png"
+      },
+      {
+        "z": 1,
+        "alpha": 0.9,
+        "overlay": true,
+        "chunked": true,
+        "source_image": "/pool/background_overlay.png",
+        "chunk_size": 512,
+        "grid_w": 6,
+        "grid_h": 3,
+        "path_template": "/pool/chunks/background_overlay_{x}_{y}.png"
+      }
     ],
     "npcs": "pool/npc.json",
     "clip_mask": "pool/clip_mask.png",
@@ -184,6 +199,29 @@
     "default_zoom": 1,
     "clip_mask": "minigames/tag/clip_mask.png",
     "width": 2365,
-    "height": 1330
+    "height": 1330,
+    "layers": [
+      {
+        "z": 0,
+        "alpha": 1,
+        "chunked": true,
+        "source_image": "minigames/tag/map.svg",
+        "chunk_size": 512,
+        "grid_w": 5,
+        "grid_h": 3,
+        "path_template": "minigames/tag/chunks/map_{x}_{y}.png"
+      },
+      {
+        "z": 65,
+        "alpha": 0.9,
+        "overlay": true,
+        "chunked": true,
+        "source_image": "minigames/tag/trees.svg",
+        "chunk_size": 512,
+        "grid_w": 5,
+        "grid_h": 3,
+        "path_template": "minigames/tag/chunks/trees_{x}_{y}.png"
+      }
+    ]
   }
 ]

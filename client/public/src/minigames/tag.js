@@ -2,18 +2,15 @@ import { gameLoop } from '../gameloop.js';
 import { inputManager } from '../input.js';
 import { characterManager } from '../characters.js';
 import { physicsEngine } from '../physics.js';
-import { camera, player } from '../main.js';
+import { camera, player, scene, threeCamera, renderer } from '../main.js';
+import { mapManager } from '../maps.js';
 import { soundManager } from '../sound.js';
+import * as THREE from 'three';
 
 const canvas = document.getElementById('uiCanvas');
 const ctx = canvas.getContext('2d');
 
 let minigameActive = false;
-let bgImage = new Image();
-bgImage.src = '/minigames/tag/map.svg'; // Correct path
-
-let treesImage = new Image();
-treesImage.src = '/minigames/tag/trees.svg';
 
 // Map constraints are globally provided by window.init.mapData
 const BASE_NPC_SPEED = 140;
@@ -118,6 +115,15 @@ export function initMinigame() {
   state.invincibleTime = 0;
   state.lastTime = Date.now();
 
+  // Natively block out WebGL void using the playground grass color
+  scene.background = new THREE.Color('#7bed9f');
+
+  const minigameUi = document.getElementById('minigame-ui-container');
+  if (minigameUi) minigameUi.style.display = 'block';
+
+  const tagScoreboard = document.getElementById('tag-scoreboard');
+  if (tagScoreboard) tagScoreboard.style.display = 'block';
+
   initPlayers();
 
   // Background music
@@ -135,26 +141,13 @@ export function initMinigame() {
   if (exitBtn) {
     exitBtn.style.display = 'flex';
     exitBtn.onclick = () => {
-      const dialogOverlay = document.getElementById('action-dialog');
-      const dialogText = document.getElementById('action-dialog-text');
-      const btnYes = document.getElementById('action-dialog-yes');
-      const btnNo = document.getElementById('action-dialog-no');
-
-      if (dialogOverlay && dialogText && btnYes && btnNo) {
-        dialogText.textContent = 'Leave Game?';
-        dialogOverlay.style.display = 'block';
-
-        btnNo.onclick = () => {
-          dialogOverlay.style.display = 'none';
-        };
-
-        btnYes.onclick = () => {
-          dialogOverlay.style.display = 'none';
+      import('../ui.js').then(({ uiManager }) => {
+        uiManager.showActionDialog('Leave Game?', () => {
           import('../network.js').then(({ networkClient }) => {
             networkClient.send({ type: 'change_map', mapId: 0 }); // Back to Junior School
           });
-        };
-      }
+        });
+      });
     };
   }
 
@@ -176,8 +169,8 @@ function processNPCLogic(npc, itPlayer, dt) {
     for (const p of state.players) {
       if (p.id === npc.id) continue;
       // Tag cooldown logic check: don't chase if invincible
-      if (state.invincibleTime > 0) continue; 
-      
+      if (state.invincibleTime > 0) continue;
+
       const dist = Math.sqrt((p.targetPosition.x - npc.targetPosition.x) ** 2 + (p.targetPosition.y - npc.targetPosition.y) ** 2);
       if (dist < closestDist) {
         closestDist = dist;
@@ -194,11 +187,11 @@ function processNPCLogic(npc, itPlayer, dt) {
     // Flee from IT
     if (itPlayer) {
       const dist = Math.sqrt((itPlayer.targetPosition.x - npc.targetPosition.x) ** 2 + (itPlayer.targetPosition.y - npc.targetPosition.y) ** 2);
-      
+
       // Initialize states
       if (!npc.tagState) npc.tagState = 'idle';
       if (!npc.tauntAngleOffset) npc.tauntAngleOffset = (Math.random() - 0.5) * Math.PI;
-      
+
       // Pure state machine thresholds
       if (dist < 250) {
         npc.tagState = 'flee';
@@ -209,24 +202,24 @@ function processNPCLogic(npc, itPlayer, dt) {
       } else if (dist < 400 && npc.tagState === 'taunt') {
         npc.tagState = 'idle';
         // Reroll offset for next taunt
-        npc.tauntAngleOffset = (Math.random() - 0.5) * Math.PI; 
+        npc.tauntAngleOffset = (Math.random() - 0.5) * Math.PI;
       }
 
       // Purge the naive invincibility "idle" override. Fleers MUST physically run to escape the cooldown gap. 
       // Execute State Behaviors
       if (npc.tagState === 'idle') {
         shouldMove = false; // Resting / Catching breath
-        
+
         // Ensure they causally gaze towards IT with some random shifting
-        if (npc.idleGazeOffset === undefined || Math.random() < 1 * dt) { 
-           // Change gaze focus roughly once per second (+/- 45 degrees)
-           npc.idleGazeOffset = (Math.random() - 0.5) * (Math.PI / 2); 
+        if (npc.idleGazeOffset === undefined || Math.random() < 1 * dt) {
+          // Change gaze focus roughly once per second (+/- 45 degrees)
+          npc.idleGazeOffset = (Math.random() - 0.5) * (Math.PI / 2);
         }
-        
+
         const angleTowards = Math.atan2(itPlayer.targetPosition.y - npc.targetPosition.y, itPlayer.targetPosition.x - npc.targetPosition.x);
         const lookAngle = (angleTowards + npc.idleGazeOffset) * (180 / Math.PI);
         npc.targetPosition.rotation = lookAngle; // Turn head smoothly
-        
+
       } else if (npc.tagState === 'flee') {
         targetAngle = Math.atan2(npc.targetPosition.y - itPlayer.targetPosition.y, npc.targetPosition.x - itPlayer.targetPosition.x); // Run strictly away from IT
         speedMult = 1.0; // Sprint
@@ -268,7 +261,7 @@ function processNPCLogic(npc, itPlayer, dt) {
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
     let finalSpeed = npc.speed + (state.round - 1) * 20; // Increase speed per round
     if (isIt) finalSpeed *= 1.1; // IT is slightly faster
-    
+
     // Apply state-specific speed multiplier
     finalSpeed *= speedMult;
 
@@ -295,7 +288,7 @@ function processNPCLogic(npc, itPlayer, dt) {
     if (moveX !== 0 || moveY !== 0) {
       const newRotAngle = Math.atan2(moveY, moveX) * (180 / Math.PI);
       npc.targetPosition.rotation = newRotAngle;
-      
+
     }
   }
 }
@@ -312,7 +305,7 @@ function convergePhysics(charState, dt) {
 
   if (Math.abs(dy) > 0.5) charState.currentPosition.y += Math.sign(dy) * Math.min(speed, Math.abs(dy));
   else charState.currentPosition.y = charState.targetPosition.y;
-  
+
   if (Math.abs(dz) > 0.5) charState.currentPosition.z += Math.sign(dz) * Math.min(speed, Math.abs(dz));
   else charState.currentPosition.z = charState.targetPosition.z;
 
@@ -365,7 +358,7 @@ function processLocalPlayerLogic(localP, dt) {
     if (finalMoveX !== 0 || finalMoveY !== 0) {
       const targetAngle = Math.atan2(finalMoveY, finalMoveX) * (180 / Math.PI);
       localP.targetPosition.rotation = targetAngle;
-      
+
     }
   }
 
@@ -432,166 +425,100 @@ function run(dt) {
     convergePhysics(p, dt);
   }
 
-  draw();
+  draw(dt);
 }
 
-function drawCharacter(ctx, p, isIt) {
-  ctx.save();
-  ctx.translate(p.currentPosition.x, p.currentPosition.y);
-  ctx.translate(0, -p.currentPosition.z);
-
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.beginPath();
-  ctx.ellipse(0, 5, 12, 6, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // It indicator
-  if (isIt) {
-    ctx.strokeStyle = '#e74c3c';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.ellipse(0, 5, 20, 10, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Text
-    ctx.fillStyle = '#e74c3c';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('IT', 0, -45);
-  }
-
-  // Prepare structural limbs based on legTimer
-  const legSwing = Math.sin(p.legTimer);
-  const legStride = 6;
-  const bodyRotRad = p.currentPosition.rotation * (Math.PI / 180);
-
-  ctx.rotate(bodyRotRad);
-
-  // Limbs defined in local rotated space
-  const limbs = {
-    leftArmX: 4 - legSwing * 5, leftArmY: -14,
-    rightArmX: 4 + legSwing * 5, rightArmY: 14,
-    leftLegStartX: -2, leftLegStartY: -6,
-    leftLegEndX: -2 + 6 + (legSwing * legStride), leftLegEndY: -6,
-    rightLegStartX: -2, rightLegStartY: 6,
-    rightLegEndX: -2 + 6 - (legSwing * legStride), rightLegEndY: 6
-  };
-
-  // Draw Shoes (Fixed perspective)
-  // Tilted Perspective Rendering for the legs:
-  const drawStretchingLeg = (sx, sy, ex, ey, isLeft) => {
-    ctx.strokeStyle = p.pantsColor || '#2c3e50';
-    ctx.lineWidth = 5;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.save();
-    // Torso Anchor (Shifted up visually on the screen)
-    ctx.rotate(-bodyRotRad);
-    ctx.translate(0, -15);
-    ctx.rotate(bodyRotRad);
-    ctx.moveTo(sx, sy);
-    ctx.restore();
-    // Shoe Ground Anchor
-    ctx.lineTo(ex, ey);
-    ctx.stroke();
-
-    // Render native hyper-realistic shoe
-    characterManager.drawShoe2D(ctx, ex, ey, p.shoeColor || '#111111', isLeft);
-  };
-
-  drawStretchingLeg(limbs.leftLegStartX, limbs.leftLegStartY, limbs.leftLegEndX, limbs.leftLegEndY, true);
-  drawStretchingLeg(limbs.rightLegStartX, limbs.rightLegStartY, limbs.rightLegEndX, limbs.rightLegEndY, false);
-
-  // Torso Perspective Shift
-  ctx.rotate(-bodyRotRad);
-  ctx.translate(0, -15); // Torso altitude raise
-  ctx.rotate(bodyRotRad);
-
-  characterManager.drawHumanoidUpperBody2D(ctx, p, limbs);
-
-  ctx.restore();
-}
-
-function drawHUD(ctx, viewportWidth) {
-  // Timer & Round
-  ctx.fillStyle = 'white';
-  ctx.font = 'bold 24px Arial';
-  ctx.textAlign = 'left';
-  ctx.fillText(`Round: ${state.round}`, 20, 40);
-  ctx.fillText(`Time: ${Math.ceil(state.timeRemaining)}s`, 20, 70);
-
-  // You Are IT warning
-  if (state.itId === player.id) {
-    ctx.fillStyle = '#e74c3c';
-    ctx.font = 'bold 36px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('YOU ARE IT!', viewportWidth / 2, 60);
-  }
-}
-
-/** Draws the entire game state */
-function draw() {
+function draw(dt) {
   const dpr = window.devicePixelRatio || 1;
-    const ui = document.getElementById('uiCanvas');
-  if (ui && (ui.width !== window.innerWidth * (window.devicePixelRatio||1))) { ui.width = window.innerWidth * (window.devicePixelRatio||1); ui.height = window.innerHeight * (window.devicePixelRatio||1); ui.style.width = window.innerWidth + 'px'; ui.style.height = window.innerHeight + 'px'; }
+  const ui = document.getElementById('uiCanvas');
+  if (ui && (ui.width !== window.innerWidth * dpr)) {
+    ui.width = window.innerWidth * dpr;
+    ui.height = window.innerHeight * dpr;
+    ui.style.width = window.innerWidth + 'px';
+    ui.style.height = window.innerHeight + 'px';
+  }
   const viewportWidth = canvas.clientWidth;
   const viewportHeight = canvas.clientHeight;
 
-  ctx.fillStyle = '#7bed9f';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Erase the UI natively granting a transparent window piercing directly down into the hardware GameCanvas layer
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  ctx.save();
-  ctx.scale(dpr, dpr);
-  ctx.translate((viewportWidth / 2) | 0, (viewportHeight / 2) | 0);
-  ctx.scale(camera.zoom, camera.zoom);
-  ctx.translate(-(camera.x | 0), -(camera.y | 0));
+  // Set THREE.js orthographic bounds matching the 2D scaling dynamically
+  const camZoom = camera.zoom || 1;
+  const aspectW = (viewportWidth / camZoom) / 2;
+  const aspectH = (viewportHeight / camZoom) / 2;
 
-  // Draw Map
-  if (bgImage.complete) {
-    // Assuming map is centered
-    ctx.drawImage(bgImage, -bgImage.width / 2, -bgImage.height / 2);
+  const pitchCos = Math.max(0.15, Math.cos(threeCamera.rotation.x));
+  threeCamera.left = -aspectW;
+  threeCamera.right = aspectW;
+  // Account for pitch stretching the vertical height dynamically
+  threeCamera.top = aspectH / pitchCos;
+  threeCamera.bottom = -aspectH / pitchCos;
+
+  threeCamera.position.set(camera.x, -camera.y, 1000);
+  threeCamera.zoom = camera.zoom;
+  threeCamera.updateProjectionMatrix();
+
+  mapManager.updateDynamicModels(window.init?.objects);
+
+  let drawnBaseChars = false;
+
+  // Draw mapped Z layers from the native JSON loader mapping 3D arrays seamlessly!
+  mapManager.layers.forEach((layerGroup, z) => {
+    if (!layerGroup) return;
+
+    if (z >= 5 && !drawnBaseChars) {
+      const sortedPlayers = [...state.players].sort((a, b) => a.currentPosition.y - b.currentPosition.y);
+      for (const p of sortedPlayers) {
+        p.x = p.currentPosition.x;
+        p.y = p.currentPosition.y;
+        p.legAnimationTime = p.legTimer;
+        p.rotation = p.currentPosition.rotation;
+        characterManager.drawCharacter(p, !p.isLocalPlayer, 'base', scene, player, null, camera.zoom, viewportWidth, viewportHeight, threeCamera);
+      }
+      drawnBaseChars = true;
+    }
+
+    mapManager.drawLayer(z, scene, camera.springX || 0, camera.springY || 0);
+  });
+
+  if (!drawnBaseChars) {
+    const sortedPlayers = [...state.players].sort((a, b) => a.currentPosition.y - b.currentPosition.y);
+    for (const p of sortedPlayers) {
+      p.x = p.currentPosition.x;
+      p.y = p.currentPosition.y;
+      p.legAnimationTime = p.legTimer;
+      p.rotation = p.currentPosition.rotation;
+      characterManager.drawCharacter(p, !p.isLocalPlayer, 'base', scene, player, null, camera.zoom, viewportWidth, viewportHeight, threeCamera);
+    }
   }
 
-  // Sort players by Y coordinate for depth sorting
-  const sortedPlayers = [...state.players].sort((a, b) => a.currentPosition.y - b.currentPosition.y);
+  // Draw WebGL hardware rendering pipeline directly natively filling the window
+  renderer.render(scene, threeCamera);
 
-  for (const p of sortedPlayers) {
-    const isIt = p.id === state.itId;
-    drawCharacter(ctx, p, isIt);
+  // Update HTML DOM overlays natively replacing raw 2D Canvas injections
+  const roundEl = document.getElementById('tag-round');
+  if (roundEl) roundEl.innerText = `Round: ${state.round}`;
+
+  const timeEl = document.getElementById('tag-time');
+  if (timeEl) timeEl.innerText = `Time: ${Math.ceil(state.timeRemaining)}s`;
+
+  const warningEl = document.getElementById('tag-it-warning');
+  if (warningEl) warningEl.style.display = (state.itId === player.id) ? 'block' : 'none';
+
+  const markerEl = document.getElementById('tag-it-marker');
+  const currentIt = state.players.find(p => p.id === state.itId);
+
+  if (currentIt && markerEl) {
+    markerEl.style.display = 'block';
+    const projected = new THREE.Vector3(currentIt.x, -currentIt.y, 35).project(threeCamera); // Lift marker directly above character geometry
+    const screenX = (projected.x * 0.5 + 0.5) * viewportWidth;
+    const screenY = (-(projected.y * 0.5) + 0.5) * viewportHeight;
+    markerEl.style.left = `${screenX}px`;
+    markerEl.style.top = `${screenY}px`;
+  } else if (markerEl) {
+    markerEl.style.display = 'none';
   }
-
-  // Draw overlay trees with dynamic point-light camera shadow
-  if (treesImage.complete) {
-    ctx.save();
-    // Shadow setup - more diffuse and softer
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowBlur = 10;
-
-    // The camera is the sun.
-    // Factor in a base south offset to match the isometric map perspective.
-    const heightFactor = 0.15;
-    const baseSouthOffset = 400; // Sun is conceptually 800px further "south"
-    ctx.shadowOffsetX = (-camera.x - 200) * heightFactor;
-    ctx.shadowOffsetY = -(camera.y + baseSouthOffset) * heightFactor;
-
-    // Stylized semi-transparency for visibility
-    ctx.globalAlpha = 0.9;
-
-    // Draw directly over the same dimensions as the map
-    ctx.drawImage(treesImage, -treesImage.width / 2, -treesImage.height / 2);
-    ctx.restore();
-  }
-
-  ctx.restore();
-
-  // Draw HUD Overlays (Fixed to screen)
-  ctx.save();
-  ctx.scale(dpr, dpr);
-
-  drawHUD(ctx, viewportWidth);
-
-  ctx.restore();
 }
 
 /** Stop minigame loop externally if needed */
@@ -599,5 +526,22 @@ export function cleanupMinigame() {
   minigameActive = false;
   soundManager.stopBackground();
   const ui = document.getElementById('uiCanvas');
-  if (ui) { const x = ui.getContext('2d'); x.clearRect(0,0,ui.width,ui.height); }
+  if (ui) { const x = ui.getContext('2d'); x.clearRect(0, 0, ui.width, ui.height); }
+
+  // Restoring global canvas conditions perfectly upon map transfer natively ensuring seamless handoffs
+  scene.background = null;
+
+  const tagScoreboard = document.getElementById('tag-scoreboard');
+  if (tagScoreboard) tagScoreboard.style.display = 'none';
+  const tagMarker = document.getElementById('tag-it-marker');
+  if (tagMarker) tagMarker.style.display = 'none';
+
+  const mapBtn = document.getElementById('map-button');
+  const exitBtn = document.getElementById('exit-button');
+  if (mapBtn) mapBtn.style.display = 'inline-block';
+  if (exitBtn) exitBtn.style.display = 'none';
+
+  state.players.forEach(p => {
+    characterManager.disposeCharacter(p, scene);
+  });
 }

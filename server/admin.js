@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 function sanitizeJson(key, value) {
-  if (key.startsWith('_') || key === 'waitTimer' || key === 'currentWaypoint' || key === 'isMoving' || key === 'runDirectionTimer' || key === 'isRunning') {
+  if (key.startsWith('_') || key === 'waitTimer' || key === 'currentWaypoint' || key === 'isMoving' || key === 'runDirectionTimer' || key === 'isRunning' || key === 'nameElement' || key === 'chatElement' || key === 'meshGroup' || key === 'activeAudio' || key === 'labelElement' || key === 'rig' || key === 'shadowMesh' || key === 'chatTextNode') {
     return undefined;
   }
   // Only strip transient runtime emotes from root entities (which have IDs)
@@ -104,6 +104,9 @@ export function handleAdminMessage(ws, data, mapData) {
       if (data.rotation !== undefined) newObj.rotation = data.rotation;
       if (data.width !== undefined) newObj.width = data.width;
       if (data.length !== undefined) newObj.length = data.length;
+      if (data.z !== undefined) newObj.z = data.z;
+      if (data.model !== undefined) newObj.model = data.model;
+      if (data.scale !== undefined) newObj.scale = data.scale;
     }
     
     objects.push(newObj);

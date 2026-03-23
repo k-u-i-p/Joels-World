@@ -1,3 +1,4 @@
+import { getCharacterProxy } from './characters.js';
 import { footprints } from './main.js';
 import { physicsEngine } from './physics.js';
 import * as THREE from 'three';
@@ -70,7 +71,7 @@ export const emotes = {
       // Hover translation up
       const hover = Math.sin((Date.now() - emote.startTime) / 100) * 3;
       rig.bodyPivot.position.set(0, 0, 15.5 + hover + 10);
-      
+
       // Arms out into a flat T-Pose for maximum laser stability
       rig.leftHandTarget.set(0, -25, 15);
       rig.rightHandTarget.set(0, 25, 15);
@@ -78,30 +79,30 @@ export const emotes = {
       // Legs dangling down and slightly forward
       rig.leftFootTarget.set(-4, -6, -20);
       rig.rightFootTarget.set(-4, 6, -20);
-      
+
       // Look upwards slightly
-      rig.bodyPivot.rotation.x = Math.PI / 16; 
+      rig.bodyPivot.rotation.x = Math.PI / 16;
 
       // Lazy load 3D Laser Beam Meshes onto the active skeleton
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          
-          const beamGeo = new THREE.CylinderGeometry(0.5, 0.5, 300, 8);
-          beamGeo.rotateZ(Math.PI / 2); // Point straight along the X axis
-          const beamMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
-          
-          const eyeL = new THREE.Mesh(beamGeo, beamMat);
-          eyeL.position.set(150, -4.5, 3.5); // Originate deeply inside the sphere eyes
-          rig.emoteProps.add(eyeL);
+        rig.emoteProps = new THREE.Group();
 
-          const eyeR = new THREE.Mesh(beamGeo, beamMat);
-          eyeR.position.set(150, 4.5, 3.5);
-          rig.emoteProps.add(eyeR);
-          
-          // Anchor the lasers natively to the Head node so they rotate flawlessly with the user!
-          rig.head.add(rig.emoteProps);
+        const beamGeo = new THREE.CylinderGeometry(0.5, 0.5, 300, 8);
+        beamGeo.rotateZ(Math.PI / 2); // Point straight along the X axis
+        const beamMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
+
+        const eyeL = new THREE.Mesh(beamGeo, beamMat);
+        eyeL.position.set(150, -4.5, 3.5); // Originate deeply inside the sphere eyes
+        rig.emoteProps.add(eyeL);
+
+        const eyeR = new THREE.Mesh(beamGeo, beamMat);
+        eyeR.position.set(150, 4.5, 3.5);
+        rig.emoteProps.add(eyeR);
+
+        // Anchor the lasers natively to the Head node so they rotate flawlessly with the user!
+        rig.head.add(rig.emoteProps);
       }
-      
+
       // Pulse opacity
       const alpha = 0.5 + Math.sin((Date.now() - emote.startTime) / 50) * 0.5;
       rig.emoteProps.children.forEach(c => c.material.opacity = alpha);
@@ -114,17 +115,17 @@ export const emotes = {
     sound: "/media/jump.mp3",
     updateLimbs3D: (rig, emote) => {
       const danceTime = (Date.now() - emote.startTime) / 150;
-      const bounce = Math.abs(Math.sin(danceTime)) * 20; 
+      const bounce = Math.abs(Math.sin(danceTime)) * 20;
       const tilt = Math.sin(danceTime * 0.8) * 0.3;
 
       // Translate core hierarchy rapidly upward
       rig.bodyPivot.position.z = 15.5 + bounce;
-      rig.bodyPivot.rotation.x = tilt; 
-      
+      rig.bodyPivot.rotation.x = tilt;
+
       // Fling arms playfully upward upon liftoff
       rig.leftHandTarget.z += bounce * 0.5;
       rig.rightHandTarget.z += bounce * 0.5;
-      
+
       // Legs drag heavily behind the leaping torso natively
       rig.leftFootTarget.z -= bounce;
       rig.rightFootTarget.z -= bounce;
@@ -138,7 +139,7 @@ export const emotes = {
     updateLimbs3D: (rig, emote) => {
       const waveTime = (Date.now() - emote.startTime) / 80;
       const armSwing = Math.sin(waveTime) * 10;
-      
+
       // Rapidly oscillate the right hand deeply over the head!
       rig.rightHandTarget.set(0, 20, 25 + armSwing);
     }
@@ -151,67 +152,67 @@ export const emotes = {
     updateLimbs3D: (rig, emote, c) => {
       // Procedurally drop 3D Blueprint decals into the Global Scene Root
       if (!rig.crumbProps) {
-          rig.crumbProps = new THREE.Group();
-          const printGeo = new THREE.PlaneGeometry(6, 4); // X=length, Y=width
-          const printMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.6, depthWrite: false });
-          for (let i = 0; i < 3; i++) {
-              const print = new THREE.Mesh(printGeo, printMat);
-              print.userData = { lastDrop: 0 };
-              print.visible = false;
-              rig.crumbProps.add(print);
-          }
-          // Global map root so footprints stay behind!
-          if (c.meshGroup && c.meshGroup.parent) {
-              c.meshGroup.parent.add(rig.crumbProps); 
-          }
+        rig.crumbProps = new THREE.Group();
+        const printGeo = new THREE.PlaneGeometry(6, 4); // X=length, Y=width
+        const printMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.6, depthWrite: false });
+        for (let i = 0; i < 3; i++) {
+          const print = new THREE.Mesh(printGeo, printMat);
+          print.userData = { lastDrop: 0 };
+          print.visible = false;
+          rig.crumbProps.add(print);
+        }
+        // Global map root so footprints stay behind!
+        if (getCharacterProxy(c.id).meshGroup && getCharacterProxy(c.id).meshGroup.parent) {
+          getCharacterProxy(c.id).meshGroup.parent.add(rig.crumbProps);
+        }
       }
-      
+
       const elapsed = Date.now() - emote.startTime;
       const stepIdx = Math.floor(elapsed / 500) % 3;
       const print = rig.crumbProps.children[stepIdx];
-      
+
       const worldPos = new THREE.Vector3();
-      c.meshGroup.getWorldPosition(worldPos);
-      
+      getCharacterProxy(c.id).meshGroup.getWorldPosition(worldPos);
+
       if (!print.visible || print.userData.lastDrop < elapsed - 1500) {
-          print.position.copy(worldPos);
-          print.position.z = 0.5; // flush with the floor
-          print.rotation.z = -c.rotation * Math.PI / 180; // match footprint orientation to player yaw!
-          print.visible = true;
-          print.userData.lastDrop = elapsed;
+        print.position.copy(worldPos);
+        print.position.z = 0.5; // flush with the floor
+        print.rotation.z = -c.rotation * Math.PI / 180; // match footprint orientation to player yaw!
+        print.visible = true;
+        print.userData.lastDrop = elapsed;
       }
-      
+
       rig.crumbProps.children.forEach(p => {
-         if (p.visible) {
-             const age = elapsed - p.userData.lastDrop;
-             if (age > 1500) { p.visible = false; }
-             else { 
-                 p.material.opacity = 0.6 * (1 - age / 1500); 
-                 p.scale.setScalar(1 - age / 3000); 
-             }
-         }
+        if (p.visible) {
+          const age = elapsed - p.userData.lastDrop;
+          if (age > 1500) { p.visible = false; }
+          else {
+            p.material.opacity = 0.6 * (1 - age / 1500);
+            p.scale.setScalar(1 - age / 3000);
+          }
+        }
       });
 
       // Prop Instantiate 3D Dripping Water Orbs
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          const dropGeo = new THREE.SphereGeometry(1.5, 6, 6);
-          const dropMat = new THREE.MeshStandardMaterial({ color: 0x3498db, transparent: true, opacity: 0.6, roughness: 0.1 });
-          
-          for (let i = 0; i < 3; i++) {
-              rig.emoteProps.add(new THREE.Mesh(dropGeo, dropMat));
-          }
-          rig.emotePropsDirectional.add(rig.emoteProps);
+        rig.emoteProps = new THREE.Group();
+        const dropGeo = new THREE.SphereGeometry(1.5, 6, 6);
+        const dropMat = new THREE.MeshStandardMaterial({ color: 0x3498db, transparent: true, opacity: 0.6, roughness: 0.1 });
+
+        for (let i = 0; i < 3; i++) {
+          rig.emoteProps.add(new THREE.Mesh(dropGeo, dropMat));
+        }
+        rig.emotePropsDirectional.add(rig.emoteProps);
       }
 
       const swimTime = Date.now() - emote.startTime;
       for (let i = 0; i < 3; i++) {
         const offset = i * 333;
         const progress = ((swimTime + offset) % 1000) / 1000;
-        
-        const dropY = (i - 1) * 8; 
+
+        const dropY = (i - 1) * 8;
         const dropZ = 25 - progress * 30; // Shower straight down to the floor
-        
+
         const drop = rig.emoteProps.children[i];
         drop.position.set(0, dropY, dropZ);
         drop.scale.setScalar(1 - progress);
@@ -231,43 +232,43 @@ export const emotes = {
       rig.rightHandTarget.set(10, 16 - bringToMouth * 16, 12 + bringToMouth * 24);
 
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          
-          const appleGeo = new THREE.SphereGeometry(3.5, 10, 10);
-          const appleMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c, roughness: 0.5 });
-          const apple = new THREE.Mesh(appleGeo, appleMat);
-          apple.position.set(0, 0, 0);
-          rig.emoteProps.add(apple);
-          
-          const stemGeo = new THREE.CylinderGeometry(0.3, 0.3, 3, 5);
-          const stemMat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
-          const stem = new THREE.Mesh(stemGeo, stemMat);
-          stem.position.set(0, 0, 3.5);
-          rig.emoteProps.add(stem);
-          
-          // Apple rigidly anchored into the right hand primitive!
-          rig.rHand.add(rig.emoteProps);
+        rig.emoteProps = new THREE.Group();
+
+        const appleGeo = new THREE.SphereGeometry(3.5, 10, 10);
+        const appleMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c, roughness: 0.5 });
+        const apple = new THREE.Mesh(appleGeo, appleMat);
+        apple.position.set(0, 0, 0);
+        rig.emoteProps.add(apple);
+
+        const stemGeo = new THREE.CylinderGeometry(0.3, 0.3, 3, 5);
+        const stemMat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
+        const stem = new THREE.Mesh(stemGeo, stemMat);
+        stem.position.set(0, 0, 3.5);
+        rig.emoteProps.add(stem);
+
+        // Apple rigidly anchored into the right hand primitive!
+        rig.rHand.add(rig.emoteProps);
       }
-      
+
       // Handle aggressive chewing particle physics (instanced as loose prop meshes)
       if (!rig.crumbProps) {
-          rig.crumbProps = new THREE.Group();
-          const crumbGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
-          const crumbMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
-          for (let i = 0; i < 3; i++) {
-              rig.crumbProps.add(new THREE.Mesh(crumbGeo, crumbMat));
-          }
-          rig.head.add(rig.crumbProps);
+        rig.crumbProps = new THREE.Group();
+        const crumbGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        const crumbMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
+        for (let i = 0; i < 3; i++) {
+          rig.crumbProps.add(new THREE.Mesh(crumbGeo, crumbMat));
+        }
+        rig.head.add(rig.crumbProps);
       }
 
       if (bringToMouth > 0.8) {
         rig.crumbProps.visible = true;
         for (const i of [0, 1, 2]) {
           const crumbTime = ((Date.now() - emote.startTime) % (200 + i * 50)) / 250;
-          const dropX = 8 + crumbTime * (5 + i * 2); 
-          const dropY = (i - 1) * 3 + crumbTime * 4; 
-          const dropZ = -crumbTime * 10; 
-          
+          const dropX = 8 + crumbTime * (5 + i * 2);
+          const dropY = (i - 1) * 3 + crumbTime * 4;
+          const dropZ = -crumbTime * 10;
+
           const crumb = rig.crumbProps.children[i];
           crumb.position.set(dropX, dropY, dropZ);
           crumb.material.opacity = 1 - crumbTime;
@@ -286,46 +287,46 @@ export const emotes = {
     updateLimbs3D: (rig, emote) => {
       // Lower Torso to floor
       rig.bodyPivot.position.z = 8;
-      
-      // Sit legs out front
-      rig.leftFootTarget.set(15, -6, -4);
-      rig.rightFootTarget.set(15, 6, -4);
-      
+
+      // Sit legs out front (knees bent, feet raised to rest naturally)
+      rig.leftFootTarget.set(12, -6, -5);
+      rig.rightFootTarget.set(12, 6, -5);
+
       const eatTime = (Date.now() - emote.startTime) / 200;
-      const armMove = Math.sin(eatTime); 
+      const armMove = Math.sin(eatTime);
 
       // Prop Instantiate: Plate, Steak, Utensils
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          
-          const plateGeo = new THREE.CylinderGeometry(8, 6, 1, 16);
-          plateGeo.rotateX(Math.PI / 2);
-          const plateMat = new THREE.MeshStandardMaterial({ color: 0xecf0f1, roughness: 0.3 });
-          const plate = new THREE.Mesh(plateGeo, plateMat);
-          plate.position.set(22, 0, -14); 
-          rig.emoteProps.add(plate);
-          
-          const steakGeo = new THREE.CylinderGeometry(4, 4, 1.2, 8);
-          steakGeo.rotateX(Math.PI / 2);
-          const steakMat = new THREE.MeshStandardMaterial({ color: 0x8e44ad, roughness: 0.8 });
-          const steak = new THREE.Mesh(steakGeo, steakMat);
-          steak.position.set(22, 0, -13);
-          rig.emoteProps.add(steak);
-          
-          const knifeGeo = new THREE.BoxGeometry(0.5, 6, 2);
-          const knifeMat = new THREE.MeshStandardMaterial({ color: 0xbdc3c7 });
-          const knife = new THREE.Mesh(knifeGeo, knifeMat);
-          knife.position.set(0, 0, -5);
-          rig.rHand.add(knife);
-          
-          const fork = new THREE.Mesh(knifeGeo, knifeMat);
-          fork.position.set(0, 0, -5);
-          rig.lHand.add(fork);
-          
-          // Plate stays fixed relative to the body pivot bounds
-          rig.meshGroup.add(rig.emoteProps); 
+        rig.emoteProps = new THREE.Group();
+
+        const plateGeo = new THREE.CylinderGeometry(8, 6, 1, 16);
+        plateGeo.rotateX(Math.PI / 2);
+        const plateMat = new THREE.MeshStandardMaterial({ color: 0xecf0f1, roughness: 0.3 });
+        const plate = new THREE.Mesh(plateGeo, plateMat);
+        plate.position.set(22, 0, -14);
+        rig.emoteProps.add(plate);
+
+        const steakGeo = new THREE.CylinderGeometry(4, 4, 1.2, 8);
+        steakGeo.rotateX(Math.PI / 2);
+        const steakMat = new THREE.MeshStandardMaterial({ color: 0x8e44ad, roughness: 0.8 });
+        const steak = new THREE.Mesh(steakGeo, steakMat);
+        steak.position.set(22, 0, -13);
+        rig.emoteProps.add(steak);
+
+        const knifeGeo = new THREE.BoxGeometry(0.5, 6, 2);
+        const knifeMat = new THREE.MeshStandardMaterial({ color: 0xbdc3c7 });
+        const knife = new THREE.Mesh(knifeGeo, knifeMat);
+        knife.position.set(0, 0, -5);
+        rig.rHand.add(knife);
+
+        const fork = new THREE.Mesh(knifeGeo, knifeMat);
+        fork.position.set(0, 0, -5);
+        rig.lHand.add(fork);
+
+        // Plate stays fixed relative to the body pivot bounds
+        rig.meshGroup.add(rig.emoteProps);
       }
-      
+
       // Animate oscillating utensil swing
       if (armMove > 0) {
         // Right hand to face
@@ -347,39 +348,39 @@ export const emotes = {
     updateLimbs3D: (rig, emote) => {
       // Lower Torso to floor
       rig.bodyPivot.position.z = 8;
-      
-      // Sit legs out front
-      rig.leftFootTarget.set(15, -6, -4);
-      rig.rightFootTarget.set(15, 6, -4);
-      
+
+      // Sit legs out front (knees bent, feet raised to rest naturally)
+      rig.leftFootTarget.set(12, -6, -5);
+      rig.rightFootTarget.set(12, 6, -5);
+
       const writeTime = (Date.now() - emote.startTime) / 50;
       const armMoveX = Math.sin(writeTime) * 3;
       const armMoveY = Math.cos(writeTime * 1.3) * 2;
-      
+
       // Prop Instantiate: Book and Pen
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          const bookGeo = new THREE.BoxGeometry(10, 12, 0.5);
-          const bookMat = new THREE.MeshStandardMaterial({ color: 0xecf0f1, roughness: 0.9 });
-          const book = new THREE.Mesh(bookGeo, bookMat);
-          book.position.set(16, 0, -2);
-          book.rotation.x = 0.2;
-          book.rotation.y = 0.2;
-          rig.emoteProps.add(book);
-          
-          const penGeo = new THREE.CylinderGeometry(0.5, 0.5, 6, 6);
-          const penMat = new THREE.MeshStandardMaterial({ color: 0x3498db });
-          const pen = new THREE.Mesh(penGeo, penMat);
-          pen.position.set(0, 0, 5);
-          pen.rotation.x = Math.PI / 4;
-          rig.rHand.add(pen);
-          
-          rig.bodyPivot.add(rig.emoteProps);
+        rig.emoteProps = new THREE.Group();
+        const bookGeo = new THREE.BoxGeometry(10, 12, 0.5);
+        const bookMat = new THREE.MeshStandardMaterial({ color: 0xecf0f1, roughness: 0.9 });
+        const book = new THREE.Mesh(bookGeo, bookMat);
+        book.position.set(16, 0, -2);
+        book.rotation.x = 0.2;
+        book.rotation.y = 0.2;
+        rig.emoteProps.add(book);
+
+        const penGeo = new THREE.CylinderGeometry(0.5, 0.5, 6, 6);
+        const penMat = new THREE.MeshStandardMaterial({ color: 0x3498db });
+        const pen = new THREE.Mesh(penGeo, penMat);
+        pen.position.set(0, 0, 5);
+        pen.rotation.x = Math.PI / 4;
+        rig.rHand.add(pen);
+
+        rig.bodyPivot.add(rig.emoteProps);
       }
-      
+
       // Writing right hand bounding
       rig.rightHandTarget.set(15 + armMoveX, 4 + armMoveY, 0);
-      
+
       // Left arm resting firmly on paper
       rig.leftHandTarget.set(15, -8, 0);
     }
@@ -393,40 +394,40 @@ export const emotes = {
       const age = Date.now() - emote.startTime;
 
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          const dustGeo = new THREE.SphereGeometry(4, 6, 6);
-          const dustMat = new THREE.MeshStandardMaterial({ color: 0xbdc3c7, transparent: true, opacity: 0 });
-          for (let i = 0; i < 4; i++) {
-              rig.emoteProps.add(new THREE.Mesh(dustGeo, dustMat));
-          }
-          // Dust tracks player Yaw independently!
-          rig.emotePropsDirectional.add(rig.emoteProps);
+        rig.emoteProps = new THREE.Group();
+        const dustGeo = new THREE.SphereGeometry(4, 6, 6);
+        const dustMat = new THREE.MeshStandardMaterial({ color: 0xbdc3c7, transparent: true, opacity: 0 });
+        for (let i = 0; i < 4; i++) {
+          rig.emoteProps.add(new THREE.Mesh(dustGeo, dustMat));
+        }
+        // Dust tracks player Yaw independently!
+        rig.emotePropsDirectional.add(rig.emoteProps);
       }
-      
+
       if (age < 800) {
         const progress = age / 800;
         const height = progress * (1 - progress) * 4 * 30; // Native Parabolic altitude lift
 
         rig.bodyPivot.position.z = 15.5 + height;
         rig.bodyPivot.rotation.y = Math.sin(progress * Math.PI) * 0.4;
-        
+
         const tuck = Math.sin(progress * Math.PI);
         rig.leftFootTarget.set(-2, -6, -13 + tuck * 15);
         rig.rightFootTarget.set(-2, 6, -13 + tuck * 15);
-        
+
         const armSwing = Math.cos(progress * Math.PI * 2);
         rig.leftHandTarget.set(10 * armSwing, -16, 20 - armSwing * 10);
         rig.rightHandTarget.set(10 * armSwing, 16, 20 - armSwing * 10);
-        
+
         // Procedurally scale and evaluate Cloud dust opacity relative to lift progress
         if (progress < 0.25 || progress > 0.75) {
-            const dustP = progress < 0.25 ? (progress / 0.25) : ((progress - 0.75) / 0.25);
-            const opac = Math.max(0, 1 - dustP * 1.5);
-            rig.emoteProps.children.forEach((c, idx) => {
-               c.material.opacity = opac;
-               c.position.set(-10 + (idx%2)*20 + dustP * 10, -10 + (Math.floor(idx/2))*20, 0);
-               c.scale.setScalar(1 + dustP * 2);
-            });
+          const dustP = progress < 0.25 ? (progress / 0.25) : ((progress - 0.75) / 0.25);
+          const opac = Math.max(0, 1 - dustP * 1.5);
+          rig.emoteProps.children.forEach((c, idx) => {
+            c.material.opacity = opac;
+            c.position.set(-10 + (idx % 2) * 20 + dustP * 10, -10 + (Math.floor(idx / 2)) * 20, 0);
+            c.scale.setScalar(1 + dustP * 2);
+          });
         }
       } else {
         rig.emoteProps.children.forEach(c => c.material.opacity = 0);
@@ -441,7 +442,7 @@ export const emotes = {
       const danceTime = (Date.now() - emote.startTime) / 150;
       const bob = Math.abs(Math.sin(danceTime * 2)) * 6; // bounce up
       const tilt = Math.sin(danceTime) * 0.3; // sway
-      
+
       rig.bodyPivot.position.z = 15.5 + bob;
       rig.bodyPivot.rotation.x = tilt;
 
@@ -457,28 +458,28 @@ export const emotes = {
       rig.rightFootTarget.set(0, 6 + Math.max(0, legStep * 10), -13);
 
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          const noteGeo = new THREE.BoxGeometry(3, 3, 3);
-          const noteMat = new THREE.MeshStandardMaterial({ color: 0x9b59b6 });
-          for (let i = 0; i < 3; i++) {
-              rig.emoteProps.add(new THREE.Mesh(noteGeo, noteMat));
-          }
-          rig.emotePropsDirectional.add(rig.emoteProps);
+        rig.emoteProps = new THREE.Group();
+        const noteGeo = new THREE.BoxGeometry(3, 3, 3);
+        const noteMat = new THREE.MeshStandardMaterial({ color: 0x9b59b6 });
+        for (let i = 0; i < 3; i++) {
+          rig.emoteProps.add(new THREE.Mesh(noteGeo, noteMat));
+        }
+        rig.emotePropsDirectional.add(rig.emoteProps);
       }
-      
+
       const timeActive = Date.now() - emote.startTime;
       for (let i = 0; i < 3; i++) {
         const offset = i * 400;
         const progress = ((timeActive + offset) % 1200) / 1200;
-        
+
         const noteX = Math.sin(progress * Math.PI * 4 + i) * 15;
         const noteZ = 15 + progress * 40;
-        
+
         const note = rig.emoteProps.children[i];
         note.position.set(noteX, 0, noteZ);
         note.rotation.x += 0.1;
         note.rotation.y += 0.1;
-        
+
         note.scale.setScalar(Math.max(0.01, 1 - progress));
       }
     }
@@ -490,27 +491,27 @@ export const emotes = {
     sound: "/media/fart.mp3",
     updateLimbs3D: (rig, emote) => {
       const fartAge = Date.now() - emote.startTime;
-      
+
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          const gasGeo = new THREE.SphereGeometry(8, 8, 8);
-          const gasMat = new THREE.MeshBasicMaterial({ color: 0x2ecc71, transparent: true, opacity: 0.8 });
-          for (let i = 0; i < 3; i++) {
-              rig.emoteProps.add(new THREE.Mesh(gasGeo, gasMat));
-          }
-          rig.emotePropsDirectional.add(rig.emoteProps);
+        rig.emoteProps = new THREE.Group();
+        const gasGeo = new THREE.SphereGeometry(8, 8, 8);
+        const gasMat = new THREE.MeshBasicMaterial({ color: 0x2ecc71, transparent: true, opacity: 0.8 });
+        for (let i = 0; i < 3; i++) {
+          rig.emoteProps.add(new THREE.Mesh(gasGeo, gasMat));
+        }
+        rig.emotePropsDirectional.add(rig.emoteProps);
       }
-      
+
       if (fartAge < 1000) {
-          const progress = fartAge / 1000;
-          const alpha = Math.max(0, 1 - progress);
-          rig.emoteProps.children.forEach((cloud, i) => {
-             cloud.material.opacity = alpha;
-             cloud.position.set(-8 - progress * 15 - i*5, (i-1)*5, 10 + progress * 5);
-             cloud.scale.setScalar(1 + progress);
-          });
+        const progress = fartAge / 1000;
+        const alpha = Math.max(0, 1 - progress);
+        rig.emoteProps.children.forEach((cloud, i) => {
+          cloud.material.opacity = alpha;
+          cloud.position.set(-8 - progress * 15 - i * 5, (i - 1) * 5, 10 + progress * 5);
+          cloud.scale.setScalar(1 + progress);
+        });
       } else {
-          rig.emoteProps.children.forEach(c => c.material.opacity = 0);
+        rig.emoteProps.children.forEach(c => c.material.opacity = 0);
       }
     }
   },
@@ -520,13 +521,13 @@ export const emotes = {
     message_when_near: "{name} died in front of {target_name}",
     updateLimbs3D: (rig, emote) => {
       // Lay flat on their back, completely lifeless
-      rig.bodyPivot.position.set(0, 0, 4); 
+      rig.bodyPivot.position.set(0, 0, 4);
       rig.bodyPivot.rotation.y = -Math.PI / 2;
-      
+
       // Arms splayed outwards heavily along the ground grid
       rig.leftHandTarget.set(10, -25, 4);
       rig.rightHandTarget.set(10, 25, 4);
-      
+
       // Legs lazily splayed
       rig.leftFootTarget.set(-15, -15, 4);
       rig.rightFootTarget.set(-15, 15, 4);
@@ -540,22 +541,22 @@ export const emotes = {
     updateLimbs3D: (rig, emote) => {
       // Tilt head softly downward
       rig.bodyPivot.rotation.y = Math.PI / 16;
-      
+
       // Hands rubbing eyes
       rig.leftHandTarget.set(8, -4, 20);
       rig.rightHandTarget.set(8, 4, 20);
 
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          const tearGeo = new THREE.SphereGeometry(1, 4, 4);
-          const tearMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.8 });
-          for (let i = 0; i < 6; i++) {
-              rig.emoteProps.add(new THREE.Mesh(tearGeo, tearMat));
-          }
-          // Tears stream rigidly proportional to the native Head bone matrix!
-          rig.head.add(rig.emoteProps); 
+        rig.emoteProps = new THREE.Group();
+        const tearGeo = new THREE.SphereGeometry(1, 4, 4);
+        const tearMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.8 });
+        for (let i = 0; i < 6; i++) {
+          rig.emoteProps.add(new THREE.Mesh(tearGeo, tearMat));
+        }
+        // Tears stream rigidly proportional to the native Head bone matrix!
+        rig.head.add(rig.emoteProps);
       }
-      
+
       for (let i = 0; i < 6; i++) {
         const offset = i * (1000 / 6);
         const progress = ((Date.now() + offset) % 1000) / 1000;
@@ -563,7 +564,7 @@ export const emotes = {
         const tearSize = 1 - progress * 0.5;
         const tearZ = 2 - progress * 15; // Track steeply down the Z axis
         const tearX = 4 + progress * 2; // Project slightly forward to clear the static mesh
-        
+
         const tear = rig.emoteProps.children[i];
         tear.position.set(tearX, i % 2 === 0 ? 3 : -3, tearZ); // Toggle L/R streams
         tear.scale.setScalar(tearSize);
@@ -579,7 +580,7 @@ export const emotes = {
       const danceTime = (Date.now() - emote.startTime) / 150;
       const swing = Math.sin(danceTime);
       const fastSwing = Math.sin(danceTime * 2);
-      
+
       // Rigorous core bobbing
       rig.bodyPivot.position.z = 15.5 - Math.abs(fastSwing * 4);
       rig.bodyPivot.position.x = fastSwing * 2;
@@ -592,7 +593,7 @@ export const emotes = {
         rig.leftFootTarget.set(10, -16, -13);
         rig.rightFootTarget.set(-2, 6, -13);
       }
-      
+
       // Aggressive rigid arm flailing
       rig.leftHandTarget.set(10 + swing * 8, -6, 12);
       rig.rightHandTarget.set(10 - swing * 8, 6, 12);
@@ -605,9 +606,9 @@ export const emotes = {
     sound: "/media/laugh.mp3",
     updateLimbs3D: (rig, emote) => {
       const laughTime = (Date.now() - emote.startTime) / 100;
-      const rock = Math.sin(laughTime) * 6; 
+      const rock = Math.sin(laughTime) * 6;
       const kick = Math.sin(laughTime * 2) * 8;
-      
+
       // Fling body backward onto the floor, rolling slightly!
       rig.bodyPivot.position.set(0, rock, 8);
       rig.bodyPivot.rotation.x = -Math.PI / 4 + rock * 0.05;
@@ -622,19 +623,19 @@ export const emotes = {
 
       // Joyful Tears
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          const tearGeo = new THREE.SphereGeometry(1.5, 4, 4);
-          const tearMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.8 });
-          for (let i = 0; i < 2; i++) {
-              rig.emoteProps.add(new THREE.Mesh(tearGeo, tearMat));
-          }
-          rig.head.add(rig.emoteProps);
+        rig.emoteProps = new THREE.Group();
+        const tearGeo = new THREE.SphereGeometry(1.5, 4, 4);
+        const tearMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.8 });
+        for (let i = 0; i < 2; i++) {
+          rig.emoteProps.add(new THREE.Mesh(tearGeo, tearMat));
+        }
+        rig.head.add(rig.emoteProps);
       }
 
       const progress = ((Date.now() - emote.startTime) % 1000) / 1000;
       rig.emoteProps.children.forEach((tear, idx) => {
-          tear.position.set(4, idx === 0 ? -5 - progress*5 : 5 + progress*5, 0);
-          tear.material.opacity = 1 - progress;
+        tear.position.set(4, idx === 0 ? -5 - progress * 5 : 5 + progress * 5, 0);
+        tear.material.opacity = 1 - progress;
       });
     }
   },
@@ -646,7 +647,7 @@ export const emotes = {
     updateLimbs3D: (rig, emote) => {
       const age = Date.now() - emote.startTime;
       const hover = Math.sin(age / 150) * 2;
-      
+
       rig.bodyPivot.position.z = 15.5 + hover;
 
       // Arms clasped beautifully forward
@@ -654,40 +655,40 @@ export const emotes = {
       rig.rightHandTarget.set(10, 2, 12);
 
       // Legs kicking back in unison adorably (-Z trajectory)
-      const kick = Math.max(0, -Math.sin(age / 150) * 8); 
+      const kick = Math.max(0, -Math.sin(age / 150) * 8);
       rig.leftFootTarget.set(-kick, -3, -13 + kick * 0.5);
       rig.rightFootTarget.set(-kick, 3, -13 + kick * 0.5);
 
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          
-          const c2d = document.createElement('canvas');
-          c2d.width = 64; c2d.height = 64;
-          const c2dCtx = c2d.getContext('2d');
-          c2dCtx.font = '50px sans-serif';
-          c2dCtx.textAlign = 'center'; c2dCtx.textBaseline = 'middle';
-          c2dCtx.fillText('❤️', 32, 36);
-          const tex = new THREE.CanvasTexture(c2d);
-          const heartMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
-          
-          for (let i = 0; i < 4; i++) {
-              rig.emoteProps.add(new THREE.Sprite(heartMat));
-          }
-          // Attach strictly to directional root for independent particle trajectories frontward!
-          rig.emotePropsDirectional.add(rig.emoteProps); 
+        rig.emoteProps = new THREE.Group();
+
+        const c2d = document.createElement('canvas');
+        c2d.width = 64; c2d.height = 64;
+        const c2dCtx = c2d.getContext('2d');
+        c2dCtx.font = '50px sans-serif';
+        c2dCtx.textAlign = 'center'; c2dCtx.textBaseline = 'middle';
+        c2dCtx.fillText('❤️', 32, 36);
+        const tex = new THREE.CanvasTexture(c2d);
+        const heartMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+
+        for (let i = 0; i < 4; i++) {
+          rig.emoteProps.add(new THREE.Sprite(heartMat));
+        }
+        // Attach strictly to directional root for independent particle trajectories frontward!
+        rig.emotePropsDirectional.add(rig.emoteProps);
       }
 
       for (let i = 0; i < 4; i++) {
         const offset = i * 500;
         const progress = ((age + offset) % 2000) / 2000;
         const heart = rig.emoteProps.children[i];
-        
+
         heart.material.opacity = 1 - Math.pow(progress, 2);
-        
-        const curZ = 15 + progress * 40; 
-        const curY = Math.sin(progress * Math.PI * 6 + i) * 6; 
-        const curX = 8 + progress * 10; 
-        
+
+        const curZ = 15 + progress * 40;
+        const curY = Math.sin(progress * Math.PI * 6 + i) * 6;
+        const curX = 8 + progress * 10;
+
         heart.position.set(curX, curY, curZ);
         heart.scale.setScalar(5 - progress * 2);
       }
@@ -699,7 +700,7 @@ export const emotes = {
     message_when_near: "{name} hit a tennis ball at {target_name}!",
     updateLimbs3D: (rig, emote) => {
       // Wide Stance rigidly anchored
-      rig.bodyPivot.position.z = 15.5; 
+      rig.bodyPivot.position.z = 15.5;
       rig.leftFootTarget.set(-5, -10, -13);
       rig.rightFootTarget.set(-5, 10, -13);
 
@@ -707,61 +708,61 @@ export const emotes = {
       const progress = cycle / 2000;
 
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          
-          // Racket Sub-Group
-          const racketGroup = new THREE.Group();
-          const handleGeo = new THREE.CylinderGeometry(0.5, 0.5, 8);
-          handleGeo.rotateX(Math.PI / 2);
-          const handleMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
-          racketGroup.add(new THREE.Mesh(handleGeo, handleMat));
-          
-          const hoopGeo = new THREE.TorusGeometry(4, 0.5, 8, 24);
-          hoopGeo.rotateY(Math.PI / 2);
-          hoopGeo.position.set(0, 8, 0); 
-          const hoopMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
-          racketGroup.add(new THREE.Mesh(hoopGeo, hoopMat));
-          
-          // Tie racket strictly to the isolated Right Hand node!
-          rig.rHand.add(racketGroup);
+        rig.emoteProps = new THREE.Group();
 
-          // Render isolated bouncing Tennis Ball primitive
-          const ballGeo = new THREE.SphereGeometry(1.5, 8, 8);
-          const ballMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f });
-          const ball = new THREE.Mesh(ballGeo, ballMat);
-          rig.emoteProps.add(ball);
-          
-          // Attach Prop strictly to directional root for Serve trajectories
-          rig.emotePropsDirectional.add(rig.emoteProps); 
+        // Racket Sub-Group
+        const racketGroup = new THREE.Group();
+        const handleGeo = new THREE.CylinderGeometry(0.5, 0.5, 8);
+        handleGeo.rotateX(Math.PI / 2);
+        const handleMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
+        racketGroup.add(new THREE.Mesh(handleGeo, handleMat));
+
+        const hoopGeo = new THREE.TorusGeometry(4, 0.5, 8, 24);
+        hoopGeo.rotateY(Math.PI / 2);
+        hoopGeo.position.set(0, 8, 0);
+        const hoopMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
+        racketGroup.add(new THREE.Mesh(hoopGeo, hoopMat));
+
+        // Tie racket strictly to the isolated Right Hand node!
+        rig.rHand.add(racketGroup);
+
+        // Render isolated bouncing Tennis Ball primitive
+        const ballGeo = new THREE.SphereGeometry(1.5, 8, 8);
+        const ballMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f });
+        const ball = new THREE.Mesh(ballGeo, ballMat);
+        rig.emoteProps.add(ball);
+
+        // Attach Prop strictly to directional root for Serve trajectories
+        rig.emotePropsDirectional.add(rig.emoteProps);
       }
 
       const ball = rig.emoteProps.children[0];
-      
+
       // Toss ball from left hand to the air!
       if (progress < 0.3) {
-          rig.leftHandTarget.set(10, -12, 12 + (progress/0.3) * 20); 
-          ball.position.set(10, -12, 12 + (progress/0.3) * 20);
-          ball.visible = true;
+        rig.leftHandTarget.set(10, -12, 12 + (progress / 0.3) * 20);
+        ball.position.set(10, -12, 12 + (progress / 0.3) * 20);
+        ball.visible = true;
       } else if (progress < 0.5) {
-          rig.leftHandTarget.set(10, -12, 12); 
-          ball.position.set(10, -12, 32 - ((progress - 0.3)/0.2) * 5); 
-          ball.visible = true;
+        rig.leftHandTarget.set(10, -12, 12);
+        ball.position.set(10, -12, 32 - ((progress - 0.3) / 0.2) * 5);
+        ball.visible = true;
       } else if (progress < 0.7) {
-          rig.leftHandTarget.set(10, -12, 12);
-          ball.position.set(10 + ((progress - 0.5)/0.2) * 80, -12, 27); 
-          ball.visible = true;
+        rig.leftHandTarget.set(10, -12, 12);
+        ball.position.set(10 + ((progress - 0.5) / 0.2) * 80, -12, 27);
+        ball.visible = true;
       } else {
-          rig.leftHandTarget.set(10, -12, 12);
-          ball.visible = false;
+        rig.leftHandTarget.set(10, -12, 12);
+        ball.visible = false;
       }
 
       // Racket swing (Right hand)
       if (progress < 0.4) {
-          rig.rightHandTarget.set(0, 12, 25);
+        rig.rightHandTarget.set(0, 12, 25);
       } else if (progress < 0.6) {
-          rig.rightHandTarget.set(20 + ((progress-0.4)/0.2)*10, 12, 25 - ((progress-0.4)/0.2)*15);
+        rig.rightHandTarget.set(20 + ((progress - 0.4) / 0.2) * 10, 12, 25 - ((progress - 0.4) / 0.2) * 15);
       } else {
-          rig.rightHandTarget.set(10, 12, 10);
+        rig.rightHandTarget.set(10, 12, 10);
       }
     }
   },
@@ -771,22 +772,22 @@ export const emotes = {
     message_when_near: "{name} passed the ball to {target_name}!",
     updateLimbs3D: (rig, emote) => {
       // Hold ball tightly with BOTH hands centrally tracking the chest mass
-      rig.rightHandTarget.set(12, 5, 12); 
-      rig.leftHandTarget.set(12, -5, 12); 
-      
+      rig.rightHandTarget.set(12, 5, 12);
+      rig.leftHandTarget.set(12, -5, 12);
+
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          const ballGeo = new THREE.SphereGeometry(3.5, 12, 12);
-          // Mutate origin primitive geometry scaling it dynamically to an Oblong format
-          ballGeo.scale(1.5, 1, 1);
-          const ballMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0 });
-          const ball = new THREE.Mesh(ballGeo, ballMat);
-          
-          ball.position.set(10, 0, 12); 
-          ball.rotation.x = Math.PI / 2;
-          
-          rig.emoteProps.add(ball);
-          rig.emotePropsDirectional.add(rig.emoteProps);
+        rig.emoteProps = new THREE.Group();
+        const ballGeo = new THREE.SphereGeometry(3.5, 12, 12);
+        // Mutate origin primitive geometry scaling it dynamically to an Oblong format
+        ballGeo.scale(1.5, 1, 1);
+        const ballMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0 });
+        const ball = new THREE.Mesh(ballGeo, ballMat);
+
+        ball.position.set(10, 0, 12);
+        ball.rotation.x = Math.PI / 2;
+
+        rig.emoteProps.add(ball);
+        rig.emotePropsDirectional.add(rig.emoteProps);
       }
     }
   },
@@ -795,13 +796,13 @@ export const emotes = {
     message: "{name} sat down",
     message_when_near: "{name} sat next to {target_name}",
     updateLimbs3D: (rig, emote) => {
-      rig.bodyPivot.position.z = 8; 
-      
-      rig.leftFootTarget.set(15, -6, -4);
-      rig.rightFootTarget.set(15, 6, -4);
-      
-      rig.leftHandTarget.set(8, -12, -4);
-      rig.rightHandTarget.set(8, 12, -4);
+      rig.bodyPivot.position.z = 8;
+
+      rig.leftFootTarget.set(12, -6, -1);
+      rig.rightFootTarget.set(12, 6, -1);
+
+      rig.leftHandTarget.set(8, -12, 13);
+      rig.rightHandTarget.set(8, 12, 13);
     }
   },
   swim: {
@@ -812,10 +813,10 @@ export const emotes = {
     updateLimbs3D: (rig, emote) => {
       const swimTime = (Date.now() - emote.startTime) / 200;
       const bob = Math.sin(swimTime) * 3;
-      
+
       // Lie flat aggressively on stomach (+Y pitch projection)
       rig.bodyPivot.position.set(0, 0, 15.5 + bob);
-      rig.bodyPivot.rotation.y = Math.PI / 2; 
+      rig.bodyPivot.rotation.y = Math.PI / 2;
 
       const stroke = Math.sin(swimTime);
       const sweep = Math.cos(swimTime);
@@ -824,23 +825,23 @@ export const emotes = {
       // Breast stroke arms sweeping back and forth relative to body
       rig.leftHandTarget.set(15 - stroke * 10, -8 - sweep * 10, 15.5);
       rig.rightHandTarget.set(15 - stroke * 10, 8 + sweep * 10, 15.5);
-      
+
       // Flutter kicks tracking Z elevation
       rig.leftFootTarget.set(-15, -6, 15 + kick);
       rig.rightFootTarget.set(-15, 6, 15 - kick);
 
       // Procedural 3D Water Ripple Ring generation
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          const ripGeo = new THREE.TorusGeometry(5, 0.5, 4, 16);
-          ripGeo.rotateX(Math.PI / 2); 
-          const ripMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.8 });
-          
-          for (let i = 0; i < 3; i++) {
-              rig.emoteProps.add(new THREE.Mesh(ripGeo, ripMat));
-          }
-          // Tormented strictly outside rig so Torus scale independently of character tilt
-          rig.emotePropsDirectional.add(rig.emoteProps); 
+        rig.emoteProps = new THREE.Group();
+        const ripGeo = new THREE.TorusGeometry(5, 0.5, 4, 16);
+        ripGeo.rotateX(Math.PI / 2);
+        const ripMat = new THREE.MeshBasicMaterial({ color: 0x3498db, transparent: true, opacity: 0.8 });
+
+        for (let i = 0; i < 3; i++) {
+          rig.emoteProps.add(new THREE.Mesh(ripGeo, ripMat));
+        }
+        // Tormented strictly outside rig so Torus scale independently of character tilt
+        rig.emotePropsDirectional.add(rig.emoteProps);
       }
 
       for (let i = 0; i < 3; i++) {
@@ -851,7 +852,7 @@ export const emotes = {
         const ripple = rig.emoteProps.children[i];
         ripple.scale.setScalar(0.1 + progress * 3);
         ripple.material.opacity = 1 - progress;
-        ripple.position.set(0, 0, 0.5); 
+        ripple.position.set(0, 0, 0.5);
       }
     }
   },
@@ -866,7 +867,7 @@ export const emotes = {
       rig.bodyPivot.rotation.x = -Math.PI / 2;
 
       const breathe = Math.sin((Date.now() - emote.startTime) / 500) * 1;
-      rig.bodyPivot.position.z += breathe; 
+      rig.bodyPivot.position.z += breathe;
 
       rig.leftHandTarget.set(10, -15, 4);
       rig.rightHandTarget.set(10, 15, 4);
@@ -874,22 +875,22 @@ export const emotes = {
       rig.rightFootTarget.set(-15, 6, 4);
 
       if (!rig.emoteProps) {
-          rig.emoteProps = new THREE.Group();
-          
-          // Retro geometric compound rendering for the 'ZZZ' floating texts
-          const zGroup = new THREE.Group();
-          const zMat = new THREE.MeshStandardMaterial({ color: 0x2ecc71, transparent: true });
-          
-          const top = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 1), zMat); top.position.set(0, 0, 2);
-          const mid = new THREE.Mesh(new THREE.BoxGeometry(1, 4, 1), zMat); mid.rotation.y = Math.PI/4;
-          const bot = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 1), zMat); bot.position.set(0, 0, -2);
-          zGroup.add(top, mid, bot);
-          
-          for (let i = 0; i < 3; i++) {
-              rig.emoteProps.add(zGroup.clone());
-          }
-          // Global mesh binding allowing letters to drift independently 
-          rig.meshGroup.add(rig.emoteProps);
+        rig.emoteProps = new THREE.Group();
+
+        // Retro geometric compound rendering for the 'ZZZ' floating texts
+        const zGroup = new THREE.Group();
+        const zMat = new THREE.MeshStandardMaterial({ color: 0x2ecc71, transparent: true });
+
+        const top = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 1), zMat); top.position.set(0, 0, 2);
+        const mid = new THREE.Mesh(new THREE.BoxGeometry(1, 4, 1), zMat); mid.rotation.y = Math.PI / 4;
+        const bot = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 1), zMat); bot.position.set(0, 0, -2);
+        zGroup.add(top, mid, bot);
+
+        for (let i = 0; i < 3; i++) {
+          rig.emoteProps.add(zGroup.clone());
+        }
+        // Global mesh binding allowing letters to drift independently 
+        rig.meshGroup.add(rig.emoteProps);
       }
 
       const timeActive = Date.now() - emote.startTime;
@@ -899,12 +900,12 @@ export const emotes = {
 
         const zX = -5 - progress * 30;
         const zY = Math.sin(progress * Math.PI * 4 + i * 2) * 8;
-        const zZ = 10 + progress * 20; 
+        const zZ = 10 + progress * 20;
 
         const zMesh = rig.emoteProps.children[i];
         zMesh.position.set(zX, zY, zZ);
         zMesh.scale.setScalar(0.5 + progress * 1.5);
-        
+
         zMesh.children.forEach(c => c.material.opacity = 1 - Math.pow(progress, 2));
       }
     }

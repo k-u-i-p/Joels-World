@@ -22,15 +22,38 @@
 </head>
 
 <body>
-  <!-- Tennis Scoreboard Overlay -->
-  <div id="tennis-scoreboard" class="glass-panel"
-    style="display: none; position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 12px; z-index: 50;">
-    <div
-      style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #e74c3c; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);"
-      id="tennis-score-npc">NPC: Love</div>
-    <div
-      style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #2ecc71; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); padding-left: 15px;"
-      id="tennis-score-player">YOU: Love</div>
+  <!-- Minigame UI Master Container -->
+  <div id="minigame-ui-container"
+    style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50;">
+    <!-- Tennis Scoreboard Overlay -->
+    <div id="tennis-scoreboard" class="glass-panel"
+      style="display: none; position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 12px; z-index: 50; display: flex; flex-direction: row; align-items: center; justify-content: center;">
+      <div
+        style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #f1c40f; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); border-right: 2px solid rgba(255,255,255,0.3); padding-right: 15px; margin-right: 15px;"
+        id="tennis-score-npc">NPC: Love</div>
+      <div
+        style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #2ecc71; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); padding-left: 15px;"
+        id="tennis-score-player">YOU: Love</div>
+    </div>
+
+    <!-- Tag Scoreboard Overlay -->
+    <div id="tag-scoreboard" class="glass-panel"
+      style="display: none; position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 12px; z-index: 50; text-align: center;">
+      <div
+        style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #f1c40f; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);"
+        id="tag-round">Round: 1</div>
+      <div
+        style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #2ecc71; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin-top: 5px;"
+        id="tag-time">Time: 60s</div>
+      <div id="tag-it-warning"
+        style="display: none; font-family: 'Pricedown', sans-serif; font-size: 28px; color: #e74c3c; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin-top: 10px;">
+        YOU ARE IT!</div>
+    </div>
+
+    <!-- Floating Tag "IT" Marker -->
+    <div id="tag-it-marker"
+      style="display: none; position: absolute; color: #e74c3c; font-family: 'Pricedown', sans-serif; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); z-index: 45; transform: translate(-50%, -50%); pointer-events: none;">
+      IT</div>
   </div>
 
   <!-- Top Center UI Overlay -->
@@ -48,13 +71,16 @@
       </div>
 
       <div id="server-chat-stack"></div>
+    </div>
+  </div>
 
-      <div id="action-dialog" class="dialog-content glass-panel" style="display: none;">
-        <h2 id="action-dialog-text" class="dialog-header"></h2>
-        <div class="action-dialog-buttons">
-          <button id="action-dialog-yes" class="btn btn-success btn-action">Yes</button>
-          <button id="action-dialog-no" class="btn btn-danger btn-action">No</button>
-        </div>
+  <!-- Action Dialog Overlay -->
+  <div id="action-dialog" class="overlay" style="display: none; z-index: 100;">
+    <div class="dialog-content glass-panel" style="text-align: center; max-width: 400px; width: 90%;">
+      <h2 id="action-dialog-text" class="dialog-header"></h2>
+      <div class="action-dialog-buttons" style="display: flex; gap: 15px; justify-content: center;">
+        <button id="action-dialog-yes" class="btn btn-success btn-action" style="flex: 1;">Yes</button>
+        <button id="action-dialog-no" class="btn btn-danger btn-action" style="flex: 1;">No</button>
       </div>
     </div>
   </div>
@@ -213,7 +239,8 @@
     <div id="joystick-move-knob"></div>
   </div>
   <canvas id="gameCanvas"></canvas>
-  <canvas id="uiCanvas" style="position: absolute; top:0; left:0; width:100%; height:100%; z-index: 5; pointer-events:none;"></canvas>
+  <canvas id="uiCanvas"
+    style="position: absolute; top:0; left:0; width:100%; height:100%; z-index: 5; pointer-events:none;"></canvas>
 
   <script type="module" src="/src/main.js"></script>
 </body>

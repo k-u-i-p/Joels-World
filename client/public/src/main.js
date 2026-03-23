@@ -1,6 +1,7 @@
+import { getCharacterProxy } from './characters.js';
 import { initSound, soundManager } from './sound.js';
 import { emotes, getEmoteMessage } from './emotes.js';
-import { processEvents } from './events.js';
+import { processEvents } from './events.js?v=2';
 import { mapManager } from './maps.js';
 import { characterManager, updateLocalNPCs, loadSharedModels } from './characters.js';
 import { physicsEngine } from './physics.js';
@@ -172,9 +173,9 @@ window.addEventListener('chatSubmit', (e) => {
   if (msg[0] === '/') {
     const command = msg.toLowerCase().substring(1);
     if (emotes[command]) {
-      if (player.activeEmoteAudio) {
-        player.activeEmoteAudio.fadeOut(500);
-        player.activeEmoteAudio = null;
+      if (getCharacterProxy(player.id).activeEmoteAudio) {
+        getCharacterProxy(player.id).activeEmoteAudio.fadeOut(500);
+        getCharacterProxy(player.id).activeEmoteAudio = null;
       }
       player.emote = { name: command, startTime: Date.now() };
       const emoteObj = emotes[command];
@@ -187,7 +188,7 @@ window.addEventListener('chatSubmit', (e) => {
       }
 
       if (emoteObj.sound) {
-        player.activeEmoteAudio = soundManager.playPooled(emoteObj.sound, 1);
+        getCharacterProxy(player.id).activeEmoteAudio = soundManager.playPooled(emoteObj.sound, 1);
       }
       networkClient.syncPlayerToJSON();
     }
@@ -205,6 +206,7 @@ initSound();
 // Player Entity
 export const player = {
   id: 0,
+  isPlayer: true,
   moveSpeed: 3,
   rotationSpeed: 3,
   legAnimationTime: 0,
@@ -224,6 +226,7 @@ export const player = {
 window.init = null;
 let lastSyncTime = 0;
 let activeNpc = [];
+export let activeMinigameModule = null;
 
 window.adminCameraConfig = {
   setPitch: (val) => { camera.pitch = Math.max(0, Math.min(Math.PI / 2.1, (camera.pitch || 0) + val)); },
@@ -263,12 +266,12 @@ function update(dt = 0.016) {
   if (inputManager.isPressed('Space') && !uiManager.isMinimapOpen) {
     if (!player.emote || player.emote.name !== 'jump') {
       player.emote = { name: 'jump', startTime: Date.now() };
-      if (player.activeEmoteAudio) {
-        player.activeEmoteAudio.fadeOut(500);
-        player.activeEmoteAudio = null;
+      if (getCharacterProxy(player.id).activeEmoteAudio) {
+        getCharacterProxy(player.id).activeEmoteAudio.fadeOut(500);
+        getCharacterProxy(player.id).activeEmoteAudio = null;
       }
       if (emotes['jump'].sound) {
-        player.activeEmoteAudio = soundManager.playPooled(emotes['jump'].sound, 1);
+        getCharacterProxy(player.id).activeEmoteAudio = soundManager.playPooled(emotes['jump'].sound, 1);
       }
       networkClient.syncPlayerToJSON();
     }
@@ -355,9 +358,9 @@ function update(dt = 0.016) {
     player.y = result.newY;
 
     if (result.emoteCanceled) {
-      if (player.activeEmoteAudio) {
-        player.activeEmoteAudio.fadeOut(500);
-        player.activeEmoteAudio = null;
+      if (getCharacterProxy(player.id).activeEmoteAudio) {
+        getCharacterProxy(player.id).activeEmoteAudio.fadeOut(500);
+        getCharacterProxy(player.id).activeEmoteAudio = null;
       }
       player.emote = null;
       networkClient.syncPlayerToJSON();
@@ -394,19 +397,19 @@ function update(dt = 0.016) {
   // Animation
   if (isMoving) {
     const legRate = player.isRunning ? 0.26 : 0.2;
-    player.legAnimationTime += legRate * timeScale;
+    getCharacterProxy(player.id).legAnimationTime += legRate * timeScale;
 
     if (!emoteForcedMove) {
-      if (!player.walkingAudio) {
-        player.walkingAudio = soundManager.playPooled('/media/walking.mp3', 1, true);
+      if (!getCharacterProxy(player.id).walkingAudio) {
+        getCharacterProxy(player.id).walkingAudio = soundManager.playPooled('/media/walking.mp3', 1, true);
       }
-      if (player.walkingAudio && player.walkingAudio.setRate) {
-        player.walkingAudio.setRate(player.isRunning ? 1.3 : 1.0);
+      if (getCharacterProxy(player.id).walkingAudio && getCharacterProxy(player.id).walkingAudio.setRate) {
+        getCharacterProxy(player.id).walkingAudio.setRate(player.isRunning ? 1.3 : 1.0);
       }
     } else {
-      if (player.walkingAudio) {
-        player.walkingAudio.pause();
-        player.walkingAudio = null;
+      if (getCharacterProxy(player.id).walkingAudio) {
+        getCharacterProxy(player.id).walkingAudio.pause();
+        getCharacterProxy(player.id).walkingAudio = null;
       }
     }
 
@@ -430,9 +433,9 @@ function update(dt = 0.016) {
         }
       }
       if (shouldCancel) {
-        if (player.activeEmoteAudio) {
-          player.activeEmoteAudio.fadeOut(500);
-          player.activeEmoteAudio = null;
+        if (getCharacterProxy(player.id).activeEmoteAudio) {
+          getCharacterProxy(player.id).activeEmoteAudio.fadeOut(500);
+          getCharacterProxy(player.id).activeEmoteAudio = null;
         }
         player.emote = null;
         networkClient.syncPlayerToJSON();
@@ -442,11 +445,11 @@ function update(dt = 0.016) {
     // Smoother stop: reset animation to neutral when stopped and snap camera back
     camera.springX *= decay;
     camera.springY *= decay;
-    player.legAnimationTime = 0;
+    getCharacterProxy(player.id).legAnimationTime = 0;
 
-    if (player.walkingAudio) {
-      player.walkingAudio.pause();
-      player.walkingAudio = null;
+    if (getCharacterProxy(player.id).walkingAudio) {
+      getCharacterProxy(player.id).walkingAudio.pause();
+      getCharacterProxy(player.id).walkingAudio = null;
     }
   }
 
@@ -576,19 +579,30 @@ function draw() {
   threeCamera.updateProjectionMatrix();
 
   mapManager.updateDynamicModels(window.init?.objects);
-  mapManager.drawLayer(0, scene, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
 
-  characterManager.drawCharacters('base', scene, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight, threeCamera);
+  let drawnBaseChars = false;
 
-  mapManager.drawLayer(1, scene, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
+  // Dynamically iterate over ALL valid Z-mapped layers inside MapManager sequentially handling parallax shifts automatically
+  mapManager.layers.forEach((layerGroup, z) => {
+    if (!layerGroup) return;
+    
+    // Characters natively sit at physical depth Z = 5. Draw them precisely when Z escalates beyond that threshold.
+    if (z >= 5 && !drawnBaseChars) {
+      characterManager.drawCharacters('base', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
+      drawnBaseChars = true;
+    }
 
-  let layer2SpringOffsetX = clamp(((camera.springX || 0)) * 0.05, -5, 5);
-  let layer2SpringOffsetY = clamp(((camera.springY || 0)) * 0.05, -5, 5);
-  // Pass spring offsets so mapManager can offset layer 2
-  mapManager.drawLayer(2, scene, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight, layer2SpringOffsetX, layer2SpringOffsetY);
+    // Natively inject the literal inertial camera springs down so drawing loops process geometric bounce physics constraints
+    mapManager.drawLayer(z, scene, camera.springX || 0, camera.springY || 0);
+  });
 
-  characterManager.drawCharacters('overlay', scene, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight, threeCamera);
-  characterManager.drawCharacters('chat', scene, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight, threeCamera);
+  // Safety net: render base characters if ALL maps were below Z=5!
+  if (!drawnBaseChars) {
+    characterManager.drawCharacters('base', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
+  }
+
+  characterManager.drawCharacters('overlay', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
+  characterManager.drawCharacters('chat', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
 
   renderer.render(scene, threeCamera);
 }
@@ -614,6 +628,13 @@ const { nameDialog, nameInput, startBtn } = uiManager.initLobby((playerName) => 
  */
 function handleInitData(data) {
   if (data.type === 'init') {
+    // Safely invoke minigame destructors dynamically resolving active imports
+    if (activeMinigameModule && typeof activeMinigameModule.cleanupMinigame === 'function') {
+      console.log('[Main] Invoking cleanupMinigame() prior to map context switch');
+      activeMinigameModule.cleanupMinigame();
+      activeMinigameModule = null;
+    }
+
     // Scrub existing WebGL meshes and DOM overlays from the outgoing map's players
     characterManager.clearScene(scene, window.init);
     characterManager.disposeCharacter(player, scene);
@@ -639,6 +660,9 @@ function handleInitData(data) {
     const nameDialog = document.getElementById('name-dialog');
     if (nameDialog) nameDialog.style.display = 'none';
 
+    const minigameUi = document.getElementById('minigame-ui-container');
+    if (minigameUi) minigameUi.style.display = 'none';
+
     const topUi = document.getElementById('top-center-ui');
     if (topUi) topUi.style.display = 'flex';
 
@@ -653,7 +677,12 @@ function handleInitData(data) {
       if (topUi) topUi.style.display = 'none';
 
       import(window.init.mapData.import).then(module => {
-        module.initMinigame();
+        activeMinigameModule = module;
+        if (typeof module.initMinigame === 'function') {
+          module.initMinigame();
+        }
+      }).catch(err => {
+        console.error('[Main] Failed importing minigame module:', err);
       });
     } else {
       if (!wasRunning) {
@@ -667,6 +696,9 @@ function handleInitData(data) {
       const exitBtn = document.getElementById('exit-button');
       if (mapBtn) mapBtn.style.display = 'flex';
       if (exitBtn) exitBtn.style.display = 'none';
+
+      const minigameUi = document.getElementById('minigame-ui-container');
+      if (minigameUi) minigameUi.style.display = 'none';
 
       const scoreboard = document.getElementById('tennis-scoreboard');
       if (scoreboard) scoreboard.style.display = 'none';

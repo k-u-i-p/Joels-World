@@ -25,10 +25,10 @@ export async function ensureMinimaps() {
   }
   
   for (const map of mapsData) {
-    if (!map.layers || map.layers.length === 0 || map.layers[0].length === 0) continue;
+    if (!map.layers || map.layers.length === 0) continue;
     
-    // Grab the absolute bottom-most layer (Layer 0, Image 0) to use as the minimap baseline
-    const baseLayer = map.layers[0][0];
+    // Grab the absolute bottom-most layer (z=0) to use as the minimap baseline
+    const baseLayer = map.layers.find(l => l.z === 0) || map.layers[0];
     
     if (baseLayer && baseLayer.source_image) {
       const sourceRel = baseLayer.source_image.startsWith('/') ? baseLayer.source_image.substring(1) : baseLayer.source_image;

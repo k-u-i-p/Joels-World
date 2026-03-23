@@ -2,27 +2,24 @@
   {
     "id": 4,
     "shape": "rect",
-    "x": 0,
-    "y": -568,
+    "x": 1,
+    "y": -565,
     "width": 448,
-    "length": 207
-  },
-  {
-    "id": 5,
-    "shape": "rect",
-    "x": 198,
-    "y": -241,
-    "width": 196,
-    "length": 196,
+    "length": 207,
     "clip": 30
   },
   {
-    "id": 6,
-    "shape": "rect",
-    "x": -257,
-    "y": -243,
-    "width": 197,
-    "length": 193
+    "id": 5,
+    "shape": "3d_model",
+    "model": "models/chair/chair.glb",
+    "scale": 1.9,
+    "x": 204,
+    "y": -204,
+    "z": 2,
+    "width": 196,
+    "length": 196,
+    "clip": 30,
+    "rotation": 1
   },
   {
     "id": 7,
@@ -53,8 +50,8 @@
   {
     "id": 10,
     "shape": "rect",
-    "x": 202,
-    "y": 56,
+    "x": 208,
+    "y": 79,
     "width": 195,
     "length": 199
   },
@@ -187,5 +184,68 @@
     "y": 630,
     "width": 191,
     "length": 186
+  },
+  {
+    "id": 30,
+    "shape": "3d_model",
+    "x": -256,
+    "y": -202,
+    "model": "models/chair/chair.glb",
+    "scale": 1.9,
+    "z": 2,
+    "width": 196,
+    "length": 196,
+    "clip": 30,
+    "rotation": 1
+  },
+  {
+    "id": 31,
+    "name": "Desk",
+    "shape": "3d_model",
+    "x": -254,
+    "y": -332,
+    "z": 2,
+    "width": 189,
+    "length": 132,
+    "scale": 1.9,
+    "model": "models/desk/desk.glb",
+    "rotation": -4
+  },
+  {
+    "id": 32,
+    "shape": "3d_model",
+    "x": 201,
+    "y": -333,
+    "name": "Desk",
+    "z": 2,
+    "width": 201,
+    "length": 153,
+    "scale": 1.9,
+    "model": "models/desk/desk.glb"
+  },
+  {
+    "id": 33,
+    "shape": "3d_model",
+    "x": -658,
+    "y": -333,
+    "name": "Desk",
+    "z": 2,
+    "width": 100,
+    "length": 100,
+    "scale": 1.9,
+    "model": "models/desk/desk.glb"
+  },
+  {
+    "id": 34,
+    "shape": "3d_model",
+    "x": -660,
+    "y": -204,
+    "model": "models/chair/chair.glb",
+    "scale": 1.9,
+    "z": 2,
+    "width": 196,
+    "length": 196,
+    "clip": 30,
+    "rotation": 1
   }
 ]

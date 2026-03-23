@@ -1,3 +1,5 @@
+import { getCharacterProxy, clearCharacterProxy } from './characters.js';
+import { getObjectProxy, clearObjectProxy } from './maps.js';
 import { gameLoop } from './gameloop.js';
 import { player, camera, screenToWorld, getScreenTransformMatrix } from './main.js';
 import { networkClient } from './network.js';
@@ -80,12 +82,31 @@ function bindHoldAction(id, action, syncAction) {
 }
 
 window.selectedObject = {
-  _id: null,
+  _ids: [],
   set: function (id) {
-    this._id = id;
+    if (id === null) {
+      this._ids = [];
+    } else {
+      this._ids = [id];
+    }
+  },
+  add: function (id) {
+    if (id !== null && !this._ids.includes(id)) {
+      this._ids.push(id);
+    }
+  },
+  remove: function(id) {
+    this._ids = this._ids.filter(i => i !== id);
   },
   get: function () {
-    return (window.init?.objects || []).find(o => o.id === this._id);
+    if (this._ids.length === 0) return null;
+    return (window.init?.objects || []).find(o => o.id === this._ids[0]);
+  },
+  getAll: function () {
+    return (window.init?.objects || []).filter(o => this._ids.includes(o.id));
+  },
+  has: function (id) {
+    return this._ids.includes(id);
   },
   findObjectAtXY: function (worldX, worldY) {
     const objects = window.init?.objects || [];
@@ -172,6 +193,8 @@ let lastMouseX = 0;
 let lastMouseY = 0;
 let resizeWorldTlx = 0;
 let resizeWorldTly = 0;
+let dragStartX = 0;
+let dragStartY = 0;
 
 function getObjectTopLeftAnchor(obj) {
   const angle = (obj.rotation || 0) * Math.PI / 180;
@@ -214,6 +237,23 @@ document.getElementById('btn-create-obj-circle').onclick = () => {
 document.getElementById('btn-create-npc').onclick = () => {
   networkClient.send({ type: 'create_npc', x: Math.round(player.x), y: Math.round(player.y) });
 };
+
+const btnCreate3d = document.getElementById('btn-create-obj-3d');
+if (btnCreate3d) {
+  btnCreate3d.onclick = () => {
+    networkClient.send({ 
+       type: 'create_object', 
+       shape: '3d_model', 
+       model: 'models/chair/chair.glb', 
+       scale: 1.0, 
+       x: Math.round(player.x), 
+       y: Math.round(player.y), 
+       z: 0, 
+       width: 100, 
+       length: 100 
+    });
+  };
+}
 
 document.getElementById('btn-delete-obj').onclick = () => {
   const selected = window.selectedObject.get();
@@ -315,6 +355,37 @@ if (inputObjClip) {
     const clipVal = parseInt(e.target.value, 10);
     window.selectedObject.get().clip = isNaN(clipVal) ? 10 : clipVal;
     networkClient.send({ type: 'update_object', id: window.selectedObject.get().id, updates: { clip: window.selectedObject.get().clip } });
+  });
+}
+
+const inputObjScale = document.getElementById('input-obj-scale');
+if (inputObjScale) {
+  inputObjScale.addEventListener('change', (e) => {
+    if (!window.selectedObject.get()) return;
+    const scaleVal = parseFloat(e.target.value);
+    window.selectedObject.get().scale = isNaN(scaleVal) ? 1.0 : scaleVal;
+    networkClient.send({ type: 'update_object', id: window.selectedObject.get().id, updates: { scale: window.selectedObject.get().scale } });
+  });
+}
+
+const inputObjZ = document.getElementById('input-obj-z');
+if (inputObjZ) {
+  inputObjZ.addEventListener('change', (e) => {
+    if (!window.selectedObject.get()) return;
+    const zVal = parseInt(e.target.value, 10);
+    window.selectedObject.get().z = isNaN(zVal) ? 0 : zVal;
+    networkClient.send({ type: 'update_object', id: window.selectedObject.get().id, updates: { z: window.selectedObject.get().z } });
+  });
+}
+
+const inputObjModel = document.getElementById('input-obj-model');
+if (inputObjModel) {
+  inputObjModel.addEventListener('change', (e) => {
+    if (!window.selectedObject.get()) return;
+    let modVal = e.target.value.trim();
+    if (!modVal) return;
+    window.selectedObject.get().model = modVal;
+    networkClient.send({ type: 'update_object', id: window.selectedObject.get().id, updates: { model: window.selectedObject.get().model } });
   });
 }
 
@@ -451,6 +522,24 @@ bindHoldAction('btn-npc-height-inc', () => {
   }
 });
 
+bindHoldAction('btn-npc-z-dec', () => {
+  if (!window.selectedNpc.get()) return;
+  window.selectedNpc.get().z = (window.selectedNpc.get().z || 0) - 1;
+}, () => {
+  if (window.selectedNpc.get()) {
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { z: window.selectedNpc.get().z } });
+  }
+});
+
+bindHoldAction('btn-npc-z-inc', () => {
+  if (!window.selectedNpc.get()) return;
+  window.selectedNpc.get().z = (window.selectedNpc.get().z || 0) + 1;
+}, () => {
+  if (window.selectedNpc.get()) {
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { z: window.selectedNpc.get().z } });
+  }
+});
+
 const btnSaveNpcDialog = document.getElementById('btn-save-npc-dialog');
 const npcOnEnterInput = document.getElementById('npc-on-enter-input');
 const npcOnExitInput = document.getElementById('npc-on-exit-input');
@@ -502,7 +591,11 @@ function updateAdminPanel() {
 
   const editObjSection = document.getElementById('edit-obj-section');
 
-  if (window.selectedObject.get()) {
+  if (window.selectedObject.getAll().length > 1) {
+    editObjSection.style.display = 'none';
+    const editNpcSection = document.getElementById('edit-npc-section');
+    if (editNpcSection) editNpcSection.style.display = 'none';
+  } else if (window.selectedObject.get()) {
     editObjSection.style.display = 'block';
 
     if (nameInput) {
@@ -517,6 +610,27 @@ function updateAdminPanel() {
     const clipInputDisplay = document.getElementById('input-obj-clip');
     if (clipInputDisplay) {
       clipInputDisplay.value = window.selectedObject.get().clip !== undefined ? window.selectedObject.get().clip : 10;
+    }
+
+    const scaleInputRow = document.getElementById('row-obj-scale');
+    const scaleInputDisplay = document.getElementById('input-obj-scale');
+    const zInputRow = document.getElementById('row-obj-z');
+    const zInputDisplay = document.getElementById('input-obj-z');
+    const modelInputRow = document.getElementById('row-obj-model');
+    const modelInputDisplay = document.getElementById('input-obj-model');
+
+    if (window.selectedObject.get().shape === '3d_model') {
+      if (scaleInputRow) scaleInputRow.style.display = 'flex';
+      if (zInputRow) zInputRow.style.display = 'flex';
+      if (modelInputRow) modelInputRow.style.display = 'flex';
+      
+      if (scaleInputDisplay) scaleInputDisplay.value = window.selectedObject.get().scale !== undefined ? window.selectedObject.get().scale : 1.0;
+      if (zInputDisplay) zInputDisplay.value = window.selectedObject.get().z !== undefined ? window.selectedObject.get().z : 0;
+      if (modelInputDisplay) modelInputDisplay.value = window.selectedObject.get().model || '';
+    } else {
+      if (scaleInputRow) scaleInputRow.style.display = 'none';
+      if (zInputRow) zInputRow.style.display = 'none';
+      if (modelInputRow) modelInputRow.style.display = 'none';
     }
   } else {
     editObjSection.style.display = 'none';
@@ -892,14 +1006,12 @@ window.addEventListener('mousedown', (e) => {
     return;
   }
 
-  const previousObjId = window.selectedObject.get() ? window.selectedObject.get().id : null;
+  const previousObjIds = window.selectedObject.getAll().map(o => o.id);
   const previousNpcId = window.selectedNpc.get() ? window.selectedNpc.get().id : null;
-
-  window.selectedObject.set(null);
-  window.selectedNpc.set(null);
 
   const hitNpc = window.selectedNpc.findNpcAtXY(worldX, worldY);
   if (hitNpc) {
+    if (!e.shiftKey) window.selectedObject.set(null);
     window.selectedNpc.set(hitNpc.id);
     if (previousNpcId === hitNpc.id) {
       console.log(`Dragging npc: ${hitNpc.id}`);
@@ -912,14 +1024,33 @@ window.addEventListener('mousedown', (e) => {
   } else {
     const hitObj = window.selectedObject.findObjectAtXY(worldX, worldY);
     if (hitObj) {
-      window.selectedObject.set(hitObj.id);
-      if (previousObjId === hitObj.id) {
-        console.log(`Dragging object: ${hitObj.id}`);
-        isDraggingObject = true;
-        dragOffsetX = hitObj.x - worldX;
-        dragOffsetY = hitObj.y - worldY;
+      window.selectedNpc.set(null);
+      if (e.shiftKey) {
+        if (previousObjIds.includes(hitObj.id)) {
+          window.selectedObject.remove(hitObj.id);
+        } else {
+          window.selectedObject.add(hitObj.id);
+        }
+        isDraggingObject = false; 
       } else {
-        console.log(`Selected object: ${hitObj.id}`);
+        if (previousObjIds.includes(hitObj.id)) {
+          console.log(`Dragging objects: ${previousObjIds.join(', ')}`);
+          isDraggingObject = true;
+          dragStartX = worldX;
+          dragStartY = worldY;
+          window.selectedObject.getAll().forEach(obj => {
+            getObjectProxy(obj.id)._dragStartX = obj.x;
+            getObjectProxy(obj.id)._dragStartY = obj.y;
+          });
+        } else {
+          window.selectedObject.set(hitObj.id);
+          console.log(`Selected object: ${hitObj.id}`);
+        }
+      }
+    } else {
+      if (!e.shiftKey && !e.target.closest('#admin-panel')) {
+        window.selectedObject.set(null);
+        window.selectedNpc.set(null);
       }
     }
   }
@@ -974,7 +1105,7 @@ window.addEventListener('mousemove', (e) => {
     }
 
     applyResizeWithTopLeftAnchor(obj, newWidth, newLength, resizeWorldTlx, resizeWorldTly);
-  } else if (isDraggingObject && window.selectedObject.get()) {
+  } else if (isDraggingObject && window.selectedObject.getAll().length > 0) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
@@ -982,8 +1113,13 @@ window.addEventListener('mousemove', (e) => {
     const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
     const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
 
-    window.selectedObject.get().x = Math.round(worldX + dragOffsetX);
-    window.selectedObject.get().y = Math.round(worldY + dragOffsetY);
+    const dx = worldX - dragStartX;
+    const dy = worldY - dragStartY;
+
+    window.selectedObject.getAll().forEach(obj => {
+      obj.x = Math.round(getObjectProxy(obj.id)._dragStartX + dx);
+      obj.y = Math.round(getObjectProxy(obj.id)._dragStartY + dy);
+    });
   } else if (isDraggingNpc && window.selectedNpc.get()) {
     const canvasRect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - canvasRect.left;
@@ -1024,12 +1160,14 @@ window.addEventListener('mouseup', () => {
       x: window.selectedObject.get().x,
       y: window.selectedObject.get().y
     });
-  } else if (isDraggingObject && window.selectedObject.get()) {
-    networkClient.send({
-      type: 'move_object',
-      id: window.selectedObject.get().id,
-      x: window.selectedObject.get().x,
-      y: window.selectedObject.get().y
+  } else if (isDraggingObject && window.selectedObject.getAll().length > 0) {
+    window.selectedObject.getAll().forEach(obj => {
+      networkClient.send({
+        type: 'move_object',
+        id: obj.id,
+        x: obj.x,
+        y: obj.y
+      });
     });
   } else if (isDraggingNpc && window.selectedNpc.get()) {
     networkClient.send({
@@ -1217,8 +1355,8 @@ export function adminDraw() {
 
       // Roam Radius Visualizer
       if (npc.roam_radius !== undefined && typeof npc.roam_radius === 'number' && npc.roam_radius > 0) {
-        const startXDist = npc._startX !== undefined ? npc._startX - npc.x : 0;
-        const startYDist = npc._startY !== undefined ? npc._startY - npc.y : 0;
+        const startXDist = getCharacterProxy(npc.id)._startX !== undefined ? getCharacterProxy(npc.id)._startX - npc.x : 0;
+        const startYDist = getCharacterProxy(npc.id)._startY !== undefined ? getCharacterProxy(npc.id)._startY - npc.y : 0;
 
         ctx.beginPath();
         // Shift drawing center back to the anchor point the NPC is roaming around

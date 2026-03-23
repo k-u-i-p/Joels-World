@@ -4,8 +4,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { uiManager } from './ui.js';
 
-export let sharedShoeMeshL = null;
-export let sharedShoeMeshR = null;
+export var sharedShoeMeshL = null;
+export var sharedShoeMeshR = null;
 const awaitingShoeRigs = [];
 
 export function loadSharedModels() {
@@ -67,6 +67,8 @@ export function loadSharedModels() {
 }
 
 function applyShoeModel(rig, mats, c) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
   if (!sharedShoeMeshL || !sharedShoeMeshR) return;
 
   for (let i = rig.lShoe.children.length - 1; i >= 0; i--) {
@@ -170,11 +172,30 @@ function shadeColor(color, percent) {
   return colorCache[cacheKey];
 }
 
+export const characterVisuals = {};
+
+export function getCharacterProxy(id) {
+  if (id === undefined || id === null) return {};
+  const isPlayer = id === 0 || (typeof id === 'string' && id.startsWith('player')) || (typeof id === 'string' && id.length > 10);
+  const key = (isPlayer ? 'char_' : 'npc_') + id;
+  if (!characterVisuals[key]) characterVisuals[key] = {};
+  return characterVisuals[key];
+}
+
+export function clearCharacterProxy(id) {
+  if (id === undefined || id === null) return;
+  const isPlayer = id === 0 || (typeof id === 'string' && id.startsWith('player')) || (typeof id === 'string' && id.length > 10);
+  const key = (isPlayer ? 'char_' : 'npc_') + id;
+  delete characterVisuals[key];
+}
+
 export class CharacterManager {
   disposeCharacter(c, scene) {
-    if (c.meshGroup) {
-      scene.remove(c.meshGroup);
-      c.meshGroup.traverse((child) => {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
+    if (vis.meshGroup) {
+      if (vis.meshGroup.parent) vis.meshGroup.parent.remove(vis.meshGroup);
+      vis.meshGroup.traverse((child) => {
         if (child.isMesh) {
           if (child.geometry) child.geometry.dispose();
           if (child.material) {
@@ -190,10 +211,11 @@ export class CharacterManager {
           }
         }
       });
-      c.meshGroup = null;
+      vis.meshGroup = null;
     }
-    if (c.nameElement && c.nameElement.parentNode) c.nameElement.parentNode.removeChild(c.nameElement);
-    if (c.chatElement && c.chatElement.parentNode) c.chatElement.parentNode.removeChild(c.chatElement);
+    if (vis.nameElement && vis.nameElement.parentNode) vis.nameElement.parentNode.removeChild(vis.nameElement);
+    if (vis.chatElement && vis.chatElement.parentNode) vis.chatElement.parentNode.removeChild(vis.chatElement);
+    clearCharacterProxy(c.id);
   }
 
   clearScene(scene, oldInitData) {
@@ -272,6 +294,8 @@ export class CharacterManager {
   }
 
   drawHumanoid2D(ctx, c, limbs) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     const angle = (c.rotation || 0) * DEG_TO_RAD;
     const cosA = Math.cos(angle);
     const sinA = Math.sin(angle);
@@ -317,6 +341,8 @@ export class CharacterManager {
   }
 
   drawHumanoidLowerBody2D(ctx, c, limbs, isVisible) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     if (!isVisible) isVisible = () => true;
 
     if (!c.emote || (c.emote.name !== 'sit' && c.emote.name !== 'lunch' && c.emote.name !== 'write')) {
@@ -331,6 +357,8 @@ export class CharacterManager {
   }
 
   drawHumanoidUpperBody2D(ctx, c, limbs, isVisible, getRaycastEnd) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     if (!isVisible) isVisible = () => true;
     if (!getRaycastEnd) getRaycastEnd = (sx, sy, tx, ty) => ({ x: tx, y: ty, hit: false });
 
@@ -480,6 +508,8 @@ export class CharacterManager {
   }
 
   buildSkeletonMaterials(c) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     return {
       skin: new THREE.MeshStandardMaterial({ color: c.color || '#f1c40f', roughness: 0.6, metalness: 0.1 }),
       shirt: new THREE.MeshStandardMaterial({ color: c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
@@ -491,7 +521,9 @@ export class CharacterManager {
   }
 
   buildSkeletonRig(c, mats) {
-    c.rig = {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
+    vis.rig = {
       bodyPivot: new THREE.Group(),
       emotePropsDirectional: new THREE.Group(),
       head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), mats.skin),
@@ -499,40 +531,42 @@ export class CharacterManager {
       leftArm: new THREE.Group(), rightArm: new THREE.Group(),
       leftLeg: new THREE.Group(), rightLeg: new THREE.Group()
     };
-    c.rig.meshGroup = c.meshGroup;
-    c.meshGroup.add(c.rig.bodyPivot);
-    c.meshGroup.add(c.rig.emotePropsDirectional);
-    c.rig.bodyPivot.add(c.rig.torso);
+    vis.rig.meshGroup = vis.meshGroup;
+    vis.meshGroup.add(vis.rig.bodyPivot);
+    vis.meshGroup.add(vis.rig.emotePropsDirectional);
+    vis.rig.bodyPivot.add(vis.rig.torso);
 
-    c.rig.torso.rotation.x = Math.PI / 2;
-    c.rig.torso.position.set(0, 0, 20);
+    vis.rig.torso.rotation.x = Math.PI / 2;
+    vis.rig.torso.position.set(0, 0, 20);
 
-    c.rig.head.position.set(2, 0, 36);
-    c.rig.bodyPivot.add(c.rig.head);
+    vis.rig.head.position.set(2, 0, 36);
+    vis.rig.bodyPivot.add(vis.rig.head);
 
     const eyeGeo = new THREE.SphereGeometry(1.5, 8, 8);
     const eyeMat = new THREE.MeshStandardMaterial({ color: '#111111', roughness: 0.4 });
 
     const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
     leftEye.position.set(9.2, -4.5, 3.5);
-    c.rig.head.add(leftEye);
+    vis.rig.head.add(leftEye);
 
     const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
     rightEye.position.set(9.2, 4.5, 3.5);
-    c.rig.head.add(rightEye);
+    vis.rig.head.add(rightEye);
 
-    c.rig.leftHandTarget = new THREE.Vector3(0, -15, 9);
-    c.rig.rightHandTarget = new THREE.Vector3(0, 15, 9);
-    c.rig.leftFootTarget = new THREE.Vector3(2, -6, -14);
-    c.rig.rightFootTarget = new THREE.Vector3(2, 6, -14);
+    vis.rig.leftHandTarget = new THREE.Vector3(0, -15, 9);
+    vis.rig.rightHandTarget = new THREE.Vector3(0, 15, 9);
+    vis.rig.leftFootTarget = new THREE.Vector3(2, -6, -14);
+    vis.rig.rightFootTarget = new THREE.Vector3(2, 6, -14);
 
-    c.rig.leftShoulderPos = new THREE.Vector3(0, -11, 26);
-    c.rig.rightShoulderPos = new THREE.Vector3(0, 11, 26);
-    c.rig.leftHipPos = new THREE.Vector3(0, -6, 10);
-    c.rig.rightHipPos = new THREE.Vector3(0, 6, 10);
+    vis.rig.leftShoulderPos = new THREE.Vector3(0, -11, 26);
+    vis.rig.rightShoulderPos = new THREE.Vector3(0, 11, 26);
+    vis.rig.leftHipPos = new THREE.Vector3(0, -6, 10);
+    vis.rig.rightHipPos = new THREE.Vector3(0, 6, 10);
   }
 
   buildSkeletonHair(c, mats) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
     const hairGroup = new THREE.Group();
     hairGroup.position.set(0, 0, 0);
@@ -587,25 +621,27 @@ export class CharacterManager {
       baseHair.rotation.y = -Math.PI / 2;
       hairGroup.add(baseHair);
     }
-    c.rig.head.add(hairGroup);
+    vis.rig.head.add(hairGroup);
   }
 
   buildSkeletonLimbs(c, mats) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     const upperArmGeo = new THREE.CapsuleGeometry(3.3, 8, 8, 10);
     const lowerArmGeo = new THREE.CapsuleGeometry(3.3, 8, 8, 10);
     const handGeo = new THREE.SphereGeometry(4.2, 12, 12);
 
-    c.rig.lUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
-    c.rig.lLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
-    c.rig.lHand = new THREE.Mesh(handGeo, mats.skin);
-    c.rig.lUpperArm.castShadow = true; c.rig.lLowerArm.castShadow = true; c.rig.lHand.castShadow = true;
-    c.rig.bodyPivot.add(c.rig.lUpperArm, c.rig.lLowerArm, c.rig.lHand);
+    vis.rig.lUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
+    vis.rig.lLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
+    vis.rig.lHand = new THREE.Mesh(handGeo, mats.skin);
+    vis.rig.lUpperArm.castShadow = true; vis.rig.lLowerArm.castShadow = true; vis.rig.lHand.castShadow = true;
+    vis.rig.bodyPivot.add(vis.rig.lUpperArm, vis.rig.lLowerArm, vis.rig.lHand);
 
-    c.rig.rUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
-    c.rig.rLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
-    c.rig.rHand = new THREE.Mesh(handGeo, mats.skin);
-    c.rig.rUpperArm.castShadow = true; c.rig.rLowerArm.castShadow = true; c.rig.rHand.castShadow = true;
-    c.rig.bodyPivot.add(c.rig.rUpperArm, c.rig.rLowerArm, c.rig.rHand);
+    vis.rig.rUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
+    vis.rig.rLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
+    vis.rig.rHand = new THREE.Mesh(handGeo, mats.skin);
+    vis.rig.rUpperArm.castShadow = true; vis.rig.rLowerArm.castShadow = true; vis.rig.rHand.castShadow = true;
+    vis.rig.bodyPivot.add(vis.rig.rUpperArm, vis.rig.rLowerArm, vis.rig.rHand);
 
     const upperLegGeo = new THREE.CapsuleGeometry(3.6, 12, 8, 10);
     const lowerLegGeo = new THREE.CapsuleGeometry(3.6, 9.7, 8, 10);
@@ -639,32 +675,34 @@ export class CharacterManager {
 
     const shoeGeo = new THREE.BoxGeometry(11, 8, 5);
 
-    c.rig.lUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
-    c.rig.lLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
-    c.rig.lUpperLeg.castShadow = true; c.rig.lLowerLeg.castShadow = true;
-    c.rig.lShoe = new THREE.Group();
-    c.rig.bodyPivot.add(c.rig.lUpperLeg, c.rig.lLowerLeg, c.rig.lShoe);
+    vis.rig.lUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
+    vis.rig.lLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
+    vis.rig.lUpperLeg.castShadow = true; vis.rig.lLowerLeg.castShadow = true;
+    vis.rig.lShoe = new THREE.Group();
+    vis.rig.bodyPivot.add(vis.rig.lUpperLeg, vis.rig.lLowerLeg, vis.rig.lShoe);
 
-    c.rig.rUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
-    c.rig.rLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
-    c.rig.rUpperLeg.castShadow = true; c.rig.rLowerLeg.castShadow = true;
-    c.rig.rShoe = new THREE.Group();
-    c.rig.bodyPivot.add(c.rig.rUpperLeg, c.rig.rLowerLeg, c.rig.rShoe);
+    vis.rig.rUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
+    vis.rig.rLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
+    vis.rig.rUpperLeg.castShadow = true; vis.rig.rLowerLeg.castShadow = true;
+    vis.rig.rShoe = new THREE.Group();
+    vis.rig.bodyPivot.add(vis.rig.rUpperLeg, vis.rig.rLowerLeg, vis.rig.rShoe);
 
     if (sharedShoeMeshL && sharedShoeMeshR) {
-      applyShoeModel(c.rig, mats, c);
+      applyShoeModel(vis.rig, mats, c);
     } else {
       const leftBox = new THREE.Mesh(shoeGeo, mats.shoe);
       const rightBox = new THREE.Mesh(shoeGeo, mats.shoe);
       leftBox.userData.isFallback = true;
       rightBox.userData.isFallback = true;
-      c.rig.lShoe.add(leftBox);
-      c.rig.rShoe.add(rightBox);
-      awaitingShoeRigs.push({ rig: c.rig, mats, c });
+      vis.rig.lShoe.add(leftBox);
+      vis.rig.rShoe.add(rightBox);
+      awaitingShoeRigs.push({ rig: vis.rig, mats, c });
     }
   }
 
   buildShadowBlob(c) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     const shadowSize = 28;
     const shadowCanvas = document.createElement('canvas');
     shadowCanvas.width = 30; shadowCanvas.height = 30;
@@ -674,45 +712,47 @@ export class CharacterManager {
 
     const shadowTex = new THREE.CanvasTexture(shadowCanvas);
     const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
-    c.shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(shadowSize, shadowSize), shadowMat);
-    c.shadowMesh.position.set(0, 0, 0.5);
-    c.shadowMesh.renderOrder = 55;
-    c.meshGroup.add(c.shadowMesh);
+    vis.shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(shadowSize, shadowSize), shadowMat);
+    vis.shadowMesh.position.set(0, 0, 0.5);
+    vis.shadowMesh.renderOrder = 55;
+    vis.meshGroup.add(vis.shadowMesh);
   }
 
   ensureDomElements(c) {
-    if (c.name && !c.hide_nameplate && !c.nameElement) {
-      c.nameElement = document.createElement('div');
-      c.nameElement.textContent = c.name;
-      c.nameElement.style.position = 'absolute';
-      c.nameElement.style.color = 'white';
-      c.nameElement.style.fontWeight = 'bold';
-      c.nameElement.style.fontSize = '12px';
-      c.nameElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-      c.nameElement.style.textShadow = '-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)';
-      c.nameElement.style.transform = 'translate(-50%, -50%)';
-      c.nameElement.style.pointerEvents = 'none';
-      c.nameElement.style.zIndex = '50';
-      document.body.appendChild(c.nameElement);
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
+    if (c.name && !c.hide_nameplate && !vis.nameElement) {
+      vis.nameElement = document.createElement('div');
+      vis.nameElement.textContent = c.name;
+      vis.nameElement.style.position = 'absolute';
+      vis.nameElement.style.color = 'white';
+      vis.nameElement.style.fontWeight = 'bold';
+      vis.nameElement.style.fontSize = '12px';
+      vis.nameElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+      vis.nameElement.style.textShadow = '-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)';
+      vis.nameElement.style.transform = 'translate(-50%, -50%)';
+      vis.nameElement.style.pointerEvents = 'none';
+      vis.nameElement.style.zIndex = '50';
+      document.body.appendChild(vis.nameElement);
     }
 
-    if (!c.chatElement) {
-      c.chatElement = document.createElement('div');
-      c.chatElement.style.position = 'absolute';
-      c.chatElement.style.background = 'white';
-      c.chatElement.style.color = '#2c3e50';
-      c.chatElement.style.padding = '6px 10px';
-      c.chatElement.style.borderRadius = '8px';
-      c.chatElement.style.fontWeight = 'normal';
-      c.chatElement.style.fontSize = '14px';
-      c.chatElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-      c.chatElement.style.boxShadow = '0 3px 6px rgba(0,0,0,0.25)';
-      c.chatElement.style.transform = 'translate(-50%, -100%)';
-      c.chatElement.style.pointerEvents = 'none';
-      c.chatElement.style.zIndex = '51';
-      c.chatElement.style.display = 'none';
-      c.chatElement.style.textAlign = 'center';
-      c.chatElement.style.minWidth = '50px';
+    if (!vis.chatElement) {
+      vis.chatElement = document.createElement('div');
+      vis.chatElement.style.position = 'absolute';
+      vis.chatElement.style.background = 'white';
+      vis.chatElement.style.color = '#2c3e50';
+      vis.chatElement.style.padding = '6px 10px';
+      vis.chatElement.style.borderRadius = '8px';
+      vis.chatElement.style.fontWeight = 'normal';
+      vis.chatElement.style.fontSize = '14px';
+      vis.chatElement.style.fontFamily = '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+      vis.chatElement.style.boxShadow = '0 3px 6px rgba(0,0,0,0.25)';
+      vis.chatElement.style.transform = 'translate(-50%, -100%)';
+      vis.chatElement.style.pointerEvents = 'none';
+      vis.chatElement.style.zIndex = '51';
+      vis.chatElement.style.display = 'none';
+      vis.chatElement.style.textAlign = 'center';
+      vis.chatElement.style.minWidth = '50px';
 
       const arrow = document.createElement('div');
       arrow.style.position = 'absolute';
@@ -722,19 +762,21 @@ export class CharacterManager {
       arrow.style.borderWidth = '8px 6px 0 6px';
       arrow.style.borderStyle = 'solid';
       arrow.style.borderColor = 'white transparent transparent transparent';
-      c.chatElement.appendChild(arrow);
+      vis.chatElement.appendChild(arrow);
 
-      c.chatTextNode = document.createElement('span');
-      c.chatElement.appendChild(c.chatTextNode);
+      vis.chatTextNode = document.createElement('span');
+      vis.chatElement.appendChild(vis.chatTextNode);
 
-      document.body.appendChild(c.chatElement);
+      document.body.appendChild(vis.chatElement);
     }
   }
 
   ensureThreeSetup(c, scene) {
-    if (!c.meshGroup) {
-      c.meshGroup = new THREE.Group();
-      scene.add(c.meshGroup);
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
+    if (!vis.meshGroup) {
+      vis.meshGroup = new THREE.Group();
+      scene.add(vis.meshGroup);
 
       const baseScale = window.init?.mapData?.character_scale || 1;
       const widthScale = (c.width || 40) / 40;
@@ -747,13 +789,13 @@ export class CharacterManager {
       this.buildSkeletonHair(c, mats);
       this.buildSkeletonLimbs(c, mats);
 
-      c.meshGroup.scale.set(maxScale, maxScale, maxScale);
-      c.rig.bodyPivot.position.set(0, 0, 15.5);
+      vis.meshGroup.scale.set(maxScale, maxScale, maxScale);
+      vis.rig.bodyPivot.position.set(0, 0, 15.5);
 
       this.buildShadowBlob(c);
 
-      c.meshGroup.traverse((node) => {
-        if (node.isMesh && node !== c.shadowMesh) {
+      vis.meshGroup.traverse((node) => {
+        if (node.isMesh && node !== vis.shadowMesh) {
           node.castShadow = true;
           node.receiveShadow = true;
         }
@@ -764,6 +806,8 @@ export class CharacterManager {
   }
 
   applyWalkCycle(c, legTimer) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     const legSwing = Math.sin(legTimer);
     const legVelocity = Math.cos(legTimer);
 
@@ -772,43 +816,49 @@ export class CharacterManager {
     const legStrideX = 14;
     const stepLiftZ = 8; // Boost to 8 highlighting the alternating lift arch
 
-    c.rig.leftHandTarget.x += -legSwing * armSwingX;
-    c.rig.leftHandTarget.z += Math.abs(legSwing) * armLiftZ;
-    c.rig.rightHandTarget.x += legSwing * armSwingX;
-    c.rig.rightHandTarget.z += Math.abs(legSwing) * armLiftZ;
+    vis.rig.leftHandTarget.x += -legSwing * armSwingX;
+    vis.rig.leftHandTarget.z += Math.abs(legSwing) * armLiftZ;
+    vis.rig.rightHandTarget.x += legSwing * armSwingX;
+    vis.rig.rightHandTarget.z += Math.abs(legSwing) * armLiftZ;
 
-    c.rig.leftFootTarget.x += legSwing * legStrideX;
-    c.rig.leftFootTarget.z += Math.max(0, legVelocity) * stepLiftZ;
-    c.rig.rightFootTarget.x += -legSwing * legStrideX;
-    c.rig.rightFootTarget.z += Math.max(0, -legVelocity) * stepLiftZ;
+    vis.rig.leftFootTarget.x += legSwing * legStrideX;
+    vis.rig.leftFootTarget.z += Math.max(0, legVelocity) * stepLiftZ;
+    vis.rig.rightFootTarget.x += -legSwing * legStrideX;
+    vis.rig.rightFootTarget.z += Math.max(0, -legVelocity) * stepLiftZ;
   }
 
   applyIdleSway(c, idleTime) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     const armSwayZ = Math.sin(idleTime * 2.0) * 0.6;
     const armSwayX = Math.cos(idleTime * 1.5) * 0.4;
 
-    c.rig.leftHandTarget.z += armSwayZ;
-    c.rig.leftHandTarget.x += armSwayX;
-    c.rig.rightHandTarget.z += armSwayZ;
-    c.rig.rightHandTarget.x -= armSwayX;
+    vis.rig.leftHandTarget.z += armSwayZ;
+    vis.rig.leftHandTarget.x += armSwayX;
+    vis.rig.rightHandTarget.z += armSwayZ;
+    vis.rig.rightHandTarget.x -= armSwayX;
   }
 
   applyEmoteOverrides(c, emoteDef, currentEmote) {
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
     if (emoteDef && emoteDef.updateLimbs3D) {
-      c.rig.bodyPivot.rotation.y = 0;
-      emoteDef.updateLimbs3D(c.rig, currentEmote, c);
+      vis.rig.bodyPivot.rotation.y = 0;
+      emoteDef.updateLimbs3D(vis.rig, currentEmote, c);
     } else if (c.emoji) {
-      c.rig.bodyPivot.rotation.y = 0;
-      c.rig.leftHandTarget.set(5, -20, 35);
-      c.rig.rightHandTarget.set(5, 20, 35);
+      vis.rig.bodyPivot.rotation.y = 0;
+      vis.rig.leftHandTarget.set(5, -20, 35);
+      vis.rig.rightHandTarget.set(5, 20, 35);
     }
   }
 
   resolveInverseKinematics(c) {
-    c.rig.lHand.position.copy(c.rig.leftHandTarget);
-    c.rig.rHand.position.copy(c.rig.rightHandTarget);
-    c.rig.lShoe.position.copy(c.rig.leftFootTarget);
-    c.rig.rShoe.position.copy(c.rig.rightFootTarget);
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
+    vis.rig.lHand.position.copy(vis.rig.leftHandTarget);
+    vis.rig.rHand.position.copy(vis.rig.rightHandTarget);
+    vis.rig.lShoe.position.copy(vis.rig.leftFootTarget);
+    vis.rig.rShoe.position.copy(vis.rig.rightFootTarget);
 
     const bendNormalArmL = new THREE.Vector3(0, 1, -0.5).normalize();
     const bendNormalArmR = new THREE.Vector3(0, 1, 0.5).normalize();
@@ -816,34 +866,36 @@ export class CharacterManager {
     const bendNormalLegR = new THREE.Vector3(0, -1, 0.2).normalize();
 
     // Raise ankles 19% (roughly 2.3 units relative to FootTarget) ensuring the calves don't clip through short slip_ons safely
-    const leftAnklePos = new THREE.Vector3().copy(c.rig.leftFootTarget);
+    const leftAnklePos = new THREE.Vector3().copy(vis.rig.leftFootTarget);
     leftAnklePos.z += 2.3;
-    const rightAnklePos = new THREE.Vector3().copy(c.rig.rightFootTarget);
+    const rightAnklePos = new THREE.Vector3().copy(vis.rig.rightFootTarget);
     rightAnklePos.z += 2.3;
 
-    const leftElbow = solve2BoneIK(c.rig.leftShoulderPos, c.rig.leftHandTarget, 8.5, 8.5, bendNormalArmL);
-    const rightElbow = solve2BoneIK(c.rig.rightShoulderPos, c.rig.rightHandTarget, 8.5, 8.5, bendNormalArmR);
-    const leftKnee = solve2BoneIK(c.rig.leftHipPos, leftAnklePos, 12, 9.7, bendNormalLegL);
-    const rightKnee = solve2BoneIK(c.rig.rightHipPos, rightAnklePos, 12, 9.7, bendNormalLegR);
+    const leftElbow = solve2BoneIK(vis.rig.leftShoulderPos, vis.rig.leftHandTarget, 8.5, 8.5, bendNormalArmL);
+    const rightElbow = solve2BoneIK(vis.rig.rightShoulderPos, vis.rig.rightHandTarget, 8.5, 8.5, bendNormalArmR);
+    const leftKnee = solve2BoneIK(vis.rig.leftHipPos, leftAnklePos, 12, 9.7, bendNormalLegL);
+    const rightKnee = solve2BoneIK(vis.rig.rightHipPos, rightAnklePos, 12, 9.7, bendNormalLegR);
 
-    pointLimbSegment(c.rig.lUpperArm, c.rig.leftShoulderPos, leftElbow);
-    pointLimbSegment(c.rig.lLowerArm, leftElbow, c.rig.leftHandTarget);
+    pointLimbSegment(vis.rig.lUpperArm, vis.rig.leftShoulderPos, leftElbow);
+    pointLimbSegment(vis.rig.lLowerArm, leftElbow, vis.rig.leftHandTarget);
 
-    pointLimbSegment(c.rig.rUpperArm, c.rig.rightShoulderPos, rightElbow);
-    pointLimbSegment(c.rig.rLowerArm, rightElbow, c.rig.rightHandTarget);
+    pointLimbSegment(vis.rig.rUpperArm, vis.rig.rightShoulderPos, rightElbow);
+    pointLimbSegment(vis.rig.rLowerArm, rightElbow, vis.rig.rightHandTarget);
 
-    pointLimbSegment(c.rig.lUpperLeg, c.rig.leftHipPos, leftKnee);
-    pointLimbSegment(c.rig.lLowerLeg, leftKnee, leftAnklePos);
+    pointLimbSegment(vis.rig.lUpperLeg, vis.rig.leftHipPos, leftKnee);
+    pointLimbSegment(vis.rig.lLowerLeg, leftKnee, leftAnklePos);
 
-    pointLimbSegment(c.rig.rUpperLeg, c.rig.rightHipPos, rightKnee);
-    pointLimbSegment(c.rig.rLowerLeg, rightKnee, rightAnklePos);
+    pointLimbSegment(vis.rig.rUpperLeg, vis.rig.rightHipPos, rightKnee);
+    pointLimbSegment(vis.rig.rLowerLeg, rightKnee, rightAnklePos);
   }
 
   updateCharacter3D(c, isNpc, player, syncPlayerToJSON) {
-    if (!c.rig) return;
+    if (!c) return;
+    const vis = getCharacterProxy(c.id);
+    if (!vis.rig) return;
 
-    c.rig.bodyPivot.rotation.z = -c.rotation * (Math.PI / 180);
-    c.rig.emotePropsDirectional.rotation.z = -c.rotation * (Math.PI / 180);
+    vis.rig.bodyPivot.rotation.z = -c.rotation * (Math.PI / 180);
+    vis.rig.emotePropsDirectional.rotation.z = -c.rotation * (Math.PI / 180);
 
     const isActualNpc = isNpc;
     if (isActualNpc && !c.emote && c.default_emote) {
@@ -854,27 +906,27 @@ export class CharacterManager {
     let emoteDef = null;
 
     const newEmoteName = currentEmote ? currentEmote.name : null;
-    if (c.rig.currentEmoteName !== newEmoteName) {
-      if (c.rig.emoteProps) {
-        c.rig.emoteProps.removeFromParent();
-        c.rig.emoteProps = null;
+    if (vis.rig.currentEmoteName !== newEmoteName) {
+      if (vis.rig.emoteProps) {
+        vis.rig.emoteProps.removeFromParent();
+        vis.rig.emoteProps = null;
       }
-      if (c.rig.crumbProps) {
-        c.rig.crumbProps.removeFromParent();
-        c.rig.crumbProps = null;
+      if (vis.rig.crumbProps) {
+        vis.rig.crumbProps.removeFromParent();
+        vis.rig.crumbProps = null;
       }
-      c.rig.bodyPivot.position.set(0, 0, 15.5);
-      c.rig.bodyPivot.rotation.x = 0;
-      c.rig.bodyPivot.rotation.y = 0;
-      c.rig.currentEmoteName = newEmoteName;
+      vis.rig.bodyPivot.position.set(0, 0, 15.5);
+      vis.rig.bodyPivot.rotation.x = 0;
+      vis.rig.bodyPivot.rotation.y = 0;
+      vis.rig.currentEmoteName = newEmoteName;
     }
 
     if (currentEmote && emotes[currentEmote.name]) {
       emoteDef = emotes[currentEmote.name];
       if (currentEmote.startTime !== 0 && Date.now() - currentEmote.startTime > emoteDef.duration) {
-        if (c.activeEmoteAudio) {
-          c.activeEmoteAudio.fadeOut(500);
-          c.activeEmoteAudio = null;
+        if (vis.activeEmoteAudio) {
+          vis.activeEmoteAudio.fadeOut(500);
+          vis.activeEmoteAudio = null;
         }
         if (isActualNpc && c.default_emote) {
           c.emote = JSON.parse(JSON.stringify(c.default_emote));
@@ -890,10 +942,10 @@ export class CharacterManager {
     const baseLFoot = new THREE.Vector3(2, -6, -13);
     const baseRFoot = new THREE.Vector3(2, 6, -13);
 
-    c.rig.leftHandTarget.copy(baseLHand);
-    c.rig.rightHandTarget.copy(baseRHand);
-    c.rig.leftFootTarget.copy(baseLFoot);
-    c.rig.rightFootTarget.copy(baseRFoot);
+    vis.rig.leftHandTarget.copy(baseLHand);
+    vis.rig.rightHandTarget.copy(baseRHand);
+    vis.rig.leftFootTarget.copy(baseLFoot);
+    vis.rig.rightFootTarget.copy(baseRFoot);
 
     const timeNow = Date.now() / 1000;
     let hash = 0;
@@ -902,25 +954,25 @@ export class CharacterManager {
     const idleTime = timeNow + (hash * 0.1);
 
     const breathOffset = Math.sin(idleTime * 2) * 0.02;
-    c.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 1);
+    vis.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 1);
 
-    c.rig.bodyPivot.rotation.y = Math.sin(idleTime * 1.5) * 0.05;
+    vis.rig.bodyPivot.rotation.y = Math.sin(idleTime * 1.5) * 0.05;
 
-    const isWalking = (c.legAnimationTime || 0) > 0;
-    const legTimer = c.legAnimationTime || 0;
+    const isWalking = (vis.legAnimationTime || 0) > 0;
+    const legTimer = vis.legAnimationTime || 0;
     const legSwing = Math.sin(legTimer);
 
     if (isWalking) {
       // Procedurally bob vertical Z twice per sequence (when feet cross mid-stride)
-      c.rig.bodyPivot.position.z = 15.5 + Math.cos(legTimer * 2) * 0.5;
+      vis.rig.bodyPivot.position.z = 15.5 + Math.cos(legTimer * 2) * 0.5;
       // Shift natively Forward (+X) identically pulsing outward whenever the lifted stride leg passes the midpoint 
-      c.rig.bodyPivot.position.x = Math.cos(legTimer * 2) * 1.0;
+      vis.rig.bodyPivot.position.x = Math.cos(legTimer * 2) * 1.0;
 
       this.applyWalkCycle(c, legTimer);
     } else if (!emoteDef || !emoteDef.updateLimbs3D) {
       // Wipe dynamic strides and seamlessly restore neutral geometry during standstill
-      c.rig.bodyPivot.position.z = 15.5;
-      c.rig.bodyPivot.position.x = 0;
+      vis.rig.bodyPivot.position.z = 15.5;
+      vis.rig.bodyPivot.position.x = 0;
 
       this.applyIdleSway(c, idleTime);
     }
@@ -930,13 +982,15 @@ export class CharacterManager {
   }
 
   drawCharacter(c, isNpc, layerType, scene, player, syncPlayerToJSON, cameraZoom, viewportWidth, viewportHeight, threeCamera) {
+    const vis = getCharacterProxy(c.id);
     if (layerType === 'all' || layerType === 'base') {
       this.ensureThreeSetup(c, scene);
 
       // Update position (WebGL Y is UP, so we negate game Y)
-      c.meshGroup.position.set(c.x, -c.y, 0);
+      const renderZ = (c.z !== undefined) ? c.z : 0;
+      vis.meshGroup.position.set(c.x, -c.y, renderZ);
 
-      const hasMovement = c.legAnimationTime && c.legAnimationTime > 0;
+      const hasMovement = vis.legAnimationTime && vis.legAnimationTime > 0;
       let isEmoteAnimating = false;
       if (c.emote && emotes[c.emote.name] && c.emote.startTime > 0) {
         const age = Date.now() - c.emote.startTime;
@@ -949,73 +1003,67 @@ export class CharacterManager {
 
       if (isRedrawForced) {
         this.updateCharacter3D(c, isNpc, player, syncPlayerToJSON);
-        c._lastRenderedEmote = JSON.stringify(c.emote);
-        c._lastRenderedRot = c.rotation;
-        c._hasInitialRender = true;
+        vis._lastRenderedEmote = JSON.stringify(c.emote);
+        vis._lastRenderedRot = c.rotation;
+        vis._hasInitialRender = true;
       }
     }
 
     if (layerType === 'all' || layerType === 'overlay' || layerType === 'chat') {
-      if (c.meshGroup) {
+      if (vis.meshGroup) {
         const vec = new THREE.Vector3(c.x, -c.y, 0);
         vec.project(threeCamera);
         // Map -1 to 1 to exact screen pixels
         const screenX = (vec.x * 0.5 + 0.5) * viewportWidth;
         const screenY = (-(vec.y * 0.5) + 0.5) * viewportHeight;
 
-        if (c.nameElement) {
-          c.nameElement.style.left = `${screenX}px`;
+        if (vis.nameElement) {
+          vis.nameElement.style.left = `${screenX}px`;
           // Raise nameplate above head
           const nameOffsetY = 45 * cameraZoom;
-          c.nameElement.style.top = `${screenY - nameOffsetY}px`;
+          vis.nameElement.style.top = `${screenY - nameOffsetY}px`;
         }
 
-        if (c.chatElement) {
+        if (vis.chatElement) {
           if (c.chatMessage && Date.now() - (c.chatTime || 0) < 5000) {
             this.currentFrameChatCount++;
             if (this.currentFrameChatCount <= 3) {
-              c.chatElement.style.display = 'block';
-              if (c.chatTextNode.innerText !== c.chatMessage) {
-                c.chatTextNode.innerText = c.chatMessage;
+              vis.chatElement.style.display = 'block';
+              if (vis.chatTextNode.innerText !== c.chatMessage) {
+                vis.chatTextNode.innerText = c.chatMessage;
               }
-              c.chatElement.style.left = `${screenX}px`;
+              vis.chatElement.style.left = `${screenX}px`;
               const chatOffsetY = 55 * cameraZoom;
-              c.chatElement.style.top = `${screenY - chatOffsetY}px`;
+              vis.chatElement.style.top = `${screenY - chatOffsetY}px`;
             } else {
-              c.chatElement.style.display = 'none';
+              vis.chatElement.style.display = 'none';
             }
           } else {
-            c.chatElement.style.display = 'none';
+            vis.chatElement.style.display = 'none';
           }
         }
       }
     }
   }
 
-  drawCharacters(layerType = 'all', scene, player, syncPlayerToJSON, cameraX, cameraY, cameraZoom, viewportWidth, viewportHeight, threeCamera) {
+  drawCharacters(layerType = 'all', scene, player, syncPlayerToJSON, cameraZoom, viewportWidth, viewportHeight, threeCamera) {
     this.currentFrameChatCount = 0;
-    const viewHalfW = ((viewportWidth / cameraZoom) / 2);
-    const viewHalfH = ((viewportHeight / cameraZoom) / 2);
-
-    const margin = 100;
-    const minX = (cameraX - viewHalfW - margin);
-    const maxX = (cameraX + viewHalfW + margin);
-    const minY = (cameraY - viewHalfH - margin);
-    const maxY = (cameraY + viewHalfH + margin);
 
     const processDraw = (char, isNpc) => {
       const c = (char.id === player.id) ? player : char;
-      const isVisible = (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY);
+      const vec = new THREE.Vector3(c.x, -c.y, 5).project(threeCamera);
+      const isVisible = (vec.z <= 1 && Math.abs(vec.x) <= 1.3 && Math.abs(vec.y) <= 1.3);
+      const vis = getCharacterProxy(c.id);
 
       if (isVisible) {
-        if (c.meshGroup) c.meshGroup.visible = true;
-        if (c.nameElement) c.nameElement.style.display = 'block';
+        if (vis.meshGroup) vis.meshGroup.visible = true;
+        if (vis.nameElement) vis.nameElement.style.display = 'block';
         this.drawCharacter(c, isNpc, layerType, scene, player, syncPlayerToJSON, cameraZoom, viewportWidth, viewportHeight, threeCamera);
       } else {
         // Hide immediately to save DOM and GPU
-        if (c.meshGroup) c.meshGroup.visible = false;
-        if (c.nameElement) c.nameElement.style.display = 'none';
-        if (c.chatElement) c.chatElement.style.display = 'none';
+        if (vis.meshGroup) vis.meshGroup.visible = false;
+        if (vis.nameElement) vis.nameElement.style.display = 'none';
+        if (vis.chatElement) vis.chatElement.style.display = 'none';
       }
     };
 
@@ -1036,12 +1084,13 @@ export function updateLocalNPCs(dt) {
   const npcs = window.init.npcs;
   for (let i = 0; i < npcs.length; i++) {
     const npc = npcs[i];
+    const npcVis = getCharacterProxy(npc.id);
 
     if (npc.roam_radius !== undefined && typeof npc.roam_radius === 'number') {
       if (npc.waitTimer === undefined) {
-        npc._startX = npc.x !== undefined ? npc.x : 0;
-        npc._startY = npc.y !== undefined ? npc.y : 0;
-        npc._startRotation = npc.rotation || 0;
+        npcVis._startX = npc.x !== undefined ? npc.x : 0;
+        npcVis._startY = npc.y !== undefined ? npc.y : 0;
+        npcVis._startRotation = npc.rotation || 0;
         npc.waitTimer = 1.0 + Math.random() * 3.0;
       }
 
@@ -1050,34 +1099,34 @@ export function updateLocalNPCs(dt) {
       }
 
       if (npc.waitTimer <= 0) {
-        if (npc._pendingRoamX !== undefined) {
-          npc.targetX = npc._pendingRoamX;
-          npc.targetY = npc._pendingRoamY;
-          delete npc._pendingRoamX;
-          delete npc._pendingRoamY;
+        if (npcVis._pendingRoamX !== undefined) {
+          npcVis.targetX = npcVis._pendingRoamX;
+          npcVis.targetY = npcVis._pendingRoamY;
+          delete npcVis._pendingRoamX;
+          delete npcVis._pendingRoamY;
           npc.waitTimer = 2.0 + (Math.random() * 3.0);
         } else {
           const angle = Math.random() * Math.PI * 2;
           const distance = Math.random() * npc.roam_radius;
-          const destX = npc._startX + (Math.cos(angle) * distance);
-          const destY = npc._startY + (Math.sin(angle) * distance);
+          const destX = npcVis._startX + (Math.cos(angle) * distance);
+          const destY = npcVis._startY + (Math.sin(angle) * distance);
           const dx = destX - npc.x;
           const dy = destY - npc.y;
           let destRotation = Math.atan2(dy, dx) * (180 / Math.PI);
           destRotation = (destRotation + 360) % 360;
 
-          npc.targetRotation = Math.round(destRotation);
-          npc._pendingRoamX = destX;
-          npc._pendingRoamY = destY;
+          npcVis.targetRotation = Math.round(destRotation);
+          npcVis._pendingRoamX = destX;
+          npcVis._pendingRoamY = destY;
           npc.waitTimer = 0.5;
         }
       }
     } else if (npc.waypoints && Array.isArray(npc.waypoints) && npc.waypoints.length > 0) {
       if (npc.waitTimer === undefined) {
-        npc._startX = npc.x !== undefined ? npc.x : 0;
-        npc._startY = npc.y !== undefined ? npc.y : 0;
-        npc._startRotation = npc.rotation || 0;
-        npc._moveIdx = 0;
+        npcVis._startX = npc.x !== undefined ? npc.x : 0;
+        npcVis._startY = npc.y !== undefined ? npc.y : 0;
+        npcVis._startRotation = npc.rotation || 0;
+        npcVis._moveIdx = 0;
         npc.waitTimer = 0;
       }
 
@@ -1086,36 +1135,36 @@ export function updateLocalNPCs(dt) {
       }
 
       if (npc.waitTimer <= 0) {
-        npc._moveIdx = (npc._moveIdx + 1) % (npc.waypoints.length + 2);
-        npc._currentOffsetX = npc._currentOffsetX || 0;
-        npc._currentOffsetY = npc._currentOffsetY || 0;
-        npc._currentOffsetRotation = npc._currentOffsetRotation || 0;
+        npcVis._moveIdx = (npcVis._moveIdx + 1) % (npc.waypoints.length + 2);
+        npcVis._currentOffsetX = npcVis._currentOffsetX || 0;
+        npcVis._currentOffsetY = npcVis._currentOffsetY || 0;
+        npcVis._currentOffsetRotation = npcVis._currentOffsetRotation || 0;
 
         let offset = { x: 0, y: 0, rotation: 0 };
         let nodeWaitTime = npc.move_time || 3000;
 
-        if (npc._moveIdx > 0 && npc._moveIdx <= npc.waypoints.length) {
-          offset = npc.waypoints[npc._moveIdx - 1];
+        if (npcVis._moveIdx > 0 && npcVis._moveIdx <= npc.waypoints.length) {
+          offset = npc.waypoints[npcVis._moveIdx - 1];
           if (offset.move_time !== undefined) nodeWaitTime = offset.move_time;
-        } else if (npc._moveIdx === npc.waypoints.length + 1) {
-          offset = { x: -npc._currentOffsetX, y: -npc._currentOffsetY };
-        } else if (npc._moveIdx === 0) {
-          offset = { rotation: -npc._currentOffsetRotation };
+        } else if (npcVis._moveIdx === npc.waypoints.length + 1) {
+          offset = { x: -npcVis._currentOffsetX, y: -npcVis._currentOffsetY };
+        } else if (npcVis._moveIdx === 0) {
+          offset = { rotation: -npcVis._currentOffsetRotation };
         }
 
-        if (offset.x !== undefined) npc._currentOffsetX += offset.x;
-        if (offset.y !== undefined) npc._currentOffsetY += offset.y;
-        if (offset.rotation !== undefined) npc._currentOffsetRotation += offset.rotation;
+        if (offset.x !== undefined) npcVis._currentOffsetX += offset.x;
+        if (offset.y !== undefined) npcVis._currentOffsetY += offset.y;
+        if (offset.rotation !== undefined) npcVis._currentOffsetRotation += offset.rotation;
 
-        if (npc._moveIdx === 0) {
-          npc._currentOffsetX = 0;
-          npc._currentOffsetY = 0;
-          npc._currentOffsetRotation = 0;
+        if (npcVis._moveIdx === 0) {
+          npcVis._currentOffsetX = 0;
+          npcVis._currentOffsetY = 0;
+          npcVis._currentOffsetRotation = 0;
         }
 
-        npc.targetX = npc._startX + npc._currentOffsetX;
-        npc.targetY = npc._startY + npc._currentOffsetY;
-        npc.targetRotation = npc._startRotation + npc._currentOffsetRotation;
+        npcVis.targetX = npcVis._startX + npcVis._currentOffsetX;
+        npcVis.targetY = npcVis._startY + npcVis._currentOffsetY;
+        npcVis.targetRotation = npcVis._startRotation + npcVis._currentOffsetRotation;
 
         npc.waitTimer = nodeWaitTime / 1000;
       }

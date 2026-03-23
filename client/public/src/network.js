@@ -1,3 +1,4 @@
+import { getCharacterProxy } from './characters.js';
 import { emotes, getEmoteMessage } from './emotes.js';
 import { uiManager } from './ui.js';
 import { player } from './main.js';
@@ -269,7 +270,7 @@ export class NetworkClient {
           }
         } else if (data.type === 'npcs_update') {
           if (window.init && window.init.npcs) {
-            window.init.npcs.forEach(oldNpc => characterManager.cleanupCharacter(oldNpc));
+            window.init.npcs.forEach(oldNpc => characterManager.disposeCharacter(oldNpc));
           }
           
           if (window.init) {

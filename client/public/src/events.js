@@ -73,7 +73,7 @@ export const EventHandlers = {
 
     if (dialogOverlay && dialogText && btnYes && btnNo) {
       dialogText.textContent = payload.description || 'Proceed?';
-      dialogOverlay.style.display = 'block';
+      dialogOverlay.style.display = 'flex';
 
       btnNo.onclick = () => {
         dialogOverlay.style.display = 'none';

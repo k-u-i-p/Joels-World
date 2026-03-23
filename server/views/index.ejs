@@ -24,15 +24,38 @@
 
 <body>
 
-  <!-- Tennis Scoreboard Overlay -->
-  <div id="tennis-scoreboard" class="glass-panel"
-    style="display: none; position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 12px; z-index: 50;">
-    <div
-      style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #e74c3c; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);"
-      id="tennis-score-npc">NPC: Love</div>
-    <div
-      style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #2ecc71; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); padding-left: 15px;"
-      id="tennis-score-player">YOU: Love</div>
+  <!-- Minigame UI Master Container -->
+  <div id="minigame-ui-container"
+    style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50;">
+    <!-- Tennis Scoreboard Overlay -->
+    <div id="tennis-scoreboard" class="glass-panel"
+      style="display: none; position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 12px; z-index: 50; display: flex; flex-direction: row; align-items: center; justify-content: center;">
+      <div
+        style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #f1c40f; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); border-right: 2px solid rgba(255,255,255,0.3); padding-right: 15px; margin-right: 15px;"
+        id="tennis-score-npc">NPC: Love</div>
+      <div
+        style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #2ecc71; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);"
+        id="tennis-score-player">YOU: Love</div>
+    </div>
+
+    <!-- Tag Scoreboard Overlay -->
+    <div id="tag-scoreboard" class="glass-panel"
+      style="display: none; position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 12px; z-index: 50; text-align: center;">
+      <div
+        style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #f1c40f; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);"
+        id="tag-round">Round: 1</div>
+      <div
+        style="font-family: 'Pricedown', sans-serif; font-size: 22px; color: #2ecc71; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin-top: 5px;"
+        id="tag-time">Time: 60s</div>
+      <div id="tag-it-warning"
+        style="display: none; font-family: 'Pricedown', sans-serif; font-size: 28px; color: #e74c3c; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin-top: 10px;">
+        YOU ARE IT!</div>
+    </div>
+
+    <!-- Floating Tag "IT" Marker -->
+    <div id="tag-it-marker"
+      style="display: none; position: absolute; color: #e74c3c; font-family: 'Pricedown', sans-serif; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); z-index: 45; transform: translate(-50%, -50%); pointer-events: none;">
+      IT</div>
   </div>
 
   <!-- Top Center UI Overlay -->
@@ -51,12 +74,16 @@
 
       <div id="server-chat-stack"></div>
 
-      <div id="action-dialog" class="dialog-content glass-panel" style="display: none;">
-        <h2 id="action-dialog-text" class="dialog-header"></h2>
-        <div class="action-dialog-buttons">
-          <button id="action-dialog-yes" class="btn btn-success btn-action">Yes</button>
-          <button id="action-dialog-no" class="btn btn-danger btn-action">No</button>
-        </div>
+    </div>
+  </div>
+
+  <!-- Action Dialog Overlay -->
+  <div id="action-dialog" class="overlay" style="display: none; z-index: 100;">
+    <div class="dialog-content glass-panel" style="text-align: center; max-width: 400px; width: 90%;">
+      <h2 id="action-dialog-text" class="dialog-header"></h2>
+      <div class="action-dialog-buttons" style="display: flex; gap: 15px; justify-content: center;">
+        <button id="action-dialog-yes" class="btn btn-success btn-action" style="flex: 1;">Yes</button>
+        <button id="action-dialog-no" class="btn btn-danger btn-action" style="flex: 1;">No</button>
       </div>
     </div>
   </div>
@@ -189,21 +216,30 @@
         <select id="admin-map-select" class="admin-select">
           <option value="">Select Map...</option>
         </select>
-        <button id="btn-create-obj-rect" class="admin-full-btn" style="background-color: #e67e22;">+ Collision Box</button>
-        <button id="btn-create-obj-circle" class="admin-full-btn" style="background-color: #f1c40f;">+ Collision Circle</button>
-        <button id="btn-create-npc" class="admin-full-btn" style="background-color: #9b59b6;">+ NPC</button>
+        <button id="btn-create-obj-rect" class="admin-full-btn" style="background-color: #e67e22;">+
+          Rectangle Object</button>
+        <button id="btn-create-obj-circle" class="admin-full-btn" style="background-color: #f1c40f;">+
+          Circle Object</button>
+        <button id="btn-create-obj-3d" class="admin-full-btn" style="background-color: #3498db;">+
+          3D Model</button>
+        <button id="btn-create-npc" class="admin-full-btn" style="background-color: #9b59b6;">+
+          NPC</button>
       </div>
 
       <div style="margin-bottom: 10px; padding: 5px; background: rgba(0,0,0,0.3); border-radius: 4px;">
         <div style="font-size: 11px; color: #bdc3c7; text-align: center; margin-bottom: 5px;">Camera Controls</div>
         <div class="admin-control-row">
           <span style="font-size: 11px; flex: 1; text-align: right; margin-right: 5px;">Tilt:</span>
-          <button class="admin-btn" onclick="window.adminCameraConfig && window.adminCameraConfig.setPitch(-0.1)">▲</button>
-          <button class="admin-btn" onclick="window.adminCameraConfig && window.adminCameraConfig.setPitch(0.1)">▼</button>
+          <button class="admin-btn"
+            onclick="window.adminCameraConfig && window.adminCameraConfig.setPitch(-0.1)">▲</button>
+          <button class="admin-btn"
+            onclick="window.adminCameraConfig && window.adminCameraConfig.setPitch(0.1)">▼</button>
           <span style="flex: 0.5;"></span>
           <span style="font-size: 11px; flex: 1; text-align: right; margin-right: 5px;">Rotate:</span>
-          <button class="admin-btn" onclick="window.adminCameraConfig && window.adminCameraConfig.setYaw(-0.1)">↺</button>
-          <button class="admin-btn" onclick="window.adminCameraConfig && window.adminCameraConfig.setYaw(0.1)">↻</button>
+          <button class="admin-btn"
+            onclick="window.adminCameraConfig && window.adminCameraConfig.setYaw(-0.1)">↺</button>
+          <button class="admin-btn"
+            onclick="window.adminCameraConfig && window.adminCameraConfig.setYaw(0.1)">↻</button>
         </div>
       </div>
       <div id="admin-last-clicked"
@@ -233,6 +269,21 @@
           <span>Length:</span>
           <button id="btn-obj-length-dec" class="admin-btn">-</button>
           <button id="btn-obj-length-inc" class="admin-btn">+</button>
+        </div>
+        <div class="admin-control-row" style="margin-top: 5px;" id="row-obj-scale">
+          <span>Scale:</span>
+          <input type="number" id="input-obj-scale" step="0.1"
+            style="width: 60px; padding: 3px; font-size: 12px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
+        </div>
+        <div class="admin-control-row" style="margin-top: 5px;" id="row-obj-z">
+          <span>Z Elev:</span>
+          <input type="number" id="input-obj-z"
+            style="width: 60px; padding: 3px; font-size: 12px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white; text-align: center;" />
+        </div>
+        <div class="admin-control-row" style="margin-top: 5px;" id="row-obj-model">
+          <span>Model:</span>
+          <input type="text" id="input-obj-model" placeholder="models/chair/chair.glb"
+            style="width: 120px; padding: 3px; font-size: 10px; border-radius: 4px; border: 1px solid #7f8c8d; background: rgba(255,255,255,0.1); color: white;" />
         </div>
         <div class="admin-control-row" style="margin-top: 5px;">
           <span>Clip:</span>
@@ -265,6 +316,11 @@
               <span>Height:</span>
               <button id="btn-npc-height-dec" class="admin-btn">-</button>
               <button id="btn-npc-height-inc" class="admin-btn">+</button>
+            </div>
+            <div class="admin-control-row" style="margin-bottom:5px;">
+              <span>Z Elev:</span>
+              <button id="btn-npc-z-dec" class="admin-btn">-</button>
+              <button id="btn-npc-z-inc" class="admin-btn">+</button>
             </div>
             <div class="admin-control-row" style="margin-bottom:5px;">
               <span>Radius:</span>
@@ -372,7 +428,8 @@
           <div id="joystick-move-knob"></div>
         </div>
         <canvas id="gameCanvas"></canvas>
-        <canvas id="uiCanvas" style="position: absolute; top:0; left:0; width:100%; height:100%; z-index: 5; pointer-events:none;"></canvas>
+        <canvas id="uiCanvas"
+          style="position: absolute; top:0; left:0; width:100%; height:100%; z-index: 5; pointer-events:none;"></canvas>
         <% if (isAdmin) { %>
           <script>
             window.isAdmin = true;

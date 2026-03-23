@@ -659,6 +659,9 @@ export function initMinigame() {
     });
   }
 
+  const minigameUi = document.getElementById('minigame-ui-container');
+  if (minigameUi) minigameUi.style.display = 'block';
+
   const scoreboard = document.getElementById('tennis-scoreboard');
   if (scoreboard) scoreboard.style.display = 'flex';
   updateScoreboardDOM();
@@ -673,35 +676,22 @@ export function initMinigame() {
   if (exitBtn) {
     exitBtn.style.display = 'flex';
     exitBtn.onclick = () => {
-      const dialogOverlay = document.getElementById('action-dialog');
-      const dialogText = document.getElementById('action-dialog-text');
-      const btnYes = document.getElementById('action-dialog-yes');
-      const btnNo = document.getElementById('action-dialog-no');
-
-      if (dialogOverlay && dialogText && btnYes && btnNo) {
-        dialogText.textContent = 'Leave Game?';
-        dialogOverlay.style.display = 'block';
-
-        const topUi = document.getElementById('top-center-ui');
-        const wasHidden = topUi && topUi.style.display === 'none';
-        if (wasHidden) topUi.style.display = 'flex';
-
-        btnNo.onclick = () => {
-          dialogOverlay.style.display = 'none';
-          if (wasHidden && topUi) topUi.style.display = 'none';
-        };
-
-        btnYes.onclick = () => {
-          dialogOverlay.style.display = 'none';
+      import('../ui.js').then(({ uiManager }) => {
+        uiManager.showActionDialog('Return to the junior school?', () => {
           import('../network.js').then(({ networkClient }) => {
-            networkClient.send({ type: 'change_map', mapId: 0 });
+            networkClient.send({ type: 'change_map', mapId: 0 }); // Map ID 0 corresponds to the Junior Campus
           });
-        };
-      }
+        });
+      });
     };
   }
 
   gameLoop.registerFunction(run);
+}
+
+function cleanupMinigame() {
+  minigameActive = false;
+  gameLoop.unregisterFunction(run);
 }
 
 /**
