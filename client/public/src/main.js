@@ -19,35 +19,35 @@ const SPRING_SPEED = 1.0;
 
 const canvas = document.getElementById('gameCanvas');
 export const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: false });
-renderer.outputColorSpace = THREE.SRGBColorSpace;
+// Dropped SRGBColorSpace resolving gamma-curves misaligning native 2D canvas PNGs
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setClearColor(0x7bed9f); // Grass green color
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 export const scene = new THREE.Scene();
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Base visibility
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // 60% shadow floor
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-dirLight.position.set(50, -100, 150); // Angled down from top-front
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
+dirLight.position.set(500, -1000, 1500); // Angled down from top-front
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.width = 1024;
-dirLight.shadow.mapSize.height = 1024;
+dirLight.shadow.mapSize.width = 2048;
+dirLight.shadow.mapSize.height = 2048;
 dirLight.shadow.camera.near = 0.5;
-dirLight.shadow.camera.far = 1500;
-dirLight.shadow.camera.left = -500;
-dirLight.shadow.camera.right = 500;
-dirLight.shadow.camera.top = -500;
-dirLight.shadow.camera.bottom = 500;
+dirLight.shadow.camera.far = 4500;
+dirLight.shadow.camera.left = -2000;
+dirLight.shadow.camera.right = 2000;
+dirLight.shadow.camera.top = -2000;
+dirLight.shadow.camera.bottom = 2000;
 dirLight.shadow.bias = -0.001;
 scene.add(dirLight);
 scene.add(dirLight.target); // Expose the light target to the engine scene graph for dynamic viewport tracking
 
 // Invisible Plane to catch the geometric shadows
 const shadowPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(20000, 20000),
-    new THREE.ShadowMaterial({ opacity: 0.4 })
+  new THREE.PlaneGeometry(20000, 20000),
+  new THREE.ShadowMaterial({ opacity: 0.4 })
 );
 shadowPlane.position.z = 0.5; // Slightly above ground
 shadowPlane.receiveShadow = true;
@@ -192,8 +192,8 @@ let lastSyncTime = 0;
 let activeNpc = null;
 
 window.adminCameraConfig = {
-    setPitch: (val) => { camera.pitch = Math.max(0, Math.min(Math.PI / 2.1, (camera.pitch || 0) + val)); },
-    setYaw: (val) => { camera.yaw = (camera.yaw || 0) + val; }
+  setPitch: (val) => { camera.pitch = Math.max(0, Math.min(Math.PI / 2.1, (camera.pitch || 0) + val)); },
+  setYaw: (val) => { camera.yaw = (camera.yaw || 0) + val; }
 };
 
 export const footprints = [];
@@ -511,16 +511,30 @@ function draw() {
 
   // Lock the DirectionalLight's orthographic shadow bounds precisely over the camera's focus
   // This computationally guarantees PCFSoftShadowMaps render natively regardless of map traversal!
-  dirLight.position.set(targetX + 50, targetY - 100, 150);
+  dirLight.position.set(targetX + 500, targetY - 1000, 1500);
   dirLight.target.position.set(targetX, targetY, 0);
   dirLight.target.updateMatrixWorld();
+
+  const camZoom = camera.zoom || 1;
+  const aspectW = (viewportWidth / camZoom) / 2;
+  const aspectH = (viewportHeight / camZoom) / 2;
+
+  // Account for pitch stretching the viewable area on the ground plane, preventing edge clipping
+  const pitchCos = Math.max(0.15, Math.cos(pitch));
+  const shadowRadiusW = (aspectW / pitchCos) + 300;
+  const shadowRadiusH = (aspectH / pitchCos) + 300;
+
+  // Condense the 2048x2048 shadow texture dynamically trapping it inside the camera's active zooming bounds
+  dirLight.shadow.camera.left = -shadowRadiusW;
+  dirLight.shadow.camera.right = shadowRadiusW;
+  dirLight.shadow.camera.top = -shadowRadiusH;
+  dirLight.shadow.camera.bottom = shadowRadiusH;
+  dirLight.shadow.camera.updateProjectionMatrix();
 
   threeCamera.zoom = camera.zoom;
   threeCamera.updateProjectionMatrix();
 
   mapManager.drawLayer(0, scene, camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight);
-
-  // TODO: Implement WebGL Footprints
 
   characterManager.drawCharacters('base', scene, player, () => networkClient.syncPlayerToJSON(), camera.x, camera.y, camera.zoom, viewportWidth, viewportHeight, threeCamera);
 

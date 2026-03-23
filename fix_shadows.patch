@@ -1,0 +1,21 @@
+--- client/public/src/main.js
++++ client/public/src/main.js
+@@ -520,10 +520,13 @@
+   const aspectW = (viewportWidth / camZoom) / 2;
+   const aspectH = (viewportHeight / camZoom) / 2;
+ 
+-  // Condense the 2048x2048 shadow texture dynamically trapping it inside the camera's active zooming bounds (+300px overlap safety buffer)! 
+-  dirLight.shadow.camera.left = -aspectW - 300;
+-  dirLight.shadow.camera.right = aspectW + 300;
+-  dirLight.shadow.camera.top = -aspectH - 300;
+-  dirLight.shadow.camera.bottom = aspectH + 300;
++  // Expand the shadow bounding box to account for camera pitch and light angle!
++  const pitchCos = Math.max(0.2, Math.cos(camera.pitch || 0));
++  const maxDist = Math.max(aspectW, aspectH / pitchCos) + 600;
++  const shadowBound = Math.min(5000, maxDist); // Prevent resolution meltdown
++
++  dirLight.shadow.camera.left = -shadowBound;
++  dirLight.shadow.camera.right = shadowBound;
++  dirLight.shadow.camera.top = -shadowBound;
++  dirLight.shadow.camera.bottom = shadowBound;
+   dirLight.shadow.camera.updateProjectionMatrix();

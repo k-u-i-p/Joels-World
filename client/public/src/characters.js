@@ -598,11 +598,13 @@ export class CharacterManager {
     c.rig.lUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
     c.rig.lLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
     c.rig.lHand = new THREE.Mesh(handGeo, mats.skin);
+    c.rig.lUpperArm.castShadow = true; c.rig.lLowerArm.castShadow = true; c.rig.lHand.castShadow = true;
     c.rig.bodyPivot.add(c.rig.lUpperArm, c.rig.lLowerArm, c.rig.lHand);
 
     c.rig.rUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
     c.rig.rLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);
     c.rig.rHand = new THREE.Mesh(handGeo, mats.skin);
+    c.rig.rUpperArm.castShadow = true; c.rig.rLowerArm.castShadow = true; c.rig.rHand.castShadow = true;
     c.rig.bodyPivot.add(c.rig.rUpperArm, c.rig.rLowerArm, c.rig.rHand);
 
     const upperLegGeo = new THREE.CapsuleGeometry(3.6, 12, 8, 10);
@@ -639,11 +641,13 @@ export class CharacterManager {
 
     c.rig.lUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
     c.rig.lLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
+    c.rig.lUpperLeg.castShadow = true; c.rig.lLowerLeg.castShadow = true;
     c.rig.lShoe = new THREE.Group();
     c.rig.bodyPivot.add(c.rig.lUpperLeg, c.rig.lLowerLeg, c.rig.lShoe);
 
     c.rig.rUpperLeg = new THREE.Mesh(upperLegGeo, mats.pants);
     c.rig.rLowerLeg = new THREE.Mesh(lowerLegGeo, mats.pants);
+    c.rig.rUpperLeg.castShadow = true; c.rig.rLowerLeg.castShadow = true;
     c.rig.rShoe = new THREE.Group();
     c.rig.bodyPivot.add(c.rig.rUpperLeg, c.rig.rLowerLeg, c.rig.rShoe);
 
@@ -908,14 +912,14 @@ export class CharacterManager {
 
     if (isWalking) {
       // Procedurally bob vertical Z twice per sequence (when feet cross mid-stride)
-      c.rig.bodyPivot.position.z = 7.5 + Math.cos(legTimer * 2) * 1.0;
+      c.rig.bodyPivot.position.z = 15.5 + Math.cos(legTimer * 2) * 0.5;
       // Shift natively Forward (+X) identically pulsing outward whenever the lifted stride leg passes the midpoint 
-      c.rig.bodyPivot.position.x = Math.cos(legTimer * 2) * 1.5;
+      c.rig.bodyPivot.position.x = Math.cos(legTimer * 2) * 1.0;
 
       this.applyWalkCycle(c, legTimer);
     } else if (!emoteDef || !emoteDef.updateLimbs3D) {
       // Wipe dynamic strides and seamlessly restore neutral geometry during standstill
-      c.rig.bodyPivot.position.z = 7.5;
+      c.rig.bodyPivot.position.z = 15.5;
       c.rig.bodyPivot.position.x = 0;
 
       this.applyIdleSway(c, idleTime);

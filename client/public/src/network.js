@@ -1,6 +1,7 @@
 import { emotes, getEmoteMessage } from './emotes.js';
 import { uiManager } from './ui.js';
 import { player } from './main.js';
+import { characterManager } from './characters.js';
 
 const isLocalBrowser = window.location.hostname === 'localhost' && !window.Capacitor?.isNativePlatform();
 export const DOMAIN = isLocalBrowser ? 'localhost' : 'joels-world.com';
@@ -267,6 +268,10 @@ export class NetworkClient {
             window.init = { objects: data.objects || [] };
           }
         } else if (data.type === 'npcs_update') {
+          if (window.init && window.init.npcs) {
+            window.init.npcs.forEach(oldNpc => characterManager.cleanupCharacter(oldNpc));
+          }
+          
           if (window.init) {
             window.init.npcs = data.npcs || [];
           } else {

@@ -135,9 +135,9 @@ export class MapManager {
               // Generate path for the chunk texture
               const src = layer.path_template.replace('{x}', x).replace('{y}', y);
 
-              const isOverlay = layerIndex > 0; // Distinguish flat ground geometries from floating overhead masking textures
-              // We pad the geometry very slightly to prevent aliasing seams
-              const paddedGeom = this.getGeometry(layer.chunk_size + 1);
+              // Distinguish flat ground geometries from floating overhead masking textures
+              const isOverlay = layerIndex > 0; 
+              const paddedGeom = this.getGeometry(layer.chunk_size);
               
               // Leverage Lambert lighting natively so shadows trace seamlessly ignoring transparency queues
               const MaterialType = !isOverlay ? THREE.MeshLambertMaterial : THREE.MeshBasicMaterial;
