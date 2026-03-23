@@ -699,10 +699,21 @@ export class CharacterManager {
     c.rig.leftFootTarget.copy(baseLFoot);
     c.rig.rightFootTarget.copy(baseRFoot);
 
-    // 2. Add procedural Idle Breathing (subtle scaling of Torso)
-    const timeNow = Date.now() / 1000;
-    const breathOffset = Math.sin(timeNow * 2) * 0.02;
+    // 2. Add procedural organic swaying (applies continuously during walk or idle)
+    // Offset by character ID so a grid of NPCs doesn't sway in perfect unison
+    const idOffset = (Number(c.id) || 0) * 0.5;
+    const idleTime = (Date.now() / 1000) * 1.5 + idOffset; 
+    
+    // Smooth, un-synchronized breathing on the torso
+    const breathOffset = Math.sin(idleTime * 2) * 0.02;
     c.rig.torso.scale.set(1 + breathOffset, 1 + breathOffset, 1);
+    
+    // Gentle spine twisting and leaning
+    c.rig.bodyPivot.rotation.set(
+        Math.sin(idleTime * 0.7) * 0.03, // Slight forward/back leaning pitch
+        0, 
+        Math.sin(idleTime * 0.5) * 0.04  // Slight left/right spinal twisting yaw
+    );
 
     // 3. Coordinate-Based Locomotion (Walk Cycle)
     const legSwing = Math.sin(c.legAnimationTime || 0);
@@ -727,6 +738,13 @@ export class CharacterManager {
         
         c.rig.rightFootTarget.x += -legSwing * legStrideX;
         c.rig.rightFootTarget.z += Math.abs(legSwing) * stepLiftZ;
+    } else {
+        // Procedural Idle Animation (Subtle arm drifting while standing entirely still)
+        c.rig.leftHandTarget.z += Math.sin(idleTime) * 1.5; 
+        c.rig.leftHandTarget.y += Math.cos(idleTime * 0.8) * 1.0;
+        
+        c.rig.rightHandTarget.z += Math.cos(idleTime + 1.5) * 1.5;
+        c.rig.rightHandTarget.y += Math.sin(idleTime * 0.8 + 1.0) * 1.0;
     }
 
     // 4. Emote Overrides (Coordinate based)
