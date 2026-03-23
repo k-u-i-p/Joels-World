@@ -15,6 +15,8 @@ export function clearObjectProxy(id) {
   delete objectVisuals[id];
 }
 
+const gltfCache = {};
+
 export class MapManager {
   constructor() {
     this.layers = [];
@@ -114,56 +116,60 @@ export class MapManager {
     if (window.init && window.init.objects && scene) {
       window.init.objects.forEach(obj => {
         if (obj.shape !== '3d_model' || !obj.model) return;
+        this.loadSingleModel(obj, scene);
+      });
+    }
+  }
 
-        const src = obj.model.startsWith('/') ? obj.model : '/' + obj.model;
-        console.log(`[Map Loader] Initializing 3D Model Object: ${src}`);
+  loadSingleModel(obj, scene) {
+    const src = obj.model.startsWith('/') ? obj.model : '/' + obj.model;
+    const setupModel = (gltfScene) => {
+      const model = gltfScene.clone();
+      const pos = obj;
 
-        this.gltfLoader.load(src, (gltf) => {
-          const model = gltf.scene;
-          const pos = obj;
+      model.position.set(0, 0, 0);
+      model.scale.set(1, 1, 1);
+      model.rotation.set(Math.PI / 2, 0, 0);
+      model.updateMatrixWorld(true);
 
-          // Reset the raw imported model to a flat upright stance at 0,0,0
-          model.position.set(0, 0, 0);
-          model.scale.set(1, 1, 1);
-          // By default Three.js GLTFLoader usually imports Y-up.
-          // Because this game natively uses Z-up (threeCamera.up.set(0,0,1)),
-          // rotate 90 degrees on X so the model stands upright.
-          model.rotation.set(Math.PI / 2, 0, 0);
-          model.updateMatrixWorld(true);
+      const pivotGroup = new THREE.Group();
+      pivotGroup.add(model);
+      pivotGroup.position.set(pos.x || 0, -(pos.y || 0), pos.z || 0);
 
-          // Calculate its physical Bounds natively
-          //const box = new THREE.Box3().setFromObject(model);
+      const scale = pos.scale !== undefined ? pos.scale : 1;
+      pivotGroup.scale.setScalar(scale);
 
-          // Offset the model itself so that its absolute Top-Left corner is shifted to exactly 0,0,0
-          // World +Y is Top of screen (Canvas -Y). Top-Left is (min.x, max.y). Bottom is min.z.
-          //model.position.set(-box.min.x, -box.max.y, -box.min.z);
+      const userRot = -(pos.rotation || 0) * (Math.PI / 180);
+      pivotGroup.rotation.z = userRot;
 
-          // Wrap it safely over a custom pivot hook 
-          const pivotGroup = new THREE.Group();
-          pivotGroup.add(model);
+      pivotGroup.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
 
-          pivotGroup.position.set(pos.x || 0, -(pos.y || 0), pos.z || 0);
+      pivotGroup.userData = { id: obj.id };
+      scene.add(pivotGroup);
+      this.activeMeshes.push(pivotGroup);
+    };
 
-          const scale = pos.scale !== undefined ? pos.scale : 1;
-          pivotGroup.scale.setScalar(scale);
-
-          // Now safely apply horizontal orientation exclusively to the anchor hook
-          const userRot = (pos.rotation || 0) * (Math.PI / 180);
-          pivotGroup.rotation.z = userRot;
-
-          pivotGroup.traverse((child) => {
-            if (child.isMesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
-            }
-          });
-
-          pivotGroup.userData = { id: obj.id };
-          scene.add(pivotGroup);
-          this.activeMeshes.push(pivotGroup);
-        }, undefined, (err) => {
-          console.error(`[Map Loader] Failed to load 3D Model at ${src}`, err);
-        });
+    if (gltfCache[src]) {
+      if (gltfCache[src].loaded) {
+        setupModel(gltfCache[src].scene);
+      } else {
+        gltfCache[src].callbacks.push(setupModel);
+      }
+    } else {
+      gltfCache[src] = { loaded: false, callbacks: [] };
+      this.gltfLoader.load(src, (gltf) => {
+        gltfCache[src].loaded = true;
+        gltfCache[src].scene = gltf.scene;
+        setupModel(gltf.scene);
+        gltfCache[src].callbacks.forEach(cb => cb(gltf.scene));
+        gltfCache[src].callbacks = [];
+      }, undefined, (err) => {
+        console.error(`[Map Loader] Failed to load 3D Model at ${src}`, err);
       });
     }
   }
@@ -334,20 +340,38 @@ export class MapManager {
     });
   }
 
-  updateDynamicModels(objects) {
+  updateDynamicModels(objects, scene) {
     if (!objects || !this.activeMeshes) return;
-    this.activeMeshes.forEach(mesh => {
+
+    // 1. Process deletions and positional updates natively
+    for (let i = this.activeMeshes.length - 1; i >= 0; i--) {
+      const mesh = this.activeMeshes[i];
       if (mesh.userData && mesh.userData.id !== undefined) {
         const obj = objects.find(o => o.id === mesh.userData.id);
-        if (obj) {
+        
+        if (!obj) {
+          // Object deleted from server JSON! Destroy mesh via GC natively
+          if (mesh.parent) mesh.parent.remove(mesh);
+          this.activeMeshes.splice(i, 1);
+        } else {
+          // Object still exists, seamlessly update live transform matrices
           mesh.position.set(obj.x || 0, -(obj.y || 0), obj.z || 0);
-          const userRot = (obj.rotation || 0) * (Math.PI / 180);
+          const userRot = -(obj.rotation || 0) * (Math.PI / 180);
           mesh.rotation.z = userRot;
 
           if (obj.scale !== undefined) {
             mesh.scale.setScalar(obj.scale);
           }
         }
+      }
+    }
+
+    // 2. Identify brand newly instantiated Admin models dynamically bypassing page reloads!
+    objects.forEach(obj => {
+      if (obj.shape !== '3d_model' || !obj.model) return;
+      const alreadyExists = this.activeMeshes.some(m => m.userData && m.userData.id === obj.id);
+      if (!alreadyExists && scene) {
+        this.loadSingleModel(obj, scene);
       }
     });
   }

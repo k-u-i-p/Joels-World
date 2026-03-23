@@ -30,17 +30,17 @@ export const scene = new THREE.Scene();
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // 60% shadow floor
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
+const dirLight = new THREE.SpotLight(0xffffff, 1.8);
 dirLight.position.set(500, -1000, 1500); // Angled down from top-front
+dirLight.angle = Math.PI / 4;
+dirLight.penumbra = 0.5;
+dirLight.distance = 0;
+dirLight.decay = 0; // Disable inverse-square physical falloff guaranteeing uniform map brightness regardless of distance natively!
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 2048;
 dirLight.shadow.mapSize.height = 2048;
-dirLight.shadow.camera.near = 0.5;
-dirLight.shadow.camera.far = 4500;
-dirLight.shadow.camera.left = -2000;
-dirLight.shadow.camera.right = 2000;
-dirLight.shadow.camera.top = -2000;
-dirLight.shadow.camera.bottom = 2000;
+dirLight.shadow.camera.near = 500;
+dirLight.shadow.camera.far = 4000;
 dirLight.shadow.bias = -0.001;
 scene.add(dirLight);
 scene.add(dirLight.target); // Expose the light target to the engine scene graph for dynamic viewport tracking
@@ -553,32 +553,18 @@ function draw() {
   threeCamera.up.set(0, 0, 1);
   threeCamera.lookAt(targetX, targetY, 0);
 
-  // Lock the DirectionalLight's orthographic shadow bounds precisely over the camera's focus
-  // This computationally guarantees PCFSoftShadowMaps render natively regardless of map traversal!
-  dirLight.position.set(targetX + 500, targetY - 1000, 1500);
+  // Shift the SpotLight to hover relative to the camera, forcing radiating dynamic shadow perspective organically
+  dirLight.position.set(targetX, targetY - 700, 1500);
   dirLight.target.position.set(targetX, targetY, 0);
   dirLight.target.updateMatrixWorld();
 
-  const camZoom = camera.zoom || 1;
-  const aspectW = (viewportWidth / camZoom) / 2;
-  const aspectH = (viewportHeight / camZoom) / 2;
-
-  // Account for pitch stretching the viewable area on the ground plane, preventing edge clipping
-  const pitchCos = Math.max(0.15, Math.cos(pitch));
-  const shadowRadiusW = (aspectW / pitchCos) + 300;
-  const shadowRadiusH = (aspectH / pitchCos) + 300;
-
-  // Condense the 2048x2048 shadow texture dynamically trapping it inside the camera's active zooming bounds
-  dirLight.shadow.camera.left = -shadowRadiusW;
-  dirLight.shadow.camera.right = shadowRadiusW;
-  dirLight.shadow.camera.top = shadowRadiusH;
-  dirLight.shadow.camera.bottom = -shadowRadiusH;
+  // SpotLight dynamically expands orthographic frustums using its innate .angle constraint, requiring no bounding loop
   dirLight.shadow.camera.updateProjectionMatrix();
 
   threeCamera.zoom = camera.zoom;
   threeCamera.updateProjectionMatrix();
 
-  mapManager.updateDynamicModels(window.init?.objects);
+  mapManager.updateDynamicModels(window.init?.objects, scene);
 
   let drawnBaseChars = false;
 

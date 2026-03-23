@@ -353,19 +353,17 @@ export const emotes = {
       rig.leftFootTarget.set(12, -6, -5);
       rig.rightFootTarget.set(12, 6, -5);
 
-      const writeTime = (Date.now() - emote.startTime) / 50;
+      const writeTime = (Date.now() - emote.startTime) / 100;
       const armMoveX = Math.sin(writeTime) * 3;
       const armMoveY = Math.cos(writeTime * 1.3) * 2;
 
       // Prop Instantiate: Book and Pen
       if (!rig.emoteProps) {
         rig.emoteProps = new THREE.Group();
-        const bookGeo = new THREE.BoxGeometry(10, 12, 0.5);
+        const bookGeo = new THREE.BoxGeometry(18, 14, 0.5);
         const bookMat = new THREE.MeshStandardMaterial({ color: 0xecf0f1, roughness: 0.9 });
         const book = new THREE.Mesh(bookGeo, bookMat);
-        book.position.set(16, 0, -2);
-        book.rotation.x = 0.2;
-        book.rotation.y = 0.2;
+        book.position.set(25, 0, 20);
         rig.emoteProps.add(book);
 
         const penGeo = new THREE.CylinderGeometry(0.5, 0.5, 6, 6);
@@ -379,7 +377,7 @@ export const emotes = {
       }
 
       // Writing right hand bounding
-      rig.rightHandTarget.set(15 + armMoveX, 4 + armMoveY, 0);
+      rig.rightHandTarget.set(19 + armMoveX, 4 + armMoveY, 22);
 
       // Left arm resting firmly on paper
       rig.leftHandTarget.set(15, -8, 0);

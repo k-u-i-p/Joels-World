@@ -348,6 +348,44 @@ bindHoldAction('btn-obj-length-inc', () => {
   if (obj) networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
 });
 
+bindHoldAction('btn-obj-z-dec', () => {
+  const obj = window.selectedObject.get();
+  if (obj && obj.shape === '3d_model') obj.z = (obj.z || 0) - 1;
+}, () => {
+  const obj = window.selectedObject.get();
+  if (obj && obj.shape === '3d_model') networkClient.send({ type: 'update_object', id: obj.id, updates: { z: obj.z } });
+});
+
+bindHoldAction('btn-obj-z-inc', () => {
+  const obj = window.selectedObject.get();
+  if (obj && obj.shape === '3d_model') obj.z = (obj.z || 0) + 1;
+}, () => {
+  const obj = window.selectedObject.get();
+  if (obj && obj.shape === '3d_model') networkClient.send({ type: 'update_object', id: obj.id, updates: { z: obj.z } });
+});
+
+const inputObjWidth = document.getElementById('input-obj-width');
+if (inputObjWidth) {
+  inputObjWidth.addEventListener('change', (e) => {
+    const obj = window.selectedObject.get();
+    if (!obj) return;
+    const v = parseInt(e.target.value, 10);
+    obj.width = isNaN(v) ? 100 : v;
+    networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
+  });
+}
+
+const inputObjLength = document.getElementById('input-obj-length');
+if (inputObjLength) {
+  inputObjLength.addEventListener('change', (e) => {
+    const obj = window.selectedObject.get();
+    if (!obj) return;
+    const v = parseInt(e.target.value, 10);
+    obj.length = isNaN(v) ? 100 : v;
+    networkClient.send({ type: 'resize_object', id: obj.id, width: obj.width, length: obj.length, x: obj.x, y: obj.y });
+  });
+}
+
 const inputObjClip = document.getElementById('input-obj-clip');
 if (inputObjClip) {
   inputObjClip.addEventListener('change', (e) => {
@@ -540,6 +578,39 @@ bindHoldAction('btn-npc-z-inc', () => {
   }
 });
 
+const inputNpcWidth = document.getElementById('input-npc-width');
+if (inputNpcWidth) {
+  inputNpcWidth.addEventListener('change', (e) => {
+    const npc = window.selectedNpc.get();
+    if (!npc) return;
+    const v = parseInt(e.target.value, 10);
+    npc.width = isNaN(v) ? 40 : v;
+    networkClient.send({ type: 'update_npc', id: npc.id, updates: { width: npc.width } });
+  });
+}
+
+const inputNpcHeight = document.getElementById('input-npc-height');
+if (inputNpcHeight) {
+  inputNpcHeight.addEventListener('change', (e) => {
+    const npc = window.selectedNpc.get();
+    if (!npc) return;
+    const v = parseInt(e.target.value, 10);
+    npc.height = isNaN(v) ? 40 : v;
+    networkClient.send({ type: 'update_npc', id: npc.id, updates: { height: npc.height } });
+  });
+}
+
+const inputNpcZ = document.getElementById('input-npc-z');
+if (inputNpcZ) {
+  inputNpcZ.addEventListener('change', (e) => {
+    const npc = window.selectedNpc.get();
+    if (!npc) return;
+    const v = parseInt(e.target.value, 10);
+    npc.z = isNaN(v) ? 0 : v;
+    networkClient.send({ type: 'update_npc', id: npc.id, updates: { z: npc.z } });
+  });
+}
+
 const btnSaveNpcDialog = document.getElementById('btn-save-npc-dialog');
 const npcOnEnterInput = document.getElementById('npc-on-enter-input');
 const npcOnExitInput = document.getElementById('npc-on-exit-input');
@@ -627,6 +698,14 @@ function updateAdminPanel() {
       if (scaleInputDisplay) scaleInputDisplay.value = window.selectedObject.get().scale !== undefined ? window.selectedObject.get().scale : 1.0;
       if (zInputDisplay) zInputDisplay.value = window.selectedObject.get().z !== undefined ? window.selectedObject.get().z : 0;
       if (modelInputDisplay) modelInputDisplay.value = window.selectedObject.get().model || '';
+    }
+    const objWidthInput = document.getElementById('input-obj-width');
+    const objLengthInput = document.getElementById('input-obj-length');
+    if (objWidthInput) objWidthInput.value = Math.round(window.selectedObject.get().width) || 100;
+    if (objLengthInput) objLengthInput.value = Math.round(window.selectedObject.get().length) || 100;
+
+    // To prevent the dummy "}" replacement below we duplicate the next line:
+    if (false) {
     } else {
       if (scaleInputRow) scaleInputRow.style.display = 'none';
       if (zInputRow) zInputRow.style.display = 'none';
@@ -651,6 +730,13 @@ function updateAdminPanel() {
     const npcHairStyle = document.getElementById('npc-hair-style');
     const npcDefaultEmote = document.getElementById('npc-default-emote');
     const npcGenderSelect = document.getElementById('npc-gender-select');
+
+    const npcWidthInput = document.getElementById('input-npc-width');
+    const npcHeightInput = document.getElementById('input-npc-height');
+    const npcZInput = document.getElementById('input-npc-z');
+    if (npcWidthInput) npcWidthInput.value = npc.width || 40;
+    if (npcHeightInput) npcHeightInput.value = npc.height || 40;
+    if (npcZInput) npcZInput.value = npc.z || 0;
 
     if (npcNameInput) npcNameInput.value = npc.name || '';
     if (npcRadiusInput) npcRadiusInput.value = npc.interaction_radius !== undefined ? npc.interaction_radius : 150;
@@ -990,8 +1076,7 @@ window.addEventListener('mousedown', (e) => {
   lastMouseX = e.clientX;
   lastMouseY = e.clientY;
 
-  const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
-  const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
+  const { worldX, worldY } = screenToWorld(mouseX, mouseY, canvas.clientWidth, canvas.clientHeight);
 
   const lastClickedElem = document.getElementById('admin-last-clicked');
   if (lastClickedElem) {
@@ -1084,8 +1169,7 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
-    const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
+    const { worldX, worldY } = screenToWorld(mouseX, mouseY, canvas.clientWidth, canvas.clientHeight);
 
     const dX = worldX - resizeWorldTlx;
     const dY = worldY - resizeWorldTly;
@@ -1110,8 +1194,7 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
-    const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
+    const { worldX, worldY } = screenToWorld(mouseX, mouseY, canvas.clientWidth, canvas.clientHeight);
 
     const dx = worldX - dragStartX;
     const dy = worldY - dragStartY;
@@ -1125,8 +1208,7 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
-    const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
+    const { worldX, worldY } = screenToWorld(mouseX, mouseY, canvas.clientWidth, canvas.clientHeight);
 
     window.selectedNpc.get().x = Math.round(worldX + dragOffsetX);
     window.selectedNpc.get().y = Math.round(worldY + dragOffsetY);
@@ -1135,8 +1217,7 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - canvasRect.left;
     const mouseY = e.clientY - canvasRect.top;
 
-    const worldX = (mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x;
-    const worldY = (mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y;
+    const { worldX, worldY } = screenToWorld(mouseX, mouseY, canvas.clientWidth, canvas.clientHeight);
 
     window.adminBackgroundImage._x = Math.round(worldX + bgDragOffsetX);
     window.adminBackgroundImage._y = Math.round(worldY + bgDragOffsetY);
@@ -1242,8 +1323,9 @@ window.addEventListener('paste', (e) => {
   const mouseX = lastMouseX - canvasRect.left;
   const mouseY = lastMouseY - canvasRect.top;
 
-  const worldX = Math.round((mouseX - canvas.clientWidth / 2) / camera.zoom + camera.x);
-  const worldY = Math.round((mouseY - canvas.clientHeight / 2) / camera.zoom + camera.y);
+  const wPos = screenToWorld(mouseX, mouseY, canvas.clientWidth, canvas.clientHeight);
+  const worldX = Math.round(wPos.worldX);
+  const worldY = Math.round(wPos.worldY);
 
   if (adminClipboard.type === 'object') {
     networkClient.send({

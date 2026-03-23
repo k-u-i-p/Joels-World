@@ -2,11 +2,11 @@
   {
     "id": 1,
     "name": "Mr Hardy",
-    "x": 7,
-    "y": -698,
+    "x": -43,
+    "y": -770,
     "width": 52,
     "height": 52,
-    "rotation": 90,
+    "rotation": 85,
     "gender": "male",
     "shirtColor": "#1c2833",
     "pantsColor": "#2c3e50",
@@ -42,7 +42,8 @@
     "default_emote": {
       "name": "sit",
       "startTime": 0
-    }
+    },
+    "z": 35
   },
   {
     "id": 3,
@@ -82,8 +83,8 @@
   {
     "id": 4,
     "name": "Lily",
-    "x": -661,
-    "y": -200,
+    "x": -577,
+    "y": -209,
     "width": 40,
     "height": 40,
     "rotation": -90,
@@ -112,13 +113,14 @@
     "default_emote": {
       "name": "write",
       "startTime": 0
-    }
+    },
+    "z": 43
   },
   {
     "id": 5,
     "name": "Noah",
-    "x": -260,
-    "y": 104,
+    "x": -157,
+    "y": 108,
     "width": 40,
     "height": 40,
     "rotation": -90,
@@ -146,7 +148,8 @@
     "default_emote": {
       "name": "sit",
       "startTime": 0
-    }
+    },
+    "z": 43
   },
   {
     "id": 6,
@@ -181,13 +184,14 @@
     "default_emote": {
       "name": "write",
       "startTime": 0
-    }
+    },
+    "z": 43
   },
   {
     "id": 2,
     "name": "Olly",
-    "x": -255,
-    "y": -197,
+    "x": -189,
+    "y": -202,
     "z": 43,
     "width": 40,
     "height": 40,
