@@ -233,7 +233,8 @@ export class MapManager {
         on_enter: mapData.on_enter,
         import: mapData.import,
         models: mapData.models,
-        background_color: mapData.background_color
+        background_color: mapData.background_color,
+        spring: mapData.spring
       },
       mapsList: this.mapsList
     });

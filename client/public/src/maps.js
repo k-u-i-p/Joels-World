@@ -74,6 +74,7 @@ export class MapManager {
           layersList.push({
             chunked: true,
             alpha: layerData.alpha !== undefined ? layerData.alpha : 1,
+            spring: layerData.spring !== undefined ? layerData.spring : true,
             chunk_size: layerData.chunk_size,
             grid_w: layerData.grid_w,
             grid_h: layerData.grid_h,
@@ -82,7 +83,7 @@ export class MapManager {
           });
         } else {
           console.log(`[Map Loader] Initializing WebGL legacy mesh for: ${layerData.image}`);
-          const layerObj = { chunked: false, alpha: layerData.alpha !== undefined ? layerData.alpha : 1, imageLoaded: false };
+          const layerObj = { chunked: false, alpha: layerData.alpha !== undefined ? layerData.alpha : 1, spring: layerData.spring !== undefined ? layerData.spring : true, imageLoaded: false };
           this.textureLoader.load(layerData.image, (tex) => {
             layerObj.texture = tex;
             layerObj.imageLoaded = true;
@@ -227,22 +228,25 @@ export class MapManager {
       if (firstChunked) buffer = firstChunked.chunk_size;
     }
 
-    // VITAL: Absorb the extreme simulated coordinate shifts natively inside the WebGL chunk bounding box queries
-    // Otherwise, chunks physically off-camera grid-wise will pop out prematurely, leaving massive black clipping holes in the parallax foreground!
-    buffer += Math.max(Math.abs(offsetX), Math.abs(offsetY)) + 256;
-
-    const minXMap = Math.max(-halfMapW, cameraLeft - buffer + offsetX);
-    const maxXMap = Math.min(halfMapW, cameraRight + buffer + offsetX);
-    const minYMap = Math.max(-halfMapH, cameraTop - buffer + offsetY);
-    const maxYMap = Math.min(halfMapH, cameraBottom + buffer + offsetY);
-
-    const mapStartX = minXMap + halfMapW;
-    const mapEndX = maxXMap + halfMapW;
-    const mapStartY = minYMap + halfMapH;
-    const mapEndY = maxYMap + halfMapH;
-
     this.layers[z].forEach((layer, idxLayerWithinGrid) => {
       const layerZ = z + (idxLayerWithinGrid * 0.1);
+      
+      const layerOffsetX = layer.spring !== false ? offsetX : 0;
+      const layerOffsetY = layer.spring !== false ? offsetY : 0;
+
+      // VITAL: Absorb the extreme simulated coordinate shifts natively inside the WebGL chunk bounding box queries
+      // Otherwise, chunks physically off-camera grid-wise will pop out prematurely, leaving massive black clipping holes in the parallax foreground!
+      const layerBuffer = buffer + Math.max(Math.abs(layerOffsetX), Math.abs(layerOffsetY)) + 256;
+
+      const minXMap = Math.max(-halfMapW, cameraLeft - layerBuffer + layerOffsetX);
+      const maxXMap = Math.min(halfMapW, cameraRight + layerBuffer + layerOffsetX);
+      const minYMap = Math.max(-halfMapH, cameraTop - layerBuffer + layerOffsetY);
+      const maxYMap = Math.min(halfMapH, cameraBottom + layerBuffer + layerOffsetY);
+
+      const mapStartX = minXMap + halfMapW;
+      const mapEndX = maxXMap + halfMapW;
+      const mapStartY = minYMap + halfMapH;
+      const mapEndY = maxYMap + halfMapH;
 
       if (layer.chunked) {
         const startCol = Math.max(0, (mapStartX / layer.chunk_size) | 0);
@@ -309,8 +313,8 @@ export class MapManager {
               const origDrawX = baseX + x * layer.chunk_size;
               const origDrawY = baseY + y * layer.chunk_size;
               layer.chunks[chunkIndex].mesh.position.set(
-                origDrawX + layer.chunk_size / 2 - offsetX,
-                -(origDrawY + layer.chunk_size / 2 - offsetY),
+                origDrawX + layer.chunk_size / 2 - layerOffsetX,
+                -(origDrawY + layer.chunk_size / 2 - layerOffsetY),
                 layerZ
               );
             }
@@ -334,7 +338,7 @@ export class MapManager {
         }
       } else {
         if (layer.mesh) {
-          layer.mesh.position.set(-offsetX, offsetY, layerZ);
+          layer.mesh.position.set(-layerOffsetX, layerOffsetY, layerZ);
         }
       }
     });

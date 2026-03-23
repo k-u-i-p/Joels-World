@@ -72,7 +72,7 @@
         "path_template": "/detention/chunks/map_{x}_{y}.png"
       },
       {
-        "z": 100,
+        "z": 300,
         "alpha": 0.9,
         "overlay": true,
         "chunked": true,
@@ -80,7 +80,8 @@
         "chunk_size": 512,
         "grid_w": 4,
         "grid_h": 4,
-        "path_template": "/detention/chunks/background_overlay_{x}_{y}.png"
+        "path_template": "/detention/chunks/background_overlay_{x}_{y}.png",
+        "spring": false
       }
     ],
     "npcs": "detention/npc.json",
