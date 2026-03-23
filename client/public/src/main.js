@@ -39,6 +39,7 @@ dirLight.shadow.camera.top = -500;
 dirLight.shadow.camera.bottom = 500;
 dirLight.shadow.bias = -0.001;
 scene.add(dirLight);
+scene.add(dirLight.target); // Expose the light target to the engine scene graph for dynamic viewport tracking
 
 // Invisible Plane to catch the geometric shadows
 const shadowPlane = new THREE.Mesh(
@@ -503,6 +504,12 @@ function draw() {
   // Maintain rigid orientation upwards relative to the celestial Z-axis to physically lock the horizontal viewing compass
   threeCamera.up.set(0, 0, 1);
   threeCamera.lookAt(targetX, targetY, 0);
+
+  // Lock the DirectionalLight's orthographic shadow bounds precisely over the camera's focus
+  // This computationally guarantees PCFSoftShadowMaps render natively regardless of map traversal!
+  dirLight.position.set(targetX + 50, targetY - 100, 150);
+  dirLight.target.position.set(targetX, targetY, 0);
+  dirLight.target.updateMatrixWorld();
 
   threeCamera.zoom = camera.zoom;
   threeCamera.updateProjectionMatrix();
