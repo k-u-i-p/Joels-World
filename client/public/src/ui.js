@@ -19,6 +19,36 @@ export class UIManager {
   get mapNameDisplay() { return this._mnd || (this._mnd = document.getElementById('map-name-display')); }
   get serverChatStack() { return this._scs || (this._scs = document.getElementById('server-chat-stack')); }
 
+  cleanupNpcUI(npcId) {
+    const container = this.avatarsContainer;
+    if (container) {
+      const el = container.querySelector(`[data-npc-id="${npcId}"]`);
+      if (el) {
+        el.classList.add('avatar-out');
+        if (el._removeTimeout) clearTimeout(el._removeTimeout);
+        el._removeTimeout = setTimeout(() => {
+          if (el.parentNode && el.classList.contains('avatar-out')) {
+            el.remove();
+            if (container.children.length === 0) {
+              const actionDialog = document.getElementById('top-center-ui');
+              if (actionDialog) actionDialog.classList.remove('avatar-active');
+              const mapNameDisplay = this.mapNameDisplay;
+              if (mapNameDisplay && mapNameDisplay.dataset.originalName) {
+                mapNameDisplay.textContent = mapNameDisplay.dataset.originalName;
+                delete mapNameDisplay.dataset.originalName;
+              }
+            }
+          }
+        }, 300);
+      }
+    }
+    
+    // Generic dialog overlay cleanup that handles "show_dialog" closures
+    if (this.dialogOverlay) {
+      this.dialogOverlay.style.display = 'none';
+    }
+  }
+
   initLobby(onStartGame) {
     const nameDialog = document.getElementById('name-dialog');
     const nameInput = document.getElementById('player-name-input');

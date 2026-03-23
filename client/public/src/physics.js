@@ -527,84 +527,53 @@ export class PhysicsEngine {
   }
 
   /**
-   * Scans for the closest valid interactive NPC within an interaction radius and manages
-   * the triggering of `on_enter` and `on_exit` handlers for the active NPC.
+   * Scans for all valid interactive NPCs within their interaction radius and manages
+   * the triggering of `on_enter` and `on_exit` handlers for each NPC independently.
    * @param {Object} player - The player entity.
    * @param {Object} initData - The `window.init` layout data including NPCs and Characters.
-   * @param {string|number|null} activeNpcId - The globally tracked ID of the currently active NPC.
-   * @param {Object} uiManager - The global uiManager for clearing interface state when walking away.
+   * @param {Array} activeNpcIds - Array of globally tracked IDs of the currently active NPCs.
    * @param {Function} processEventsFn - The global processEvents orchestration callback.
-   * @returns {string|number|null} The new active NPC ID.
+   * @returns {Array} The new array of active NPC IDs.
    */
-  processInteractions(player, initData, activeNpcId, uiManager, processEventsFn) {
-    if (!initData) return activeNpcId;
-
-    let closestNpc = null;
-    let minNpcDistSq = Infinity;
+  processInteractions(player, initData, activeNpcIds = [], processEventsFn) {
+    if (!initData) return activeNpcIds;
 
     const allInRange = [
       ...this.findCharacters(initData.characters, player.x, player.y, player.id),
       ...this.findCharacters(initData.npcs, player.x, player.y, player.id)
-    ];
+    ].filter(c => c.isNpc || c.on_enter || c.on_exit);
 
-    for (let i = 0; i < allInRange.length; i++) {
-      const c = allInRange[i];
-      if (!c.isNpc && (c.on_enter === undefined && c.on_exit === undefined)) continue;
+    const currentInRangeIds = allInRange.map(c => c.id);
 
-      if (c._distSq < minNpcDistSq) {
-        minNpcDistSq = c._distSq;
-        closestNpc = c;
-      }
-    }
-
-    if (activeNpcId && (!closestNpc || activeNpcId !== closestNpc.id)) {
-      const prevNpc = [...(initData.characters || []), ...(initData.npcs || [])].find(c => c.id === activeNpcId);
-      if (prevNpc) {
-        if (prevNpc.activeAudio) {
-          prevNpc.activeAudio.pause();
-          prevNpc.activeAudio.currentTime = 0;
-          prevNpc.activeAudio = null;
-        }
-        if (prevNpc && prevNpc.on_exit && (typeof prevNpc.on_exit === 'number' || prevNpc.on_exit.length > 0)) {
-          processEventsFn(prevNpc, prevNpc.on_exit, 'on_exit');
-        }
-        // Auto-clear avatar when walking away from an NPC
-        const container = uiManager.avatarsContainer;
-        if (container) {
-          const el = container.querySelector(`[data-npc-id="${prevNpc.id}"]`);
-          if (el) {
-            el.classList.add('avatar-out');
-            
-            if (el._removeTimeout) clearTimeout(el._removeTimeout);
-            
-            el._removeTimeout = setTimeout(() => {
-              if (el.parentNode && el.classList.contains('avatar-out')) {
-                el.remove();
-                if (container.children.length === 0) {
-                  const actionDialog = document.getElementById('top-center-ui');
-                  if (actionDialog) actionDialog.classList.remove('avatar-active');
-                  const mapNameDisplay = uiManager.mapNameDisplay;
-                  if (mapNameDisplay && mapNameDisplay.dataset.originalName) {
-                    mapNameDisplay.textContent = mapNameDisplay.dataset.originalName;
-                    delete mapNameDisplay.dataset.originalName;
-                  }
-                }
+    // Process Exits
+    for (let i = 0; i < (activeNpcIds || []).length; i++) {
+        const oldId = activeNpcIds[i];
+        if (!currentInRangeIds.includes(oldId)) {
+            const prevNpc = [...(initData.characters || []), ...(initData.npcs || [])].find(c => c.id === oldId);
+            if (prevNpc) {
+              if (prevNpc.activeAudio) {
+                prevNpc.activeAudio.pause();
+                prevNpc.activeAudio.currentTime = 0;
+                prevNpc.activeAudio = null;
               }
-            }, 300); // Wait for CSS animation to finish
-          }
+              if (prevNpc.on_exit && (typeof prevNpc.on_exit === 'number' || prevNpc.on_exit.length > 0)) {
+                processEventsFn(prevNpc, prevNpc.on_exit, 'on_exit');
+              }
+            }
         }
-      }
-      activeNpcId = null;
     }
 
-    if (closestNpc && activeNpcId !== closestNpc.id) {
-      activeNpcId = closestNpc.id;
-      if (closestNpc.on_enter && (typeof closestNpc.on_enter === 'number' || closestNpc.on_enter.length > 0)) {
-        processEventsFn(closestNpc, closestNpc.on_enter, 'on_enter');
-      }
+    // Process Enters
+    for (let i = 0; i < allInRange.length; i++) {
+        const c = allInRange[i];
+        if (!(activeNpcIds || []).includes(c.id)) {
+            if (c.on_enter && (typeof c.on_enter === 'number' || c.on_enter.length > 0)) {
+                processEventsFn(c, c.on_enter, 'on_enter');
+            }
+        }
     }
 
-    return activeNpcId;
+    return currentInRangeIds;
   }
 }
 

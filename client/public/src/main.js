@@ -189,7 +189,7 @@ export const player = {
 // Initialization Object
 window.init = null;
 let lastSyncTime = 0;
-let activeNpc = null;
+let activeNpc = [];
 
 window.adminCameraConfig = {
   setPitch: (val) => { camera.pitch = Math.max(0, Math.min(Math.PI / 2.1, (camera.pitch || 0) + val)); },
@@ -429,7 +429,14 @@ function update(dt = 0.016) {
   }
 
   // Check NPC radius interactions
-  activeNpc = physicsEngine.processInteractions(player, window.init, activeNpc, uiManager, executeEvents);
+  const oldActiveNpcs = [...activeNpc];
+  activeNpc = physicsEngine.processInteractions(player, window.init, activeNpc, executeEvents);
+
+  for (let i = 0; i < oldActiveNpcs.length; i++) {
+    if (!activeNpc.includes(oldActiveNpcs[i])) {
+      uiManager.cleanupNpcUI(oldActiveNpcs[i]);
+    }
+  }
 
   // Sync back via websocket 10 times a second if moved
   const now = Date.now();
@@ -589,7 +596,7 @@ function handleInitData(data) {
     window.init = data;
     if (!window.init.characters) window.init.characters = [];
     if (!window.init.npcs) window.init.npcs = [];
-    activeNpc = null;
+    activeNpc = [];
     if (window.selectedObject) window.selectedObject.set(null);
     if (window.selectedNpc) window.selectedNpc.set(null);
 
