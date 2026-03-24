@@ -12,6 +12,9 @@ const awaitingShoeRigs = [];
 const cachedHeads = {};
 const pendingHeads = {};
 
+const cachedHoldingModels = {};
+const pendingHoldingModels = {};
+
 export const MALE_HEADS = {
   'male_hair_long': { scale: 90, z: -10.5 },
   'male_hair_messy': { scale: 90, z: -10.5 },
@@ -37,24 +40,25 @@ export const FEMALE_HEADS = {
 
 const HOLDABLE_OBJECTS = {
   tennis_racket: {
-    path: './models/tennis_racket.glb',
+    path: './models/tennis_racquet.glb',
     x: 0,
     y: 0,
     z: 0,
     rx: 0,
     ry: 0,
     rz: 0,
-    scale: 1
+    scale: 3
   }
 };
 
-export const HAIR_COLORS = [
-  '#a38825', // Blonde
-  '#5d5d5d', // Grey
-  '#222222', // Black
-  '#c0392b', // Red
-  '#6e2c00'  // Brown
-];
+export const HAIR_COLOR_MAP = {
+  'blonde': '#efca41',
+  'grey': '#5d5d5d',
+  'black': '#222222',
+  'red': '#9a3e10',
+  'brown': '#6e2c00'
+};
+export const HAIR_COLORS = Object.values(HAIR_COLOR_MAP);
 
 export function getConsistentRandom(idStr, max) {
   let hash = 0;
@@ -137,6 +141,25 @@ export function loadHeadModel(headName, callback) {
     });
   } else {
     pendingHeads[headName].push(callback);
+  }
+}
+
+export function loadHoldingModel(modelName, callback) {
+  if (cachedHoldingModels[modelName]) return callback(cachedHoldingModels[modelName]);
+
+  const config = HOLDABLE_OBJECTS[modelName];
+  if (!config) return;
+
+  if (!pendingHoldingModels[modelName]) {
+    pendingHoldingModels[modelName] = [callback];
+    const loader = new GLTFLoader();
+    loader.load(config.path, (gltf) => {
+      cachedHoldingModels[modelName] = gltf.scene;
+      for (const cb of pendingHoldingModels[modelName]) cb(gltf.scene);
+      delete pendingHoldingModels[modelName];
+    });
+  } else {
+    pendingHoldingModels[modelName].push(callback);
   }
 }
 
@@ -238,17 +261,22 @@ function applyShoeModel(rig, mats, c) {
  * explicitly locking the articulation plane using a constant `bendingNormal` to prevent horizon-flip breaking.
  */
 function solve2BoneIK(startPos, endPos, L1, L2, bendingNormal) {
-  const dVector = new THREE.Vector3().subVectors(endPos, startPos);
-  const d = dVector.length();
+  let dVector = new THREE.Vector3().subVectors(endPos, startPos);
+  let d = dVector.length();
 
-  // Check if unreachable (stretch to max distance)
-  if (d >= L1 + L2) {
-    return new THREE.Vector3().copy(startPos).add(dVector.normalize().multiplyScalar(L1));
-  }
+  const maxReach = L1 + L2 - 0.01;
+  const minReach = Math.abs(L1 - L2) + 0.01;
 
-  // Check if target is perfectly touching the socket (fold identically in half)
-  if (d <= Math.abs(L1 - L2)) {
-    return new THREE.Vector3().copy(startPos).add(bendingNormal.clone().multiplyScalar(L1));
+  if (d > maxReach) {
+    dVector.normalize().multiplyScalar(maxReach);
+    endPos.copy(startPos).add(dVector);
+    d = maxReach;
+  } else if (d < minReach) {
+    // Prevent collapsing singularities by forcing a minimum distance vector
+    if (d < 0.001) dVector.set(0, 0, 1);
+    dVector.normalize().multiplyScalar(minReach);
+    endPos.copy(startPos).add(dVector);
+    d = minReach;
   }
 
   // Law of Cosines to find inner angle
@@ -572,6 +600,8 @@ export class CharacterManager {
     if (!hairColor && c.gender === 'female') hairColor = '#e67e22';
 
     if (hairColor && hairColor !== 'none' && hairColor !== 'bald' && (!c.head || !c.head.includes('bald'))) {
+      if (HAIR_COLOR_MAP[hairColor]) hairColor = HAIR_COLOR_MAP[hairColor];
+      
       let shineColor = hairColor;
       let shadowColor = hairColor;
       try {
@@ -648,8 +678,12 @@ export class CharacterManager {
     const randomColor = HAIR_COLORS[getConsistentRandom(c.id + '_color', HAIR_COLORS.length)];
     let finalHairColor = randomColor;
 
-    if (c.hair_color && HAIR_COLORS.includes(c.hair_color)) {
-      finalHairColor = c.hair_color;
+    if (c.hair_color) {
+      if (HAIR_COLOR_MAP[c.hair_color]) {
+        finalHairColor = HAIR_COLOR_MAP[c.hair_color];
+      } else if (HAIR_COLORS.includes(c.hair_color)) {
+        finalHairColor = c.hair_color;
+      }
     }
 
     const mats = {
@@ -914,10 +948,6 @@ export class CharacterManager {
   resolveInverseKinematics(c) {
     if (!c) return;
     const vis = getCharacterProxy(c.id);
-    vis.rig.lHand.position.copy(vis.rig.leftHandTarget);
-    vis.rig.rHand.position.copy(vis.rig.rightHandTarget);
-    vis.rig.lShoe.position.copy(vis.rig.leftFootTarget);
-    vis.rig.rShoe.position.copy(vis.rig.rightFootTarget);
 
     const bendNormalArmL = new THREE.Vector3(0, 1, -0.5).normalize();
     const bendNormalArmR = new THREE.Vector3(0, 1, 0.5).normalize();
@@ -935,6 +965,18 @@ export class CharacterManager {
     const leftKnee = solve2BoneIK(vis.rig.leftHipPos, leftAnklePos, 12, 9.7, bendNormalLegL);
     const rightKnee = solve2BoneIK(vis.rig.rightHipPos, rightAnklePos, 12, 9.7, bendNormalLegR);
 
+    // Sync clamped coordinates
+    vis.rig.lHand.position.copy(vis.rig.leftHandTarget);
+    vis.rig.rHand.position.copy(vis.rig.rightHandTarget);
+
+    vis.rig.leftFootTarget.copy(leftAnklePos);
+    vis.rig.leftFootTarget.z -= 2.3;
+    vis.rig.lShoe.position.copy(vis.rig.leftFootTarget);
+
+    vis.rig.rightFootTarget.copy(rightAnklePos);
+    vis.rig.rightFootTarget.z -= 2.3;
+    vis.rig.rShoe.position.copy(vis.rig.rightFootTarget);
+
     pointLimbSegment(vis.rig.lUpperArm, vis.rig.leftShoulderPos, leftElbow);
     pointLimbSegment(vis.rig.lLowerArm, leftElbow, vis.rig.leftHandTarget);
 
@@ -946,6 +988,9 @@ export class CharacterManager {
 
     pointLimbSegment(vis.rig.rUpperLeg, vis.rig.rightHipPos, rightKnee);
     pointLimbSegment(vis.rig.rLowerLeg, rightKnee, rightAnklePos);
+
+    vis.rig.lHand.quaternion.copy(vis.rig.lLowerArm.quaternion);
+    vis.rig.rHand.quaternion.copy(vis.rig.rLowerArm.quaternion);
   }
 
   updateCharacter3D(c, isNpc, player, syncPlayerToJSON) {
@@ -966,6 +1011,9 @@ export class CharacterManager {
 
     const newEmoteName = currentEmote ? currentEmote.name : null;
     if (vis.rig.currentEmoteName !== newEmoteName) {
+      if (vis.rig.currentEmoteName && emotes[vis.rig.currentEmoteName] && emotes[vis.rig.currentEmoteName].onEnd) {
+        emotes[vis.rig.currentEmoteName].onEnd(c, vis.rig);
+      }
       if (vis.rig.emoteProps) {
         vis.rig.emoteProps.removeFromParent();
         vis.rig.emoteProps = null;
@@ -986,6 +1034,9 @@ export class CharacterManager {
         if (vis.activeEmoteAudio) {
           vis.activeEmoteAudio.fadeOut(500);
           vis.activeEmoteAudio = null;
+        }
+        if (emoteDef.onEnd) {
+          emoteDef.onEnd(c, vis.rig);
         }
         if (isActualNpc && c.default_emote) {
           c.emote = JSON.parse(JSON.stringify(c.default_emote));
@@ -1034,6 +1085,39 @@ export class CharacterManager {
       vis.rig.bodyPivot.position.x = 0;
 
       this.applyIdleSway(c, idleTime);
+    }
+
+    if (c.holding !== vis.rig.currentHoldingKey) {
+      for (let i = vis.rig.rHand.children.length - 1; i >= 0; i--) {
+        if (vis.rig.rHand.children[i].userData.isHoldingModel) {
+          vis.rig.rHand.children[i].removeFromParent();
+        }
+      }
+      vis.rig.currentHoldingKey = c.holding;
+
+      if (c.holding && HOLDABLE_OBJECTS[c.holding]) {
+        const config = HOLDABLE_OBJECTS[c.holding];
+        loadHoldingModel(c.holding, (loadedScene) => {
+          if (vis.rig.currentHoldingKey !== c.holding) return;
+          if (!vis.rig.rHand) return;
+
+          const modelClone = loadedScene.clone();
+          modelClone.userData.isHoldingModel = true;
+
+          modelClone.position.set(config.x, config.y, config.z);
+          modelClone.rotation.set(config.rx, config.ry, config.rz);
+          modelClone.scale.setScalar(config.scale);
+
+          modelClone.traverse(child => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+
+          vis.rig.rHand.add(modelClone);
+        });
+      }
     }
 
     this.applyEmoteOverrides(c, emoteDef, currentEmote);

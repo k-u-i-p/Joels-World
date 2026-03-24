@@ -693,75 +693,54 @@ export const emotes = {
     }
   },
   tennis: {
-    duration: 5000,
-    message: "{name} is serving a tennis ball",
-    message_when_near: "{name} hit a tennis ball at {target_name}!",
-    updateLimbs3D: (rig, emote) => {
-      // Wide Stance rigidly anchored
-      rig.bodyPivot.position.z = 15.5;
-      rig.leftFootTarget.set(-5, -10, -13);
-      rig.rightFootTarget.set(-5, 10, -13);
+    duration: 3600000,
+    message: "{name} is playing tennis",
+    message_when_near: "{name} is playing tennis with {target_name}!",
+    onEnd: (c, rig) => {
+      if (c && c.holding === 'tennis_racket') c.holding = null;
+    },
+    updateLimbs3D: (rig, emote, c) => {
+      if (c && c.holding !== 'tennis_racket') c.holding = 'tennis_racket';
 
-      const cycle = (Date.now() - emote.startTime) % 2000;
-      const progress = cycle / 2000;
+      // Relaxed bouncing stance
+      rig.bodyPivot.position.z = 15.5;
+      rig.leftFootTarget.set(-2, -8, -13);
+      rig.rightFootTarget.set(2, 10, -13);
+
+      const elapsed = Date.now() - emote.startTime;
+      const bounceCycle = (elapsed % 1000) / 1000;
 
       if (!rig.emoteProps) {
         rig.emoteProps = new THREE.Group();
 
-        // Racket Sub-Group
-        const racketGroup = new THREE.Group();
-        const handleGeo = new THREE.CylinderGeometry(0.5, 0.5, 8);
-        handleGeo.rotateX(Math.PI / 2);
-        const handleMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
-        racketGroup.add(new THREE.Mesh(handleGeo, handleMat));
-
-        const hoopGeo = new THREE.TorusGeometry(4, 0.5, 8, 24);
-        hoopGeo.rotateY(Math.PI / 2);
-        hoopGeo.position.set(0, 8, 0);
-        const hoopMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
-        racketGroup.add(new THREE.Mesh(hoopGeo, hoopMat));
-
-        // Tie racket strictly to the isolated Right Hand node!
-        rig.rHand.add(racketGroup);
-
         // Render isolated bouncing Tennis Ball primitive
-        const ballGeo = new THREE.SphereGeometry(1.5, 8, 8);
-        const ballMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f });
+        const ballGeo = new THREE.SphereGeometry(2.0, 20, 20);
+        const ballMat = new THREE.MeshStandardMaterial({ color: 0xcaff28 });
         const ball = new THREE.Mesh(ballGeo, ballMat);
         rig.emoteProps.add(ball);
 
-        // Attach Prop strictly to directional root for Serve trajectories
+        // Attach Prop strictly to directional root
         rig.emotePropsDirectional.add(rig.emoteProps);
       }
 
       const ball = rig.emoteProps.children[0];
 
-      // Toss ball from left hand to the air!
-      if (progress < 0.3) {
-        rig.leftHandTarget.set(10, -12, 12 + (progress / 0.3) * 20);
-        ball.position.set(10, -12, 12 + (progress / 0.3) * 20);
-        ball.visible = true;
-      } else if (progress < 0.5) {
-        rig.leftHandTarget.set(10, -12, 12);
-        ball.position.set(10, -12, 32 - ((progress - 0.3) / 0.2) * 5);
-        ball.visible = true;
-      } else if (progress < 0.7) {
-        rig.leftHandTarget.set(10, -12, 12);
-        ball.position.set(10 + ((progress - 0.5) / 0.2) * 80, -12, 27);
-        ball.visible = true;
-      } else {
-        rig.leftHandTarget.set(10, -12, 12);
-        ball.visible = false;
-      }
+      // Native Parabolic Bounce math evaluated on the localized Z axis
+      const bounceHeight = 50;
+      const ballZ = -2 + 1.5 + (4 * bounceHeight * bounceCycle * (1 - bounceCycle));
 
-      // Racket swing (Right hand)
-      if (progress < 0.4) {
-        rig.rightHandTarget.set(0, 12, 25);
-      } else if (progress < 0.6) {
-        rig.rightHandTarget.set(20 + ((progress - 0.4) / 0.2) * 10, 12, 25 - ((progress - 0.4) / 0.2) * 15);
-      } else {
-        rig.rightHandTarget.set(10, 12, 10);
-      }
+      // Ball translates securely under the resting location of the left hand bounds
+      ball.position.set(12, -10, ballZ);
+      ball.visible = true;
+
+      // Left hand follows the top curvature of the ball lazily
+      const catchHover = Math.max(-1, ballZ + 3);
+      rig.leftHandTarget.set(12, -10, catchHover);
+
+      // Right hand sways the racket idly
+      const swayTime = elapsed / 500;
+      const sway = Math.sin(swayTime) * 3;
+      rig.rightHandTarget.set(8 + sway, 12, 15);
     }
   },
   rugby: {
