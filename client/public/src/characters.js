@@ -35,6 +35,19 @@ export const FEMALE_HEADS = {
   'female_hair_short_2': { scale: 85, z: -10.5 }
 };
 
+const HOLDABLE_OBJECTS = {
+  tennis_racket: {
+    path: './models/tennis_racket.glb',
+    x: 0,
+    y: 0,
+    z: 0,
+    rx: 0,
+    ry: 0,
+    rz: 0,
+    scale: 1
+  }
+};
+
 export const HAIR_COLORS = [
   '#a38825', // Blonde
   '#5d5d5d', // Grey
@@ -857,8 +870,8 @@ export class CharacterManager {
     const legSwing = Math.sin(legTimer);
     const legVelocity = Math.cos(legTimer);
 
-    const armSwingX = 12;
-    const armLiftZ = 12;
+    const armSwingX = 6;
+    const armLiftZ = 6;
     const legStrideX = 14;
     const stepLiftZ = 8; // Boost to 8 highlighting the alternating lift arch
 
