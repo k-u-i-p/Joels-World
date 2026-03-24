@@ -15,9 +15,6 @@ import * as THREE from 'three';
 // Trigger native GLTF parsing routines immediately on script load!
 loadSharedModels();
 
-const MAX_SPRING = 100;
-const SPRING_SPEED = 1.0;
-
 const canvas = document.getElementById('gameCanvas');
 export const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: false });
 // Dropped SRGBColorSpace resolving gamma-curves misaligning native 2D canvas PNGs
@@ -61,9 +58,7 @@ threeCamera.up.set(0, -1, 0);
 export const camera = {
   x: 0,
   y: 0,
-  zoom: 1,
-  springX: 0,
-  springY: 0
+  zoom: 1
 };
 
 export function screenToWorld(mouseX, mouseY, canvasWidth, canvasHeight) {
@@ -173,10 +168,7 @@ window.addEventListener('chatSubmit', (e) => {
   if (msg[0] === '/') {
     const command = msg.toLowerCase().substring(1);
     if (emotes[command]) {
-      if (getCharacterProxy(player.id).activeEmoteAudio) {
-        getCharacterProxy(player.id).activeEmoteAudio.fadeOut(500);
-        getCharacterProxy(player.id).activeEmoteAudio = null;
-      }
+      clearEmoteAudio();
       player.emote = { name: command, startTime: Date.now() };
       const emoteObj = emotes[command];
       const msgText = getEmoteMessage(command, player.name || 'Someone', player.x, player.y, player.id, null);
@@ -264,11 +256,6 @@ function clearWalkingAudio() {
 function update(dt = 0.016) {
   const timeScale = (dt * 60) || 1;
 
-  // Spring setup
-  camera.springX = camera.springX || 0;
-  camera.springY = camera.springY || 0;
-  const decay = Math.pow(0.001 * SPRING_SPEED, dt);
-
   // Rotation (tank controls)
   if (!uiManager.isMinimapOpen) {
     if (inputManager.isPressed('ArrowLeft')) {
@@ -283,10 +270,7 @@ function update(dt = 0.016) {
   if (inputManager.isPressed('Space') && !uiManager.isMinimapOpen) {
     if (!player.emote || player.emote.name !== 'jump') {
       player.emote = { name: 'jump', startTime: Date.now() };
-      if (getCharacterProxy(player.id).activeEmoteAudio) {
-        getCharacterProxy(player.id).activeEmoteAudio.fadeOut(500);
-        getCharacterProxy(player.id).activeEmoteAudio = null;
-      }
+      clearEmoteAudio();
       if (emotes['jump'].sound) {
         getCharacterProxy(player.id).activeEmoteAudio = soundManager.playPooled(emotes['jump'].sound, 1);
       }
@@ -351,34 +335,12 @@ function update(dt = 0.016) {
     const blockedDx = dx - actualDx;
     const blockedDy = dy - actualDy;
 
-    // Apply tension to camera if pushing into a wall, otherwise decay that axis
-    if (Math.abs(blockedDx) > 0.01) {
-      camera.springX += blockedDx * SPRING_SPEED;
-    } else {
-      camera.springX *= decay;
-    }
-
-    if (Math.abs(blockedDy) > 0.01) {
-      camera.springY += blockedDy * SPRING_SPEED;
-    } else {
-      camera.springY *= decay;
-    }
-
-    const dist = Math.sqrt(camera.springX * camera.springX + camera.springY * camera.springY);
-    if (dist > MAX_SPRING) {
-      camera.springX = (camera.springX / dist) * MAX_SPRING;
-      camera.springY = (camera.springY / dist) * MAX_SPRING;
-    }
-
     isMoving = result.isMoving;
     player.x = result.newX;
     player.y = result.newY;
 
     if (result.emoteCanceled) {
-      if (getCharacterProxy(player.id).activeEmoteAudio) {
-        getCharacterProxy(player.id).activeEmoteAudio.fadeOut(500);
-        getCharacterProxy(player.id).activeEmoteAudio = null;
-      }
+      clearEmoteAudio();
       player.emote = null;
       networkClient.syncPlayerToJSON();
     }
@@ -424,10 +386,7 @@ function update(dt = 0.016) {
         getCharacterProxy(player.id).walkingAudio.setRate(player.isRunning ? 1.3 : 1.0);
       }
     } else {
-      if (getCharacterProxy(player.id).walkingAudio) {
-        getCharacterProxy(player.id).walkingAudio.pause();
-        getCharacterProxy(player.id).walkingAudio = null;
-      }
+      clearWalkingAudio();
     }
 
     if (player.emote) {
@@ -450,45 +409,33 @@ function update(dt = 0.016) {
         }
       }
       if (shouldCancel) {
-        if (getCharacterProxy(player.id).activeEmoteAudio) {
-          getCharacterProxy(player.id).activeEmoteAudio.fadeOut(500);
-          getCharacterProxy(player.id).activeEmoteAudio = null;
-        }
+        clearEmoteAudio();
         player.emote = null;
         networkClient.syncPlayerToJSON();
       }
     }
   } else {
-    // Smoother stop: reset animation to neutral when stopped and snap camera back
-    camera.springX *= decay;
-    camera.springY *= decay;
+    // Smoother stop: reset animation to neutral when stopped
     getCharacterProxy(player.id).legAnimationTime = 0;
 
-    if (getCharacterProxy(player.id).walkingAudio) {
-      getCharacterProxy(player.id).walkingAudio.pause();
-      getCharacterProxy(player.id).walkingAudio = null;
-    }
+    clearWalkingAudio();
   }
 
   // Smoothly interpolate other characters to their server positions
   if (window.init?.characters) {
-    for (let i = 0; i < window.init.characters.length; i++) {
-      physicsEngine.processInterpolation(window.init.characters[i], getCharacterProxy, player.id, timeScale);
-    }
+    window.init.characters.forEach(c => physicsEngine.processInterpolation(c, getCharacterProxy, player.id, timeScale));
   }
   if (window.init?.npcs) {
-    for (let i = 0; i < window.init.npcs.length; i++) {
-      physicsEngine.processInterpolation(window.init.npcs[i], getCharacterProxy, player.id, timeScale);
-    }
+    window.init.npcs.forEach(n => physicsEngine.processInterpolation(n, getCharacterProxy, player.id, timeScale));
   }
 
   // Check NPC radius interactions
   const oldActiveNpcs = [...activeNpc];
   activeNpc = physicsEngine.processInteractions(player, window.init, activeNpc, executeEvents, getCharacterProxy);
 
-  for (let i = 0; i < oldActiveNpcs.length; i++) {
-    if (!activeNpc.includes(oldActiveNpcs[i])) {
-      uiManager.cleanupNpcUI(oldActiveNpcs[i]);
+  for (const oldNpc of oldActiveNpcs) {
+    if (!activeNpc.includes(oldNpc)) {
+      uiManager.cleanupNpcUI(oldNpc);
     }
   }
 
@@ -520,9 +467,9 @@ function executeEvents(sourceObj, rawActions, eventType = 'on_enter') {
  * draws the map, all visible characters, and user interface elements.
  */
 function draw() {
-  camera.x = player.x + (camera.springX || 0);
+  camera.x = player.x;
   // Offset camera Y slightly higher so the player renders lower down in the view, leaving more space above them
-  camera.y = player.y - (viewportHeight / camera.zoom * 0.15) + (camera.springY || 0);
+  camera.y = player.y - (viewportHeight / camera.zoom * 0.15);
 
   // Read from cached globals instead of forcing aggressive DOM reflow every frame
   let yOffset = window.visualViewport ? cachedViewportOffsetY : 0;
@@ -587,11 +534,10 @@ function draw() {
   dirLight.target.position.set(targetX, targetY, 0);
   dirLight.target.updateMatrixWorld();
 
-  // SpotLight dynamically expands orthographic frustums using its innate .angle constraint, requiring no bounding loop
-  dirLight.shadow.camera.updateProjectionMatrix();
-
-  threeCamera.zoom = camera.zoom;
-  threeCamera.updateProjectionMatrix();
+  if (threeCamera.zoom !== camera.zoom) {
+    threeCamera.zoom = camera.zoom;
+    threeCamera.updateProjectionMatrix();
+  }
 
   mapManager.updateDynamicModels(window.init?.objects, scene);
 
@@ -603,21 +549,17 @@ function draw() {
 
     // Characters natively sit at physical depth Z = 5. Draw them precisely when Z escalates beyond that threshold.
     if (z >= 5 && !drawnBaseChars) {
-      characterManager.drawCharacters('base', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
+      characterManager.drawCharacters('all', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
       drawnBaseChars = true;
     }
 
-    // Natively inject the literal inertial camera springs down so drawing loops process geometric bounce physics constraints
-    mapManager.drawLayer(z, scene, camera.springX || 0, camera.springY || 0);
+    mapManager.drawLayer(z, scene);
   });
 
   // Safety net: render base characters if ALL maps were below Z=5!
   if (!drawnBaseChars) {
-    characterManager.drawCharacters('base', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
+    characterManager.drawCharacters('all', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
   }
-
-  characterManager.drawCharacters('overlay', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
-  characterManager.drawCharacters('chat', scene, player, () => networkClient.syncPlayerToJSON(), camera.zoom, viewportWidth, viewportHeight, threeCamera);
 
   renderer.render(scene, threeCamera);
 }

@@ -4,8 +4,13 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { uiManager } from './ui.js';
 
-export var sharedShoeMeshL = null;
-export var sharedShoeMeshR = null;
+const DEG_TO_RAD = Math.PI / 180;
+const PI2 = Math.PI * 2;
+const PI_HALF = Math.PI / 2;
+const PI_ONE_HALF = Math.PI * 1.5;
+
+export let sharedShoeMeshL = null;
+export let sharedShoeMeshR = null;
 
 const awaitingShoeRigs = [];
 
@@ -71,8 +76,6 @@ export function getConsistentRandom(idStr, max) {
 }
 
 export function loadSharedModels() {
-  if (sharedShoeMeshL) return;
-
   const loader = new GLTFLoader();
   loader.load('./models/slip_on_shoes.glb', (gltf) => {
     // Attempt to load explicit left/right shoe instances, otherwise gracefully clone the primary mesh
@@ -182,7 +185,12 @@ function applyHeadModel(rig, mats, c) {
     headName = c.head.replace('.glb', '');
   }
 
-  const headConfig = headList[headName] || FEMALE_HEADS['female_hair_ponytail'];
+  // Safely fallback if a player has a legacy/invalid head string (e.g. "short" instead of "male_hair_short")
+  if (!MALE_HEADS[headName] && !FEMALE_HEADS[headName]) {
+    headName = isFemale ? 'female_hair_ponytail' : 'male_hair_short';
+  }
+
+  const headConfig = MALE_HEADS[headName] || FEMALE_HEADS[headName];
   loadHeadModel(headName, (loadedScene) => {
     // If character was deleted before load finished
     if (!rig.head) return;
@@ -212,8 +220,8 @@ function applyHeadModel(rig, mats, c) {
     // Apply the explicit hardcoded configurations from the unified dictionary arrays
     const scale = headConfig.scale;
     headClone.scale.set(scale, scale, scale);
-    headClone.rotation.x = Math.PI / 2;
-    headClone.rotation.y = Math.PI / 2;
+    headClone.rotation.x = PI_HALF;
+    headClone.rotation.y = PI_HALF;
     headClone.position.z = headConfig.z;
 
     rig.head.add(headClone);
@@ -222,7 +230,6 @@ function applyHeadModel(rig, mats, c) {
 
 function applyShoeModel(rig, mats, c) {
   if (!c) return;
-  const vis = getCharacterProxy(c.id);
   if (!sharedShoeMeshL || !sharedShoeMeshR) return;
 
   for (let i = rig.lShoe.children.length - 1; i >= 0; i--) {
@@ -296,10 +303,6 @@ function pointLimbSegment(sleeveMesh, startPos, endPos) {
   const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
   sleeveMesh.quaternion.copy(quat);
 }
-const DEG_TO_RAD = Math.PI / 180;
-const PI2 = Math.PI * 2;
-const PI_HALF = Math.PI / 2;
-const PI_ONE_HALF = Math.PI * 1.5;
 
 const colorCache = {};
 
@@ -315,17 +318,13 @@ function shadeColor(color, percent) {
   G = parseInt(G * (100 + percent) / 100);
   B = parseInt(B * (100 + percent) / 100);
 
-  R = (R < 255) ? R : 255;
-  G = (G < 255) ? G : 255;
-  B = (B < 255) ? B : 255;
+  R = Math.min(255, Math.max(0, R));
+  G = Math.min(255, Math.max(0, G));
+  B = Math.min(255, Math.max(0, B));
 
-  R = Math.max(0, R);
-  G = Math.max(0, G);
-  B = Math.max(0, B);
-
-  let RR = ((R.toString(16).length == 1) ? "0" + R.toString(16) : R.toString(16));
-  let GG = ((G.toString(16).length == 1) ? "0" + G.toString(16) : G.toString(16));
-  let BB = ((B.toString(16).length == 1) ? "0" + B.toString(16) : B.toString(16));
+  const RR = R.toString(16).padStart(2, '0');
+  const GG = G.toString(16).padStart(2, '0');
+  const BB = B.toString(16).padStart(2, '0');
 
   colorCache[cacheKey] = "#" + RR + GG + BB;
   return colorCache[cacheKey];
@@ -462,7 +461,6 @@ export class CharacterManager {
 
   drawHumanoid2D(ctx, c, limbs) {
     if (!c) return;
-    const vis = getCharacterProxy(c.id);
     const angle = (c.rotation || 0) * DEG_TO_RAD;
     const cosA = Math.cos(angle);
     const sinA = Math.sin(angle);
@@ -509,7 +507,6 @@ export class CharacterManager {
 
   drawHumanoidLowerBody2D(ctx, c, limbs, isVisible) {
     if (!c) return;
-    const vis = getCharacterProxy(c.id);
     if (!isVisible) isVisible = () => true;
 
     if (!c.emote || (c.emote.name !== 'sit' && c.emote.name !== 'lunch' && c.emote.name !== 'write')) {
@@ -525,7 +522,6 @@ export class CharacterManager {
 
   drawHumanoidUpperBody2D(ctx, c, limbs, isVisible, getRaycastEnd) {
     if (!c) return;
-    const vis = getCharacterProxy(c.id);
     if (!isVisible) isVisible = () => true;
     if (!getRaycastEnd) getRaycastEnd = (sx, sy, tx, ty) => ({ x: tx, y: ty, hit: false });
 
@@ -682,7 +678,6 @@ export class CharacterManager {
 
   buildSkeletonMaterials(c) {
     if (!c) return;
-    const vis = getCharacterProxy(c.id);
 
     const randomColor = HAIR_COLORS[getConsistentRandom(c.id + '_color', HAIR_COLORS.length)];
     let finalHairColor = randomColor;
@@ -726,7 +721,7 @@ export class CharacterManager {
     vis.meshGroup.add(vis.rig.emotePropsDirectional);
     vis.rig.bodyPivot.add(vis.rig.torso);
 
-    vis.rig.torso.rotation.x = Math.PI / 2;
+    vis.rig.torso.rotation.x = PI_HALF;
     vis.rig.torso.position.set(0, 0, 20);
 
     vis.rig.head.position.set(2, 0, 36);
@@ -744,10 +739,6 @@ export class CharacterManager {
     vis.rig.rightShoulderPos = new THREE.Vector3(3, 10, 26);
     vis.rig.leftHipPos = new THREE.Vector3(0, -6, 10);
     vis.rig.rightHipPos = new THREE.Vector3(0, 6, 10);
-  }
-
-  buildSkeletonHair(c, mats) {
-    // Procedural hair has been completely disabled and removed. The GLB heads now provide all hair meshes!
   }
 
   buildSkeletonLimbs(c, mats) {
@@ -834,7 +825,7 @@ export class CharacterManager {
     shadowCanvas.width = 30; shadowCanvas.height = 30;
     const sctx = shadowCanvas.getContext('2d');
     sctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-    sctx.beginPath(); sctx.arc(15, 15, 14, 0, Math.PI * 2); sctx.fill();
+    sctx.beginPath(); sctx.arc(15, 15, 14, 0, PI2); sctx.fill();
 
     const shadowTex = new THREE.CanvasTexture(shadowCanvas);
     const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
@@ -884,7 +875,6 @@ export class CharacterManager {
       const mats = this.buildSkeletonMaterials(c);
 
       this.buildSkeletonRig(c, mats);
-      this.buildSkeletonHair(c, mats);
       this.buildSkeletonLimbs(c, mats);
 
       vis.meshGroup.scale.set(maxScale, maxScale, maxScale);
@@ -1008,12 +998,11 @@ export class CharacterManager {
     const vis = getCharacterProxy(c.id);
     if (!vis.rig) return;
 
-    vis.meshGroup.rotation.z = -c.rotation * (Math.PI / 180);
+    vis.meshGroup.rotation.z = -c.rotation * DEG_TO_RAD;
     vis.rig.bodyPivot.rotation.z = 0;
     vis.rig.emotePropsDirectional.rotation.z = 0;
 
-    const isActualNpc = isNpc;
-    if (isActualNpc && !c.emote && c.default_emote) {
+    if (isNpc && !c.emote && c.default_emote) {
       c.emote = JSON.parse(JSON.stringify(c.default_emote));
     }
 
@@ -1050,7 +1039,7 @@ export class CharacterManager {
         if (emoteDef.onEnd) {
           emoteDef.onEnd(c, vis.rig);
         }
-        if (isActualNpc && c.default_emote) {
+        if (isNpc && c.default_emote) {
           c.emote = JSON.parse(JSON.stringify(c.default_emote));
         } else {
           c.emote = null;
@@ -1145,14 +1134,11 @@ export class CharacterManager {
       const renderZ = (c.z !== undefined) ? c.z : 0;
       vis.meshGroup.position.set(c.x, -c.y, renderZ);
 
-      const isRedrawForced = true; // Completely rip out the animation cull boundary allowing infinite evaluation mapping Native idle breathing.
-
-      if (isRedrawForced) {
-        this.updateCharacter3D(c, isNpc, player, syncPlayerToJSON);
-        vis._lastRenderedEmote = JSON.stringify(c.emote);
-        vis._lastRenderedRot = c.rotation;
-        vis._hasInitialRender = true;
-      }
+      // Completely rip out the animation cull boundary allowing infinite evaluation mapping Native idle breathing.
+      this.updateCharacter3D(c, isNpc, player, syncPlayerToJSON);
+      vis._lastRenderedEmote = JSON.stringify(c.emote);
+      vis._lastRenderedRot = c.rotation;
+      vis._hasInitialRender = true;
     }
 
     if (layerType === 'all' || layerType === 'overlay' || layerType === 'chat') {
@@ -1216,10 +1202,10 @@ export class CharacterManager {
     };
 
     if (window.init?.characters) {
-      for (let i = 0; i < window.init.characters.length; i++) processDraw(window.init.characters[i], false);
+      window.init.characters.forEach(c => processDraw(c, false));
     }
     if (window.init?.npcs) {
-      for (let i = 0; i < window.init.npcs.length; i++) processDraw(window.init.npcs[i], true);
+      window.init.npcs.forEach(n => processDraw(n, true));
     }
   }
 }
@@ -1230,8 +1216,7 @@ export function updateLocalNPCs(dt) {
   if (!window.init || !window.init.npcs) return;
 
   const npcs = window.init.npcs;
-  for (let i = 0; i < npcs.length; i++) {
-    const npc = npcs[i];
+  for (const npc of npcs) {
     const npcVis = getCharacterProxy(npc.id);
 
     if (npc.roam_radius !== undefined && typeof npc.roam_radius === 'number') {
@@ -1254,13 +1239,13 @@ export function updateLocalNPCs(dt) {
           delete npcVis._pendingRoamY;
           npc.waitTimer = 2.0 + (Math.random() * 3.0);
         } else {
-          const angle = Math.random() * Math.PI * 2;
+          const angle = Math.random() * PI2;
           const distance = Math.random() * npc.roam_radius;
           const destX = npcVis._startX + (Math.cos(angle) * distance);
           const destY = npcVis._startY + (Math.sin(angle) * distance);
           const dx = destX - npc.x;
           const dy = destY - npc.y;
-          let destRotation = Math.atan2(dy, dx) * (180 / Math.PI);
+          let destRotation = Math.atan2(dy, dx) / DEG_TO_RAD;
           destRotation = (destRotation + 360) % 360;
 
           npcVis.targetRotation = Math.round(destRotation);

@@ -150,5 +150,17 @@
       }
     ],
     "clip": -1
+  },
+  {
+    "id": 50,
+    "shape": "3d_model",
+    "name": "Junior School Buildings",
+    "x": -1549,
+    "y": -1516,
+    "width": 100,
+    "length": 100,
+    "z": 0,
+    "model": "models/junior_school_buildings.glb",
+    "scale": 1
   }
 ]

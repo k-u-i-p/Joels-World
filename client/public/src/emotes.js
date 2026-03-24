@@ -178,12 +178,12 @@ export const emotes = {
       if (!print.visible || print.userData.lastDrop < elapsed - 6000) {
         // Offset Y slightly based on stepIdx (left/right foot steps)
         const sideOffset = (stepIdx % 2 === 0 ? 5 : -5);
-        
+
         // Calculate the forward/right vector based on yaw rotation
         const yaw = c.rotation * Math.PI / 180;
-        const offsetX = Math.cos(yaw + Math.PI/2) * sideOffset;
-        const offsetY = Math.sin(yaw + Math.PI/2) * sideOffset;
-        
+        const offsetX = Math.cos(yaw + Math.PI / 2) * sideOffset;
+        const offsetY = Math.sin(yaw + Math.PI / 2) * sideOffset;
+
         print.position.copy(worldPos);
         print.position.x += offsetX;
         print.position.y += offsetY;

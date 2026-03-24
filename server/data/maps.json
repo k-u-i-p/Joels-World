@@ -16,18 +16,7 @@
         "path_template": "/junior_school/chunks/new_map_2_{x}_{y}.png"
       },
       {
-        "z": 100,
-        "alpha": 1,
-        "overlay": true,
-        "chunked": true,
-        "source_image": "/junior_school/background_overlay.png",
-        "chunk_size": 512,
-        "grid_w": 9,
-        "grid_h": 8,
-        "path_template": "/junior_school/chunks/background_overlay_{x}_{y}.png"
-      },
-      {
-        "z": 100,
+        "z": 105,
         "alpha": 0.9,
         "overlay": true,
         "chunked": true,

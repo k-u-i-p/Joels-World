@@ -92,18 +92,19 @@ export class MapManager {
 
             const geom = new THREE.PlaneGeometry(tex.image.width, tex.image.height);
 
-            // Enable physical Lambert reactive lighting exclusively on the structural foundation ground layer 
-            // This permits PCF Soft Shadows to cast flawlessly right onto the geographic geometry, bypassing transparent overlaps completely!
+            // Enable physical Lambert reactive lighting for all layers to allow shadows
             const isGround = index === 0;
-            const MaterialType = isGround ? THREE.MeshLambertMaterial : THREE.MeshBasicMaterial;
+            const MaterialType = THREE.MeshLambertMaterial;
 
             const mat = new MaterialType({
               map: tex,
-              transparent: !isGround, // Layer 0 writes sequentially to the Opaque buffers
-              opacity: layerObj.alpha
+              transparent: !isGround,
+              opacity: layerObj.alpha,
+              alphaTest: 0.1 // Let transparent overlays cast shaped shadows
             });
             layerObj.mesh = new THREE.Mesh(geom, mat);
-            if (isGround) layerObj.mesh.receiveShadow = true; // Bake native geometry shadows!
+            if (isGround) layerObj.mesh.receiveShadow = true;
+            else layerObj.mesh.castShadow = true;
             if (scene) {
               scene.add(layerObj.mesh);
               this.activeMeshes.push(layerObj.mesh);
@@ -175,14 +176,11 @@ export class MapManager {
     }
   }
 
-  drawLayer(z, scene, springX = 0, springY = 0) {
+  drawLayer(z, scene) {
     if (!this.layers || !this.layers[z]) return;
 
-    // Simulate depth artificially by scaling the camera's inertia/spring bounce proportional to Z height
-    // Foreground layers (z=100) will visually bounce FASTER than ground (z=0)
-    const bounceMultiplier = z * 0.00075;
-    const offsetX = springX * bounceMultiplier;
-    const offsetY = springY * bounceMultiplier;
+    const offsetX = 0;
+    const offsetY = 0;
 
     const halfMapW = this.mapW / 2;
     const halfMapH = this.mapH / 2;
@@ -270,14 +268,15 @@ export class MapManager {
               const isOverlay = z > 0;
               const paddedGeom = this.getGeometry(layer.chunk_size);
 
-              // Leverage Lambert lighting natively so shadows trace seamlessly ignoring transparency queues
-              const MaterialType = !isOverlay ? THREE.MeshLambertMaterial : THREE.MeshBasicMaterial;
+              const MaterialType = THREE.MeshLambertMaterial;
               const mat = new MaterialType({
                 transparent: isOverlay,
-                opacity: layer.alpha
+                opacity: layer.alpha,
+                alphaTest: 0.1
               });
               const mesh = new THREE.Mesh(paddedGeom, mat);
-              if (!isOverlay) mesh.receiveShadow = true; // Actively catch intersecting PCF matrices
+              if (!isOverlay) mesh.receiveShadow = true;
+              else mesh.castShadow = true;
 
               // Position the mesh tile
               const drawX = baseX + (x * layer.chunk_size);

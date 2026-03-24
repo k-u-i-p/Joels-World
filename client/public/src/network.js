@@ -6,7 +6,7 @@ import { characterManager } from './characters.js';
 import { soundManager } from './sound.js';
 
 const isLocalBrowser = window.location.hostname === 'localhost' && !window.Capacitor?.isNativePlatform();
-export const DOMAIN = isLocalBrowser ? 'localhost' : 'joels-world.com';
+export const DOMAIN = isLocalBrowser ? window.location.host : 'joels-world.com';
 export const PROTOCOL = isLocalBrowser ? 'http' : 'https';
 
 export const getLocalToken = async () => {
