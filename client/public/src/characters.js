@@ -75,43 +75,40 @@ export function loadSharedModels() {
 
   const loader = new GLTFLoader();
   loader.load('./models/slip_on_shoes.glb', (gltf) => {
-    // Single mesh anchor format replaces [shoes_l, shoes_r] split matrix
-    const shoe = gltf.scene.getObjectByName('shoes_r') || gltf.scene.children[0];
+    // Attempt to load explicit left/right shoe instances, otherwise gracefully clone the primary mesh
+    const baseR = gltf.scene.getObjectByName('shoes_r') || gltf.scene.children[0];
+    const baseL = gltf.scene.getObjectByName('shoes_l') || (baseR ? baseR.clone() : null);
 
-    if (shoe) {
-      shoe.removeFromParent();
-
-      const box = new THREE.Box3().setFromObject(shoe);
-      const scale = 60;
-      shoe.scale.set(scale, scale, scale * 0.75); // 25% shorter natively retaining full 100% width/height ratios!
-      shoe.updateMatrixWorld(true);
-
-      // Trust the user's native (y=0, x=0) mesh translation offsets explicitly without mutating 'position'!
-      shoe.position.z = -5.0;
-
-      shoe.traverse((child) => {
+    const prepShoe = (node) => {
+      if (!node) return null;
+      node.removeFromParent();
+      node.scale.setScalar(60);
+      node.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
           if (child.material) child.material.color.setHex(0xffffff);
         }
       });
-    }
+      return node;
+    };
 
     const wrapperL = new THREE.Group();
-    if (shoe) {
-      const leftShoe = shoe.clone();
-      leftShoe.scale.x *= -1; // Symmetrically flip the right shoe converting it to a Left arch natively!
-      wrapperL.add(leftShoe);
-    }
-    wrapperL.rotation.set(Math.PI / 2, -Math.PI / 2, 0);
+    const nodeL = prepShoe(baseL);
+    if (nodeL) wrapperL.add(nodeL);
 
     const wrapperR = new THREE.Group();
-    if (shoe) {
-      const rightShoe = shoe.clone();
-      wrapperR.add(rightShoe);
+    const nodeR = prepShoe(baseR);
+    // Explicitly do not share identical material references if cloned
+    if (nodeR && baseL === baseR) {
+      const clonedR = baseR.clone();
+      clonedR.traverse((child) => {
+        if (child.isMesh && child.material) child.material = child.material.clone();
+      });
+      wrapperR.add(clonedR);
+    } else if (nodeR) {
+      wrapperR.add(nodeR);
     }
-    wrapperR.rotation.set(Math.PI / 2, -Math.PI / 2, 0);
 
     sharedShoeMeshL = wrapperL;
     sharedShoeMeshR = wrapperR;
@@ -597,11 +594,15 @@ export class CharacterManager {
     ctx.stroke();
 
     let hairColor = c.hair_color;
-    if (!hairColor && c.gender === 'female') hairColor = '#e67e22';
+    if (!hairColor && c.gender === 'female') hairColor = 'blonde';
 
     if (hairColor && hairColor !== 'none' && hairColor !== 'bald' && (!c.head || !c.head.includes('bald'))) {
-      if (HAIR_COLOR_MAP[hairColor]) hairColor = HAIR_COLOR_MAP[hairColor];
-      
+      if (HAIR_COLOR_MAP[hairColor]) {
+        hairColor = HAIR_COLOR_MAP[hairColor];
+      } else {
+        hairColor = HAIR_COLOR_MAP['blonde'];
+      }
+
       let shineColor = hairColor;
       let shadowColor = hairColor;
       try {
@@ -678,12 +679,8 @@ export class CharacterManager {
     const randomColor = HAIR_COLORS[getConsistentRandom(c.id + '_color', HAIR_COLORS.length)];
     let finalHairColor = randomColor;
 
-    if (c.hair_color) {
-      if (HAIR_COLOR_MAP[c.hair_color]) {
-        finalHairColor = HAIR_COLOR_MAP[c.hair_color];
-      } else if (HAIR_COLORS.includes(c.hair_color)) {
-        finalHairColor = c.hair_color;
-      }
+    if (c.hair_color && HAIR_COLOR_MAP[c.hair_color]) {
+      finalHairColor = HAIR_COLOR_MAP[c.hair_color];
     }
 
     const mats = {
@@ -732,11 +729,11 @@ export class CharacterManager {
 
     vis.rig.leftHandTarget = new THREE.Vector3(0, -15, 9);
     vis.rig.rightHandTarget = new THREE.Vector3(0, 15, 9);
-    vis.rig.leftFootTarget = new THREE.Vector3(2, -6, -14);
-    vis.rig.rightFootTarget = new THREE.Vector3(2, 6, -14);
+    vis.rig.leftFootTarget = new THREE.Vector3(0, -6, -14);
+    vis.rig.rightFootTarget = new THREE.Vector3(0, 6, -14);
 
-    vis.rig.leftShoulderPos = new THREE.Vector3(0, -10, 26);
-    vis.rig.rightShoulderPos = new THREE.Vector3(0, 10, 26);
+    vis.rig.leftShoulderPos = new THREE.Vector3(3, -10, 26);
+    vis.rig.rightShoulderPos = new THREE.Vector3(3, 10, 26);
     vis.rig.leftHipPos = new THREE.Vector3(0, -6, 10);
     vis.rig.rightHipPos = new THREE.Vector3(0, 6, 10);
   }
@@ -970,11 +967,9 @@ export class CharacterManager {
     vis.rig.rHand.position.copy(vis.rig.rightHandTarget);
 
     vis.rig.leftFootTarget.copy(leftAnklePos);
-    vis.rig.leftFootTarget.z -= 2.3;
     vis.rig.lShoe.position.copy(vis.rig.leftFootTarget);
 
     vis.rig.rightFootTarget.copy(rightAnklePos);
-    vis.rig.rightFootTarget.z -= 2.3;
     vis.rig.rShoe.position.copy(vis.rig.rightFootTarget);
 
     pointLimbSegment(vis.rig.lUpperArm, vis.rig.leftShoulderPos, leftElbow);
@@ -991,6 +986,13 @@ export class CharacterManager {
 
     vis.rig.lHand.quaternion.copy(vis.rig.lLowerArm.quaternion);
     vis.rig.rHand.quaternion.copy(vis.rig.rLowerArm.quaternion);
+
+    // Rigidly map the pitch mechanically from the Lower Leg bone using the verified Y-Axis!
+    const lDir = new THREE.Vector3().subVectors(leftAnklePos, leftKnee);
+    vis.rig.lShoe.rotation.set(0, Math.atan2(lDir.y, -lDir.z), 0);
+
+    const rDir = new THREE.Vector3().subVectors(rightAnklePos, rightKnee);
+    vis.rig.rShoe.rotation.set(0, Math.atan2(rDir.y, -rDir.z), 0);
   }
 
   updateCharacter3D(c, isNpc, player, syncPlayerToJSON) {
@@ -1047,8 +1049,8 @@ export class CharacterManager {
       }
     }
 
-    const baseLHand = new THREE.Vector3(6, -16, 12);
-    const baseRHand = new THREE.Vector3(6, 16, 12);
+    const baseLHand = new THREE.Vector3(9, -16, 12);
+    const baseRHand = new THREE.Vector3(9, 16, 12);
     const baseLFoot = new THREE.Vector3(2, -6, -13);
     const baseRFoot = new THREE.Vector3(2, 6, -13);
 

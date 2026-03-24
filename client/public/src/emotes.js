@@ -119,7 +119,7 @@ export const emotes = {
       const tilt = Math.sin(danceTime * 0.8) * 0.3;
 
       // Translate core hierarchy rapidly upward
-      rig.bodyPivot.position.z = 15.5 + bounce;
+      rig.bodyPivot.position.z = 25.5 + bounce;
       rig.bodyPivot.rotation.x = tilt;
 
       // Fling arms playfully upward upon liftoff

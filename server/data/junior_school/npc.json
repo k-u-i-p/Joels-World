@@ -345,7 +345,7 @@
     ],
     "on_exit": [],
     "gender": "male",
-    "hair_color": "#6e2c00",
+    "hair_color": "brown",
     "shirt_color": "#ff6251",
     "pants_color": "#2c3e50",
     "arm_color": "#669c35"
@@ -369,7 +369,7 @@
     "gender": "female",
     "interaction_radius": 150,
     "head": "female_hair_long",
-    "hair_color": "#a38825",
+    "hair_color": "blonde",
     "shirt_color": "#3498db",
     "pants_color": "#2c3e50",
     "arm_color": "#3498db"
@@ -450,7 +450,7 @@
     ],
     "roam_radius": 350,
     "head": "female_hair_long",
-    "hair_color": "#e67e22",
+    "hair_color": "blonde",
     "shirt_color": "#e74c3c",
     "pants_color": "#2c3e50",
     "arm_color": "#e74c3c"

@@ -1,4 +1,4 @@
-import { getCharacterProxy, clearCharacterProxy, MALE_HEADS, FEMALE_HEADS, HAIR_COLORS } from './characters.js';
+import { getCharacterProxy, clearCharacterProxy, MALE_HEADS, FEMALE_HEADS, HAIR_COLORS, HAIR_COLOR_MAP } from './characters.js';
 import { getObjectProxy, clearObjectProxy } from './maps.js';
 import { gameLoop } from './gameloop.js';
 import { player, camera, screenToWorld, getScreenTransformMatrix } from './main.js';
@@ -68,11 +68,11 @@ if (npcHairCol) {
   rndOpt.textContent = 'Random';
   npcHairCol.appendChild(rndOpt);
 
-  HAIR_COLORS.forEach(color => {
+  Object.entries(HAIR_COLOR_MAP).forEach(([name, hex]) => {
     const opt = document.createElement('option');
-    opt.value = color;
-    opt.textContent = color.toUpperCase();
-    opt.style.backgroundColor = color;
+    opt.value = name;
+    opt.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+    opt.style.backgroundColor = hex;
     opt.style.color = '#fff';
     opt.style.textShadow = '0px 0px 4px #000';
     npcHairCol.appendChild(opt);
