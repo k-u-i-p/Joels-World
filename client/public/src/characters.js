@@ -632,6 +632,13 @@ export class CharacterManager {
     if (!c) return;
     const vis = getCharacterProxy(c.id);
 
+    const randomColor = HAIR_COLORS[getConsistentRandom(c.id + '_color', HAIR_COLORS.length)];
+    let finalHairColor = randomColor;
+
+    if (c.hair_color && HAIR_COLORS.includes(c.hair_color)) {
+      finalHairColor = c.hair_color;
+    }
+
     const mats = {
       skin: new THREE.MeshStandardMaterial({ color: c.color || '#f1c40f', roughness: 0.6, metalness: 0.1 }),
       shirt: new THREE.MeshStandardMaterial({ color: c.shirt_color || '#3498db', roughness: 0.8, metalness: 0.0 }),
@@ -639,12 +646,9 @@ export class CharacterManager {
       pants: new THREE.MeshStandardMaterial({ color: c.pants_color || '#2c3e50', roughness: 0.9, metalness: 0.0 }),
       shoe: new THREE.MeshStandardMaterial({ color: c.shoe_color || '#7f8c8d', roughness: 0.7, metalness: 0.2 }),
       eye_white: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.5, metalness: 0.0 }),
-      eye_black: new THREE.MeshStandardMaterial({ color: '#000000', roughness: 0.5, metalness: 0.0 })
+      eye_black: new THREE.MeshStandardMaterial({ color: '#000000', roughness: 0.5, metalness: 0.0 }),
+      hair: new THREE.MeshStandardMaterial({ color: finalHairColor, roughness: 0.5, metalness: 0.1 })
     };
-
-    if (c.hair_color && HAIR_COLORS.includes(c.hair_color)) {
-      mats.hair = new THREE.MeshStandardMaterial({ color: c.hair_color, roughness: 0.5, metalness: 0.1 });
-    }
 
     return mats;
   }

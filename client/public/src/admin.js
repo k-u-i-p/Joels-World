@@ -1,4 +1,4 @@
-import { getCharacterProxy, clearCharacterProxy, MALE_HEADS, FEMALE_HEADS } from './characters.js';
+import { getCharacterProxy, clearCharacterProxy, MALE_HEADS, FEMALE_HEADS, HAIR_COLORS } from './characters.js';
 import { getObjectProxy, clearObjectProxy } from './maps.js';
 import { gameLoop } from './gameloop.js';
 import { player, camera, screenToWorld, getScreenTransformMatrix } from './main.js';
@@ -60,6 +60,24 @@ window.updateAdminFps = (fps) => {
     adminFps.textContent = `FPS: ${fps}`;
   }
 };
+
+if (npcHairCol) {
+  npcHairCol.innerHTML = '';
+  const rndOpt = document.createElement('option');
+  rndOpt.value = '';
+  rndOpt.textContent = 'Random';
+  npcHairCol.appendChild(rndOpt);
+
+  HAIR_COLORS.forEach(color => {
+    const opt = document.createElement('option');
+    opt.value = color;
+    opt.textContent = color.toUpperCase();
+    opt.style.backgroundColor = color;
+    opt.style.color = '#fff';
+    opt.style.textShadow = '0px 0px 4px #000';
+    npcHairCol.appendChild(opt);
+  });
+}
 
 window.populateAdminMaps = () => {
 
@@ -656,7 +674,7 @@ function updateAdminPanel() {
     if (npcShirtCol) npcShirtCol.value = npc.shirt_color || '#3498db';
     if (npcPantsCol) npcPantsCol.value = npc.pants_color || '#2c3e50';
     if (npcArmCol) npcArmCol.value = npc.arm_color || '#f1c40f';
-    if (npcHairCol) npcHairCol.value = npc.hair_color || '#000000';
+    if (npcHairCol) npcHairCol.value = npc.hair_color || '';
     if (npcGenderSelect) npcGenderSelect.value = npc.gender || 'male';
     if (window.updateHeadDropdown) window.updateHeadDropdown(npc.gender || 'male');
     if (npcHeadStyle) {

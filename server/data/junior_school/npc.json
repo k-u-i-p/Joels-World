@@ -170,7 +170,7 @@
     "rotation": 0,
     "gender": "male",
     "interaction_radius": 150,
-    "emoji": "\ud83d\udebd",
+    "emoji": "🚽",
     "on_enter": [
       {
         "say": [
@@ -345,7 +345,7 @@
     ],
     "on_exit": [],
     "gender": "male",
-    "hair_color": "#000000",
+    "hair_color": "#6e2c00",
     "shirt_color": "#ff6251",
     "pants_color": "#2c3e50",
     "arm_color": "#669c35"
@@ -369,7 +369,7 @@
     "gender": "female",
     "interaction_radius": 150,
     "head": "female_hair_long",
-    "hair_color": "#f5ec00",
+    "hair_color": "#a38825",
     "shirt_color": "#3498db",
     "pants_color": "#2c3e50",
     "arm_color": "#3498db"
@@ -382,7 +382,7 @@
     "width": 30,
     "height": 30,
     "rotation": 0,
-    "emoji": "\ud83d\udc0d",
+    "emoji": "🐍",
     "on_enter": [
       {
         "say": [
