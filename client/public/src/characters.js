@@ -374,6 +374,14 @@ export class CharacterManager {
     }
     if (vis.nameElement && vis.nameElement.parentNode) vis.nameElement.parentNode.removeChild(vis.nameElement);
     if (vis.chatElement && vis.chatElement.parentNode) vis.chatElement.parentNode.removeChild(vis.chatElement);
+    if (vis.walkingAudio) {
+      vis.walkingAudio.pause();
+      vis.walkingAudio = null;
+    }
+    if (vis.activeEmoteAudio) {
+      vis.activeEmoteAudio.fadeOut(500);
+      vis.activeEmoteAudio = null;
+    }
     clearCharacterProxy(c.id);
   }
 
@@ -1000,8 +1008,9 @@ export class CharacterManager {
     const vis = getCharacterProxy(c.id);
     if (!vis.rig) return;
 
-    vis.rig.bodyPivot.rotation.z = -c.rotation * (Math.PI / 180);
-    vis.rig.emotePropsDirectional.rotation.z = -c.rotation * (Math.PI / 180);
+    vis.meshGroup.rotation.z = -c.rotation * (Math.PI / 180);
+    vis.rig.bodyPivot.rotation.z = 0;
+    vis.rig.emotePropsDirectional.rotation.z = 0;
 
     const isActualNpc = isNpc;
     if (isActualNpc && !c.emote && c.default_emote) {
@@ -1027,6 +1036,7 @@ export class CharacterManager {
       vis.rig.bodyPivot.position.set(0, 0, 15.5);
       vis.rig.bodyPivot.rotation.x = 0;
       vis.rig.bodyPivot.rotation.y = 0;
+      if (vis.rig.head) vis.rig.head.rotation.set(0, 0, 0);
       vis.rig.currentEmoteName = newEmoteName;
     }
 
@@ -1135,15 +1145,6 @@ export class CharacterManager {
       const renderZ = (c.z !== undefined) ? c.z : 0;
       vis.meshGroup.position.set(c.x, -c.y, renderZ);
 
-      const hasMovement = vis.legAnimationTime && vis.legAnimationTime > 0;
-      let isEmoteAnimating = false;
-      if (c.emote && emotes[c.emote.name] && c.emote.startTime > 0) {
-        const age = Date.now() - c.emote.startTime;
-        if (age <= emotes[c.emote.name].duration) {
-          isEmoteAnimating = true;
-        }
-      }
-
       const isRedrawForced = true; // Completely rip out the animation cull boundary allowing infinite evaluation mapping Native idle breathing.
 
       if (isRedrawForced) {
@@ -1156,7 +1157,8 @@ export class CharacterManager {
 
     if (layerType === 'all' || layerType === 'overlay' || layerType === 'chat') {
       if (vis.meshGroup) {
-        const vec = new THREE.Vector3(c.x, -c.y, 0);
+        const renderZ = (c.z !== undefined) ? c.z : 0;
+        const vec = new THREE.Vector3(c.x, -c.y, renderZ);
         vec.project(threeCamera);
         // Map -1 to 1 to exact screen pixels
         const screenX = (vec.x * 0.5 + 0.5) * viewportWidth;
@@ -1196,7 +1198,8 @@ export class CharacterManager {
 
     const processDraw = (char, isNpc) => {
       const c = (char.id === player.id) ? player : char;
-      const vec = new THREE.Vector3(c.x, -c.y, 5).project(threeCamera);
+      const renderZ = (c.z !== undefined) ? c.z : 0;
+      const vec = new THREE.Vector3(c.x, -c.y, renderZ + 5).project(threeCamera);
       const isVisible = (vec.z <= 1 && Math.abs(vec.x) <= 1.3 && Math.abs(vec.y) <= 1.3);
       const vis = getCharacterProxy(c.id);
 

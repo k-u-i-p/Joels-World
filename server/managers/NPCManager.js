@@ -76,6 +76,8 @@ export class NPCManager {
         mapObj.npcs.forEach(npc => {
           npc._startX = npc.x;
           npc._startY = npc.y;
+          npc.z = npc.z || 0;
+          npc._startZ = npc.z;
           npc.rotation = npc.rotation || 0;
           npc._startRotation = npc.rotation;
 
@@ -105,6 +107,8 @@ export class NPCManager {
                 mapObj.npcs.forEach(npc => {
                   npc._startX = npc.x;
                   npc._startY = npc.y;
+                  npc.z = npc.z || 0;
+                  npc._startZ = npc.z;
                   npc.rotation = npc.rotation || 0;
                   npc._startRotation = npc.rotation;
                 });

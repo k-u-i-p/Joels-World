@@ -87,6 +87,7 @@ export class ClientManager {
           const { spawnX, spawnY } = this.mapManager.generateSpawnCoords(mapData.id);
           session.player.x = spawnX;
           session.player.y = spawnY;
+          session.player.z = 0;
 
           this.mapManager.addCharacter(mapData.id, session.player);
 
@@ -233,6 +234,7 @@ export class ClientManager {
 
       oldChar.x = spawnX;
       oldChar.y = spawnY;
+      oldChar.z = 0;
       oldChar.emote = null;
 
 

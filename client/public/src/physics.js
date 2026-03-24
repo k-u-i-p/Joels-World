@@ -480,12 +480,15 @@ export class PhysicsEngine {
     if (vis.targetX !== undefined && vis.targetY !== undefined) {
       const cdx = vis.targetX - c.x;
       const cdy = vis.targetY - c.y;
-      const distSq = cdx * cdx + cdy * cdy;
+      const cdz = (vis.targetZ !== undefined ? vis.targetZ : 0) - (c.z || 0);
+
+      const distSq = cdx * cdx + cdy * cdy + cdz * cdz;
 
       // Snap if teleported really far (5000^2 = 25000000)
       if (distSq > 25000000) {
         c.x = vis.targetX;
         c.y = vis.targetY;
+        if (vis.targetZ !== undefined) c.z = vis.targetZ;
         c.rotation = vis.targetRotation;
       } else if (distSq > 0.1) {
         // Continuous pursuit velocity based on base speed (with a dynamic catchup boost if far behind)
@@ -504,11 +507,13 @@ export class PhysicsEngine {
         const ratio = stepDist / distance;
         c.x += cdx * ratio;
         c.y += cdy * ratio;
+        if (vis.targetZ !== undefined) c.z = (c.z || 0) + cdz * ratio;
 
         vis.legAnimationTime = (vis.legAnimationTime || 0) + 0.2 * timeScale;
       } else {
         c.x = vis.targetX;
         c.y = vis.targetY;
+        if (vis.targetZ !== undefined) c.z = vis.targetZ;
         vis.legAnimationTime = 0; // stop moving legs when we catch up
       }
 

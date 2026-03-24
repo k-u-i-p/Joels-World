@@ -175,6 +175,7 @@ export class MapManager {
       name: playerName.substring(0, 15),
       x: spawnX,
       y: spawnY,
+      z: 0,
       width: 40,
       height: 40,
       rotation: 0,
@@ -234,7 +235,7 @@ export class MapManager {
         import: mapData.import,
         models: mapData.models,
         background_color: mapData.background_color,
-        spring: mapData.spring
+        camera_permitted_offset: mapData.camera_permitted_offset
       },
       mapsList: this.mapsList
     });

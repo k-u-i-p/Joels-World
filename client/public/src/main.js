@@ -534,10 +534,22 @@ function draw() {
     const viewHalfW = (viewportWidth / camera.zoom) / 2;
     const viewHalfH = (viewportHeight / camera.zoom) / 2;
 
-    const minX = -halfMapW + viewHalfW;
-    const maxX = halfMapW - viewHalfW;
-    const minY = -halfMapH + viewHalfH;
-    const maxY = halfMapH - viewHalfH;
+    let minX = -halfMapW + viewHalfW;
+    let maxX = halfMapW - viewHalfW;
+    let minY = -halfMapH + viewHalfH;
+    let maxY = halfMapH - viewHalfH;
+
+    const offset = window.init.mapData.camera_permitted_offset;
+    if (offset) {
+      if (offset.x < 0) minX += offset.x;
+      if (offset.x > 0) maxX += offset.x;
+      if (offset.y < 0) minY += offset.y;
+      if (offset.y > 0) maxY += offset.y;
+      if (offset.top) minY -= offset.top;
+      if (offset.bottom) maxY += offset.bottom;
+      if (offset.left) minX -= offset.left;
+      if (offset.right) maxX += offset.right;
+    }
 
     if (minX <= maxX) {
       camera.x = Math.max(minX, Math.min(maxX, camera.x));
@@ -641,6 +653,15 @@ function handleInitData(data) {
     // Scrub existing WebGL meshes and DOM overlays from the outgoing map's players
     characterManager.clearScene(scene, window.init);
     characterManager.disposeCharacter(player, scene);
+
+    if (window.init?.objects) {
+      window.init.objects.forEach(obj => {
+        if (obj.activeAudio) {
+          obj.activeAudio.pause();
+          obj.activeAudio = null;
+        }
+      });
+    }
 
     // Deep clean the hybrid 2D proxy canvas to prevent lingering minigame pixel artifacts
     const ui = document.getElementById('uiCanvas');

@@ -59,6 +59,9 @@
     "name": "Detention",
     "width": 2048,
     "height": 2048,
+    "camera_permitted_offset": {
+      "y": -300
+    },
     "background_color": "#000000",
     "layers": [
       {
@@ -118,7 +121,7 @@
         "path_template": "/main_building/chunks/new_background_{x}_{y}.png"
       },
       {
-        "z": 1,
+        "z": 200,
         "alpha": 0.9,
         "overlay": true,
         "chunked": true,
@@ -126,7 +129,8 @@
         "chunk_size": 512,
         "grid_w": 11,
         "grid_h": 7,
-        "path_template": "/main_building/chunks/new_background_overlay_{x}_{y}.png"
+        "path_template": "/main_building/chunks/new_background_overlay_{x}_{y}.png",
+        "spring": false
       }
     ],
     "npcs": "main_building/npc.json",

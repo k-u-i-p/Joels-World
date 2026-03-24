@@ -220,6 +220,7 @@ export class NetworkClient {
               // Set targets for interpolation
               localChar.targetX = serverChar.x;
               localChar.targetY = serverChar.y;
+              if (serverChar.z !== undefined) localChar.targetZ = serverChar.z;
               localChar.targetRotation = serverChar.rotation;
 
               // Directly sync visual properties
@@ -234,6 +235,7 @@ export class NetworkClient {
             } else {
               serverChar.targetX = serverChar.x;
               serverChar.targetY = serverChar.y;
+              if (serverChar.z !== undefined) serverChar.targetZ = serverChar.z;
               serverChar.targetRotation = serverChar.rotation;
               if (!window.init) return;
               if (!window.init.characters) window.init.characters = [];
@@ -395,6 +397,7 @@ export class NetworkClient {
     if (charIndex > -1) {
       window.init.characters[charIndex].x = player.x;
       window.init.characters[charIndex].y = player.y;
+      window.init.characters[charIndex].z = player.z;
       window.init.characters[charIndex].rotation = player.rotation;
       window.init.characters[charIndex].name = player.name; // Keep name synced
       window.init.characters[charIndex].emote = player.emote;
