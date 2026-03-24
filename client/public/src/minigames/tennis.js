@@ -589,7 +589,7 @@ export function initMinigame() {
   if (window.init && window.init.npcs && window.init.npcs.length > 0) {
     npc = window.init.npcs[0];
   } else {
-    npc = { id: 999, name: 'Opponent', width: 40, height: 40, gender: 'male', shirtColor: '#e74c3c' };
+    npc = { id: 999, name: 'Opponent', width: 40, height: 40, gender: 'male', shirt_color: '#e74c3c' };
   }
 
   // Reset core tracking values
@@ -1761,12 +1761,12 @@ function run(dt) {
     ctx.rotate(charState.currentPosition.rotation * (Math.PI / 180));
 
     // Draw the shoes anchored to the translation floor
-    characterManager.drawShoe2D(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoeColor || '#1a252f', true);
-    characterManager.drawShoe2D(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoeColor || '#1a252f', false);
+    characterManager.drawShoe2D(ctx, limbs.leftLegEndX, limbs.leftLegEndY, characterData.shoe_color || '#1a252f', true);
+    characterManager.drawShoe2D(ctx, limbs.rightLegEndX, limbs.rightLegEndY, characterData.shoe_color || '#1a252f', false);
 
     // Dynamic Physics Legs: Draw stretching joint connections perfectly linking the jumping Torso cleanly down to the Shoes!
     const torsoOffsetScreen = -torsoZ / (camera.zoom * COURT_SCALE);
-    ctx.strokeStyle = characterData.pantsColor || '#2980b9';
+    ctx.strokeStyle = characterData.pants_color || '#2980b9';
     ctx.lineWidth = 4.5;
     ctx.lineCap = 'round';
 

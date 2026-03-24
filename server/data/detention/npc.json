@@ -8,9 +8,6 @@
     "height": 52,
     "rotation": 85,
     "gender": "male",
-    "shirtColor": "#1c2833",
-    "pantsColor": "#2c3e50",
-    "armColor": "#1c2833",
     "interaction_radius": 600,
     "agent": {
       "prompt_file": "detention/agent_mr_hardy.md",
@@ -36,14 +33,17 @@
         ]
       }
     ],
-    "shoeColor": "#7f8c8d",
     "default_emote": {
       "name": "sit",
       "startTime": 0
     },
     "z": 35,
     "head": "male_hair_messy",
-    "hair_color": "#4a4a4a"
+    "hair_color": "#4a4a4a",
+    "shirt_color": "#1c2833",
+    "pants_color": "#2c3e50",
+    "arm_color": "#1c2833",
+    "shoe_color": "#7f8c8d"
   },
   {
     "id": 3,
@@ -54,9 +54,6 @@
     "width": 40,
     "height": 40,
     "rotation": -90,
-    "shirtColor": "#e74c3c",
-    "pantsColor": "#bdc3c7",
-    "armColor": "#e74c3c",
     "interaction_radius": 200,
     "on_enter": [
       {
@@ -78,7 +75,10 @@
       "startTime": 0
     },
     "head": "male_hair_messy",
-    "hair_color": "#5c3a21"
+    "hair_color": "#5c3a21",
+    "shirt_color": "#e74c3c",
+    "pants_color": "#bdc3c7",
+    "arm_color": "#e74c3c"
   },
   {
     "id": 4,
@@ -88,9 +88,6 @@
     "width": 40,
     "height": 40,
     "rotation": -90,
-    "shirtColor": "#9b59b6",
-    "pantsColor": "#2c3e50",
-    "armColor": "#9b59b6",
     "gender": "female",
     "interaction_radius": 200,
     "on_enter": [
@@ -114,7 +111,10 @@
     },
     "z": 43,
     "head": "female_hair_ponytail",
-    "hair_color": "#000000"
+    "hair_color": "#000000",
+    "shirt_color": "#9b59b6",
+    "pants_color": "#2c3e50",
+    "arm_color": "#9b59b6"
   },
   {
     "id": 5,
@@ -124,9 +124,6 @@
     "width": 40,
     "height": 40,
     "rotation": -90,
-    "shirtColor": "#e67e22",
-    "pantsColor": "#34495e",
-    "armColor": "#e67e22",
     "interaction_radius": 200,
     "on_enter": [
       {
@@ -149,7 +146,10 @@
     },
     "z": 43,
     "head": "male_hair_spiky",
-    "hair_color": "#2c3e50"
+    "hair_color": "#2c3e50",
+    "shirt_color": "#e67e22",
+    "pants_color": "#34495e",
+    "arm_color": "#e67e22"
   },
   {
     "id": 6,
@@ -159,9 +159,6 @@
     "width": 40,
     "height": 40,
     "rotation": -90,
-    "shirtColor": "#2ecc71",
-    "pantsColor": "#e74c3c",
-    "armColor": "#2ecc71",
     "gender": "female",
     "interaction_radius": 200,
     "on_enter": [
@@ -185,7 +182,10 @@
     },
     "z": 43,
     "head": "female_hair_long",
-    "hair_color": "#000000"
+    "hair_color": "#000000",
+    "shirt_color": "#2ecc71",
+    "pants_color": "#e74c3c",
+    "arm_color": "#2ecc71"
   },
   {
     "id": 2,
@@ -196,9 +196,6 @@
     "width": 40,
     "height": 40,
     "rotation": -90,
-    "shirtColor": "#3498db",
-    "pantsColor": "#2c3e50",
-    "armColor": "#3498db",
     "interaction_radius": 200,
     "on_enter": [
       {
@@ -219,6 +216,9 @@
       "startTime": 0
     },
     "head": "male_hair_short",
-    "hair_color": "#000000"
+    "hair_color": "#000000",
+    "shirt_color": "#3498db",
+    "pants_color": "#2c3e50",
+    "arm_color": "#3498db"
   }
 ]

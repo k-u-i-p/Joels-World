@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const colors = ['#e74c3c', '#8e44ad', '#3498db', '#1abc9c', '#2ecc71', '#f1c40f', '#e67e22', '#34495e'];
-const shoeColors = ['#111111', '#5e3a1f', '#7f8c8d']; // Black, Brown, Grey
+const shoe_colors = ['#111111', '#5e3a1f', '#7f8c8d']; // Black, Brown, Grey
 
 export class MapManager {
   constructor() {
@@ -167,7 +167,7 @@ export class MapManager {
 
     // Mathematically filter the active skin color out of the available wardrobe selection arrays to prevent "naked" overlap
     const availableClothes = colors.filter(c => c !== skinColor);
-    const availableShoes = shoeColors.filter(c => c !== skinColor);
+    const availableShoes = shoe_colors.filter(c => c !== skinColor);
     const availableHair = ['#f1c40f', '#5c3a21', '#2c3e50', '#000000'].filter(c => c !== skinColor);
 
     return {
@@ -180,10 +180,10 @@ export class MapManager {
       rotation: 0,
       gender: Math.random() > 0.5 ? 'male' : 'female',
       color: skinColor,
-      shirtColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
-      pantsColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
-      armColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
-      shoeColor: availableShoes[Math.floor(Math.random() * availableShoes.length)],
+      shirt_color: availableClothes[Math.floor(Math.random() * availableClothes.length)],
+      pants_color: availableClothes[Math.floor(Math.random() * availableClothes.length)],
+      arm_color: availableClothes[Math.floor(Math.random() * availableClothes.length)],
+      shoe_color: availableShoes[Math.floor(Math.random() * availableShoes.length)],
       head: ['male_hair_short', 'female_hair_long', 'female_hair_ponytail', 'male_hair_spiky', 'male_hair_messy', 'male_hair_bald'][Math.floor(Math.random() * 6)],
       hair_color: availableHair[Math.floor(Math.random() * availableHair.length)],
       interaction_radius: 150

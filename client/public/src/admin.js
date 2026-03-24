@@ -436,8 +436,8 @@ if (npcRoamRadiusInput) {
   });
 }
 
-['shirtColor', 'pantsColor', 'armColor', 'hair_color'].forEach(part => {
-  const colInput = document.getElementById(`npc-${part === 'shirtColor' ? 'shirt' : part === 'pantsColor' ? 'pants' : part === 'armColor' ? 'arm' : 'hair'}-col`);
+['shirt_color', 'pants_color', 'arm_color', 'hair_color'].forEach(part => {
+  const colInput = document.getElementById(`npc-${part === 'shirt_color' ? 'shirt' : part === 'pants_color' ? 'pants' : part === 'arm_color' ? 'arm' : 'hair'}-col`);
   if (colInput) {
     colInput.onchange = (e) => {
       if (!window.selectedNpc.get()) return;
@@ -653,9 +653,9 @@ function updateAdminPanel() {
     if (npcNameInput) npcNameInput.value = npc.name || '';
     if (npcRadiusInput) npcRadiusInput.value = npc.interaction_radius !== undefined ? npc.interaction_radius : 150;
     if (npcRoamRadiusInput) npcRoamRadiusInput.value = npc.roam_radius !== undefined ? npc.roam_radius : '';
-    if (npcShirtCol) npcShirtCol.value = npc.shirtColor || '#3498db';
-    if (npcPantsCol) npcPantsCol.value = npc.pantsColor || '#2c3e50';
-    if (npcArmCol) npcArmCol.value = npc.armColor || '#f1c40f';
+    if (npcShirtCol) npcShirtCol.value = npc.shirt_color || '#3498db';
+    if (npcPantsCol) npcPantsCol.value = npc.pants_color || '#2c3e50';
+    if (npcArmCol) npcArmCol.value = npc.arm_color || '#f1c40f';
     if (npcHairCol) npcHairCol.value = npc.hair_color || '#000000';
     if (npcGenderSelect) npcGenderSelect.value = npc.gender || 'male';
     if (window.updateHeadDropdown) window.updateHeadDropdown(npc.gender || 'male');

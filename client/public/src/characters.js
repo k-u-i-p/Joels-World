@@ -165,7 +165,9 @@ function applyHeadModel(rig, mats, c) {
 
         const name = child.name.toLowerCase();
         if (name.includes('hair')) {
-          child.material = mats.hair;
+          if (mats.hair) {
+            child.material = mats.hair;
+          }
         } else if (name.includes('face') || name.includes('head') || name.includes('skin')) {
           child.material = mats.skin;
         }
@@ -465,12 +467,12 @@ export class CharacterManager {
     if (!isVisible) isVisible = () => true;
 
     if (!c.emote || (c.emote.name !== 'sit' && c.emote.name !== 'lunch' && c.emote.name !== 'write')) {
-      const shoeColor = c.shoeColor || '#1a252f';
+      const shoe_color = c.shoe_color || '#1a252f';
       if (isVisible(limbs.leftLegEndX, limbs.leftLegEndY)) {
-        this.drawShoe2D(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoeColor, true);
+        this.drawShoe2D(ctx, limbs.leftLegEndX, limbs.leftLegEndY, shoe_color, true);
       }
       if (isVisible(limbs.rightLegEndX, limbs.rightLegEndY)) {
-        this.drawShoe2D(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoeColor, false);
+        this.drawShoe2D(ctx, limbs.rightLegEndX, limbs.rightLegEndY, shoe_color, false);
       }
     }
   }
@@ -487,8 +489,8 @@ export class CharacterManager {
     const rightArmEnd = getRaycastEnd(0, armOffset, limbs.rightArmX, limbs.rightArmY);
 
     const armGradient = ctx.createLinearGradient(0, -armOffset, 0, limbs.leftArmY);
-    armGradient.addColorStop(0, c.armColor || '#3498db');
-    armGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
+    armGradient.addColorStop(0, c.arm_color || '#3498db');
+    armGradient.addColorStop(1, shadeColor(c.arm_color || '#3498db', -30));
 
     ctx.lineWidth = 5;
     ctx.strokeStyle = armGradient;
@@ -496,8 +498,8 @@ export class CharacterManager {
     this.drawLine2D(ctx, 0, -armOffset, leftArmEnd.x, leftArmEnd.y);
 
     const rightArmGradient = ctx.createLinearGradient(0, armOffset, 0, limbs.rightArmY);
-    rightArmGradient.addColorStop(0, c.armColor || '#3498db');
-    rightArmGradient.addColorStop(1, shadeColor(c.armColor || '#3498db', -30));
+    rightArmGradient.addColorStop(0, c.arm_color || '#3498db');
+    rightArmGradient.addColorStop(1, shadeColor(c.arm_color || '#3498db', -30));
     ctx.strokeStyle = rightArmGradient;
     this.drawLine2D(ctx, 0, armOffset, rightArmEnd.x, rightArmEnd.y);
 
@@ -524,9 +526,9 @@ export class CharacterManager {
     }
 
     const bodyGradient = ctx.createLinearGradient(-8, 0, 8, 0);
-    bodyGradient.addColorStop(0, c.shirtColor || '#3498db');
-    bodyGradient.addColorStop(0.5, shadeColor(c.shirtColor || '#3498db', 20));
-    bodyGradient.addColorStop(1, shadeColor(c.shirtColor || '#3498db', -40));
+    bodyGradient.addColorStop(0, c.shirt_color || '#3498db');
+    bodyGradient.addColorStop(0.5, shadeColor(c.shirt_color || '#3498db', 20));
+    bodyGradient.addColorStop(1, shadeColor(c.shirt_color || '#3498db', -40));
     ctx.fillStyle = bodyGradient;
 
     const bodyDepth = c.gender === 'female' ? 10 : 12;
@@ -630,17 +632,21 @@ export class CharacterManager {
     if (!c) return;
     const vis = getCharacterProxy(c.id);
 
-    // Pick a deterministic random hair color from the 5 permitted colors
-    const randomColor = HAIR_COLORS[getConsistentRandom(c.id + '_color', HAIR_COLORS.length)];
-
-    return {
+    const mats = {
       skin: new THREE.MeshStandardMaterial({ color: c.color || '#f1c40f', roughness: 0.6, metalness: 0.1 }),
-      shirt: new THREE.MeshStandardMaterial({ color: c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
-      arm: new THREE.MeshStandardMaterial({ color: c.armColor || c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
-      pants: new THREE.MeshStandardMaterial({ color: c.pantsColor || '#2c3e50', roughness: 0.9, metalness: 0.0 }),
-      shoe: new THREE.MeshStandardMaterial({ color: c.shoeColor || '#7f8c8d', roughness: 0.7, metalness: 0.2 }),
-      hair: new THREE.MeshStandardMaterial({ color: randomColor, roughness: 0.5, metalness: 0.1 })
+      shirt: new THREE.MeshStandardMaterial({ color: c.shirt_color || '#3498db', roughness: 0.8, metalness: 0.0 }),
+      arm: new THREE.MeshStandardMaterial({ color: c.arm_color || c.shirt_color || '#3498db', roughness: 0.8, metalness: 0.0 }),
+      pants: new THREE.MeshStandardMaterial({ color: c.pants_color || '#2c3e50', roughness: 0.9, metalness: 0.0 }),
+      shoe: new THREE.MeshStandardMaterial({ color: c.shoe_color || '#7f8c8d', roughness: 0.7, metalness: 0.2 }),
+      eye_white: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.5, metalness: 0.0 }),
+      eye_black: new THREE.MeshStandardMaterial({ color: '#000000', roughness: 0.5, metalness: 0.0 })
     };
+
+    if (c.hair_color && HAIR_COLORS.includes(c.hair_color)) {
+      mats.hair = new THREE.MeshStandardMaterial({ color: c.hair_color, roughness: 0.5, metalness: 0.1 });
+    }
+
+    return mats;
   }
 
   buildSkeletonRig(c, mats) {

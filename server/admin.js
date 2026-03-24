@@ -133,9 +133,9 @@ export function handleAdminMessage(ws, data, mapData) {
       width: 40,
       height: 40,
       rotation: 0,
-      shirtColor: '#3498db',
-      pantsColor: '#2c3e50',
-      armColor: '#3498db',
+      shirt_color: '#3498db',
+      pants_color: '#2c3e50',
+      arm_color: '#3498db',
       on_enter: [],
       on_exit: []
     };

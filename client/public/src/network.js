@@ -224,10 +224,10 @@ export class NetworkClient {
 
               // Directly sync visual properties
               localChar.name = serverChar.name;
-              localChar.shirtColor = serverChar.shirtColor;
-              localChar.pantsColor = serverChar.pantsColor;
-              localChar.armColor = serverChar.armColor;
-              localChar.shoeColor = serverChar.shoeColor;
+              localChar.shirt_color = serverChar.shirt_color;
+              localChar.pants_color = serverChar.pants_color;
+              localChar.arm_color = serverChar.arm_color;
+              localChar.shoe_color = serverChar.shoe_color;
               localChar.head = serverChar.head;
               localChar.hair_color = serverChar.hair_color;
               localChar.emote = serverChar.emote;
