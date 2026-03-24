@@ -22,7 +22,7 @@
           "If you're not offering me pasta or a heated blanket, keep walking.",
           "This school feels like an escape room, but nobody gave me the clues.",
           "Forward. Only forward. Always forward!",
-          "I’m operating on three hours of sleep and pure sarcasm."
+          "I\u2019m operating on three hours of sleep and pure sarcasm."
         ]
       }
     ],
@@ -34,8 +34,8 @@
       }
     ],
     "shoeColor": "#7f8c8d",
-    "hairStyle": "long",
-    "hairColor": "#a38e00"
+    "head": "female_hair_long",
+    "hair_color": "#a38e00"
   },
   {
     "id": 2,
@@ -62,8 +62,8 @@
     ],
     "on_exit": [],
     "shoeColor": "#111111",
-    "hairStyle": "ponytail",
-    "hairColor": "#d29d00"
+    "head": "female_hair_ponytail",
+    "hair_color": "#d29d00"
   },
   {
     "id": 3,
@@ -78,7 +78,7 @@
     "pantsColor": "#5C4033",
     "armColor": "#5C4033",
     "interaction_radius": 150,
-    "emoji": "💩",
+    "emoji": "\ud83d\udca9",
     "on_enter": [
       {
         "avatar": "avatars/talking_poo.png",
@@ -105,8 +105,8 @@
       }
     ],
     "shoeColor": "#111111",
-    "hairStyle": "bald",
-    "hairColor": "#000000"
+    "head": "male_hair_bald",
+    "hair_color": "#000000"
   },
   {
     "id": 4,
@@ -138,8 +138,8 @@
     ],
     "on_exit": [],
     "shoeColor": "#111111",
-    "hairStyle": "bald",
-    "hairColor": "#000000"
+    "head": "male_hair_bald",
+    "hair_color": "#000000"
   },
   {
     "id": 5,
@@ -171,8 +171,8 @@
     ],
     "on_exit": [],
     "shoeColor": "#7f8c8d",
-    "hairStyle": "messy",
-    "hairColor": "#000000"
+    "head": "female_hair_messy",
+    "hair_color": "#000000"
   },
   {
     "id": 6,
@@ -206,8 +206,8 @@
       }
     ],
     "shoeColor": "#bdc3c7",
-    "hairStyle": "bald",
-    "hairColor": "#000000"
+    "head": "male_hair_bald",
+    "hair_color": "#000000"
   },
   {
     "id": 7,
@@ -229,8 +229,8 @@
       }
     ],
     "on_exit": [],
-    "hairStyle": "bald",
-    "hairColor": "#000000"
+    "head": "male_hair_bald",
+    "hair_color": "#000000"
   },
   {
     "id": 8,
@@ -252,8 +252,8 @@
     ],
     "on_exit": [],
     "gender": "male",
-    "hairStyle": "bald",
-    "hairColor": "#000000"
+    "head": "male_hair_bald",
+    "hair_color": "#000000"
   },
   {
     "id": 9,
@@ -280,8 +280,8 @@
     "interaction_radius": 150,
     "on_exit": [],
     "roam_radius": 50,
-    "hairStyle": "long",
-    "hairColor": "#a77b00",
-    "default_emote": null
+    "default_emote": null,
+    "head": "female_hair_long",
+    "hair_color": "#a77b00"
   }
 ]

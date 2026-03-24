@@ -228,8 +228,8 @@ export class NetworkClient {
               localChar.pantsColor = serverChar.pantsColor;
               localChar.armColor = serverChar.armColor;
               localChar.shoeColor = serverChar.shoeColor;
-              localChar.hairStyle = serverChar.hairStyle;
-              localChar.hairColor = serverChar.hairColor;
+              localChar.head = serverChar.head;
+              localChar.hair_color = serverChar.hair_color;
               localChar.emote = serverChar.emote;
             } else {
               serverChar.targetX = serverChar.x;

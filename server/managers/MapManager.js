@@ -184,8 +184,8 @@ export class MapManager {
       pantsColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
       armColor: availableClothes[Math.floor(Math.random() * availableClothes.length)],
       shoeColor: availableShoes[Math.floor(Math.random() * availableShoes.length)],
-      hairStyle: ['short', 'long', 'ponytail', 'spiky', 'messy', 'bald'][Math.floor(Math.random() * 6)],
-      hairColor: availableHair[Math.floor(Math.random() * availableHair.length)],
+      head: ['male_hair_short', 'female_hair_long', 'female_hair_ponytail', 'male_hair_spiky', 'male_hair_messy', 'male_hair_bald'][Math.floor(Math.random() * 6)],
+      hair_color: availableHair[Math.floor(Math.random() * availableHair.length)],
       interaction_radius: 150
     };
   }

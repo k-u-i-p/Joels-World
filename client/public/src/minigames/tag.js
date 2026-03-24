@@ -57,8 +57,8 @@ function initPlayers() {
     pantsColor: myChar.pantsColor || '#2c3e50',
     armColor: myChar.armColor || '#3498db',
     shoeColor: myChar.shoeColor || '#111111',
-    hairStyle: myChar.hairStyle || 'short',
-    hairColor: myChar.hairColor || '#000000',
+    head: myChar.head || 'male_hair_short',
+    hair_color: myChar.hair_color || '#000000',
     legTimer: 0,
     speed: BASE_PLAYER_SPEED
   };
@@ -90,8 +90,8 @@ function initPlayers() {
       pantsColor: '#2c3e50',
       armColor: colors[i],
       shoeColor: '#111111',
-      hairStyle: i % 2 === 0 ? 'messy' : 'ponytail',
-      hairColor: '#000000',
+      head: i % 2 === 0 ? 'male_hair_messy' : 'female_hair_ponytail',
+      hair_color: '#000000',
       legTimer: 0,
       speed: BASE_NPC_SPEED
     });

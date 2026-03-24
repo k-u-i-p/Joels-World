@@ -7,7 +7,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function setupStatic(app, server, port) {
   let cachedEmotes = [];
-  let cachedHairStyles = [];
 
   // Parse emotes once on boot
   try {
@@ -21,25 +20,6 @@ export function setupStatic(app, server, port) {
     cachedEmotes.sort();
   } catch (e) {
     console.error("Failed to parse emotes during boot cache:", e);
-  }
-
-  // Parse hairstyles once on boot
-  try {
-    const charsPath = path.resolve(__dirname, '../client/public/src/characters.js');
-    const charsCode = fs.readFileSync(charsPath, 'utf8');
-    const regex = /style === '([a-zA-Z0-9_]+)'/g;
-    let m;
-    while ((m = regex.exec(charsCode)) !== null) {
-      if (!cachedHairStyles.includes(m[1])) {
-        cachedHairStyles.push(m[1]);
-      }
-    }
-    // Add fallback default cases that are implicit or explicitly returned inside defaults
-    if (!cachedHairStyles.includes('long')) cachedHairStyles.push('long');
-    if (!cachedHairStyles.includes('bald')) cachedHairStyles.push('bald');
-    cachedHairStyles.sort();
-  } catch (e) {
-    console.error("Failed to parse hairstyles during boot cache:", e);
   }
 
   // Allow CORS specifically for media/assets so the iOS client can fetch audio without Access Control checks failing.
@@ -58,8 +38,7 @@ export function setupStatic(app, server, port) {
 
   app.get('/api/config', (req, res) => {
     res.json({
-      validEmotes: cachedEmotes,
-      validHairStyles: cachedHairStyles
+      validEmotes: cachedEmotes
     });
   });
 
@@ -84,8 +63,7 @@ export function setupStatic(app, server, port) {
 
       return res.render('index', {
         isAdmin: isAdminSession,
-        validEmotes: cachedEmotes,
-        validHairStyles: cachedHairStyles
+        validEmotes: cachedEmotes
       });
     }
 

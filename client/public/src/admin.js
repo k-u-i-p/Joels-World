@@ -1,4 +1,4 @@
-import { getCharacterProxy, clearCharacterProxy } from './characters.js';
+import { getCharacterProxy, clearCharacterProxy, MALE_HEADS, FEMALE_HEADS } from './characters.js';
 import { getObjectProxy, clearObjectProxy } from './maps.js';
 import { gameLoop } from './gameloop.js';
 import { player, camera, screenToWorld, getScreenTransformMatrix } from './main.js';
@@ -6,13 +6,54 @@ import { networkClient } from './network.js';
 
 networkClient.isAdmin = true;
 
-console.log('Setting up admin');
 
+// --- DOM Elements ---
 const canvas = document.getElementById('uiCanvas');
-const ctx = canvas.getContext('2d');
-
 const adminPanel = document.getElementById('admin-panel');
 const adminFps = document.getElementById('admin-fps');
+const select = document.getElementById('admin-map-select');
+const mapSelect = document.getElementById('admin-map-select');
+const adminPanelHandle = document.getElementById('admin-panel-handle');
+const btnCreate3d = document.getElementById('btn-create-obj-3d');
+const nameInput = document.getElementById('obj-name-input');
+const npcNameInput = document.getElementById('npc-name-input');
+const npcRadiusInput = document.getElementById('npc-radius-input');
+const npcRoamRadiusInput = document.getElementById('npc-roam-radius-input');
+const npcDefaultEmote = document.getElementById('npc-default-emote');
+const npcGenderSelect = document.getElementById('npc-gender-select');
+const btnSaveNpcDialog = document.getElementById('btn-save-npc-dialog');
+const npcOnEnterInput = document.getElementById('npc-on-enter-input');
+const npcOnExitInput = document.getElementById('npc-on-exit-input');
+const editObjSection = document.getElementById('edit-obj-section');
+const editNpcSection = document.getElementById('edit-npc-section');
+const idDisplay = document.getElementById('obj-id-display');
+const clipInputDisplay = document.getElementById('input-obj-clip');
+const scaleInputRow = document.getElementById('row-obj-scale');
+const scaleInputDisplay = document.getElementById('input-obj-scale');
+const zInputRow = document.getElementById('row-obj-z');
+const zInputDisplay = document.getElementById('input-obj-z');
+const modelInputRow = document.getElementById('row-obj-model');
+const modelInputDisplay = document.getElementById('input-obj-model');
+const objWidthInput = document.getElementById('input-obj-width');
+const objLengthInput = document.getElementById('input-obj-length');
+const npcShirtCol = document.getElementById('npc-shirt-col');
+const npcPantsCol = document.getElementById('npc-pants-col');
+const npcArmCol = document.getElementById('npc-arm-col');
+const npcHairCol = document.getElementById('npc-hair-col');
+const npcHeadStyle = document.getElementById('npc-head-style');
+const npcWidthInput = document.getElementById('input-npc-width');
+const npcHeightInput = document.getElementById('input-npc-height');
+const npcZInput = document.getElementById('input-npc-z');
+const eventsSection = document.getElementById('admin-events-section');
+const template = document.getElementById('admin-emote-template');
+const btnAddOnEnter = document.getElementById('btn-add-on-enter');
+const btnAddOnExit = document.getElementById('btn-add-on-exit');
+const btnSaveEvents = document.getElementById('btn-save-events');
+const lastClickedElem = document.getElementById('admin-last-clicked');
+console.log('Setting up admin');
+
+const ctx = canvas.getContext('2d');
+
 
 window.updateAdminFps = (fps) => {
   if (adminFps) {
@@ -21,7 +62,7 @@ window.updateAdminFps = (fps) => {
 };
 
 window.populateAdminMaps = () => {
-  const select = document.getElementById('admin-map-select');
+
   if (!select || !window.mapsList) return;
   select.innerHTML = '';
   window.mapsList.forEach(mapData => {
@@ -35,7 +76,6 @@ window.populateAdminMaps = () => {
   });
 };
 
-const mapSelect = document.getElementById('admin-map-select');
 if (mapSelect) {
   mapSelect.addEventListener('change', (e) => {
     networkClient.send({ type: 'change_map', mapId: e.target.value });
@@ -95,7 +135,7 @@ window.selectedObject = {
       this._ids.push(id);
     }
   },
-  remove: function(id) {
+  remove: function (id) {
     this._ids = this._ids.filter(i => i !== id);
   },
   get: function () {
@@ -212,7 +252,6 @@ function applyResizeWithTopLeftAnchor(obj, newWidth, newLength, tlx, tly) {
   obj.y = Math.round(tly - ((-newWidth / 2) * Math.sin(angle) + (-newLength / 2) * Math.cos(angle)));
 }
 
-const adminPanelHandle = document.getElementById('admin-panel-handle');
 if (adminPanelHandle) {
   adminPanelHandle.addEventListener('mousedown', (e) => {
     isDraggingAdminPanel = true;
@@ -238,19 +277,18 @@ document.getElementById('btn-create-npc').onclick = () => {
   networkClient.send({ type: 'create_npc', x: Math.round(player.x), y: Math.round(player.y) });
 };
 
-const btnCreate3d = document.getElementById('btn-create-obj-3d');
 if (btnCreate3d) {
   btnCreate3d.onclick = () => {
-    networkClient.send({ 
-       type: 'create_object', 
-       shape: '3d_model', 
-       model: 'models/chair.glb', 
-       scale: 1.0, 
-       x: Math.round(player.x), 
-       y: Math.round(player.y), 
-       z: 0, 
-       width: 100, 
-       length: 100 
+    networkClient.send({
+      type: 'create_object',
+      shape: '3d_model',
+      model: 'models/chair.glb',
+      scale: 1.0,
+      x: Math.round(player.x),
+      y: Math.round(player.y),
+      z: 0,
+      width: 100,
+      length: 100
     });
   };
 }
@@ -281,7 +319,6 @@ document.getElementById('btn-delete-npc').onclick = () => {
   }
 };
 
-const nameInput = document.getElementById('obj-name-input');
 if (nameInput) {
   nameInput.onchange = (e) => {
     if (!window.selectedObject.get()) return;
@@ -368,7 +405,6 @@ bindHoldAction('btn-obj-rot-right', () => {
   });
 });
 
-const npcNameInput = document.getElementById('npc-name-input');
 if (npcNameInput) {
   npcNameInput.onchange = (e) => {
     if (!window.selectedNpc.get()) return;
@@ -377,7 +413,6 @@ if (npcNameInput) {
   };
 }
 
-const npcRadiusInput = document.getElementById('npc-radius-input');
 if (npcRadiusInput) {
   npcRadiusInput.addEventListener('change', (e) => {
     if (!window.selectedNpc.get()) return;
@@ -387,7 +422,6 @@ if (npcRadiusInput) {
   });
 }
 
-const npcRoamRadiusInput = document.getElementById('npc-roam-radius-input');
 if (npcRoamRadiusInput) {
   npcRoamRadiusInput.addEventListener('change', (e) => {
     if (!window.selectedNpc.get()) return;
@@ -402,7 +436,7 @@ if (npcRoamRadiusInput) {
   });
 }
 
-['shirtColor', 'pantsColor', 'armColor', 'hairColor'].forEach(part => {
+['shirtColor', 'pantsColor', 'armColor', 'hair_color'].forEach(part => {
   const colInput = document.getElementById(`npc-${part === 'shirtColor' ? 'shirt' : part === 'pantsColor' ? 'pants' : part === 'armColor' ? 'arm' : 'hair'}-col`);
   if (colInput) {
     colInput.onchange = (e) => {
@@ -413,16 +447,35 @@ if (npcRoamRadiusInput) {
   }
 });
 
-const npcHairStyle = document.getElementById('npc-hair-style');
-if (npcHairStyle) {
-  npcHairStyle.onchange = (e) => {
+window.updateHeadDropdown = function (gender) {
+  if (!npcHeadStyle) return;
+  npcHeadStyle.innerHTML = '';
+  const styles = new Set();
+
+  if (gender === 'male' && typeof MALE_HEADS !== 'undefined') {
+    Object.keys(MALE_HEADS).forEach(k => styles.add(k));
+  } else if (gender === 'female' && typeof FEMALE_HEADS !== 'undefined') {
+    Object.keys(FEMALE_HEADS).forEach(k => styles.add(k));
+  }
+
+  Array.from(styles).sort().forEach(style => {
+    const opt = document.createElement('option');
+    opt.value = style;
+    opt.textContent = style.charAt(0).toUpperCase() + style.slice(1);
+    opt.style.color = 'black';
+    npcHeadStyle.appendChild(opt);
+  });
+};
+
+if (npcHeadStyle) {
+  npcHeadStyle.onchange = (e) => {
     if (!window.selectedNpc.get()) return;
-    window.selectedNpc.get().hairStyle = e.target.value;
-    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { hairStyle: e.target.value } });
+    window.selectedNpc.get().head = e.target.value;
+    console.log('Value after fallback:', npcHeadStyle.value);
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { head: e.target.value } });
   };
 }
 
-const npcDefaultEmote = document.getElementById('npc-default-emote');
 if (npcDefaultEmote) {
   npcDefaultEmote.onchange = (e) => {
     if (!window.selectedNpc.get()) return;
@@ -438,12 +491,19 @@ if (npcDefaultEmote) {
   };
 }
 
-const npcGenderSelect = document.getElementById('npc-gender-select');
 if (npcGenderSelect) {
   npcGenderSelect.onchange = (e) => {
     if (!window.selectedNpc.get()) return;
-    window.selectedNpc.get().gender = e.target.value;
-    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { gender: e.target.value } });
+    const gender = e.target.value;
+    window.selectedNpc.get().gender = gender;
+
+    const defaultHair = gender === 'female' ? 'female_hair_long' : 'male_hair_short';
+    window.selectedNpc.get().head = defaultHair;
+
+    networkClient.send({ type: 'update_npc', id: window.selectedNpc.get().id, updates: { gender: gender, head: defaultHair } });
+
+    if (window.updateHeadDropdown) window.updateHeadDropdown(gender);
+    if (npcHeadStyle) npcHeadStyle.value = defaultHair;
   };
 }
 
@@ -485,9 +545,8 @@ if (npcGenderSelect) {
   });
 });
 
-const btnSaveNpcDialog = document.getElementById('btn-save-npc-dialog');
-const npcOnEnterInput = document.getElementById('npc-on-enter-input');
-const npcOnExitInput = document.getElementById('npc-on-exit-input');
+
+
 if (btnSaveNpcDialog && npcOnEnterInput && npcOnExitInput) {
   btnSaveNpcDialog.onclick = () => {
     if (!window.selectedNpc.get()) return;
@@ -534,11 +593,9 @@ if (btnSaveNpcDialog && npcOnEnterInput && npcOnExitInput) {
 function updateAdminPanel() {
   adminPanel.style.display = 'block';
 
-  const editObjSection = document.getElementById('edit-obj-section');
-
   if (window.selectedObject.getAll().length > 1) {
     editObjSection.style.display = 'none';
-    const editNpcSection = document.getElementById('edit-npc-section');
+
     if (editNpcSection) editNpcSection.style.display = 'none';
   } else if (window.selectedObject.get()) {
     editObjSection.style.display = 'block';
@@ -547,34 +604,30 @@ function updateAdminPanel() {
       nameInput.value = window.selectedObject.get().name || '';
     }
 
-    const idDisplay = document.getElementById('obj-id-display');
     if (idDisplay) {
       idDisplay.textContent = `ID: ${window.selectedObject.get().id || '-'}`;
     }
 
-    const clipInputDisplay = document.getElementById('input-obj-clip');
     if (clipInputDisplay) {
       clipInputDisplay.value = window.selectedObject.get().clip !== undefined ? window.selectedObject.get().clip : 10;
     }
 
-    const scaleInputRow = document.getElementById('row-obj-scale');
-    const scaleInputDisplay = document.getElementById('input-obj-scale');
-    const zInputRow = document.getElementById('row-obj-z');
-    const zInputDisplay = document.getElementById('input-obj-z');
-    const modelInputRow = document.getElementById('row-obj-model');
-    const modelInputDisplay = document.getElementById('input-obj-model');
+
+
+
+
 
     if (window.selectedObject.get().shape === '3d_model') {
       if (scaleInputRow) scaleInputRow.style.display = 'flex';
       if (zInputRow) zInputRow.style.display = 'flex';
       if (modelInputRow) modelInputRow.style.display = 'flex';
-      
+
       if (scaleInputDisplay) scaleInputDisplay.value = window.selectedObject.get().scale !== undefined ? window.selectedObject.get().scale : 1.0;
       if (zInputDisplay) zInputDisplay.value = window.selectedObject.get().z !== undefined ? window.selectedObject.get().z : 0;
       if (modelInputDisplay) modelInputDisplay.value = window.selectedObject.get().model || '';
     }
-    const objWidthInput = document.getElementById('input-obj-width');
-    const objLengthInput = document.getElementById('input-obj-length');
+
+
     if (objWidthInput) objWidthInput.value = Math.round(window.selectedObject.get().width) || 100;
     if (objLengthInput) objLengthInput.value = Math.round(window.selectedObject.get().length) || 100;
 
@@ -589,25 +642,10 @@ function updateAdminPanel() {
     editObjSection.style.display = 'none';
   }
 
-  const editNpcSection = document.getElementById('edit-npc-section');
   if (window.selectedNpc.get()) {
     if (editNpcSection) editNpcSection.style.display = 'block';
     const npc = window.selectedNpc.get();
 
-    const npcNameInput = document.getElementById('npc-name-input');
-    const npcRadiusInput = document.getElementById('npc-radius-input');
-    const npcRoamRadiusInput = document.getElementById('npc-roam-radius-input');
-    const npcShirtCol = document.getElementById('npc-shirt-col');
-    const npcPantsCol = document.getElementById('npc-pants-col');
-    const npcArmCol = document.getElementById('npc-arm-col');
-    const npcHairCol = document.getElementById('npc-hair-col');
-    const npcHairStyle = document.getElementById('npc-hair-style');
-    const npcDefaultEmote = document.getElementById('npc-default-emote');
-    const npcGenderSelect = document.getElementById('npc-gender-select');
-
-    const npcWidthInput = document.getElementById('input-npc-width');
-    const npcHeightInput = document.getElementById('input-npc-height');
-    const npcZInput = document.getElementById('input-npc-z');
     if (npcWidthInput) npcWidthInput.value = npc.width || 40;
     if (npcHeightInput) npcHeightInput.value = npc.height || 40;
     if (npcZInput) npcZInput.value = npc.z || 0;
@@ -618,9 +656,22 @@ function updateAdminPanel() {
     if (npcShirtCol) npcShirtCol.value = npc.shirtColor || '#3498db';
     if (npcPantsCol) npcPantsCol.value = npc.pantsColor || '#2c3e50';
     if (npcArmCol) npcArmCol.value = npc.armColor || '#f1c40f';
-    if (npcHairCol) npcHairCol.value = npc.hairColor || '#000000';
-    if (npcHairStyle) npcHairStyle.value = npc.hairStyle || 'short';
+    if (npcHairCol) npcHairCol.value = npc.hair_color || '#000000';
     if (npcGenderSelect) npcGenderSelect.value = npc.gender || 'male';
+    if (window.updateHeadDropdown) window.updateHeadDropdown(npc.gender || 'male');
+    if (npcHeadStyle) {
+      const currentHead = npc.head || npc.head;
+      if (currentHead && !Array.from(npcHeadStyle.options).some(o => o.value === currentHead)) {
+        const opt = document.createElement('option');
+        opt.value = currentHead;
+        opt.textContent = currentHead.charAt(0).toUpperCase() + currentHead.slice(1);
+        opt.style.color = 'black';
+        npcHeadStyle.appendChild(opt);
+      }
+      const defaultHair = (npc.gender || 'male') === 'female' ? 'female_hair_long' : 'male_hair_short';
+      npcHeadStyle.value = currentHead || defaultHair;
+      if (!npcHeadStyle.value) npcHeadStyle.value = defaultHair;
+    }
     if (npcDefaultEmote) {
       npcDefaultEmote.value = npc.default_emote && npc.default_emote.name ? npc.default_emote.name : '';
     }
@@ -633,7 +684,7 @@ function updateAdminPanel() {
   }
 
   // --- Generic Event Editor Bootstrap ---
-  const eventsSection = document.getElementById('admin-events-section');
+
   if (window.selectedObject.get() || window.selectedNpc.get()) {
     eventsSection.style.display = 'block';
     const activeEntity = window.selectedObject.get() || window.selectedNpc.get();
@@ -749,7 +800,7 @@ function renderEventUI(eventsArray, containerId, eventType) {
       payloadContainer.appendChild(textarea);
     }
     else if (typeKey === 'emote' || typeKey === 'player_emote') {
-      const template = document.getElementById('admin-emote-template');
+
       const select = template.content.cloneNode(true).querySelector('select');
 
       if (payload) {
@@ -882,7 +933,7 @@ function renderEventUI(eventsArray, containerId, eventType) {
 }
 
 function attachEventButtons() {
-  const btnAddOnEnter = document.getElementById('btn-add-on-enter');
+
   if (btnAddOnEnter) {
     btnAddOnEnter.onclick = () => {
       window.currentEditingEvents.on_enter.push({ say: [''] });
@@ -890,7 +941,6 @@ function attachEventButtons() {
     };
   }
 
-  const btnAddOnExit = document.getElementById('btn-add-on-exit');
   if (btnAddOnExit) {
     btnAddOnExit.onclick = () => {
       window.currentEditingEvents.on_exit.push({ say: [''] });
@@ -898,7 +948,6 @@ function attachEventButtons() {
     };
   }
 
-  const btnSaveEvents = document.getElementById('btn-save-events');
   if (btnSaveEvents) {
     btnSaveEvents.onclick = () => {
       const activeEntity = window.selectedObject.get() || window.selectedNpc.get();
@@ -952,7 +1001,6 @@ window.addEventListener('mousedown', (e) => {
 
   const { worldX, worldY } = screenToWorld(mouseX, mouseY, canvas.clientWidth, canvas.clientHeight);
 
-  const lastClickedElem = document.getElementById('admin-last-clicked');
   if (lastClickedElem) {
     lastClickedElem.textContent = `Last Click: x: ${Math.round(worldX)}, y: ${Math.round(worldY)}`;
   }
@@ -990,7 +1038,7 @@ window.addEventListener('mousedown', (e) => {
         } else {
           window.selectedObject.add(hitObj.id);
         }
-        isDraggingObject = false; 
+        isDraggingObject = false;
       } else {
         if (previousObjIds.includes(hitObj.id)) {
           console.log(`Dragging objects: ${previousObjIds.join(', ')}`);
@@ -1225,10 +1273,10 @@ export function adminDraw() {
   const expectedWidth = window.innerWidth * dpr;
   const expectedHeight = window.innerHeight * dpr;
   if (canvas.width !== expectedWidth || canvas.height !== expectedHeight) {
-      canvas.width = expectedWidth;
-      canvas.height = expectedHeight;
-      canvas.style.width = window.innerWidth + 'px';
-      canvas.style.height = window.innerHeight + 'px';
+    canvas.width = expectedWidth;
+    canvas.height = expectedHeight;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
   }
 
   // Clear the canvas each frame specifically for admin overlays

@@ -6,7 +6,52 @@ import { uiManager } from './ui.js';
 
 export var sharedShoeMeshL = null;
 export var sharedShoeMeshR = null;
+
 const awaitingShoeRigs = [];
+
+const cachedHeads = {};
+const pendingHeads = {};
+
+export const MALE_HEADS = {
+  'male_hair_long': { scale: 90, z: -10.5 },
+  'male_hair_messy': { scale: 90, z: -10.5 },
+  'male_hair_short': { scale: 90, z: -10.5 },
+  'male_hair_short_2': { scale: 90, z: -10.5 },
+  'male_hair_spiky': { scale: 90, z: -10.5 },
+  'male_hair_bald': { scale: 90, z: -10.5 }
+};
+
+export const FEMALE_HEADS = {
+  'female_hair_bun': { scale: 85, z: -10.5 },
+  'female_hair_long': { scale: 85, z: -10.5 },
+  'female_hair_long_2': { scale: 85, z: -10.5 },
+  'female_hair_long_3': { scale: 85, z: -10.5 },
+  'female_hair_messy': { scale: 85, z: -10.5 },
+  'female_hair_neat': { scale: 85, z: -10.5 },
+  'female_hair_pigtails': { scale: 85, z: -10.5 },
+  'female_hair_pigtails_2': { scale: 85, z: -10.5 },
+  'female_hair_ponytail': { scale: 32, z: -10.5 },
+  'female_hair_short': { scale: 85, z: -10.5 },
+  'female_hair_short_2': { scale: 85, z: -10.5 }
+};
+
+export const HAIR_COLORS = [
+  '#a38825', // Blonde
+  '#5d5d5d', // Grey
+  '#222222', // Black
+  '#c0392b', // Red
+  '#6e2c00'  // Brown
+];
+
+export function getConsistentRandom(idStr, max) {
+  let hash = 0;
+  const str = String(idStr || 'guest');
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) % max;
+}
 
 export function loadSharedModels() {
   if (sharedShoeMeshL) return;
@@ -61,6 +106,82 @@ export function loadSharedModels() {
       applyShoeModel(data.rig, data.mats, data.c);
     }
     awaitingShoeRigs.length = 0;
+  });
+
+  // Heads are now loaded dynamically via loadHeadModel!
+}
+
+export function loadHeadModel(headName, callback) {
+  if (cachedHeads[headName]) return callback(cachedHeads[headName]);
+
+  if (!pendingHeads[headName]) {
+    pendingHeads[headName] = [callback];
+    const loader = new GLTFLoader();
+    loader.load(`./models/heads/${headName}.glb`, (gltf) => {
+      cachedHeads[headName] = gltf.scene;
+      for (const cb of pendingHeads[headName]) cb(gltf.scene);
+      delete pendingHeads[headName];
+    });
+  } else {
+    pendingHeads[headName].push(callback);
+  }
+}
+
+function applyHeadModel(rig, mats, c) {
+  if (!c || !rig.head) return;
+
+  // Clear existing head models to allow live reloading or swapping
+  for (let i = rig.head.children.length - 1; i >= 0; i--) {
+    if (rig.head.children[i].userData.isHeadModel) {
+      rig.head.children[i].removeFromParent();
+    }
+  }
+
+  const isFemale = c.gender === 'female';
+  const headList = isFemale ? FEMALE_HEADS : MALE_HEADS;
+  const headKeys = Object.keys(headList);
+
+  // Pick random head deterministically
+  let headName = headKeys[getConsistentRandom(c.id + '_head', headKeys.length)];
+
+  // Explicit overrides support
+  if (c.head) {
+    headName = c.head.replace('.glb', '');
+  }
+
+  const headConfig = headList[headName] || FEMALE_HEADS['female_hair_ponytail'];
+  loadHeadModel(headName, (loadedScene) => {
+    // If character was deleted before load finished
+    if (!rig.head) return;
+
+    const headClone = loadedScene.clone();
+    headClone.userData.isHeadModel = true;
+
+    headClone.traverse(child => {
+      if (child.isMesh) {
+        // Prevent coloring the eyes/eyelashes by skipping their native materials
+        const matName = child.material?.name?.toLowerCase() || "";
+        if (matName.includes('eye') || matName.includes('animetest')) return;
+
+        const name = child.name.toLowerCase();
+        if (name.includes('hair')) {
+          child.material = mats.hair;
+        } else if (name.includes('face') || name.includes('head') || name.includes('skin')) {
+          child.material = mats.skin;
+        }
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+
+    // Apply the explicit hardcoded configurations from the unified dictionary arrays
+    const scale = headConfig.scale;
+    headClone.scale.set(scale, scale, scale);
+    headClone.rotation.x = Math.PI / 2;
+    headClone.rotation.y = Math.PI / 2;
+    headClone.position.z = headConfig.z;
+
+    rig.head.add(headClone);
   });
 }
 
@@ -432,10 +553,10 @@ export class CharacterManager {
     ctx.strokeStyle = 'rgba(0,0,0,0.4)';
     ctx.stroke();
 
-    let hairColor = c.hairColor;
+    let hairColor = c.hair_color;
     if (!hairColor && c.gender === 'female') hairColor = '#e67e22';
 
-    if (hairColor && hairColor !== 'none' && hairColor !== 'bald' && c.hairStyle !== 'bald') {
+    if (hairColor && hairColor !== 'none' && hairColor !== 'bald' && (!c.head || !c.head.includes('bald'))) {
       let shineColor = hairColor;
       let shadowColor = hairColor;
       try {
@@ -450,12 +571,12 @@ export class CharacterManager {
       ctx.fillStyle = hairGradient;
       ctx.beginPath();
 
-      const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
+      const style = c.head || (c.gender === 'female' ? 'long' : 'short');
 
-      if (style === 'short') {
+      if (style.includes('short')) {
         ctx.arc(1, 0, 7.5, PI_HALF + 0.3, PI_ONE_HALF - 0.3, false);
         ctx.fill();
-      } else if (style === 'spiky') {
+      } else if (style.includes('spiky')) {
         ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
         ctx.fill();
         ctx.beginPath();
@@ -469,7 +590,7 @@ export class CharacterManager {
         ctx.lineTo(-4, 7);
         ctx.lineTo(1, 7.5);
         ctx.fill();
-      } else if (style === 'ponytail') {
+      } else if (style.includes('ponytail')) {
         ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
         ctx.fill();
         ctx.beginPath();
@@ -479,7 +600,7 @@ export class CharacterManager {
           ctx.arc(-9, 0, 3.5, 0, PI2);
         }
         ctx.fill();
-      } else if (style === 'messy') {
+      } else if (style.includes('messy')) {
         ctx.arc(1, 0, 7.5, PI_HALF, PI_ONE_HALF, false);
         ctx.fill();
         ctx.beginPath();
@@ -508,13 +629,17 @@ export class CharacterManager {
   buildSkeletonMaterials(c) {
     if (!c) return;
     const vis = getCharacterProxy(c.id);
+
+    // Pick a deterministic random hair color from the 5 permitted colors
+    const randomColor = HAIR_COLORS[getConsistentRandom(c.id + '_color', HAIR_COLORS.length)];
+
     return {
       skin: new THREE.MeshStandardMaterial({ color: c.color || '#f1c40f', roughness: 0.6, metalness: 0.1 }),
       shirt: new THREE.MeshStandardMaterial({ color: c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
       arm: new THREE.MeshStandardMaterial({ color: c.armColor || c.shirtColor || '#3498db', roughness: 0.8, metalness: 0.0 }),
       pants: new THREE.MeshStandardMaterial({ color: c.pantsColor || '#2c3e50', roughness: 0.9, metalness: 0.0 }),
       shoe: new THREE.MeshStandardMaterial({ color: c.shoeColor || '#7f8c8d', roughness: 0.7, metalness: 0.2 }),
-      hair: new THREE.MeshStandardMaterial({ color: c.hairColor || '#8e44ad', roughness: 0.5, metalness: 0.1 })
+      hair: new THREE.MeshStandardMaterial({ color: randomColor, roughness: 0.5, metalness: 0.1 })
     };
   }
 
@@ -524,12 +649,12 @@ export class CharacterManager {
 
     // Maintain total torso height of 26 natively (length 8 + radius 9*2). Widen Z by 25% natively matching the +/-11 arm anchor offsets!
     const torsoGeo = new THREE.CapsuleGeometry(9, 8, 10, 16);
-    torsoGeo.scale(0.65, 1, 1.25);
+    torsoGeo.scale(0.65, 1, 1.15);
 
     vis.rig = {
       bodyPivot: new THREE.Group(),
       emotePropsDirectional: new THREE.Group(),
-      head: new THREE.Mesh(new THREE.SphereGeometry(10.5, 16, 16), mats.skin),
+      head: new THREE.Group(),
       torso: new THREE.Mesh(torsoGeo, mats.shirt),
       leftArm: new THREE.Group(), rightArm: new THREE.Group(),
       leftLeg: new THREE.Group(), rightLeg: new THREE.Group()
@@ -543,89 +668,24 @@ export class CharacterManager {
     vis.rig.torso.position.set(0, 0, 20);
 
     vis.rig.head.position.set(2, 0, 36);
-    vis.rig.head.scale.set(0.8, 0.8, 0.8);
+    vis.rig.head.scale.set(0.65, 0.65, 0.7);
     vis.rig.bodyPivot.add(vis.rig.head);
 
-    const eyeGeo = new THREE.SphereGeometry(1.5, 8, 8);
-    const eyeMat = new THREE.MeshStandardMaterial({ color: '#111111', roughness: 0.4 });
-
-    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-    leftEye.position.set(9.2, -4.5, 3.5);
-    vis.rig.head.add(leftEye);
-
-    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-    rightEye.position.set(9.2, 4.5, 3.5);
-    vis.rig.head.add(rightEye);
+    applyHeadModel(vis.rig, mats, c);
 
     vis.rig.leftHandTarget = new THREE.Vector3(0, -15, 9);
     vis.rig.rightHandTarget = new THREE.Vector3(0, 15, 9);
     vis.rig.leftFootTarget = new THREE.Vector3(2, -6, -14);
     vis.rig.rightFootTarget = new THREE.Vector3(2, 6, -14);
 
-    vis.rig.leftShoulderPos = new THREE.Vector3(0, -11, 26);
-    vis.rig.rightShoulderPos = new THREE.Vector3(0, 11, 26);
+    vis.rig.leftShoulderPos = new THREE.Vector3(0, -10, 26);
+    vis.rig.rightShoulderPos = new THREE.Vector3(0, 10, 26);
     vis.rig.leftHipPos = new THREE.Vector3(0, -6, 10);
     vis.rig.rightHipPos = new THREE.Vector3(0, 6, 10);
   }
 
   buildSkeletonHair(c, mats) {
-    if (!c) return;
-    const vis = getCharacterProxy(c.id);
-    const style = c.hairStyle || (c.gender === 'female' ? 'long' : 'short');
-    const hairGroup = new THREE.Group();
-    hairGroup.position.set(0, 0, 0);
-
-    const baseHairGeo = new THREE.SphereGeometry(11, 16, 16, 0, Math.PI, 0, Math.PI);
-
-    if (style === 'spiky') {
-      const spikeGeo = new THREE.ConeGeometry(3.5, 10, 6);
-      for (let i = 0; i < 5; i++) {
-        const spike = new THREE.Mesh(spikeGeo, mats.hair);
-        spike.rotation.y = (Math.PI / 4) * (i - 2);
-        spike.rotation.x = Math.PI / 2;
-        spike.position.set(-1.5, (i - 2) * 2.0, 9);
-        hairGroup.add(spike);
-      }
-    } else if (style === 'ponytail') {
-      const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
-      baseHair.rotation.y = -Math.PI / 2;
-      hairGroup.add(baseHair);
-      const tailGeo = new THREE.ConeGeometry(4, 18, 8);
-      const tail = new THREE.Mesh(tailGeo, mats.hair);
-      tail.rotation.z = Math.PI / 2;
-      tail.position.set(-14, 0, 3);
-      hairGroup.add(tail);
-    } else if (style === 'messy') {
-      const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
-      baseHair.rotation.y = -Math.PI / 2;
-      hairGroup.add(baseHair);
-      const tuftGeo = new THREE.ConeGeometry(3.5, 10, 5);
-      const t1 = new THREE.Mesh(tuftGeo, mats.hair);
-      t1.rotation.y = -Math.PI / 5; t1.rotation.x = Math.PI / 2; t1.position.set(-8, -7, 5);
-      hairGroup.add(t1);
-      const t2 = new THREE.Mesh(tuftGeo, mats.hair);
-      t2.rotation.y = Math.PI / 12; t2.rotation.x = Math.PI / 2; t2.position.set(-11, -1, 4);
-      hairGroup.add(t2);
-      const t3 = new THREE.Mesh(tuftGeo, mats.hair);
-      t3.rotation.y = Math.PI / 5; t3.rotation.x = Math.PI / 2; t3.position.set(-8, 6, 7);
-      hairGroup.add(t3);
-    } else if (style === 'long') {
-      const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
-      baseHair.rotation.y = -Math.PI / 2;
-      hairGroup.add(baseHair);
-      const lockGeo = new THREE.ConeGeometry(4.5, 16, 6);
-      const rightLock = new THREE.Mesh(lockGeo, mats.hair);
-      rightLock.rotation.z = Math.PI / 2; rightLock.position.set(-10, 8, -1);
-      hairGroup.add(rightLock);
-      const leftLock = new THREE.Mesh(lockGeo, mats.hair);
-      leftLock.rotation.z = Math.PI / 2; leftLock.position.set(-10, -8, -1);
-      hairGroup.add(leftLock);
-    } else {
-      const baseHair = new THREE.Mesh(baseHairGeo, mats.hair);
-      baseHair.rotation.y = -Math.PI / 2;
-      hairGroup.add(baseHair);
-    }
-    vis.rig.head.add(hairGroup);
+    // Procedural hair has been completely disabled and removed. The GLB heads now provide all hair meshes!
   }
 
   buildSkeletonLimbs(c, mats) {
@@ -633,7 +693,7 @@ export class CharacterManager {
     const vis = getCharacterProxy(c.id);
     const upperArmGeo = new THREE.CapsuleGeometry(3.3, 8, 8, 10);
     const lowerArmGeo = new THREE.CapsuleGeometry(3.3, 8, 8, 10);
-    const handGeo = new THREE.SphereGeometry(4.2, 12, 12);
+    const handGeo = new THREE.SphereGeometry(3.8, 12, 12);
 
     vis.rig.lUpperArm = new THREE.Mesh(upperArmGeo, mats.arm);
     vis.rig.lLowerArm = new THREE.Mesh(lowerArmGeo, mats.arm);

@@ -62,8 +62,8 @@ Defines the AI, interactive characters, and standard wandering NPCs for the spec
 - **`width` / `height`**: Base physical dimensions of their sprite.
 - **`rotation`**: Initial rotation in degrees.
 - **`gender`**: Defines the body and face rendering type (`male` or `female`).
-- **`hairStyle`**: Modifies the hair rendering pass (`bald`, `long`, `ponytail`, `short`, `messy`, `spiky`).
-- **`hairColor` / `shirtColor` / `pantsColor` / `shoeColor`**: Hex color codes for the different respective clothing/body rendering passes.
+- **`head`**: Modifies the hair rendering pass (`bald`, `long`, `ponytail`, `short`, `messy`, `spiky`).
+- **`hair_color` / `shirtColor` / `pantsColor` / `shoeColor`**: Hex color codes for the different respective clothing/body rendering passes.
 - **`interaction_radius`**: How close the player must be to trigger the character's `on_enter` event array.
 - **`roam_radius`**: (Optional) Pixel radius around their starting point they are allowed to randomly wander.
 - **`waypoints`**: (Optional) Array of objects dictating a sequential patrol route. The `x`, `y`, and `rotation` values in these objects are **relative offsets/deltas** applied consecutively from the character's original spawn coordinates, not absolute global map positions. Also takes a `move_time` in milliseconds.

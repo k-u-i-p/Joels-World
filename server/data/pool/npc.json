@@ -35,8 +35,8 @@
       }
     ],
     "shoeColor": "#111111",
-    "hairStyle": "short",
-    "hairColor": "#aa7942"
+    "head": "male_hair_short",
+    "hair_color": "#aa7942"
   },
   {
     "id": 2,
@@ -58,8 +58,8 @@
     ],
     "on_exit": [],
     "gender": "male",
-    "hairStyle": "bald",
-    "hairColor": "#000000"
+    "head": "male_hair_bald",
+    "hair_color": "#000000"
   },
   {
     "id": 3,
@@ -81,14 +81,14 @@
     ],
     "on_exit": [],
     "gender": "male",
-    "hairStyle": "bald",
-    "hairColor": "#000000",
     "default_emote": {
       "name": "swim",
       "startTime": 1773674236062
     },
     "interaction_radius": 150,
-    "roam_radius": 300
+    "roam_radius": 300,
+    "head": "male_hair_bald",
+    "hair_color": "#000000"
   },
   {
     "id": 4,
@@ -110,12 +110,12 @@
     ],
     "on_exit": [],
     "gender": "male",
-    "hairStyle": "bald",
-    "hairColor": "#000000",
     "default_emote": {
       "name": "swim",
       "startTime": 1773674200626
     },
-    "roam_radius": 150
+    "roam_radius": 150,
+    "head": "male_hair_bald",
+    "hair_color": "#000000"
   }
 ]

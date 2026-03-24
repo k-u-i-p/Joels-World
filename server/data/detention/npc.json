@@ -37,13 +37,13 @@
       }
     ],
     "shoeColor": "#7f8c8d",
-    "hairStyle": "messy",
-    "hairColor": "#4a4a4a",
     "default_emote": {
       "name": "sit",
       "startTime": 0
     },
-    "z": 35
+    "z": 35,
+    "head": "male_hair_messy",
+    "hair_color": "#4a4a4a"
   },
   {
     "id": 3,
@@ -73,12 +73,12 @@
         ]
       }
     ],
-    "hairStyle": "messy",
-    "hairColor": "#5c3a21",
     "default_emote": {
       "name": "sit",
       "startTime": 0
-    }
+    },
+    "head": "male_hair_messy",
+    "hair_color": "#5c3a21"
   },
   {
     "id": 4,
@@ -108,13 +108,13 @@
         ]
       }
     ],
-    "hairStyle": "ponytail",
-    "hairColor": "#000000",
     "default_emote": {
       "name": "write",
       "startTime": 0
     },
-    "z": 43
+    "z": 43,
+    "head": "female_hair_ponytail",
+    "hair_color": "#000000"
   },
   {
     "id": 5,
@@ -143,13 +143,13 @@
         ]
       }
     ],
-    "hairStyle": "spiky",
-    "hairColor": "#2c3e50",
     "default_emote": {
       "name": "sit",
       "startTime": 0
     },
-    "z": 43
+    "z": 43,
+    "head": "male_hair_spiky",
+    "hair_color": "#2c3e50"
   },
   {
     "id": 6,
@@ -179,13 +179,13 @@
         ]
       }
     ],
-    "hairStyle": "long",
-    "hairColor": "#000000",
     "default_emote": {
       "name": "write",
       "startTime": 0
     },
-    "z": 43
+    "z": 43,
+    "head": "female_hair_long",
+    "hair_color": "#000000"
   },
   {
     "id": 2,
@@ -214,11 +214,11 @@
         ]
       }
     ],
-    "hairStyle": "short",
-    "hairColor": "#000000",
     "default_emote": {
       "name": "sit",
       "startTime": 0
-    }
+    },
+    "head": "male_hair_short",
+    "hair_color": "#000000"
   }
 ]
