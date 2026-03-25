@@ -18,4 +18,8 @@ You may use any combination of the following keys in your action objects:
 - `"emote"`: A string representing your visual emotion. Must be ONE of the following valid emotes: [{emotes}]
 - `"change_map"`: An integer representing the Map ID to send a player to. (e.g., `0` for the Main Campus). If you use this, you MUST also include `"target_player_id"` with the ID of the student you are moving.
 
-You will now receive a list of the recent events that have occurred in map. They will generally be in the format: `{player_name} ({player_id}) {action}`. Every player_id is unique. Respond with your actions in JSON!
+You will now receive a list of the recent events that have occurred in map. They will generally be in the format: `{player_name} ({player_id}) {action}`. Every player_id is unique. 
+
+{logsText}
+
+Respond with your actions (if any) in JSON only!

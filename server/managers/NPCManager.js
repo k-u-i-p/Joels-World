@@ -58,7 +58,7 @@ export class NPCManager {
         }
 
         if (aiAgentManager) {
-          aiAgentManager.pulseAgent(mapData.id, npc.id);
+          aiAgentManager.appendEvent(mapData.id, npc.id, logLine);
         }
       }
     });

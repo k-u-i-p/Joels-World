@@ -12,11 +12,13 @@ export class AIAgentManager {
         this.npcManager = npcManager;
         this.ai = null;
         this.apiKey = process.env.GEMINI_API_KEY;
-        this.lastProcessed = {};
+        this.agentChats = {};
+        this.agentPendingMessages = {};
         this.mapManager = mapManager;
         this.agentLastPulseTime = {};
         this.agentPendingPulse = {};
         this.validEmotes = [];
+        this.agentBusy = {};
     }
 
     startAIAgent() {
@@ -53,23 +55,19 @@ export class AIAgentManager {
             console.warn("[AI] Failed to parse src/emotes.js:", e);
         }
 
-        for (const mapData of this.mapManager.getAllMaps()) {
-            if (mapData.npcs) {
-                for (const npc of mapData.npcs) {
-                    if (npc.agent && npc.agent.log_file) {
-                        const logFilePath = path.resolve(__dirname, '..', 'data', npc.agent.log_file);
-                        if (fs.existsSync(logFilePath)) {
-                            try {
-                                const raw = fs.readFileSync(logFilePath, 'utf8');
-                                if (raw.trim()) {
-                                    this.lastProcessed[npc.id] = raw.trim();
-                                }
-                            } catch (e) { }
-                        }
-                    }
-                }
-            }
+    }
+
+    appendEvent(mapId, npcId, message) {
+        if (!this.ai || !this.mapManager) return;
+        
+        if (!this.agentPendingMessages[npcId]) {
+            this.agentPendingMessages[npcId] = [];
         }
+        if (message) {
+            this.agentPendingMessages[npcId].push(message);
+        }
+        
+        this.pulseAgent(mapId, npcId);
     }
 
     pulseAgent(mapId, npcId) {
@@ -101,58 +99,70 @@ export class AIAgentManager {
             this.agentPendingPulse[npcId] = null;
         }
 
+        if (this.agentBusy[npcId]) return;
+
         try {
             if (mapData.clients.size === 0) return;
 
-            const logFilePath = path.resolve(__dirname, '..', 'data', npc.agent.log_file);
+            const pending = this.agentPendingMessages[npcId];
+            if (!pending || pending.length === 0) return;
+
             const agentFilePath = path.resolve(__dirname, '..', 'data', npc.agent.prompt_file);
-
-            if (!fs.existsSync(agentFilePath) || !fs.existsSync(logFilePath)) {
+            if (!fs.existsSync(agentFilePath)) {
                 return;
             }
 
-            let logsText = fs.readFileSync(logFilePath, 'utf8').trim();
+            // Ensure the persistent chat session is created the first time an event occurs
+            if (!this.agentChats[npcId]) {
+                console.log(`[AI][${mapData.name}] Initializing persistent chat session for ${npc.name}...`);
+                let agentPrompt = fs.readFileSync(agentFilePath, 'utf8');
+                const validEmotesList = this.validEmotes.length > 0 ? this.validEmotes.join(", ") : "dance, fart, laugh, cry, love, wave";
 
-            if (!logsText || this.lastProcessed[npc.id] === logsText) {
-                return;
-            }
+                agentPrompt = agentPrompt
+                    .replace("{agent_id}", npc.id)
+                    .replace("{emotes}", validEmotesList)
+                    .replace("{logsText}", ""); // Keep logs out of systemPrompt, they are supplied continuously as user turns
 
-            this.lastProcessed[npc.id] = logsText;
-            console.log(`[AI][${mapData.name}] New events detected! Formatting prompt for ${npc.name}...`);
-
-            let agentPrompt = fs.readFileSync(agentFilePath, 'utf8');
-            const validEmotesList = this.validEmotes.length > 0 ? this.validEmotes.join(", ") : "dance, fart, laugh, cry, angry, surprised";
-
-            agentPrompt = agentPrompt
-                .replace("{agent_id}", npc.id)
-                .replace("{emotes}", validEmotesList);
-
-            const prompt = `${agentPrompt}\n\nRecent Events Log:\n${logsText}\n\nRespond EXACTLY with a valid JSON array representing the actions.`;
-
-            console.log(`[AI][${mapData.name}] Sending prompt for ${npc.name} to Gemini...`);
-
-            this.ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: {
-                    responseMimeType: "application/json",
-                }
-            }).then(response => {
-                let resultText = response.text;
-                console.log(`[AI][${mapData.name}] Received response for ${npc.name}:`, resultText);
-
-                if (resultText) {
-                    try {
-                        const result = JSON.parse(resultText);
-                        console.log(`[AI][${mapData.name}] Parsed response for ${npc.name} successfully! Applying actions...`);
-                        this.handleAgentAction(mapData, result);
-                    } catch (e) {
-                        console.error(`[AI][${mapData.name}] Failed to parse agent JSON:`, resultText, e);
+                this.agentChats[npcId] = this.ai.chats.create({
+                    model: 'gemini-2.5-flash',
+                    config: {
+                        systemInstruction: agentPrompt,
+                        responseMimeType: "application/json",
                     }
-                }
-            }).catch(err => {
-                console.error(`[AI][${mapData.name}] API Error for ${npc.name}:`, err);
-            });
+                });
+            }
+
+            // Pop buffered messages
+            const combinedMessage = pending.join('\n');
+            this.agentPendingMessages[npcId] = []; 
+            if (!combinedMessage) return;
+
+            console.log(`[AI][${mapData.name}] Sending prompt for ${npc.name} to Gemini Chats...`);
+
+            this.agentBusy[npcId] = true;
+
+            this.agentChats[npcId].sendMessage({ message: combinedMessage })
+                .then(response => {
+                    this.agentBusy[npcId] = false;
+                    let resultText = response.text;
+                    console.log(`[AI][${mapData.name}] Received response for ${npc.name}:`, resultText);
+
+                    if (resultText) {
+                        try {
+                            const result = JSON.parse(resultText);
+                            console.log(`[AI][${mapData.name}] Parsed response for ${npc.name} successfully! Applying actions...`);
+                            this.handleAgentAction(mapData, result);
+                        } catch (e) {
+                            console.error(`[AI][${mapData.name}] Failed to parse agent JSON:`, resultText, e);
+                        }
+                    }
+                }).catch(err => {
+                    this.agentBusy[npcId] = false;
+                    console.error(`[AI][${mapData.name}] API Error for ${npc.name}:`, err);
+                    // Attempt to restore messages to buffer on API failure so they aren't lost unconditionally
+                    const currentPending = this.agentPendingMessages[npcId] || [];
+                    this.agentPendingMessages[npcId] = [combinedMessage, ...currentPending];
+                });
 
         } catch (err) {
             console.error(`[AI][${mapData.name}] Error pulsing agent ${npcId}`, err);
@@ -195,16 +205,10 @@ export class AIAgentManager {
 
                     const broadcastMsg = JSON.stringify({ type: 'chat', id: npcId, message: msg });
                     const logLine = `${npcChar.name || npcId} (${npcId}) said: "${msg}"`;
-                    this.npcManager.logEventToNearbyNPCs(mapData, logLine, this);
+                    // Passing `null` as the 3rd argument bypasses the synchronous pulse trigger that causes infinite loops when generation latency exceeds the 5s debounce threshold
+                    this.npcManager.logEventToNearbyNPCs(mapData, logLine, null);
 
-                    if (npcChar.agent && npcChar.agent.log_file) {
-                        const logFilePath = path.resolve(__dirname, '..', 'data', npcChar.agent.log_file);
-                        try {
-                            if (fs.existsSync(logFilePath)) {
-                                this.lastProcessed[npcId] = fs.readFileSync(logFilePath, 'utf8').trim();
-                            }
-                        } catch (e) { }
-                    }
+
 
                     mapData.clients.forEach(client => {
                         if (client.readyState === 1 && playerIdsInRange.has(client.clientId)) {
@@ -249,6 +253,9 @@ export class AIAgentManager {
             }
 
             if (act.change_map !== undefined && act.target_player_id) {
+                if (act.say) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
                 console.log(`[AI][${mapData.name}] Map Change Action: Target ${act.target_player_id} -> Map ${act.change_map}`);
                 const targetWs = Array.from(mapData.clients).find(c => c.clientId === act.target_player_id);
                 if (targetWs) {

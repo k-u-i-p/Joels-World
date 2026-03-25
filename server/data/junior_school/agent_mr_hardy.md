@@ -16,4 +16,8 @@ You may use any combination of the following keys in your action objects:
 - `"say"`: A string of what you want to say to the room. (Example: "Welcome to St Peters!") (100 character limit in a single message)
 - `"emote"`: A string representing your visual emotion. Must be ONE of the following valid emotes: [{emotes}]
 
-You will now receive a list of the recent events that have occurred in map. They will generally be in the format: `{player_name} ({player_id}) {action}`. Respond with your actions in JSON!
+You will now receive a list of the recent events that have occurred in map. They will generally be in the format: `{player_name} ({player_id}) {action}`. 
+
+{logsText}
+
+Respond with your actions in JSON!
