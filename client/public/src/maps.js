@@ -92,19 +92,18 @@ export class MapManager {
 
             const geom = new THREE.PlaneGeometry(tex.image.width, tex.image.height);
 
-            // Enable physical Lambert reactive lighting for all layers to allow shadows
+            // Enable physical Lambert reactive lighting exclusively on the structural foundation ground layer 
+            // This permits PCF Soft Shadows to cast flawlessly right onto the geographic geometry, bypassing transparent overlaps completely!
             const isGround = index === 0;
-            const MaterialType = THREE.MeshLambertMaterial;
+            const MaterialType = isGround ? THREE.MeshLambertMaterial : THREE.MeshBasicMaterial;
 
             const mat = new MaterialType({
               map: tex,
-              transparent: !isGround,
-              opacity: layerObj.alpha,
-              alphaTest: 0.1 // Let transparent overlays cast shaped shadows
+              transparent: !isGround, // Layer 0 writes sequentially to the Opaque buffers
+              opacity: layerObj.alpha
             });
             layerObj.mesh = new THREE.Mesh(geom, mat);
-            if (isGround) layerObj.mesh.receiveShadow = true;
-            else layerObj.mesh.castShadow = true;
+            if (isGround) layerObj.mesh.receiveShadow = true; // Bake native geometry shadows!
             if (scene) {
               scene.add(layerObj.mesh);
               this.activeMeshes.push(layerObj.mesh);
@@ -268,15 +267,14 @@ export class MapManager {
               const isOverlay = z > 0;
               const paddedGeom = this.getGeometry(layer.chunk_size);
 
-              const MaterialType = THREE.MeshLambertMaterial;
+              // Leverage Lambert lighting natively so shadows trace seamlessly ignoring transparency queues
+              const MaterialType = !isOverlay ? THREE.MeshLambertMaterial : THREE.MeshBasicMaterial;
               const mat = new MaterialType({
                 transparent: isOverlay,
-                opacity: layer.alpha,
-                alphaTest: 0.1
+                opacity: layer.alpha
               });
               const mesh = new THREE.Mesh(paddedGeom, mat);
-              if (!isOverlay) mesh.receiveShadow = true;
-              else mesh.castShadow = true;
+              if (!isOverlay) mesh.receiveShadow = true; // Actively catch intersecting PCF matrices
 
               // Position the mesh tile
               const drawX = baseX + (x * layer.chunk_size);
