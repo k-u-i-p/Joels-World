@@ -15,6 +15,9 @@ import * as THREE from 'three';
 // Trigger native GLTF parsing routines immediately on script load!
 loadSharedModels();
 
+const MAX_SPRING = 150;
+const SPRING_SPEED = 0.75;
+
 const canvas = document.getElementById('gameCanvas');
 export const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: false });
 // Dropped SRGBColorSpace resolving gamma-curves misaligning native 2D canvas PNGs
@@ -24,33 +27,24 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 export const scene = new THREE.Scene();
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // 60% shadow floor
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.0); // Brighter ambient floor for softer/lighter shadows
 scene.add(ambientLight);
 
-const dirLight = new THREE.SpotLight(0xffffff, 1.8);
-dirLight.position.set(500, -1000, 1500); // Angled down from top-front
+const dirLight = new THREE.SpotLight(0xffffff, 1.4); // Commensurately lowered direct lighting
+dirLight.position.set(500, -500, 1500); // Angled down from top-front
 dirLight.angle = Math.PI / 4;
-dirLight.penumbra = 0.5;
+dirLight.penumbra = 0.1;
 dirLight.distance = 0;
 dirLight.decay = 0; // Disable inverse-square physical falloff guaranteeing uniform map brightness regardless of distance natively!
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.width = 2048;
-dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.mapSize.width = 1024;
+dirLight.shadow.mapSize.height = 1024;
 dirLight.shadow.camera.near = 500;
 dirLight.shadow.camera.far = 4000;
-dirLight.shadow.bias = -0.001;
 scene.add(dirLight);
 scene.add(dirLight.target); // Expose the light target to the engine scene graph for dynamic viewport tracking
 
-// Invisible Plane to catch the geometric shadows
-const shadowPlane = new THREE.Mesh(
-  new THREE.PlaneGeometry(20000, 20000),
-  new THREE.ShadowMaterial({ opacity: 0.4 })
-);
-shadowPlane.position.z = 0.5; // Slightly above ground
-shadowPlane.receiveShadow = true;
-shadowPlane.renderOrder = 50; // Explicitly queue after RenderOrder 0 (Ground chunks)
-scene.add(shadowPlane);
+
 export const threeCamera = new THREE.OrthographicCamera(-1, 1, -1, 1, -5000, 5000);
 
 // We invert the Y frustum to match HTML5 Canvas standard coordinates (Y-down)
@@ -58,7 +52,9 @@ threeCamera.up.set(0, -1, 0);
 export const camera = {
   x: 0,
   y: 0,
-  zoom: 1
+  zoom: 1,
+  springX: 0,
+  springY: 0
 };
 
 export function screenToWorld(mouseX, mouseY, canvasWidth, canvasHeight) {
@@ -256,6 +252,11 @@ function clearWalkingAudio() {
 function update(dt = 0.016) {
   const timeScale = (dt * 60) || 1;
 
+  // Spring setup
+  camera.springX = camera.springX || 0;
+  camera.springY = camera.springY || 0;
+  const decay = Math.pow(0.001 * SPRING_SPEED, dt);
+
   // Rotation (tank controls)
   if (!uiManager.isMinimapOpen) {
     if (inputManager.isPressed('ArrowLeft')) {
@@ -334,6 +335,25 @@ function update(dt = 0.016) {
 
     const blockedDx = dx - actualDx;
     const blockedDy = dy - actualDy;
+
+    // Apply tension to camera if pushing into a wall, otherwise decay that axis
+    if (Math.abs(blockedDx) > 0.01) {
+      camera.springX += blockedDx * SPRING_SPEED;
+    } else {
+      camera.springX *= decay;
+    }
+
+    if (Math.abs(blockedDy) > 0.01) {
+      camera.springY += blockedDy * SPRING_SPEED;
+    } else {
+      camera.springY *= decay;
+    }
+
+    const dist = Math.sqrt(camera.springX * camera.springX + camera.springY * camera.springY);
+    if (dist > MAX_SPRING) {
+      camera.springX = (camera.springX / dist) * MAX_SPRING;
+      camera.springY = (camera.springY / dist) * MAX_SPRING;
+    }
 
     isMoving = result.isMoving;
     player.x = result.newX;
@@ -415,7 +435,9 @@ function update(dt = 0.016) {
       }
     }
   } else {
-    // Smoother stop: reset animation to neutral when stopped
+    // Smoother stop: reset animation to neutral when stopped and snap camera back
+    camera.springX *= decay;
+    camera.springY *= decay;
     getCharacterProxy(player.id).legAnimationTime = 0;
 
     clearWalkingAudio();
@@ -467,9 +489,9 @@ function executeEvents(sourceObj, rawActions, eventType = 'on_enter') {
  * draws the map, all visible characters, and user interface elements.
  */
 function draw() {
-  camera.x = player.x;
+  camera.x = player.x + (camera.springX || 0);
   // Offset camera Y slightly higher so the player renders lower down in the view, leaving more space above them
-  camera.y = player.y - (viewportHeight / camera.zoom * 0.15);
+  camera.y = player.y - (viewportHeight / camera.zoom * 0.15) + (camera.springY || 0);
 
   // Read from cached globals instead of forcing aggressive DOM reflow every frame
   let yOffset = window.visualViewport ? cachedViewportOffsetY : 0;
@@ -553,7 +575,8 @@ function draw() {
       drawnBaseChars = true;
     }
 
-    mapManager.drawLayer(z, scene);
+    // Natively inject the literal inertial camera springs down so drawing loops process geometric bounce physics constraints
+    mapManager.drawLayer(z, scene, camera.springX || 0, camera.springY || 0);
   });
 
   // Safety net: render base characters if ALL maps were below Z=5!

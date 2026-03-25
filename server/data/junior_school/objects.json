@@ -155,12 +155,25 @@
     "id": 50,
     "shape": "3d_model",
     "name": "Junior School Buildings",
-    "x": -1549,
-    "y": -1516,
+    "x": -1543,
+    "y": -1511,
     "width": 100,
     "length": 100,
     "z": 0,
     "model": "models/junior_school_buildings.glb",
     "scale": 1
+  },
+  {
+    "id": 51,
+    "shape": "3d_model",
+    "x": -2188,
+    "y": -1922,
+    "z": 100,
+    "alpha": 0.5,
+    "width": 100,
+    "length": 100,
+    "model": "models/junior_school_trees.glb",
+    "scale": 1,
+    "name": "Trees"
   }
 ]

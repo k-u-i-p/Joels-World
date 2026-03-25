@@ -175,11 +175,8 @@ export class MapManager {
     }
   }
 
-  drawLayer(z, scene) {
+  drawLayer(z, scene, springX = 0, springY = 0) {
     if (!this.layers || !this.layers[z]) return;
-
-    const offsetX = 0;
-    const offsetY = 0;
 
     const halfMapW = this.mapW / 2;
     const halfMapH = this.mapH / 2;
@@ -228,17 +225,14 @@ export class MapManager {
     this.layers[z].forEach((layer, idxLayerWithinGrid) => {
       const layerZ = z + (idxLayerWithinGrid * 0.1);
       
-      const layerOffsetX = layer.spring !== false ? offsetX : 0;
-      const layerOffsetY = layer.spring !== false ? offsetY : 0;
-
       // VITAL: Absorb the extreme simulated coordinate shifts natively inside the WebGL chunk bounding box queries
       // Otherwise, chunks physically off-camera grid-wise will pop out prematurely, leaving massive black clipping holes in the parallax foreground!
-      const layerBuffer = buffer + Math.max(Math.abs(layerOffsetX), Math.abs(layerOffsetY)) + 256;
+      const layerBuffer = buffer + 256;
 
-      const minXMap = Math.max(-halfMapW, cameraLeft - layerBuffer + layerOffsetX);
-      const maxXMap = Math.min(halfMapW, cameraRight + layerBuffer + layerOffsetX);
-      const minYMap = Math.max(-halfMapH, cameraTop - layerBuffer + layerOffsetY);
-      const maxYMap = Math.min(halfMapH, cameraBottom + layerBuffer + layerOffsetY);
+      const minXMap = Math.max(-halfMapW, cameraLeft - layerBuffer);
+      const maxXMap = Math.min(halfMapW, cameraRight + layerBuffer);
+      const minYMap = Math.max(-halfMapH, cameraTop - layerBuffer);
+      const maxYMap = Math.min(halfMapH, cameraBottom + layerBuffer);
 
       const mapStartX = minXMap + halfMapW;
       const mapEndX = maxXMap + halfMapW;
@@ -306,12 +300,11 @@ export class MapManager {
             } else {
               layer.chunks[chunkIndex].mesh.visible = true;
 
-              // Depth simulated Parallax spring offset
               const origDrawX = baseX + x * layer.chunk_size;
               const origDrawY = baseY + y * layer.chunk_size;
               layer.chunks[chunkIndex].mesh.position.set(
-                origDrawX + layer.chunk_size / 2 - layerOffsetX,
-                -(origDrawY + layer.chunk_size / 2 - layerOffsetY),
+                origDrawX + layer.chunk_size / 2,
+                -(origDrawY + layer.chunk_size / 2),
                 layerZ
               );
             }
@@ -335,7 +328,7 @@ export class MapManager {
         }
       } else {
         if (layer.mesh) {
-          layer.mesh.position.set(-layerOffsetX, layerOffsetY, layerZ);
+          layer.mesh.position.set(0, 0, layerZ);
         }
       }
     });

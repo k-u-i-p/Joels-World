@@ -9,22 +9,11 @@
         "z": 0,
         "alpha": 1,
         "chunked": true,
-        "source_image": "/junior_school/new_map_2.png",
+        "source_image": "/junior_school/new_map_3.jpg",
         "chunk_size": 512,
         "grid_w": 9,
         "grid_h": 8,
-        "path_template": "/junior_school/chunks/new_map_2_{x}_{y}.png"
-      },
-      {
-        "z": 105,
-        "alpha": 0.9,
-        "overlay": true,
-        "chunked": true,
-        "source_image": "/junior_school/trees.png",
-        "chunk_size": 512,
-        "grid_w": 9,
-        "grid_h": 8,
-        "path_template": "/junior_school/chunks/trees_{x}_{y}.png"
+        "path_template": "/junior_school/chunks/new_map_3_{x}_{y}.jpg"
       }
     ],
     "clip_mask": "junior_school/clip_mask.svg",

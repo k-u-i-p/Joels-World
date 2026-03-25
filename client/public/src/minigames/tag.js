@@ -479,7 +479,7 @@ function draw(dt) {
       drawnBaseChars = true;
     }
 
-    mapManager.drawLayer(z, scene);
+    mapManager.drawLayer(z, scene, camera.springX || 0, camera.springY || 0);
   });
 
   if (!drawnBaseChars) {
