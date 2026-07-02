@@ -64,14 +64,11 @@
     "interaction_radius": 150,
     "on_enter": [
       {
-        "say": [
-          "We don't need no education!",
-          "We don't need no thought control!",
-          "Hey! Teacher! Leave them kids alone!",
-          "Just kidding, I actually love math.",
-          "Is it break time yet?",
-          "I left my homework in my other pants."
-        ]
+        "show_dialog": {
+          "description": "Do you want to play on my phone?",
+          "type": "play_minigame",
+          "minigame": "tower_defence"
+        }
       }
     ],
     "hair_color": "#000000",

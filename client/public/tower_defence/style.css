@@ -1,0 +1,341 @@
+:root {
+    --bg-color: #1a1a2e;
+    --panel-bg: rgba(22, 33, 62, 0.9);
+    --text-color: #e94560;
+    --text-light: #ffffff;
+    --accent: #0f3460;
+    --accent-hover: #1a4a8a;
+    --border: rgba(233, 69, 96, 0.3);
+    --gold: #ffd700;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Outfit', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-light);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    background: radial-gradient(circle at center, #1a1a2e 0%, #0f0f1a 100%);
+}
+
+#game-container {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#ui-panel {
+    width: 300px;
+    background: var(--panel-bg);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    border: 1px solid var(--border);
+    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+h1 {
+    color: var(--text-color);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: 24px;
+    text-align: center;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    margin-bottom: 10px;
+}
+
+h2 {
+    font-size: 18px;
+    color: var(--text-light);
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 5px;
+    margin-top: 10px;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.stat-box {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 10px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: transform 0.2s;
+}
+
+.stat-box:hover {
+    transform: translateY(-2px);
+}
+
+.stat-box span:first-child {
+    font-size: 12px;
+    color: #aaa;
+    text-transform: uppercase;
+}
+
+.stat-box span:last-child {
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--gold);
+}
+
+.shop-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    overflow-y: auto;
+    max-height: 350px;
+    padding-right: 5px;
+}
+
+/* Custom scrollbar */
+.shop-grid::-webkit-scrollbar {
+    width: 6px;
+}
+.shop-grid::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.2);
+    border-radius: 4px;
+}
+.shop-grid::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+.shop-item {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.shop-item:hover {
+    background: rgba(233, 69, 96, 0.2);
+    border-color: var(--text-color);
+    transform: translateY(-2px);
+}
+
+.shop-item.selected {
+    background: rgba(233, 69, 96, 0.3);
+    border-color: var(--text-color);
+    box-shadow: 0 0 10px var(--text-color);
+}
+
+.shop-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(100%);
+}
+
+.shop-item.disabled:hover {
+    transform: none;
+    background: rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+#upgrade-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid var(--accent);
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-header h2 {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 24px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close-btn:hover {
+    color: var(--text-color);
+}
+
+.upgrade-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.upgrade-item {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.upgrade-item:hover {
+    background: rgba(46, 204, 113, 0.2);
+    border-color: #2ecc71;
+}
+
+.upgrade-item.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.upgrade-title {
+    font-weight: bold;
+    font-size: 14px;
+    color: #3498db;
+    margin-bottom: 2px;
+}
+
+.upgrade-desc {
+    font-size: 11px;
+    color: #ccc;
+    margin-bottom: 5px;
+}
+
+.item-name {
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+#sell-minion-btn {
+    margin-top: 10px;
+    padding: 8px;
+    font-size: 14px;
+}
+
+.item-cost {
+    color: var(--gold);
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.controls {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn {
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-family: inherit;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+}
+
+.btn.primary {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 4px 0 var(--accent-hover);
+}
+
+.btn.primary:hover {
+    background: #154a8e;
+}
+
+.btn.primary:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 var(--accent-hover);
+}
+
+.btn.danger {
+    background: #c0392b;
+    color: white;
+    box-shadow: 0 4px 0 #922b21;
+}
+
+.btn.danger:hover {
+    background: #d35400;
+}
+
+.btn.danger:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 #922b21;
+}
+
+.hidden {
+    display: none !important;
+}
+
+#canvas-container {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    border: 2px solid var(--border);
+    background-color: #2c3e50; /* Base ground color */
+}
+
+canvas {
+    display: block;
+    cursor: crosshair;
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+#game-over-text {
+    font-size: 48px;
+    color: #e74c3c;
+    text-transform: uppercase;
+    letter-spacing: 5px;
+    text-shadow: 0 0 20px rgba(231, 76, 60, 0.8);
+    border: none;
+}

@@ -88,6 +88,26 @@ export const EventHandlers = {
           } else {
             console.warn("Invalid map ID provided:", payload.map);
           }
+        } else if (payload.type === 'play_minigame') {
+          if (payload.minigame === 'tower_defence') {
+            const iframe = document.createElement('iframe');
+            iframe.src = '/tower_defence/index.html';
+            iframe.id = 'minigame-iframe';
+            iframe.style = 'position:fixed; top:0; left:0; width:100%; height:100%; border:none; z-index:9999;';
+            document.body.appendChild(iframe);
+
+            const minigameListener = (event) => {
+              if (event.data === 'td_win' || event.data === 'td_lose') {
+                document.body.removeChild(iframe);
+                window.removeEventListener('message', minigameListener);
+                if (event.data === 'td_win') {
+                  networkClient.send({ type: 'award_badge', badge: 'tower defence' });
+                }
+                networkClient.send({ type: 'change_map', mapId: 0 }); // return to junior campus
+              }
+            };
+            window.addEventListener('message', minigameListener);
+          }
         }
       };
     }
