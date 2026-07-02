@@ -974,6 +974,8 @@ function triggerPointReset(nextPlayerServing) {
     if (scoreData.winner === 'player') {
       onPlayerWinsSet();
       wonSet = true;
+    } else if (scoreData.winner === 'npc') {
+      onNpcWinsSet();
     }
     // Game won, reset points for the next game
     state.player.score = 0;
@@ -993,8 +995,23 @@ function triggerPointReset(nextPlayerServing) {
 }
 
 export function onPlayerWinsSet() {
-  import('../network.js').then(({ networkClient }) => {
-    networkClient.send({ type: 'award_badge', badge: 'tennis' });
+  import('../ui.js').then(({ uiManager }) => {
+    uiManager.showActionDialog('You win! Returning to campus...', () => {
+      import('../network.js').then(({ networkClient }) => {
+        networkClient.send({ type: 'award_badge', badge: 'tennis' });
+        networkClient.send({ type: 'change_map', mapId: 0 });
+      });
+    });
+  });
+}
+
+export function onNpcWinsSet() {
+  import('../ui.js').then(({ uiManager }) => {
+    uiManager.showActionDialog('You lose! Returning to campus...', () => {
+      import('../network.js').then(({ networkClient }) => {
+        networkClient.send({ type: 'change_map', mapId: 0 });
+      });
+    });
   });
 }
 
