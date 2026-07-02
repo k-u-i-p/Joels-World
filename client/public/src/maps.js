@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { threeCamera } from './main.js';
+import { threeCamera, renderer } from './main.js';
 
 export const objectVisuals = {};
 
@@ -151,8 +151,19 @@ export class MapManager {
       });
 
       pivotGroup.userData = { id: obj.id };
-      scene.add(pivotGroup);
-      this.activeMeshes.push(pivotGroup);
+      
+      if (renderer && renderer.compileAsync) {
+        const startCompile = performance.now();
+        renderer.compileAsync(pivotGroup, threeCamera, scene).then(() => {
+          const endCompile = performance.now();
+          console.log(`[Map Loader] Compiled 3D Model in ${(endCompile - startCompile).toFixed(2)}ms`);
+          scene.add(pivotGroup);
+          this.activeMeshes.push(pivotGroup);
+        });
+      } else {
+        scene.add(pivotGroup);
+        this.activeMeshes.push(pivotGroup);
+      }
     };
 
     if (gltfCache[src]) {

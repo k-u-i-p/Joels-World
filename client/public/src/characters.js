@@ -3,6 +3,7 @@ import { physicsEngine } from './physics.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { uiManager } from './ui.js';
+import { renderer, threeCamera, scene } from './main.js';
 
 const DEG_TO_RAD = Math.PI / 180;
 const PI2 = Math.PI * 2;
@@ -211,7 +212,16 @@ function applyHeadModel(rig, mats, c) {
     headClone.rotation.y = PI_HALF;
     headClone.position.z = headConfig.z;
 
-    rig.head.add(headClone);
+    if (renderer && renderer.compileAsync) {
+      const startCompile = performance.now();
+      renderer.compileAsync(headClone, threeCamera, scene).then(() => {
+        const endCompile = performance.now();
+        console.log(`[Character] Compiled Head in ${(endCompile - startCompile).toFixed(2)}ms`);
+        rig.head.add(headClone);
+      });
+    } else {
+      rig.head.add(headClone);
+    }
   });
 }
 
@@ -242,8 +252,21 @@ function applyShoeModel(rig, mats, c) {
   tintShoe(cloneL);
   tintShoe(cloneR);
 
-  rig.lShoe.add(cloneL);
-  rig.rShoe.add(cloneR);
+  if (renderer && renderer.compileAsync) {
+    const startCompile = performance.now();
+    Promise.all([
+      renderer.compileAsync(cloneL, threeCamera, scene),
+      renderer.compileAsync(cloneR, threeCamera, scene)
+    ]).then(() => {
+      const endCompile = performance.now();
+      console.log(`[Character] Compiled Shoes in ${(endCompile - startCompile).toFixed(2)}ms`);
+      rig.lShoe.add(cloneL);
+      rig.rShoe.add(cloneR);
+    });
+  } else {
+    rig.lShoe.add(cloneL);
+    rig.rShoe.add(cloneR);
+  }
 }
 
 // --- 2-BONE INVERSE KINEMATICS (IK) SOLVER ---
