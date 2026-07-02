@@ -79,10 +79,18 @@ export class SessionManager {
         }
 
         try {
-            const filePath = path.join(this.sessionsDir, `${token}.json`);
-            await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+            if (!this.saveQueue) this.saveQueue = {};
+            if (!this.saveQueue[token]) this.saveQueue[token] = Promise.resolve();
+
+            this.saveQueue[token] = this.saveQueue[token].then(async () => {
+                const filePath = path.join(this.sessionsDir, `${token}.json`);
+                await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+            }).catch(e => {
+                console.error('[SessionManager] Failed to save session', token, e);
+            });
         } catch (e) {
-            console.error('[SessionManager] Failed to save session', token, e);
+            console.error('[SessionManager] Failed to queue session save', token, e);
+
         }
     }
 }
