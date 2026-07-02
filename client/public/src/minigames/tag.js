@@ -407,14 +407,39 @@ function run(dt) {
   state.timeRemaining -= realDt;
   if (state.invincibleTime > 0) state.invincibleTime -= realDt;
 
+  const localP = state.players.find(p => p.isLocalPlayer);
+  const itPlayer = state.players.find(p => p.id === state.itId);
+
   if (state.timeRemaining <= 0) {
+    if (state.itId === localP.id) {
+      minigameActive = false;
+      import('../ui.js').then(({ uiManager }) => {
+        uiManager.showActionDialog('You ran out of time while being IT! You lose.', () => {
+          import('../network.js').then(({ networkClient }) => {
+            networkClient.send({ type: 'change_map', mapId: 0 });
+          });
+        });
+      });
+      return;
+    }
+
+    if (state.round >= 2 && state.itId !== localP.id) {
+      minigameActive = false;
+      import('../ui.js').then(({ uiManager }) => {
+        uiManager.showActionDialog('You survived two rounds! You win!', () => {
+          import('../network.js').then(({ networkClient }) => {
+            networkClient.send({ type: 'award_badge', badge: 'tig' });
+            networkClient.send({ type: 'change_map', mapId: 0 });
+          });
+        });
+      });
+      return;
+    }
+
     state.round++;
     state.timeRemaining = ROUND_TIME;
     state.invincibleTime = 3; // Pause tags temporarily
   }
-
-  const localP = state.players.find(p => p.isLocalPlayer);
-  const itPlayer = state.players.find(p => p.id === state.itId);
 
   // 1. Process local player movement
   if (localP) {
