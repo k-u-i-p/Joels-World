@@ -1,5 +1,7 @@
 #!/bin/bash
 
+gcloud config set project joels-world
+
 echo "🚀 Deploying Joels World to Google Cloud Run..."
 # Read the API key from the local file
 API_KEY=$(cat gemini_key)
