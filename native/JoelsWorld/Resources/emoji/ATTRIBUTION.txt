@@ -1,0 +1,14 @@
+Twemoji
+https://github.com/jdecked/twemoji
+
+Copyright 2019 Twitter, Inc and other contributors.
+Graphics licensed under CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
+
+These 23 SVGs cover every emoji the app draws. They are a *fallback*: on a device whose
+system font stack can draw colour emoji — every shipping iPhone — the platform glyph is used
+and these files are never touched. They exist because the iOS Simulator runtimes ship a
+stripped font set that renders every emoji as .notdef, which made verification screenshots
+unreadable. See UI/EmojiImage.swift.
+
+If this fallback ever becomes the primary rendering path, the CC-BY attribution above has to
+appear somewhere the player can see it.
