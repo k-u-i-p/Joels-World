@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
-import { PhysicsEngine } from '../../client/public/src/physics.js';
+import { PhysicsEngine } from '../physics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

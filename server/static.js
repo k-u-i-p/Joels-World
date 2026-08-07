@@ -32,6 +32,15 @@ export function setupStatic(app, server, port) {
     next();
   });
 
+  // The physics engine is shared: the server imports it directly from ./physics.js, and the
+  // web client imports it as /src/physics.js. It lives server-side so that deleting client/
+  // (Phase 8 of the native rewrite) cannot break the server. This route must stay ahead of
+  // the /src static mount below.
+  app.get('/src/physics.js', (req, res) => {
+    res.type('application/javascript');
+    res.sendFile(path.resolve(__dirname, 'physics.js'));
+  });
+
   // Serve static assets natively
   app.use('/src', express.static(path.resolve(__dirname, '../client/public/src')));
   app.use('/public', express.static(path.resolve(__dirname, '../client/public')));

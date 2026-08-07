@@ -1,3 +1,17 @@
+/**
+ * Shared collision/movement engine. Runs in two environments:
+ *
+ *  - Node (server): imported directly by `websocket.js`, `managers/NPCManager.js` and
+ *    `managers/AIAgentManager.js`.
+ *  - Browser (web client): imported as `/src/physics.js`, routed to this file by
+ *    `static.js` — the web client has no copy of its own.
+ *
+ * It therefore must not import anything and must not touch the DOM at module scope.
+ * `loadClipMask` is browser-only (canvas/Image) and no-ops under Node.
+ *
+ * `native/JoelsWorld/World/Physics.swift` is a port of this file and must be kept
+ * behaviourally identical to it.
+ */
 export class PhysicsEngine {
   constructor() {
     this.clipMaskCanvas = null;
@@ -145,6 +159,10 @@ export class PhysicsEngine {
    * @param {number} mapH - Map height for canvas sizing.
    */
   loadClipMask(url, mapW, mapH) {
+    // Browser-only: the server has no canvas and never mask-tests, it only runs
+    // findCharacters/canMoveTo against objects and NPCs.
+    if (typeof document === 'undefined' && typeof OffscreenCanvas === 'undefined') return;
+
     if (!url) {
       this.clipMaskCanvas = null;
       if (this.onClipMaskLoaded) this.onClipMaskLoaded(null);
