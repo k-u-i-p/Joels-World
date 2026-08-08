@@ -65,6 +65,36 @@ const DROP_NODES = new Set([
 /// there for a film render; 1K is still more than the screen can show.
 const MAX_TEXTURE = 1024;
 
+/// How much of the occlusion map to multiply into the base colour, per material, with `*` as
+/// the default. Applied as `mix(1, ao, strength)` — 1 is the raw map, 0 ignores it.
+///
+/// It is deliberately not 1 anywhere. Ambient occlusion is meant to attenuate *ambient* light
+/// and nothing else; baking it into albedo attenuates the spotlight too, so a full-strength bake
+/// double-counts every crevice. 0.6 is where the stands still gain their depth without the whole
+/// stadium going a stop darker than the artist drew it.
+///
+/// `TennisPropsShader` is the interesting one. It is the umpire chair, the line judges' seats,
+/// the benches and the bin — small tubular things standing **beside the court**, where you look
+/// straight at them, and a tube occludes itself from every direction, so its occlusion map is
+/// dark nearly everywhere. Its albedo is already a dark green (mean 32, 63, 24); a full bake took
+/// it to 20, 36, 16 and the umpire chair rendered as a black silhouette with no readable form.
+/// The stands are the opposite case: big flat surfaces whose only shape comes from the crevices
+/// between them.
+const OCCLUSION_STRENGTH = { '*': 0.6, TennisPropsShader: 0.2 };
+
+/// Per-material floor under the base colour, 0–255, applied as `in·(255−floor)/255 + floor` so
+/// it lifts the blacks and leaves white where it is.
+///
+/// **This is a lighting fix, not a repaint.** `TennisPropsShader` — the umpire chair, the line
+/// judges' seats, the benches — is authored very nearly black, which is what an umpire chair is.
+/// In a renderer with an environment map that still reads as a shape, because a black surface is
+/// mostly the reflection of the sky and the stands. This one has a single spotlight and a flat
+/// ambient term and no environment at all, so `albedo × light` on a near-black albedo is
+/// near-black whichever way the tube is facing, and the chair arrives as a solid silhouette with
+/// no form in it. Lifting the floor to a dark charcoal gives the diffuse lobe something to
+/// shade, and the chair gets its struts and its wheels back.
+const BLACK_FLOOR = { TennisPropsShader: 58 };
+
 /// Materials that should not arrive as opaque black. The loader understands
 /// `KHR_materials_transmission`, and the renderer has a premultiplied pass for it, so the press
 /// box glazing can be glass instead of a hole.
@@ -144,20 +174,24 @@ async function channelMean(buffer, channel) {
     return sum / (info.width * info.height) / 255;
 }
 
-/// Re-encodes one texture. `occlusion` is the ORM buffer whose red channel is multiplied in.
-/// Alpha, if the source has any, comes out strictly 0 or 255 — see note 4.
-async function bakeTexture(buffer, occlusionBuffer) {
+/// Re-encodes one texture. `occlusion` is the ORM buffer whose red channel is multiplied in, at
+/// `strength`. Alpha, if the source has any, comes out strictly 0 or 255 — see note 4.
+async function bakeTexture(buffer, occlusionBuffer, strength, floor = 0) {
     const meta = await sharp(buffer).metadata();
     const size = Math.min(MAX_TEXTURE, Math.max(meta.width, meta.height));
     let image = sharp(buffer).resize(size, size, { fit: 'fill' });
+    // Before the occlusion, so a lifted black can still be shaded by a crevice.
+    if (floor > 0) image = image.linear((255 - floor) / 255, floor);
 
-    if (occlusionBuffer) {
-        // The ORM's red channel as a greyscale image the same size, multiplied over the colour.
-        // `dest-in`-style multiply keeps the alpha of the base, which is what carries the cut-out.
+    if (occlusionBuffer && strength > 0) {
+        // The ORM's red channel as a greyscale image the same size, lifted towards white by
+        // `1 - strength` and then multiplied over the colour. `linear(a, b)` is `a·x + b`.
+        // Multiply keeps the alpha of the base, which is what carries the cut-out.
         const ao = await sharp(occlusionBuffer)
             .resize(size, size, { fit: 'fill' })
             .extractChannel('red')
             .toColourspace('b-w')
+            .linear(strength, 255 * (1 - strength))
             .png()
             .toBuffer();
         image = sharp(await image.png().toBuffer())
@@ -250,17 +284,22 @@ async function main() {
             const sameUV = ormImage != null
                 && !(pbr.baseColorTexture.extensions || {}).KHR_texture_transform
                 && (pbr.baseColorTexture.texCoord || 0) === 0;
+            const strength = OCCLUSION_STRENGTH[material.name] ?? OCCLUSION_STRENGTH['*'];
+            const floor = BLACK_FLOOR[material.name] ?? 0;
             baked.set(baseImage, await bakeTexture(
                 view(json, bin, json.images[baseImage].bufferView),
-                sameUV ? view(json, bin, json.images[ormImage].bufferView) : null));
+                sameUV ? view(json, bin, json.images[ormImage].bufferView) : null,
+                strength, floor));
             console.log(`  ${material.name.padEnd(24)} rough ${pbr.roughnessFactor.toFixed(2)} `
-                + `metal ${pbr.metallicFactor.toFixed(2)}  ${sameUV ? 'AO baked' : ''}`);
+                + `metal ${pbr.metallicFactor.toFixed(2)}  `
+                + `${sameUV ? `AO ${strength.toFixed(2)}` : '        '}`
+                + `${floor ? `  floor ${floor}` : ''}`);
         }
 
         const emissiveImage = imageOf(json, material.emissiveTexture);
         if (emissiveImage != null && !baked.has(emissiveImage)) {
             baked.set(emissiveImage, await bakeTexture(
-                view(json, bin, json.images[emissiveImage].bufferView), null));
+                view(json, bin, json.images[emissiveImage].bufferView), null, 0));
         }
 
         // The maps the engine cannot read. Left in place they would only be shipped.

@@ -89,6 +89,42 @@ is nothing but crevices: without it a grandstand is a flat green wall, with it t
 contact shadow under them and the stairs have depth. Only baked where both maps sample untransformed
 UV 0 — `FabricShader` tiles its colour 4× and its occlusion would land somewhere else entirely.
 
+**At a strength, not in full** (`OCCLUSION_STRENGTH`, 0.6 by default). Ambient occlusion is meant
+to attenuate ambient light and nothing else; baking it into albedo attenuates the spotlight too, so
+a full-strength bake double-counts every crevice and the whole stadium comes out a stop darker than
+it was drawn.
+
+### 2b. The umpire chair, which needed the opposite of what it looked like it needed
+
+The chair rendered as a black silhouette — no struts, no wheels, no form. Two things were doing it,
+and only the smaller one was mine.
+
+`TennisPropsShader` is the umpire chair, the line judges' seats, the benches and the bin: small
+tubular things standing **beside the court**, where you look straight at them. A tube occludes
+itself from every direction, so its occlusion map is dark nearly everywhere, and a full-strength
+bake took its albedo from a mean of (32, 63, 24) to (20, 36, 16) with **43% of its texels at
+near-black**. It is at `OCCLUSION_STRENGTH` 0.2 now. The stands are the opposite case — big flat
+surfaces whose only shape is the crevices between them — which is why the two want different
+numbers.
+
+That was not the main cause. The chair is *authored* very nearly black, which is what an umpire
+chair is. In a renderer with an environment map a black surface still reads as a shape, because
+most of what you see is the sky and the stands reflected in it. This one has a single spotlight, a
+flat ambient term and no environment at all, so `albedo × light` on a near-black albedo is
+near-black whichever way the tube is facing. `BLACK_FLOOR` lifts that one material's base colour
+off zero — `in·(255−58)/255 + 58`, which leaves white where it is — so the diffuse lobe has
+something to shade:
+
+| | mean rgb | near-black texels |
+|---|---|---|
+| authored | 32, 63, 24 | 0.4% |
+| full AO bake (the first build) | 20, 36, 16 | **43.3%** |
+| AO 0.2 + floor 58 (shipped) | 74, 95, 68 | 0% |
+
+**This last change has not been seen on screen** — see the verification note below. The texture is
+measured and the render path is unchanged and was photographed before it, but nobody has actually
+looked at the chair since the floor went in. It is the first thing to check next session.
+
 ### 3. Cut-outs, without touching the shader
 
 The seats and the netting are alpha textures — a single seat with a silhouette, a mesh with 76% of
@@ -264,6 +300,33 @@ Checked this session:
 - **Speed.** Part 6's proxy — trace lines per thirty seconds, expect 60–93 — gives **131** with the
   stadium in and a rally going. The extra 254,000 triangles have not cost anything measurable.
 
+### And then the simulator stopped being able to run it at all
+
+Worth writing down because it looks exactly like a bug you have just introduced, and is not one.
+
+After about forty launch/terminate cycles the app began aborting roughly **thirteen seconds after
+launch**, which is before it finishes walking from the campus to the tennis map, so every
+screenshot after that point is of the springboard. The crash reports
+(`~/Library/Logs/DiagnosticReports/JoelsWorld-*.ips`) are unambiguous:
+
+```
+abort
+AudioToolboxCore   _ReportRPCTimeout(char const*, int)
+libEmbeddedSystemAUs  AURemoteIO::Cleanup()
+AVFAudio           -[AVAudioEngine mainMixerNode]
+JoelsWorld         SoundManager.start(handle:buffer:loop:)
+```
+
+That is the simulator's audio server failing to answer an RPC while a map's `on_enter` music is
+being started — nothing to do with rendering, and no audio code was touched this session. Rebooting
+the simulator did not clear it; nor did killing `com.apple.CoreSimulator.CoreSimulatorService`. It
+is most likely the host's `coreaudiod`, which wants either a machine restart or a `sudo killall`
+that is not mine to run. Part 6 notes that `Simulator.app` is not present in this Xcode install,
+only `SimulatorTrampoline`, and audio in that configuration seems to be what gives way first.
+
+**If the app starts dying thirteen seconds in, read the crash report before you touch anything.**
+Then restart the machine.
+
 ---
 
 ## What is left
@@ -284,6 +347,9 @@ Carried forward from part 6, minus what this session closed:
 
 New, from this session:
 
+0. **Look at the umpire chair.** The `BLACK_FLOOR` lift went in after the simulator stopped being
+   able to reach the court, so it is measured but unseen. If 58 is too much the chair will read as
+   pale grey rather than dark charcoal; the knob is one number in `build_stadium.js`.
 6. **The backstop net reads as a white picket fence** rather than a mesh from this distance. It is
    the binarisation in step 3 thickening thin strands at 1024. Give `NettingShader` its own larger
    size in `build_stadium.js` if it bothers you; it is 18 m behind the far baseline and it did not
