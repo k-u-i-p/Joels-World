@@ -176,6 +176,11 @@ final class Renderer: NSObject, MTKViewDelegate {
         shadowDescriptor.fragmentFunction = nil
         shadowDescriptor.depthAttachmentPixelFormat = Self.depthFormat
 
+        let shadowSkinnedDescriptor = MTLRenderPipelineDescriptor()
+        shadowSkinnedDescriptor.vertexFunction = library.makeFunction(name: "shadowSkinnedVertex")
+        shadowSkinnedDescriptor.fragmentFunction = nil
+        shadowSkinnedDescriptor.depthAttachmentPixelFormat = Self.depthFormat
+
         guard let quad = makeScenePipeline(vertex: "quadVertex", fragment: "quadFragment", blended: false),
               let quadOverlay = makeScenePipeline(vertex: "quadVertex", fragment: "quadFragment", blended: true),
               let character = makeScenePipeline(vertex: "characterVertex", fragment: "characterFragment", blended: false),
@@ -183,7 +188,10 @@ final class Renderer: NSObject, MTKViewDelegate {
               let characterTransmissive = makeScenePipeline(vertex: "characterVertex",
                                                             fragment: "characterFragment",
                                                             blended: true, premultiplied: true),
+              let characterSkinned = makeScenePipeline(vertex: "characterSkinnedVertex",
+                                                       fragment: "characterFragment", blended: false),
               let shadow = try? device.makeRenderPipelineState(descriptor: shadowDescriptor),
+              let shadowSkinned = try? device.makeRenderPipelineState(descriptor: shadowSkinnedDescriptor),
               let ssao = makePostPipeline(fragment: "ssaoFragment", format: Self.aoFormat),
               let ssaoBlur = makePostPipeline(fragment: "ssaoBlurFragment", format: Self.aoFormat),
               let composite = makePostPipeline(fragment: "compositeFragment", format: view.colorPixelFormat)
@@ -198,6 +206,12 @@ final class Renderer: NSObject, MTKViewDelegate {
         characterBlendPipeline = characterBlend
         characterTransmissivePipeline = characterTransmissive
         shadowPipeline = shadow
+        // The body is skinned and everything attached to it is not, so the character renderer
+        // needs both vertex functions to hand and has to switch between them mid-character.
+        characters.pipelines = CharacterPipelines(rigid: character,
+                                                  skinned: characterSkinned,
+                                                  shadowRigid: shadow,
+                                                  shadowSkinned: shadowSkinned)
         ssaoPipeline = ssao
         ssaoBlurPipeline = ssaoBlur
         compositePipeline = composite

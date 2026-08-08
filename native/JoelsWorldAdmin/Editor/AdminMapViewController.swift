@@ -96,7 +96,10 @@ final class AdminMapViewController: NSViewController {
         // walls, which is what you want when framing a shot rather than testing one.
         let keyboard = editorView.keyboard
         renderer.inputProvider = { keyboard.inputState() }
-        renderer.onFrame = { [weak self] _ in self?.refreshOverlay() }
+        renderer.onFrame = { [weak self] _ in
+            self?.applyCameraKeys()
+            self?.refreshOverlay()
+        }
         metalView.delegate = renderer
 
         if AdminScreenshot.quitsAfterShot {
@@ -104,6 +107,24 @@ final class AdminMapViewController: NSViewController {
             metalView.framebufferOnly = false
             scheduleScreenshot(device: device)
         }
+    }
+
+    /// **R and F tip the camera over; Q and E swing it round; 0 puts it back.**
+    ///
+    /// Applied per frame off the held-key set rather than on the keystroke, the same way the
+    /// movement keys are, so holding one turns smoothly instead of stuttering on key repeat.
+    /// This is the editor's own control and nothing the game ships — it exists so a character
+    /// can be looked at from the side, which is the only angle a rig can be judged from.
+    private func applyCameraKeys() {
+        let nudge = editorView.keyboard.cameraNudge()
+        if nudge.reset {
+            session.state.camera.pitch = 0
+            session.state.camera.yaw = 0
+            return
+        }
+        guard nudge.pitch != 0 || nudge.yaw != 0 else { return }
+        session.state.camera.setPitch(delta: nudge.pitch)
+        session.state.camera.yaw += nudge.yaw
     }
 
     /// Grabs one frame once the map has had time to stream in, writes it, and quits.

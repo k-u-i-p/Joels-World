@@ -4,6 +4,10 @@ using namespace metal;
 constant float PI = 3.14159265358979323846;
 constant float RECIPROCAL_PI = 1.0 / PI;
 
+/// Colour slots in the skinned body's palette — skin, shirt, arm, pants. Must match
+/// `SkinnedBody.paletteCount`.
+constant uint SKIN_PALETTE_COUNT = 4;
+
 // Vertices are indexed directly out of a device buffer, so no vertex descriptor is used.
 struct QuadVertex {
     float3 position;
@@ -14,6 +18,22 @@ struct MeshVertex {
     float3 position;
     float3 normal;
     float2 uv;
+};
+
+/// A vertex of the skinned character body. Mirrors `SkinVertex` in `SkinnedBody.swift`.
+///
+/// `joints` indexes the matrix array bound at vertex buffer 2 and `colorSlot` the palette at
+/// buffer 3 — the body is one draw call, so neither the bone nor the colour can come from the
+/// uniforms any more. Both are floats: the eight bytes are cheaper than a layout mismatch
+/// between Swift and Metal that nothing would report.
+struct SkinVertex {
+    float3 position;
+    float3 normal;
+    float4 weights;
+    float4 joints;
+    float2 uv;
+    float  colorSlot;
+    float  pad;
 };
 
 // MARK: - Shared per-pass state
@@ -284,6 +304,12 @@ struct CharacterInOut {
     float3 normal;
     float2 uv;
     float3 worldPosition;
+    /// Base colour. Comes from the uniforms for a rigid draw and from the palette for a skinned
+    /// one, so a single fragment shader serves both. Every vertex of one surface carries the
+    /// same slot, so there is nothing for the interpolation to smear.
+    float4 tint;
+    /// x = roughness, y = metalness.
+    float2 surfaceParams;
 };
 
 vertex CharacterInOut characterVertex(uint vertexID [[vertex_id]],
@@ -297,6 +323,48 @@ vertex CharacterInOut characterVertex(uint vertexID [[vertex_id]],
     out.normal = normalize((uniforms.model * float4(vertices[vertexID].normal, 0.0)).xyz);
     out.uv = vertices[vertexID].uv;
     out.worldPosition = (uniforms.model * local).xyz;
+    out.tint = uniforms.color;
+    out.surfaceParams = uniforms.flags.zw;
+    return out;
+}
+
+/// **Linear blend skinning for the character body.**
+///
+/// Each matrix in `joints` is that bone's transform this frame times the inverse of its
+/// transform in the pose the mesh was built in, so it carries a bind-space vertex to where the
+/// bone has taken it. A vertex on a bone's shaft is moved by that one matrix; a vertex near a
+/// joint is moved by a weighted sum of the two bones meeting there, and that sum is what makes
+/// an elbow a crease rather than the seam between two capsules.
+///
+/// The character's position, heading and scale are already inside every joint matrix, so
+/// `modelViewProjection` is the plain view-projection and there is no model matrix to apply.
+vertex CharacterInOut characterSkinnedVertex(uint vertexID [[vertex_id]],
+                                             const device SkinVertex *vertices [[buffer(0)]],
+                                             constant CharacterUniforms &uniforms [[buffer(1)]],
+                                             constant float4x4 *joints [[buffer(2)]],
+                                             constant float4 *palette [[buffer(3)]])
+{
+    SkinVertex v = vertices[vertexID];
+
+    float3 position = float3(0.0);
+    float3 normal = float3(0.0);
+    for (uint i = 0; i < 4; i++) {
+        float weight = v.weights[i];
+        if (weight <= 0.0) { continue; }
+        float4x4 bone = joints[uint(v.joints[i])];
+        position += weight * (bone * float4(v.position, 1.0)).xyz;
+        normal += weight * (float3x3(bone[0].xyz, bone[1].xyz, bone[2].xyz) * v.normal);
+    }
+
+    uint slot = uint(v.colorSlot);
+    CharacterInOut out;
+    out.position = uniforms.modelViewProjection * float4(position, 1.0);
+    out.normal = normalize(normal);
+    out.uv = v.uv;
+    out.worldPosition = position;
+    // The palette holds the colours first and the roughness/metalness pairs after them.
+    out.tint = float4(palette[slot].rgb, uniforms.color.a);
+    out.surfaceParams = palette[slot + SKIN_PALETTE_COUNT].xy;
     return out;
 }
 
@@ -311,7 +379,7 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
                                     sampler clipSampler [[sampler(1)]],
                                     sampler shadowSampler [[sampler(2)]])
 {
-    float4 color = uniforms.color;
+    float4 color = in.tint;
     if (uniforms.flags.x > 0.5) {
         color *= baseColor.sample(baseSampler, in.uv);
     }
@@ -371,7 +439,7 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
         // the see-through itself.
         float transmission = uniforms.surface.x;
 
-        float3 shaded = shadeStandard(color.rgb, uniforms.flags.z, uniforms.flags.w,
+        float3 shaded = shadeStandard(color.rgb, in.surfaceParams.x, in.surfaceParams.y,
                                       uniforms.specular.xyz, uniforms.specular.w,
                                       1.0 - transmission,
                                       normal, viewDir, light);
@@ -397,6 +465,23 @@ vertex float4 shadowVertex(uint vertexID [[vertex_id]],
                            constant CharacterUniforms &uniforms [[buffer(1)]])
 {
     return uniforms.modelViewProjection * float4(vertices[vertexID].position, 1.0);
+}
+
+/// The same, for the skinned body. A character casts the shadow of the pose it is actually in,
+/// so the skinning has to be repeated here rather than the rest pose reused.
+vertex float4 shadowSkinnedVertex(uint vertexID [[vertex_id]],
+                                  const device SkinVertex *vertices [[buffer(0)]],
+                                  constant CharacterUniforms &uniforms [[buffer(1)]],
+                                  constant float4x4 *joints [[buffer(2)]])
+{
+    SkinVertex v = vertices[vertexID];
+    float3 position = float3(0.0);
+    for (uint i = 0; i < 4; i++) {
+        float weight = v.weights[i];
+        if (weight <= 0.0) { continue; }
+        position += weight * (joints[uint(v.joints[i])] * float4(v.position, 1.0)).xyz;
+    }
+    return uniforms.modelViewProjection * float4(position, 1.0);
 }
 
 // MARK: - Post-processing

@@ -124,6 +124,22 @@ struct RigPose {
     var holdingTransform = matrix_identity_float4x4
 }
 
+/// A two-bone limb's three joints, in whatever space the caller asked for.
+typealias RigChain = (root: SIMD3<Float>, mid: SIMD3<Float>, tip: SIMD3<Float>)
+
+/// The rig at rest — see `CharacterRig.bindPose`. Everything is in bind space: the character
+/// standing at the world origin, facing +X, at scale 1.
+struct RigBindPose {
+    /// Rest transform per skinning bone. The joint fillers — shoulders, elbows, knees — are
+    /// absent: a skinned body has no seams for them to hide, which is the whole point.
+    var bones: [RigPart: Float4x4]
+
+    var leftArm: RigChain      ///< shoulder → elbow → wrist
+    var rightArm: RigChain
+    var leftLeg: RigChain      ///< hip → knee → ankle
+    var rightLeg: RigChain
+}
+
 /// A last word on the pose, applied after the walk cycle and any emote.
 ///
 /// The rig's poses all come from tables — a walk phase, an emote, an idle sway — which is fine
@@ -1158,6 +1174,95 @@ enum CharacterRig {
             * Float4x4.scale(SIMD3(repeating: maxScale))
 
         return pose
+    }
+
+    // MARK: - Bind pose
+
+    /// The rig standing still, with the character at the world origin facing +X.
+    ///
+    /// This is the shape the skinned body mesh is **built in**. `SkinnedBody` generates every
+    /// vertex in this space and records, for each one, which bones move it and how much; at
+    /// draw time each bone contributes `current × bind⁻¹`, which is the identity for a
+    /// character standing exactly like this and departs from it as the pose does.
+    ///
+    /// It has to agree with what `pose` produces for a still, un-emoting character — same
+    /// constants, same order, same IK. It is written out separately rather than obtained by
+    /// calling `pose` because `pose` needs a `GameCharacter`, a `RigRuntime` and a clock, and
+    /// bakes in breathing and idle sway that have no business in a rest pose.
+    ///
+    /// Getting it *wrong* is not fatal, which is worth knowing before reading the next hundred
+    /// lines nervously: the mesh is built in whatever space this returns and skinned back out of
+    /// it, so a disagreement shows up as a body that is subtly the wrong shape everywhere, not
+    /// as a crash or a limb in the wrong place.
+    static func bindPose() -> RigBindPose {
+        let bodyPivot = Float4x4.translation(SIMD3(0, 0, bodyPivotHeight))
+        // No waist twist and no emote at rest, so the chest is the body pivot.
+        let chest = bodyPivot
+
+        var bones: [RigPart: Float4x4] = [:]
+        bones[.torso] = chest
+            * Float4x4.translation(SIMD3(0, 0, torsoCentreZ))
+            * Float4x4.rotationX(.pi / 2)
+        bones[.pelvis] = bodyPivot
+            * Float4x4.translation(SIMD3(0, 0, pelvisCentreZ))
+            * Float4x4.rotationX(.pi / 2)
+        bones[.neck] = chest
+            * Float4x4.translation(neckBase)
+            * Float4x4.translation(SIMD3(0, 0, neckLength / 2))
+            * Float4x4.rotationX(.pi / 2)
+
+        // The neutral limb targets, run through the same IK `pose` uses. `solve` clamps its
+        // `end` in place, so these come back as where the hand and ankle really ended up.
+        var leftWrist = neutralLeftHand
+        var rightWrist = neutralRightHand
+        var leftAnkle = neutralLeftFoot;  leftAnkle.z += ankleLift
+        var rightAnkle = neutralRightFoot; rightAnkle.z += ankleLift
+
+        let leftElbow = IKSolver.solve(start: leftShoulder, end: &leftWrist,
+                                       l1: armBone, l2: armBone, bendingNormal: bendNormalArmL)
+        let rightElbow = IKSolver.solve(start: rightShoulder, end: &rightWrist,
+                                        l1: armBone, l2: armBone, bendingNormal: bendNormalArmR)
+        let leftKnee = IKSolver.solve(start: leftHip, end: &leftAnkle,
+                                      l1: thighBone, l2: shinBone, bendingNormal: bendNormalLegL)
+        let rightKnee = IKSolver.solve(start: rightHip, end: &rightAnkle,
+                                       l1: thighBone, l2: shinBone, bendingNormal: bendNormalLegR)
+
+        func segment(_ part: RigPart, _ start: SIMD3<Float>, _ end: SIMD3<Float>, in frame: Float4x4) {
+            if let local = IKSolver.segmentTransform(start: start, end: end) {
+                bones[part] = frame * local
+            }
+        }
+
+        segment(.leftUpperArm, leftShoulder, leftElbow, in: chest)
+        segment(.leftLowerArm, leftElbow, leftWrist, in: chest)
+        segment(.rightUpperArm, rightShoulder, rightElbow, in: chest)
+        segment(.rightLowerArm, rightElbow, rightWrist, in: chest)
+        segment(.leftUpperLeg, leftHip, leftKnee, in: bodyPivot)
+        segment(.leftLowerLeg, leftKnee, leftAnkle, in: bodyPivot)
+        segment(.rightUpperLeg, rightHip, rightKnee, in: bodyPivot)
+        segment(.rightLowerLeg, rightKnee, rightAnkle, in: bodyPivot)
+
+        bones[.leftHand] = chest * Float4x4.translation(leftWrist)
+            * IKSolver.basis(alongY: safeDirection(from: leftElbow, to: leftWrist),
+                             rolledTowards: bendNormalArmL)
+        bones[.rightHand] = chest * Float4x4.translation(rightWrist)
+            * IKSolver.basis(alongY: safeDirection(from: rightElbow, to: rightWrist),
+                             rolledTowards: bendNormalArmR)
+
+        // The joint anchors again, this time in bind space rather than in the chest's or the
+        // body pivot's, because that is the space the mesh is swept in.
+        func into(_ frame: Float4x4, _ point: SIMD3<Float>) -> SIMD3<Float> {
+            let v = frame * SIMD4(point, 1)
+            return SIMD3(v.x, v.y, v.z)
+        }
+
+        return RigBindPose(
+            bones: bones,
+            leftArm: (into(chest, leftShoulder), into(chest, leftElbow), into(chest, leftWrist)),
+            rightArm: (into(chest, rightShoulder), into(chest, rightElbow), into(chest, rightWrist)),
+            leftLeg: (into(bodyPivot, leftHip), into(bodyPivot, leftKnee), into(bodyPivot, leftAnkle)),
+            rightLeg: (into(bodyPivot, rightHip), into(bodyPivot, rightKnee), into(bodyPivot, rightAnkle))
+        )
     }
 
     private static func safeDirection(from: SIMD3<Float>, to: SIMD3<Float>) -> SIMD3<Float> {

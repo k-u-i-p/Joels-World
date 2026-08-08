@@ -73,6 +73,19 @@ extension CharacterUniforms {
     }
 }
 
+/// The four pipeline states a character needs, built by `Renderer` and handed to
+/// `CharacterRenderer` because it is the thing that knows when to switch between them.
+///
+/// A character is drawn with two vertex functions in the same pass: the body is skinned and
+/// everything hung off it — head, hair, shoes, the racket, emote props — is a rigid mesh with
+/// its own transform. Both passes need both.
+struct CharacterPipelines {
+    var rigid: MTLRenderPipelineState
+    var skinned: MTLRenderPipelineState
+    var shadowRigid: MTLRenderPipelineState
+    var shadowSkinned: MTLRenderPipelineState
+}
+
 /// Draws the procedural character rig: the shared primitive meshes, the glTF head and shoe
 /// models, and the ground shadow blob.
 ///
@@ -98,6 +111,20 @@ final class CharacterRenderer {
     private var shoeBoxMesh: GPUMesh!
     private var shadowMesh: GPUMesh!
     private var shadowTexture: MTLTexture?
+
+    /// The body as one skinned mesh — see `SkinnedBody`. When it is present the primitive parts
+    /// above are only used for the emote props and the shoe stand-in; when it is `nil` the rig
+    /// falls back to drawing them one at a time, which is what the game did before.
+    private var skinnedBody: GPUSkinMesh?
+    /// Pipelines for the skinned body. Owned by `Renderer`, which builds them, and handed over
+    /// here because the body has to be drawn with a different vertex function from the head,
+    /// the shoes and the props it is drawn among.
+    var pipelines: CharacterPipelines?
+
+    /// Scratch for the per-character uniform blocks, so posing a crowd allocates nothing.
+    private var jointMatrices = [Float4x4](repeating: matrix_identity_float4x4,
+                                           count: SkinnedBody.boneCount)
+    private var palette = [SIMD4<Float>](repeating: .zero, count: SkinnedBody.paletteCount * 2)
 
     /// One GPU mesh per emote prop geometry, built up front and shared by every character.
     private var propMeshes: [PropMesh: GPUMesh] = [:]
@@ -224,6 +251,17 @@ final class CharacterRenderer {
         self.shoeBoxMesh = shoeBoxMesh
         self.shadowMesh = shadowMesh
 
+        // The skinned body, built from the same anatomy the parts above are. If it fails to
+        // build the rig still draws — as twenty separate solids with balls for joints, which is
+        // what it was — so this is a `Log` and not a `return false`.
+        let (skin, inverseBind) = SkinnedBody.build()
+        skinnedBody = GPUSkinMesh(device: device, mesh: skin, inverseBind: inverseBind)
+        if skinnedBody == nil {
+            Log.render("Failed to build the skinned body — falling back to the rigid rig")
+        } else {
+            Log.render("Skinned body: \(skin.vertices.count) vertices, \(skin.indices.count / 3) triangles")
+        }
+
         shadowTexture = ProceduralTextures.makeShadowTexture(device: device)
         whiteTexture = ProceduralTextures.makeWhiteTexture(device: device)
         buildPropMeshes()
@@ -237,7 +275,7 @@ final class CharacterRenderer {
     /// edge in among them reads as a modelling mistake rather than as a knuckle. The thumb is
     /// the one piece that has to be placed rather than scaled — it leaves the palm's plane, and
     /// a scaled sphere cannot do that.
-    private static func buildHand() -> MeshData {
+    static func buildHand() -> MeshData {
         func blob(radii: SIMD3<Float>, at centre: SIMD3<Float>) -> MeshData {
             var mesh = MeshFactory.sphere(radius: 1, widthSegments: 14, heightSegments: 12)
             MeshFactory.applyScale(&mesh, radii)
@@ -375,13 +413,16 @@ final class CharacterRenderer {
         encoder.setFragmentTexture(clipTexture ?? whiteTexture, index: 1)
 
         let shadowPass = !includeProps
-        for (part, transform) in pose.parts {
-            if shadowPass && part.isJointFiller { continue }
-            guard let mesh = mesh(for: part) else { continue }
-            drawMesh(mesh, transform: transform, color: SIMD4(color(for: part, colors: pose.colors), 1),
-                     texture: nil, unlit: false, material: material(for: part),
-                     pivot: pose.worldPivot,
-                     viewProjection: viewProjection, encoder: encoder)
+        if !drawSkinnedBody(pose: pose, viewProjection: viewProjection,
+                            encoder: encoder, shadowPass: shadowPass) {
+            for (part, transform) in pose.parts {
+                if shadowPass && part.isJointFiller { continue }
+                guard let mesh = mesh(for: part) else { continue }
+                drawMesh(mesh, transform: transform, color: SIMD4(color(for: part, colors: pose.colors), 1),
+                         texture: nil, unlit: false, material: material(for: part),
+                         pivot: pose.worldPivot,
+                         viewProjection: viewProjection, encoder: encoder)
+            }
         }
 
         drawHead(pose: pose, viewProjection: viewProjection, encoder: encoder)
@@ -391,6 +432,83 @@ final class CharacterRenderer {
         if includeProps {
             drawProps(pose: pose, transparent: false, viewProjection: viewProjection, encoder: encoder)
         }
+    }
+
+    /// Draws the body as one skinned mesh, and returns `false` if it could not — either because
+    /// the mesh failed to build or because `Renderer` has not handed over the pipelines yet, in
+    /// which case the caller falls back to the twenty rigid parts.
+    ///
+    /// The joint matrix for a bone is **this frame's transform times the inverse of its bind
+    /// transform**. `CharacterRig` already produces the first of those for every bone as part of
+    /// posing the old rigid rig, so nothing about the walk cycle, the emotes, the IK or a
+    /// minigame's override had to change to make this work — the pose is the same, it is only
+    /// spent differently.
+    ///
+    /// Leaves the encoder on the rigid pipeline, because the head, the shoes and the props that
+    /// follow are all rigid meshes.
+    private func drawSkinnedBody(pose: RigPose,
+                                 viewProjection: Float4x4,
+                                 encoder: MTLRenderCommandEncoder,
+                                 shadowPass: Bool) -> Bool {
+        if ProcessInfo.processInfo.environment["JW_RIGID_RIG"] != nil { return false }
+        guard let body = skinnedBody, let pipelines else { return false }
+
+        var filled: UInt32 = 0
+        for (part, transform) in pose.parts {
+            guard let index = SkinnedBody.boneIndex[part] else { continue }
+            jointMatrices[index] = transform * body.inverseBind[index]
+            filled |= 1 << UInt32(index)
+        }
+        // A bone the pose skipped — `segmentTransform` gives up on a limb shorter than 0.1 —
+        // rides the pelvis rather than the identity, which would leave that geometry standing at
+        // the world origin in the rest pose for everyone to see.
+        let fallback = jointMatrices[SkinnedBody.boneIndex[.pelvis] ?? 0]
+        for index in 0..<SkinnedBody.boneCount where filled & (1 << UInt32(index)) == 0 {
+            jointMatrices[index] = fallback
+        }
+
+        palette[0] = SIMD4(pose.colors.skin, 1)
+        palette[1] = SIMD4(pose.colors.shirt, 1)
+        palette[2] = SIMD4(pose.colors.arm, 1)
+        palette[3] = SIMD4(pose.colors.pants, 1)
+        for (offset, material) in [SurfaceMaterial.skin, .shirt, .arm, .pants].enumerated() {
+            palette[SkinnedBody.paletteCount + offset] = SIMD4(material.roughness, material.metalness, 0, 0)
+        }
+
+        // The joint matrices already carry the character's position, heading and scale, so the
+        // model matrix is the identity and the "model-view-projection" is just the camera.
+        var uniforms = CharacterUniforms(
+            modelViewProjection: viewProjection,
+            model: matrix_identity_float4x4,
+            color: SIMD4(1, 1, 1, 1),
+            clipParams: SIMD4(pose.worldPivot.x, pose.worldPivot.y, clipMapSize.x, clipMapSize.y),
+            textured: false,
+            unlit: false,
+            material: .shirt
+        )
+
+        encoder.setRenderPipelineState(shadowPass ? pipelines.shadowSkinned : pipelines.skinned)
+        encoder.setVertexBuffer(body.vertexBuffer, offset: 0, index: 0)
+        encoder.setVertexBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
+        encoder.setVertexBytes(&jointMatrices,
+                               length: MemoryLayout<Float4x4>.stride * SkinnedBody.boneCount,
+                               index: 2)
+        if !shadowPass {
+            encoder.setVertexBytes(&palette,
+                                   length: MemoryLayout<SIMD4<Float>>.stride * SkinnedBody.paletteCount * 2,
+                                   index: 3)
+            encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
+            encoder.setFragmentTexture(whiteTexture, index: 0)
+            encoder.setFragmentTexture(whiteTexture, index: 3)
+        }
+        encoder.drawIndexedPrimitives(type: .triangle,
+                                      indexCount: body.indexCount,
+                                      indexType: .uint32,
+                                      indexBuffer: body.indexBuffer,
+                                      indexBufferOffset: 0)
+
+        encoder.setRenderPipelineState(shadowPass ? pipelines.shadowRigid : pipelines.rigid)
+        return true
     }
 
     /// The blended half of the emote props, drawn after the opaque rig so they sort against it
