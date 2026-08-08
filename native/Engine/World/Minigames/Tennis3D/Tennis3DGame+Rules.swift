@@ -213,6 +213,9 @@ extension Tennis3DGame {
                  duration: 6)
         host.minigamePlayEffect(path: "/media/crowd_cheering.mp3", volume: 1.0)
         host.minigameAwardBadge("tennis")
+        // In the trace as well as the log, so "did the badge fire, and exactly once?" can be
+        // answered from the trace file after the fact rather than needing a live console.
+        trace("BADGE tennis awarded — match won \(score.playerGames)—\(score.npcGames)")
         onPresentationChanged?()
     }
 

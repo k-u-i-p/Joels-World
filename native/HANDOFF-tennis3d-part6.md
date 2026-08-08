@@ -163,10 +163,42 @@ Two changes, and they are a pair:
   maximum error and the game would read as random rather than as demanding. Clean contact is
   exact; a full-stretch scramble is not.
 
-⏳ **Being measured now.** `Tuning.mishitPace` 0.46, `mishitLoft` 0.56, `mishitThreshold` 0.25, and
-the two difficulty scales `playerMishitScale` / `npcMishitScale`. The target is somewhere around a
-quarter to a third of points ending in an actual error; the rest should still end by somebody not
-getting there.
+### And a mishit can go wide, which was the piece that made it work
+
+With only pace and loft, `aimX` was honoured *exactly* on every ball ever struck. Going down the
+line was free, no shot was ever wide, and every mistake looked like the same mistake. The racket
+face now swings off line too (`Tuning.mishitFace`, in radians), and **the very first point of the
+first run with it in ended `OUT`** after five sessions of nothing.
+
+### Measured
+
+Against the `-tennis3ddrag` bot, which reads the ball perfectly and has no reaction time — so it
+is a good deal better than a ten-year-old. Read it as an upper bound on Joel.
+
+| | You – Alex | Ended in an error | Rally median | Rally mean / max |
+|---|---|---|---|---|
+| **Easy** 0.35 | 19 – 9 | 14% | 7 | 8.9 / 27 |
+| **Normal** 0.6 | 10 – 12 | **23%** | 8 | 10.9 / 44 |
+| **Hard** 0.9 | 10 – 26 | 11% | 4 | 6.6 / 24 |
+
+Against a flat **0% across every session since part 4**. A perfect player is now level with Alex
+on Normal, beats her comfortably on Easy and is beaten badly on Hard, which is the curve part 5
+was aiming at, and points end in more than one way at all three settings.
+
+The final numbers: `mishitPace` 0.76, `mishitLoft` 0.92, `mishitFace` 0.14, `mishitThreshold`
+0.20, depth `0.76–0.96 + 0.10 × attack`, and the `strike` depth-drift down from 0.35 to 0.10.
+
+**Every error so far is an `OUT`** — a first bounce outside the legal half, which covers both wide
+and long. No `INTO THE NET` has been seen yet: the solver guarantees 0.18 m of cord clearance and
+a downward loft error apparently does not often eat it. Worth a look if you want the third kind of
+mistake, and the lever is `netMargin` in `launchBall` rather than a bigger mishit.
+
+### The badge still fires, exactly once per match
+
+`-tennis3ddemo -tennisgames 1` played two matches out (the demo bot restarts once). Two
+`BADGE tennis awarded — match won 1—0` lines, one per match, and a clean restart from `toMarks`
+between them. `winMatch` now writes that line into the trace file, so this is checkable after the
+fact instead of needing a live console.
 
 ## Measuring three difficulties at once
 
@@ -235,12 +267,43 @@ slowly, and it looks exactly like a run that is working. Several of the intermed
 this session's tuning table came from runs that were quietly starved this way, which is why they
 have small sample sizes next to them.
 
-## ⏳ Still to do this session
+## A mechanic that is always 0 is as broken as one that is always 1
 
-1. Land the mishit numbers on measured evidence.
-2. Rally length is skewed, not long.
-3. No volley; Alex never comes to the net.
+Worth its own heading because it is the second time the same thing has happened to the same
+number, from the opposite direction, and nobody noticed either time until they went looking for
+something else.
 
-## What is left after this session
+`attack` — "how far inside your own baseline are you standing" — drives the pace bonus, the wider
+target and now the deeper one. Part 5 zeroed it a stride and a half *inside* the line, because the
+median contact then sat at 8.5 m and measuring from the line pinned it at **1** for every ball of
+every rally. Since then the median contact has swung out to **11.1 m** — a deeper ball pushes the
+receiver back — which pinned it at **0** instead, and the whole short-ball attack had been
+silently inert.
 
-*(to be filled in)*
+It is back on the line with the full three metres to run over. The median ball is now played at
+about 0.26 of it and a genuine short ball reaches 1.
+
+**If you change how deep the ball is hit, re-measure the median contact point and check `attack`
+still varies.** It is the one number in this game that quietly depends on every other one.
+
+## What is left
+
+1. **A finger has still never touched it**, in the narrow sense set out above: everything from
+   `Tennis3DView`'s touch entry point down is now exercised, and the hit-test probe shows a court
+   touch resolves to the right view, but UIKit's own delivery is unverified. Needs `idb`, a
+   working simulator panel, or a person. **Check the panel's injection with a control — press
+   HOME and see if the springboard appears — before trusting a single tap.**
+2. **No `INTO THE NET`.** See above; `netMargin` in `launchBall` is the lever.
+3. **Alex never comes to the net, and neither can the player usefully.** There is no volley: the
+   choreography is one groundstroke, `steer` clamps the player to 0.6 m from the net, and nothing
+   rewards being there. Alex's recovery target is hard-coded to the middle of her baseline in
+   `steerOpponent`. This is the obvious next feature and it is a real one — `intercept` already
+   allows a ball that has not bounced, so the physics side is half done.
+4. **Rally length is skewed, not long** — median 8 at Normal with the occasional 44. Better than
+   it was, and the mishit gives long points a way to end that is not chance.
+5. **`Camera.far` is still 2000**, and nothing may lie flat on Alex's half of the court. See part
+   5 and part 4. Red zone.
+6. **The 2D game is still in the tree** behind `-tennis2d`. Ben's call.
+7. Cosmetic: the difficulty panel sits over Alex at the far baseline between points, and
+   `-tennisdifficulty` does not update which button is highlighted (it overrides `Tuning` without
+   touching the persisted `Tennis3DDifficulty`), which is confusing mid-measurement.
