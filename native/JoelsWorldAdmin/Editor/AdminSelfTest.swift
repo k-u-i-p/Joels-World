@@ -210,12 +210,13 @@ final class AdminSelfTest {
         log("dragged object \(target.id) by dx=\(Int(dx.rounded())) (expected 60) → " +
             "(\(Int(moved?.x ?? 0)), \(Int(moved?.y ?? 0)))")
 
-        // Put it back, so a self-test run does not rewrite the map.
-        map.editorMouseDown(at: destination, shiftHeld: false)
-        map.editorMouseDragged(to: screen)
-        map.editorMouseUp(at: screen)
+        // Restored by value, not by dragging back, so a self-test run does not rewrite the map.
+        // The inverse screen→world mapping rounds, so a return drag lands within a pixel of the
+        // original but not on the same number — enough to rewrite an authored -2095 as -2096 and
+        // leave the run with a diff. `testNPCSelectAndDrag` restores the same way.
+        session.send(.moveObject(id: target.id, x: target.x, y: target.y))
         let restored = session.state.objects.first { $0.id == target.id }
-        log("restored object \(target.id) to (\(Int(restored?.x ?? 0)), \(Int(restored?.y ?? 0)))")
+        log("restored object \(target.id) to (\(restored?.x ?? 0), \(restored?.y ?? 0))")
     }
 
     /// Grab the corner handle of the selected object and drag it out, then back.
@@ -233,6 +234,8 @@ final class AdminSelfTest {
 
         let originalWidth = object.width ?? 0
         let originalLength = object.length ?? 0
+        let originalX = object.x
+        let originalY = object.y
 
         map.editorMouseDown(at: handleScreen, shiftHeld: false)
         map.editorMouseDragged(to: pulled)
@@ -242,15 +245,19 @@ final class AdminSelfTest {
         log("resized object \(object.id) from \(Int(originalWidth))×\(Int(originalLength)) " +
             "to \(Int(resized?.width ?? 0))×\(Int(resized?.length ?? 0))")
 
-        // Restore through the same path a typed size takes.
+        // Restore through the same path a typed size takes, but put the centre back by value:
+        // `applyResize` back-solves it from the anchor and rounds, which is a pixel away from an
+        // authored fraction and would leave the same one-pixel diff a return drag does.
         session.state.editObject(id: object.id) { restored in
             let anchor = EditorGeometry.topLeftAnchor(of: restored)
             EditorGeometry.applyResize(to: &restored, width: originalWidth, length: originalLength,
                                        anchorX: anchor.x, anchorY: anchor.y)
+            restored.x = originalX
+            restored.y = originalY
         }
-        if let restored = session.state.objects.first(where: { $0.id == object.id }) {
-            session.send(.resizeObject(id: restored.id, width: originalWidth, length: originalLength,
-                                       x: restored.x, y: restored.y))
+        if session.state.objects.contains(where: { $0.id == object.id }) {
+            session.send(.resizeObject(id: object.id, width: originalWidth, length: originalLength,
+                                       x: originalX, y: originalY))
             log("restored object \(object.id) to \(Int(originalWidth))×\(Int(originalLength))")
         }
     }
