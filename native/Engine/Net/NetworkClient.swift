@@ -188,8 +188,10 @@ final class NetworkClient {
 
     /// Answering yes to a door dialog. The server replies with a fresh `init`, or with
     /// `map_change_rejected` if the current map has `can_leave: false`.
-    func sendChangeMap(_ mapId: Int) {
-        send(ChangeMapMessage(mapId: mapId))
+    ///
+    /// `force` is the editor's escape hatch from that rejection; the game never passes it.
+    func sendChangeMap(_ mapId: Int, force: Bool = false) {
+        send(ChangeMapMessage(mapId: mapId, force: force ? true : nil))
     }
 
     /// `log` events from NPC interactions, which feed the server-side AI agents.

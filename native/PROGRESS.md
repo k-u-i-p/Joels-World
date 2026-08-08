@@ -963,7 +963,7 @@ since they live in `Engine/Core/WalkTest.swift`):
 Reading the editor's log — it goes to stdout when launched from a terminal:
 
 ```bash
-/path/to/JoelsWorldAdmin.app/Contents/MacOS/JoelsWorldAdmin -selftest -map 0 -zoom 0.3
+"/path/to/Joels World Map Editor.app/Contents/MacOS/Joels World Map Editor" -selftest -map 0 -zoom 0.3
 ```
 
 **Reproducing the Phase 6 parity check.** `emotes.js` only needs three.js for its props, so it

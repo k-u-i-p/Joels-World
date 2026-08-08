@@ -18,7 +18,7 @@ final class AdminWindowController: NSWindowController {
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false)
-        window.title = "Joel's World — Admin"
+        window.title = "Joels World Map Editor"
         window.minSize = NSSize(width: 900, height: 600)
         window.contentViewController = AdminRootViewController()
 

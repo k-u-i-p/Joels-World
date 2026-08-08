@@ -57,10 +57,28 @@ final class AdminEditorView: NSView {
         trackingArea = area
     }
 
-    /// The Metal view and the overlay are passive layers; every event belongs to the editor.
+    /// The game's own UI — the HUD and the door dialog — layered above the map. Each one is
+    /// click-through except for the single control that has to take a mouse, and each decides
+    /// that for itself in its own `hitTest`, so they are asked first and the editor takes
+    /// whatever they turn down.
+    var interactiveOverlays: [NSView] = []
+
+    /// The Metal view and the editor's overlay are passive layers; every event that the game's
+    /// UI does not claim belongs to the editor.
+    ///
+    /// Answering `self` for *everything* — which is what this did before — meant the chat
+    /// field could never be clicked, because AppKit stops at the first view that claims the
+    /// point and never reaches the HUD underneath.
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = superview.map { convert(point, from: $0) } ?? point
-        return bounds.contains(local) ? self : nil
+        guard bounds.contains(local) else { return nil }
+        // Topmost first, which is the order they are drawn in reverse.
+        for overlay in interactiveOverlays.reversed() {
+            // The overlays are direct subviews, so `local` is already the space their own
+            // `hitTest` expects.
+            if let hit = overlay.hitTest(local) { return hit }
+        }
+        return self
     }
 
     private func point(for event: NSEvent) -> CGPoint {

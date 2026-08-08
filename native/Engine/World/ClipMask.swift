@@ -105,16 +105,18 @@ final class ClipMask {
             ctx.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
             ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
 
-            // Core Graphics is Y-up; the mask is authored Y-down. Flip so row 0 is the top.
-            ctx.translateBy(x: 0, y: CGFloat(height))
-            ctx.scaleBy(x: 1, y: -1)
-
             let rect = CGRect(x: 0, y: 0, width: width, height: height)
 
             if isSVG {
+                // Core Graphics is Y-up; SVG is authored Y-down. Flip so row 0 is the top.
+                ctx.translateBy(x: 0, y: CGFloat(height))
+                ctx.scaleBy(x: 1, y: -1)
                 return SVGRasterizer.draw(svgData: data, into: ctx, rect: rect)
             } else if let source = CGImageSourceCreateWithData(data as CFData, nil),
                       let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+                // `draw` already lands a bitmap upright — row 0 of the buffer is the image's
+                // top row. Flipping here as well would mirror the mask, which is what made
+                // characters on the PNG-mask maps vanish wherever the mirrored mask was black.
                 ctx.draw(image, in: rect)
                 return true
             }

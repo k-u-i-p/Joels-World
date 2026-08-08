@@ -168,6 +168,10 @@ final class AdminMapViewController: NSViewController {
             dialog.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
+        // Without this the container view claims every click and neither the chat field nor
+        // the dialog's buttons can be reached.
+        editorView.interactiveOverlays = [hud, dialog]
+
         hud.onChatSubmit = { [weak self] message in
             self?.session.submitChat(message)
         }
@@ -178,12 +182,35 @@ final class AdminMapViewController: NSViewController {
             switch action {
             case .changeMap(let mapId):
                 Log.world("Requesting map change to \(mapId)")
-                self?.session.changeMap(mapId)
+                self?.session.changeMapThroughDoor(mapId)
             }
         }
 
         session.ui = self
     }
+
+    // MARK: - What a click would land on
+
+    /// The three things a point in the map view can belong to. Only ever asked by `-selftest`:
+    /// the container view claiming every point, and so swallowing every click meant for the
+    /// chat field, is a regression that leaves no other trace.
+    enum ClickTarget: String {
+        case map, chatField, dialog, nothing
+    }
+
+    func clickTarget(at point: CGPoint) -> ClickTarget {
+        // `hitTest` takes a point in the *superview's* space.
+        let fromSuperview = view.superview.map { view.convert(point, to: $0) } ?? point
+        guard let hit = view.hitTest(fromSuperview) else { return .nothing }
+        if hit.isDescendant(of: dialog) { return .dialog }
+        if hit.isDescendant(of: hud) { return .chatField }
+        return .map
+    }
+
+    /// Where the chat field sits in the map view's coordinates.
+    var chatFieldPoint: CGPoint { hud.convert(hud.chatFieldCentre, to: view) }
+
+    var chatRowWidths: [CGFloat] { hud.chatRowWidths }
 
     private func presentFatal(_ message: String) {
         let label = NSTextField(labelWithString: message)

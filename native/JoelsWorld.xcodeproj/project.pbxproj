@@ -8,7 +8,7 @@
 
 /* Begin PBXFileReference section */
 		A1000000000000000000001 /* JoelsWorld.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JoelsWorld.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1000000000000000000002 /* JoelsWorldAdmin.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JoelsWorldAdmin.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1000000000000000000002 /* JoelsWorldAdmin.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = JoelsWorldAdmin.app; path = "Joels World Map Editor.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -197,7 +197,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"$SRCROOT/../tools/assets/stage.sh\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GameAssets\"\n";
+			shellScript = "\"$SRCROOT/../tools/assets/stage.sh\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GameAssets\"\n# The editor writes to the checkout it was built from. Recording where that is here is\n# what saves the operator passing -data on every launch.\nPLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\nDATA=\"$SRCROOT/../data\"\n/usr/libexec/PlistBuddy -c \"Set :JWCheckoutDataDirectory $DATA\" \"$PLIST\" 2>/dev/null \\\n  || /usr/libexec/PlistBuddy -c \"Add :JWCheckoutDataDirectory string $DATA\" \"$PLIST\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -344,6 +344,7 @@
 				DEVELOPMENT_TEAM = CR2F6D8AF7;
 				ENABLE_HARDENED_RUNTIME = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Joels World Map Editor";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -353,7 +354,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.allr.joelsworld.admin;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Joels World Map Editor";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -371,6 +372,7 @@
 				DEVELOPMENT_TEAM = CR2F6D8AF7;
 				ENABLE_HARDENED_RUNTIME = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Joels World Map Editor";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -380,7 +382,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.allr.joelsworld.admin;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Joels World Map Editor";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;

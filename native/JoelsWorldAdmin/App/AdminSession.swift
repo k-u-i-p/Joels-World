@@ -59,6 +59,11 @@ final class AdminSession {
     let state = GameState()
     let network = NetworkClient()
 
+    /// The same sound stack the game has. The editor used to have none — every audio hook
+    /// below was a no-op — which meant a `play_sound` you had just authored could only be
+    /// checked by building the game onto a phone.
+    let audio = GameAudio()
+
     weak var delegate: AdminSessionDelegate?
 
     /// Set by `AdminMapViewController` once its views exist. Nil until then, which is why
@@ -80,6 +85,25 @@ final class AdminSession {
 
     var serverSettings: AdminServerSettings { settings }
 
+    /// Keeps trying until the socket is actually open, and never stops.
+    ///
+    /// Two things need catching, and one timer catches both.
+    ///
+    /// The first is a connection that *fails*: `NetworkClient` retries five times on its own,
+    /// then gives up and says so. The editor is a window somebody leaves open all day, across
+    /// server restarts and closed lids, so giving up is the wrong ending for it.
+    ///
+    /// The second is a connection that neither opens nor fails. `NetworkClient` sets
+    /// `waitsForConnectivity`, and detects "open" with a ping round-trip — so when the server
+    /// is unreachable at launch, the ping's completion is simply never called. No error, no
+    /// reconnect, no `onDisconnected`: the editor sits on "Connecting to joels-world.com…"
+    /// for as long as you leave it, and the only way out is the Connect button. That is the
+    /// bug behind "the admin doesn't connect". A connection that has not opened by the time
+    /// this fires is torn down and started again from scratch.
+    private var retryTimer: Timer?
+    private let retryInterval: TimeInterval = 8
+    private var attempt = 0
+
     init() {
         state.delegate = self
         settings.apply()
@@ -93,17 +117,55 @@ final class AdminSession {
             settings.apply()
             // A token issued by one server means nothing to another.
             SessionStore.clearToken()
-            network.disconnect()
         }
-        delegate?.adminSession(didChangeStatus: "Connecting to \(settings.host)…")
+        attempt = 0
+        startConnecting()
+    }
+
+    private func startConnecting() {
+        attempt += 1
+        isConnected = false
+        // Unconditional: an attempt that hung has a live task holding the old callbacks, and
+        // `NetworkClient.connect` refuses to start a second one while it thinks it is still
+        // connecting.
+        network.disconnect()
+
+        let suffix = attempt > 1 ? " (attempt \(attempt))" : ""
+        delegate?.adminSession(didChangeStatus: "Connecting to \(settings.host)…\(suffix)")
+        if attempt > 1 { Log.net("Retrying the connection to \(settings.host) — attempt \(attempt)") }
+
         network.connect()
+        scheduleRetry()
+    }
+
+    private func scheduleRetry() {
+        cancelRetry()
+        retryTimer = Timer.scheduledTimer(withTimeInterval: retryInterval,
+                                          repeats: false) { [weak self] _ in
+            guard let self, !self.isConnected else { return }
+            self.startConnecting()
+        }
+    }
+
+    private func cancelRetry() {
+        retryTimer?.invalidate()
+        retryTimer = nil
     }
 
     private func wire() {
         network.onOpen = { [weak self] in
             guard let self else { return }
             self.isConnected = true
-            self.delegate?.adminSession(didChangeStatus: "Connected — waiting for world")
+            self.attempt = 0
+            self.cancelRetry()
+            // The socket's "opened" callback is a ping round-trip, so on a resumed session it
+            // can land *after* the `init` frame it was waiting for. Don't overwrite a status
+            // line that is already describing a loaded world.
+            if !self.state.hasWorld {
+                self.delegate?.adminSession(didChangeStatus: "Connected — waiting for world")
+            } else {
+                self.delegate?.adminSession(didChangeStatus: self.statusLine())
+            }
             // A resumed session delivers `init` unprompted; only ask for a character if it
             // does not. The name is a plain one: the editor connects as an ordinary client
             // and the server validates its name like anyone else's.
@@ -114,8 +176,11 @@ final class AdminSession {
         }
 
         network.onDisconnected = { [weak self] message in
-            self?.isConnected = false
-            self?.delegate?.adminSession(didChangeStatus: "Disconnected — \(message)")
+            guard let self else { return }
+            self.isConnected = false
+            self.scheduleRetry()
+            self.delegate?.adminSession(didChangeStatus: "Disconnected — \(message) Trying again "
+                                                      + "in \(Int(self.retryInterval))s.")
         }
 
         network.onMessage = { [weak self] message in
@@ -167,7 +232,15 @@ final class AdminSession {
             ui?.addChatMessage(sender: "System", message: "You earned the badge: \(badge)!")
             Log.world("Badge earned: \(badge)")
 
-        case .mapChangeRejected, .sessionToken:
+        case .mapChangeRejected:
+            // The editor forces its map changes, so this should not arrive any more. If it
+            // does, say so rather than leaving the picker looking broken.
+            delegate?.adminSession(didChangeStatus: "Map change refused by the server — the "
+                                                 + "current map has can_leave: false.")
+            audio.playEffect("/media/buzzer.mp3", volume: 1, rate: 1)
+            Log.world("Map change rejected")
+
+        case .sessionToken:
             break
 
         case .unknown(let type):
@@ -200,8 +273,8 @@ final class AdminSession {
 
     // MARK: - Chat
 
-    /// Port of `GameViewController.submitChat`, minus the audio. The `/emote` branch is kept:
-    /// the editor connects as a real player, so an operator checking how an emote *looks* on a
+    /// Port of `GameViewController.submitChat`. The `/emote` branch is kept: the editor
+    /// connects as a real player, so an operator checking how an emote looks and sounds on a
     /// map should be able to fire one from the same place a player would.
     func submitChat(_ message: String) {
         guard !message.isEmpty else { return }
@@ -209,19 +282,22 @@ final class AdminSession {
         if message.hasPrefix("/") {
             let command = String(message.dropFirst()).lowercased()
             // Gated on the local emote table, not the server's, exactly as `main.js:222` does.
-            guard Emotes.definition(command) != nil else {
+            guard let definition = Emotes.definition(command) else {
                 Log.world("Ignoring unknown command '/\(command)'")
                 return
             }
+            audio.clearEmoteAudio()
             state.setPlayerEmote(EmoteState(name: command,
                                             startTime: EventInterpreter.nowMilliseconds()))
 
             // The emote announces itself in chat — "{name} waved at {target_name}". The line
             // comes back off the socket as an ordinary `chat`, which is what fills the feed.
-            // Only its sound goes missing here; the editor has no audio stack.
             if let line = state.emoteMessage(for: command) {
                 network.sendChat(line)
                 state.setLocalChat(line)
+            }
+            if let sound = definition.sound {
+                audio.playEmoteSound(sound)
             }
             return
         }
@@ -232,7 +308,17 @@ final class AdminSession {
 
     // MARK: - Editing
 
+    /// Forced, unlike the game's. Detention is authored `can_leave: false`, so the server
+    /// answers an ordinary `change_map` from there with `map_change_rejected` — which left the
+    /// map picker doing nothing at all, and left the editor stuck on whichever map the saved
+    /// session last put it on. An editor has to be able to open any map and leave it again.
     func changeMap(_ mapId: Int) {
+        network.sendChangeMap(mapId, force: true)
+    }
+
+    /// A door prompt, on the other hand, is one of the things the editor exists to *test*, so
+    /// it goes through unforced and gets refused exactly as it would in the game.
+    func changeMapThroughDoor(_ mapId: Int) {
         network.sendChangeMap(mapId)
     }
 
@@ -270,21 +356,27 @@ final class AdminSession {
     }
 }
 
-/// The editor implements the hooks it has a surface for and inherits the no-op defaults for
-/// the rest: the sounds, the footstep loop and the emote audio all need an audio stack this
-/// app does not have, and an editor that thumped every time the camera crossed a trigger
-/// would be miserable to use.
+/// Everything the simulation asks of the app around it — the editor's answers are the game's.
 ///
-/// The portraits and the door prompts *are* wanted, though. Walking the camera through a map
-/// is how the operator checks that an NPC's events fire where they were authored to, and that
-/// check needs the same UI the player gets.
+/// Walking the camera through a map is how the operator checks that an NPC's events fire where
+/// they were authored to, and that check is only worth anything if it looks and sounds like the
+/// game: the same portraits, the same door prompts, the same sounds at the same trigger lines.
 extension AdminSession: GameStateDelegate {
     func gameStateSyncPlayer(_ character: GameCharacter) {
         network.syncPlayer(character)
     }
 
+    /// Forwarded, like the game's. These are what an NPC's `log` actions fire when the camera
+    /// walks into its radius, and they are the *only* thing that wakes the server's AI agents
+    /// (`ChatManager.handleLogMessage` → `AIAgentManager.appendEvent`). Swallowing them here —
+    /// which is what this used to do — meant an agent NPC never said anything to the editor,
+    /// so there was no way to check an agent's writing without loading the game on a phone.
+    ///
+    /// The cost of that is real, though: each one can pulse an agent, and an agent pulse is a
+    /// Claude API call. Walking the editor around a map full of agent NPCs spends money.
     func gameStateSendLog(message: String, npcId: Int) {
-        // Editor movement is not gameplay; keep it out of the AI agents' log.
+        Log.world("Log → npc \(npcId): \(message)")
+        network.sendLog(message: message, npcId: npcId)
     }
 
     func gameStateChangeMap(_ mapId: Int) {
@@ -316,7 +408,41 @@ extension AdminSession: GameStateDelegate {
         ui?.hideDialog()
     }
 
+    /// Not a port: the game shows a `say` as a bubble over the speaker and nothing else, and
+    /// in the editor the speaker is often off screen or behind a panel. It goes in the feed
+    /// too, so an authored line can be read back where it was triggered.
     func gameStateDidSay(sourceId: Int, name: String?, message: String) {
         Log.world("Say: \(name ?? "NPC") (\(sourceId)): \(message)")
+        ui?.addChatMessage(sender: name ?? "NPC \(sourceId)", message: message)
+    }
+
+    // MARK: - Audio
+
+    func gameStatePlaySound(sourceId: Int, path: String, volume: Double, isBackground: Bool) {
+        Log.world(String(format: "Sound%@: %@ @ %.2f (source %d)",
+                         isBackground ? " (background)" : "", path, volume, sourceId))
+        audio.play(sourceId: sourceId, path: path, volume: volume, isBackground: isBackground)
+    }
+
+    func gameStateStopSound(sourceId: Int) {
+        audio.stop(sourceId: sourceId)
+    }
+
+    func gameStateStopBackgroundSound() {
+        audio.stopBackground()
+    }
+
+    /// Footsteps, for the camera. It *is* the player here — it walks the real clip mask — so
+    /// it makes the same noise doing it.
+    func gameStateSetWalkingAudio(active: Bool, isRunning: Bool) {
+        audio.setWalking(active: active, isRunning: isRunning)
+    }
+
+    func gameStateClearEmoteAudio() {
+        audio.clearEmoteAudio()
+    }
+
+    func gameStatePlayEffect(path: String, volume: Double, rate: Double) {
+        audio.playEffect(path, volume: volume, rate: rate)
     }
 }

@@ -349,6 +349,10 @@ struct UpdateMessage: Encodable {
 struct ChangeMapMessage: Encodable {
     let type = "change_map"
     var mapId: Int
+    /// Overrides a map's `can_leave: false` (`ClientManager.js:196`). Omitted entirely when
+    /// false, so an ordinary player's request is byte-for-byte what it always was. Only the
+    /// editor sets it — it has to be able to open Detention and leave again.
+    var force: Bool?
 }
 
 /// The `log` event handler — feeds the AI agents' event stream (`events.js:190`).

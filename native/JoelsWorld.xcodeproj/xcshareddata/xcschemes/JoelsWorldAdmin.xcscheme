@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A1000000000000000000044"
-               BuildableName = "JoelsWorldAdmin.app"
+               BuildableName = "Joels World Map Editor.app"
                ReferencedContainer = "container:JoelsWorld.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -45,7 +45,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A1000000000000000000044"
-            BuildableName = "JoelsWorldAdmin.app"
+            BuildableName = "Joels World Map Editor.app"
             ReferencedContainer = "container:JoelsWorld.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -61,7 +61,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A1000000000000000000044"
-            BuildableName = "JoelsWorldAdmin.app"
+            BuildableName = "Joels World Map Editor.app"
             ReferencedContainer = "container:JoelsWorld.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

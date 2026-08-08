@@ -65,6 +65,17 @@ final class WorldFileStore {
             let data = candidate.appendingPathComponent("data", isDirectory: true)
             if isDataDirectory(data) { return data }
         }
+
+        // Which is to say: never, for an ordinary Xcode build. So the build records where it
+        // was built *from* — the "Stage assets" phase writes `$SRCROOT/../data` into the
+        // bundle's Info.plist — and the editor opens that checkout by default. Without it the
+        // app came up read-only every time and had to be relaunched from a terminal with
+        // `-data`, which is not a thing anyone should have to know.
+        if let stamped = Bundle.main.object(forInfoDictionaryKey: "JWCheckoutDataDirectory") as? String {
+            let url = URL(fileURLWithPath: stamped).standardizedFileURL
+            if isDataDirectory(url) { return url }
+            Log.world("The build recorded \(stamped) as the checkout's data/, but it is not there")
+        }
         return nil
     }
 

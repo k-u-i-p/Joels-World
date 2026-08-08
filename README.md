@@ -71,12 +71,12 @@ cd native && xcodebuild -project JoelsWorld.xcodeproj -scheme JoelsWorldAdmin -d
 
 Each build runs `tools/assets/stage.sh`, which copies `assets/` and `data/` into the app.
 
-The map editor writes `data/**/objects.json` and `npc.json` directly. It finds them by walking
-up from the app bundle, from a folder you have picked before, or from `-data <path>` — which
-is what a scripted run should use:
+The map editor writes `data/**/objects.json` and `npc.json` directly. An ordinary build opens
+the checkout it was built from — the build records that path in the app — and `-data <path>`
+overrides it, which is what a scripted run should use:
 
 ```bash
-JoelsWorldAdmin.app/Contents/MacOS/JoelsWorldAdmin -data "$PWD/data" -host 127.0.0.1:80
+"Joels World Map Editor.app/Contents/MacOS/Joels World Map Editor" -data "$PWD/data" -host 127.0.0.1:80
 ```
 
 A server running against the same checkout notices the write and broadcasts the change to

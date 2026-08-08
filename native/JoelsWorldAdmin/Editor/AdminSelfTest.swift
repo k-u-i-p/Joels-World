@@ -30,6 +30,8 @@ final class AdminSelfTest {
 
     func run() {
         schedule(1.0) { self.reportInitialState() }
+        schedule(1.2) { self.testGameUIIsClickable() }
+        schedule(1.3) { self.testChatFeedAlignment() }
         schedule(1.5) { self.testObjectSelectAndDrag() }
         schedule(3.0) { self.testObjectResize() }
         schedule(4.5) { self.testNPCSelectAndDrag() }
@@ -43,6 +45,9 @@ final class AdminSelfTest {
         schedule(14.0) { self.testEventCommitByID() }
         schedule(17.5) { self.testFreezeNPCs() }
         schedule(25.0) { self.testFilesRestored() }
+        // After the byte-identity check, because it leaves the editor on a different map for
+        // three seconds and the baselines were taken against this one.
+        schedule(26.0) { self.testMapPicker() }
     }
 
     private func schedule(_ delay: Double, _ body: @escaping () -> Void) {
@@ -74,6 +79,69 @@ final class AdminSelfTest {
             }
         }
         log("baselined \(baselines.count) files (\(baselines.values.map(\.count).reduce(0, +)) bytes)")
+    }
+
+    /// The game's UI floats over the map, and the map view used to answer for every point in
+    /// itself — so the chat field was drawn, and could never be clicked. There is no way to
+    /// send a real click from a script, so this asks the hit test what a click *would* find.
+    private func testGameUIIsClickable() {
+        let chat = map.chatFieldPoint
+        let onChat = map.clickTarget(at: chat)
+        // Low and to the left, well clear of the HUD's 400 pt column at the top middle.
+        let mapPoint = CGPoint(x: map.view.bounds.midX / 2, y: map.view.bounds.maxY - 60)
+        let onMap = map.clickTarget(at: mapPoint)
+
+        log("hit test: chat field at (\(Int(chat.x)), \(Int(chat.y))) → \(onChat.rawValue)" +
+            (onChat == .chatField ? "" : "  FAIL: the chat field cannot be clicked") +
+            "; map at (\(Int(mapPoint.x)), \(Int(mapPoint.y))) → \(onMap.rawValue)" +
+            (onMap == .map ? "" : "  FAIL: the map cannot be clicked"))
+    }
+
+    /// Three lines of very different lengths through the feed's own entry point. Every row is
+    /// the width of the column, so the sender names line up down the left edge; rows that each
+    /// shrank to fit their own text left the feed zig-zagging.
+    private func testChatFeedAlignment() {
+        session.ui?.addChatMessage(sender: "Admin", message: "Hi")
+        session.ui?.addChatMessage(
+            sender: "Mr Hardy",
+            message: "Hello there! Come to see our marvellous new campus? Ask me anything!")
+        session.ui?.addChatMessage(sender: "Frank", message: "I've got more detentions than anyone")
+        map.view.layoutSubtreeIfNeeded()
+
+        let widths = map.chatRowWidths.map { Int($0.rounded()) }
+        let ragged = Set(widths).count > 1
+        log("chat feed: \(widths.count) rows at widths \(widths)" +
+            (ragged ? "  FAIL: the rows are not all the same width" : ""))
+    }
+
+    /// The sidebar's map picker, through the same call it makes.
+    ///
+    /// Going *to* Detention is allowed from anywhere; coming back out is what the server
+    /// refuses, because it is authored `can_leave: false`. The editor forces both, so the step
+    /// that matters is the return leg. `can_leave` is server-side only — the client never sees
+    /// it — so the locked map is found by name, and any other map will do if it is renamed.
+    private func testMapPicker() {
+        guard let origin = session.state.mapData?.id else { return log("map picker: no map loaded") }
+        let others = session.maps.filter { $0.id != origin }
+        guard let target = others.first(where: { $0.name == "Detention" }) ?? others.first else {
+            return log("map picker: the map list has nothing else to switch to")
+        }
+
+        log("map picker: leaving map \(origin) for '\(target.name ?? "map \(target.id)")'")
+        session.changeMap(target.id)
+
+        schedule(3.0) {
+            let arrived = self.session.state.mapData?.id
+            self.log("map picker: now on map \(arrived.map(String.init) ?? "none")" +
+                     (arrived == target.id ? "" : "  FAIL: the map did not change"))
+
+            self.session.changeMap(origin)
+            self.schedule(3.0) {
+                let back = self.session.state.mapData?.id
+                self.log("map picker: back on map \(back.map(String.init) ?? "none")" +
+                         (back == origin ? "" : "  FAIL: could not leave '\(target.name ?? "")' again"))
+            }
+        }
     }
 
     /// The current map's two entity files, as `maps.json` names them.

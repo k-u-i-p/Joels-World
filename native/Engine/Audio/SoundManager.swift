@@ -94,20 +94,27 @@ final class SoundManager {
     private let decodeQueue = DispatchQueue(label: "com.allr.joelsworld.audio", qos: .userInitiated)
 
     init() {
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(configurationChanged),
+                           name: .AVAudioEngineConfigurationChange, object: engine)
+
+        // There is no `AVAudioSession` on the Mac — a Mac app does not share one output with a
+        // phone call, and nothing takes the engine away mid-note. `AVAudioEngine` itself, the
+        // graph, the buffers and the pooling are all the same on both, which is what lets the
+        // map editor play the map's music without a second sound stack.
+#if os(iOS)
         // `.playback` matches what the Capacitor build got from `NativeAudio`: the game's own
         // music keeps playing with the ring switch on silent, which is what players expect
         // from a game rather than from a web page.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
 
-        let center = NotificationCenter.default
-        center.addObserver(self, selector: #selector(configurationChanged),
-                           name: .AVAudioEngineConfigurationChange, object: engine)
         center.addObserver(self, selector: #selector(sessionInterrupted),
                            name: AVAudioSession.interruptionNotification,
                            object: AVAudioSession.sharedInstance())
         center.addObserver(self, selector: #selector(mediaServicesReset),
                            name: AVAudioSession.mediaServicesWereResetNotification,
                            object: AVAudioSession.sharedInstance())
+#endif
     }
 
     deinit {
@@ -256,6 +263,7 @@ final class SoundManager {
         }
     }
 
+#if os(iOS)
     @objc private func sessionInterrupted(_ notification: Notification) {
         guard let info = notification.userInfo,
               let raw = info[AVAudioSessionInterruptionTypeKey] as? UInt,
@@ -295,6 +303,7 @@ final class SoundManager {
             self.rebuildGraph()
         }
     }
+#endif
 
     /// Tears the whole graph down and, when `restart` is set, brings the loops back.
     ///
@@ -318,6 +327,7 @@ final class SoundManager {
 
     @discardableResult
     private func activateSession() -> Bool {
+#if os(iOS)
         guard !sessionActive else { return true }
         do {
             try AVAudioSession.sharedInstance().setActive(true)
@@ -326,6 +336,11 @@ final class SoundManager {
             Log.world("Audio session failed to activate: \(error.localizedDescription)")
         }
         return sessionActive
+#else
+        // Nothing to activate on the Mac; the engine is the whole of it.
+        sessionActive = true
+        return true
+#endif
     }
 
     // MARK: - Loading
