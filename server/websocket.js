@@ -24,9 +24,9 @@ function timingSafeMatch(a, b) {
 }
 
 /**
- * The native macOS admin editor has no browser session to carry the `isAdmin` flag the web
- * page set by visiting `/admin.html?admin=true`, so it presents `?adminKey=` on the socket
- * handshake instead.
+ * The native macOS admin editor has no browser session to carry the `isAdmin` flag the old
+ * web page set by visiting `/admin.html?admin=true`, so it presents `?adminKey=` on the
+ * socket handshake instead. Since the web client was retired this is the only way in.
  *
  * With `ADMIN_KEY` set, the key must match. Without it, only loopback connections are
  * granted — so `npm run dev` needs no configuration while production has to opt in.

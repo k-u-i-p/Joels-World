@@ -4,33 +4,51 @@ Welcome to **Joel's World**, a persistent, multiplayer top-down RPG map experien
 
 ## Features
 - **Seamless Map Generation & Transitions:** Explore entirely different environments (Junior School, Detention, Main Building, and the Pool) without ever dropping your WebSocket connection. Map scaling, collision data, and NPCs stream dynamically!
-- **Zero-Allocation Movement Loop:** The client-side chunk updates and trigonometric rendering routines have been hyper-optimized with broad-phase AABB collision checks, enabling dozens of characters to render side-by-side perfectly on mobile and desktop without GC stutter.
-- **Vibe Emotes:** Break out into dances, cry, roll on the floor laughing, or even swim in the new pool map using a physics-driven, canvas-rendered emote system!
+- **Vibe Emotes:** Break out into dances, cry, roll on the floor laughing, or even swim in the new pool map — twenty emotes, each posing the character rig and spawning its own props.
 - **Event Callbacks:** Everything is interactive. Walk into trigger zones to teleport across maps, trigger sound effects, prompt question dialogs, or alter the world state through an interconnected JSON event tree.
 
-## Installation
+## Layout
+
+| Directory | What it is |
+|---|---|
+| `server/` | The Node WebSocket + Express backend, the world data under `server/data/`, and the asset tree under `server/assets/` |
+| `native/` | Swift. `Engine/` is the shared game engine, `JoelsWorld/` the iOS game, `JoelsWorldAdmin/` the macOS map editor |
+
+The browser client was retired in favour of the native apps — see `native/PROGRESS.md`.
+
+## Running the server
 
 ```bash
-# Install dependencies
-npm install
-
-# Run the WebSocket server and Express client locally
-npm run dev
+cd server && npm install && npm run dev
 ```
 
-Navigate to `http://localhost:5173` to join the world!
+It binds port 80 unless `PORT` is set, serves the asset tree from the root (`/media/…`,
+`/models/…`, `/junior_school/chunks/…`), and slices map chunks, overlays and minimaps on
+first boot. Point a client at it by setting `Config.useLocalServer` in
+`native/Engine/Core/Config.swift`.
+
+## Building the apps
+
+```bash
+cd native && xcodebuild -project JoelsWorld.xcodeproj -scheme JoelsWorld -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' build
+```
+
+```bash
+cd native && xcodebuild -project JoelsWorld.xcodeproj -scheme JoelsWorldAdmin -destination 'platform=macOS' build
+```
+
+The map editor needs an admin grant: it presents `?adminKey=` on the socket handshake, which
+must match the server's `ADMIN_KEY`, or come from loopback when the server has none set.
 
 ---
 
-## Game Architecture 
-
-Joel's World has been recently refactored to prioritize high-performance frame rates and smooth network synchronization.
-
-### 1D Array Chunk Generation
-The old canvas rendering system allocated massive objects and string dictionaries for drawing individual grid chunks. The game now pre-calculates map grids into a tightly-packed 1D Array, utilizing bitwise math to fetch rendering references directly. This ensures that even on the largest map ("Junior Campus"), the Javascript Garbage Collector is rarely invoked during movement.
+## Game Architecture
 
 ### Map Layering
-Environments are split into layered depths (`background`, `trees+overlay`, `foreground`). The renderer iterates over a `window.mapLayers` array, rendering characters at precise z-indexes to allow them to visually walk "behind" structures, trees, and other obstacles without requiring heavy real-time masking.
+Environments are split into layered depths (`background`, `trees+overlay`, `foreground`). The renderer draws each layer at its own Z, so characters visually walk "behind" structures, trees, and other obstacles without requiring heavy real-time masking.
+
+### Shared Physics
+`server/physics.js` is the single source of truth for collision, wall sliding, clip masks and proximity interactions. `native/Engine/World/Physics.swift` is a port of it, and the two are kept behaviourally identical.
 
 ### Stateless Server Synchronization
 The Node.js server acts strictly as a low-latency broadcaster. It does not tick an internal physics loop. It maintains a dictionary of connected `player_id`s and relays their calculated `x/y` coordinates, `rotation`, and active `emotes` across the WebSocket buffer to all clients concurrently.

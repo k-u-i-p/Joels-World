@@ -1,13 +1,14 @@
 /**
- * Shared collision/movement engine. Runs in two environments:
+ * Shared collision/movement engine, imported by `websocket.js`,
+ * `managers/NPCManager.js` and `managers/AIAgentManager.js`.
  *
- *  - Node (server): imported directly by `websocket.js`, `managers/NPCManager.js` and
- *    `managers/AIAgentManager.js`.
- *  - Browser (web client): imported as `/src/physics.js`, routed to this file by
- *    `static.js` — the web client has no copy of its own.
+ * `native/Engine/World/Physics.swift` is a port of this file and **must stay behaviourally
+ * identical to it** — a change here needs the same change there. That duplication is the
+ * price of the native rewrite: the server needs collision in JavaScript, the clients in Swift.
  *
- * It therefore must not import anything and must not touch the DOM at module scope.
- * `loadClipMask` is browser-only (canvas/Image) and no-ops under Node.
+ * It imports nothing and touches no DOM at module scope: it used to be served to the browser
+ * as well (the web client had no copy of its own), and there is no reason to give that up.
+ * `loadClipMask` was the browser-only path and no-ops here.
  *
  * `native/JoelsWorld/World/Physics.swift` is a port of this file and must be kept
  * behaviourally identical to it.

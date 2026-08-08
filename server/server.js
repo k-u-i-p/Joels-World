@@ -17,9 +17,6 @@ const port = process.env.PORT || 80;
 const app = express();
 const server = http.createServer(app);
 
-app.set('view engine', 'ejs');
-app.set('views', path.resolve(__dirname, './views'));
-
 app.use(cookieParser());
 
 const sessionManager = new SessionManager(path.resolve(__dirname, './sessions'));

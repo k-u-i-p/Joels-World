@@ -1,5 +1,4 @@
 import express from 'express';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { VALID_EMOTES } from './emotes.js';
@@ -7,8 +6,8 @@ import { VALID_EMOTES } from './emotes.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function setupStatic(app, server, port) {
-  // The list used to be scraped out of the web client's `emotes.js`; it now lives in
-  // `server/emotes.js` so the server does not depend on `client/` (PLAN.md §8).
+  // The list used to be scraped out of the retired web client's `emotes.js`; it now lives in
+  // `server/emotes.js` (PLAN.md §8). The poses themselves are in `Engine/Entity/Emotes.swift`.
   const cachedEmotes = [...VALID_EMOTES].sort();
 
   // Allow CORS specifically for media/assets so the iOS client can fetch audio without Access Control checks failing.
@@ -21,53 +20,17 @@ export function setupStatic(app, server, port) {
     next();
   });
 
-  // The physics engine is shared: the server imports it directly from ./physics.js, and the
-  // web client imports it as /src/physics.js. It lives server-side so that deleting client/
-  // (Phase 8 of the native rewrite) cannot break the server. This route must stay ahead of
-  // the /src static mount below.
-  app.get('/src/physics.js', (req, res) => {
-    res.type('application/javascript');
-    res.sendFile(path.resolve(__dirname, 'physics.js'));
-  });
-
-  // Serve static assets natively
-  app.use('/src', express.static(path.resolve(__dirname, '../client/public/src')));
-  app.use('/public', express.static(path.resolve(__dirname, '../client/public')));
-
   app.get('/api/config', (req, res) => {
     res.json({
       validEmotes: cachedEmotes
     });
   });
 
-  app.use('/', express.static(path.resolve(__dirname, '../client/public'))); // Catch-all for assets at root like /grounds/
-
-  app.use(async (req, res, next) => {
-    if (req.path === '/admin.html') {
-
-      if (req.query.admin === 'true') {
-        if (req.session) {
-          req.session.isAdmin = true;
-          await req.session.save();
-        }
-      } else if (req.query.admin === 'false') {
-        if (req.session) {
-          req.session.isAdmin = false;
-          await req.session.save();
-        }
-      }
-
-      const isAdminSession = req.session && req.session.isAdmin;
-
-      return res.render('index', {
-        isAdmin: isAdminSession,
-        validEmotes: cachedEmotes
-      });
-    }
-
-    // Pass other non-static requests through
-    next();
-  });
+  // The whole asset tree — map tiles, models, audio, avatars, minimaps, minigame art — is
+  // served from the root, which is the URL shape the native clients were written against
+  // (`/media/laser.mp3`, `/minimaps/0.png`, `/junior_school/chunks/...`). It moved here from
+  // `client/public` when the web client was retired; the URLs did not change.
+  app.use('/', express.static(path.resolve(__dirname, './assets')));
 
   server.listen(port, '0.0.0.0', () => {
     console.log(`Server & WebSocket running natively on http://0.0.0.0:${port}`);

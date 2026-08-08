@@ -8,8 +8,6 @@ Dockerfile
 original_images/
 server/sessions/
 server/node_modules/
-client/node_modules/
-client/ios/
-client/ios 2/
-client/android/
-client/dist/
+
+# The native iOS/macOS sources are not part of the server image
+native/

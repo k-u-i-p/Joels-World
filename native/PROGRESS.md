@@ -1,20 +1,22 @@
 # Native iOS Rewrite — Progress Log
 
 **Resume instructions for a fresh agent:** read `native/PLAN.md` first (architecture +
-decisions), then this file (what is actually built). The JS client in `client/public/src/`
-is the reference spec for every port — **keep it until Phase 8.**
+decisions), then this file (what is actually built). The JS client that every port was written
+against **no longer exists** — `client/` was deleted in Phase 8. Where a table below says
+"ported from `main.js:306-531`", read it as a citation into git history, not a live file:
+`git show 8ff2a7c~1:client/public/src/main.js` (any commit before the deletion) still has it.
 
-Last updated: 2026-08-08 · Phases 1–7 complete and verified; Tag is deferred at the user's
-request. **Phase 9 (the macOS admin editor) is complete** — `admin.js` is now a native Mac
-app on the shared engine, which clears the last reason to keep the web client alive.
+Last updated: 2026-08-08 · **Phases 1–9 complete and verified. The rewrite is done**, bar Tag,
+which is deferred at the user's request while the game is redesigned. Phase 8 retired the web
+client outright: the asset tree moved to `server/assets/`, and `client/` is gone.
 
 ---
 
 ## Decisions already made (do not re-litigate)
 
 - **Full Swift rewrite**, not a WebView shell. User chose this explicitly.
-- **The web game is being retired** — the iOS app becomes the only client. `client/` gets
-  deleted in Phase 8, not before (it is the reference spec).
+- **The web game is retired** — the iOS app is the only client. `client/` was deleted on
+  2026-08-08, once every phase that needed it as a reference spec was done.
 - **Renderer: Metal + a thin purpose-built renderer.** Rationale and rejected alternatives
   (SceneKit, RealityKit) in `PLAN.md` §2. SceneKit is the fallback if parity stalls — keep
   `Net`/`World`/`Entity` free of Metal types so that stays possible.
@@ -50,7 +52,7 @@ app on the shared engine, which clears the last reason to keep the web client al
 | 7 | Minigames: tennis (2160 ln) | **done, verified** |
 | 7b | Minigames: tag (591 ln) | **deferred** — the user is reworking the game first |
 | 9 | macOS admin editor (`admin.js`, 1464 ln) on the shared engine | **done, verified** |
-| 8 | Retire web client | emote coupling resolved; asset move + deletion outstanding |
+| 8 | Retire web client: asset tree to `server/assets/`, `client/` deleted | **done, verified** |
 
 Phase 9 is numbered after 8 because it was decided later; it runs *before* Phase 8, since
 retiring the web client was blocked on the editor having somewhere else to live.
@@ -779,18 +781,107 @@ cyan hitbox and dashed interaction radius; the NPC inspector fully populated for
 "Pool" showing its `on_enter` `show_dialog` card — description "Enter the Pool building?",
 type `change_map`, map ID 3 — read straight out of the authored JSON.
 
-### Phase 8 progress
+## What Phase 8 actually delivers
 
-The **emote-list coupling is resolved**: `server/emotes.js` now holds the 20 names, and
-`static.js` and `AIAgentManager.js` import it instead of parsing
-`client/public/src/emotes.js` with a regular expression. Verified on a booted server —
-`/api/config` returns all 20, and the AI agent logs `Loaded 20 valid emotes`.
+The web client is gone. 264 MB of assets moved from `client/public` to **`server/assets/`**,
+the three generator scripts and the one remaining static mount were repointed at it, and
+`client/` was deleted — 302 tracked files, plus 26 GB of untracked Xcode DerivedData belonging
+to the retired Capacitor shell.
 
-**No code-level coupling to `client/` is left.** What remains is the asset tree: 264 MB under
-`client/public` (104 MB of models, 86 MB Junior Campus, 37 MB Main Building, 11 MB media,
-11 MB minigames, 10 MB Pool, 4 MB Detention) that three generator scripts and three
-`express.static` mounts point at, and which the iOS app streams over HTTP. Moving it under
-`server/` and deleting `client/` is one step, and it is the step left.
+**Not one asset URL changed.** The tree is still mounted at the root, so
+`/media/laser.mp3`, `/minimaps/0.png`, `/models/heads/female_hair_bun.glb` and
+`/junior_school/chunks/background_0_0.jpg` resolve exactly as before. No Swift file needed
+editing for this phase — which was the point of doing the emote and physics moves first.
+
+| Change | Detail |
+|---|---|
+| `server/assets/` | The whole tree, moved as a git rename so history follows it |
+| `static.js` | Four mounts and routes became one. The `/src` mount (the web client's JavaScript), the `/public` mount (unused — the `public/` prefix in `sound.js` was a Capacitor *bundle* path, never an HTTP one), the `/src/physics.js` route and the `admin.html` EJS render are all gone |
+| `server.js`, `server/views/` | The EJS view engine and `views/index.ejs` deleted; `ejs` dropped from `package.json` and the lockfile regenerated, or `npm ci` in the Docker build would have failed on the mismatch |
+| `scripts/*.js` | `basePath` → `../assets` in `slice_maps.js`, `create_overlays.js`, `generate_minimaps.js` |
+| `.gitignore` | The chunk rule follows the tree (`server/assets/**/chunks/`); the `client/ios` Capacitor exclusions are gone. It also had a pasted terminal transcript in the middle of it and a second copy of itself after that — removed |
+| `.dockerignore`, `Dockerfile` | The `client/*` exclusions replaced by `native/`, which has no business in the server image |
+| Root `package.json` + lockfile | Existed only to hold `@capacitor/ios`. Deleted with the shell |
+| Eight root codemods | `fix_closure*.js`, `inject_imports.js`, `cache_draw_proxies.js`, `clean_main_ui.js`, `fix_shadows.patch` — one-off scripts that read `client/public/src/*.js`, dead the moment it stopped existing |
+
+### Verified behaviour (local server, both apps)
+
+The server boots, slices and finds every asset at the new root, and serves them:
+
+```
+[OverlayGen] Finished generating overlays!     ← found all five clip masks under server/assets
+/junior_school/chunks/background_0_0.jpg  200  82141b  image/jpeg
+/models/heads/female_hair_bun.glb         200  2605052b
+/minigames/tennis/map.svg                 200  2367959b  image/svg+xml
+/media/laser.mp3                          200  85817b    audio/mpeg
+/api/config                               200  166b
+/src/main.js  /src/physics.js  /admin.html      404       ← the web surface is closed
+```
+
+Both targets build. `-walktest` on the simulator against it: tiles stream, the clip mask
+rasterises, the player walks and is blocked, zero errors — the Phase 1 numbers.
+
+```
+Map 'Junior Campus' loaded: 1 chunked layer(s), 4372.0x3841.0
+Clip mask loaded: junior_school/clip_mask.svg
+walktest t=1.8s pos=(-908.0, -224.8) heading=79°  moved=89.4px mask=loaded blocked=no
+walktest t=3.8s pos=(-954.0, -37.4)  heading=169° moved=0.8px  mask=loaded blocked=YES
+```
+
+Screenshotted on device: tiles, the 3D props, the character with its glTF head and shoes,
+shadows, nameplates and the button bar all render from the new root. The macOS editor's
+`-selftest` passes all its steps against it, and `objects.json` comes back byte-identical.
+
+### Keyboard movement in the macOS editor (2026-08-08, user's request)
+
+The editor could only pan by dragging. It now walks with the keyboard, through the shipped
+movement code rather than a second implementation.
+
+| File | Notes |
+|---|---|
+| `Engine/Core/InputState.swift` | Gained `turn` and `forward`. The two input styles are the two branches of `getDemandedMovementVector` (`input.js:33-56`): a thumbstick sets the heading directly and always walks forward, and it suppresses the keys entirely — exactly as `TouchMove` takes the whole branch in the JS |
+| `Engine/World/GameState.swift` | Applies `turn × rotationSpeed × timeScale` (`main.js:314-321`) and scales the movement vector by `forward`, so ↓ drives astern the way `getDemandedMovementVector`'s `dx -= cos(...)` branch does |
+| `JoelsWorldAdmin/Editor/KeyboardMovement.swift` | The held-key set. `keyDown`/`keyUp` only maintain it; the frame loop polls — a held key gives smooth motion instead of the OS's key-repeat stutter, which is what the JS's `isPressed` polling bought |
+| `AdminEditorView` | Key events, and the two places a key gets stuck: resigning first responder and the window losing key. `input.js` clears on `window`'s `blur` for the same reason |
+
+Worth knowing:
+
+- **Dragging still pans through walls; the keyboard does not.** Drag writes the camera focus
+  directly, which is what you want when framing a shot. The keyboard goes through
+  `processMovement`, so the editor's avatar is blocked by the real clip mask — which is what
+  you want when testing one.
+- **Typing in an inspector field does not walk the camera.** The sidebar's text field takes
+  first responder while it is being typed into, so key events never reach the editor view.
+  This is the AppKit equivalent of the JS's `isChatFocused` guard, and it is free.
+- **WASD is an addition, not a port.** The browser build only ever bound the arrows. Codes are
+  matched physically (`NSEvent.keyCode`), so WASD stays under the same three fingers on a
+  non-QWERTY layout.
+- The turn rate is the JS one: `rotationSpeed` 3 × `timeScale` per frame, i.e. 180°/s at 60 fps.
+
+Verified by two new `-selftest` steps, which drive the real handlers with synthesised
+`NSEvent`s — there is no way to inject a keystroke into a Mac app without an Accessibility
+grant, the same constraint that produced `-walktest`:
+
+```
+selftest 14: held ← 1.0s: rotation 0° → -189° (Δ-189°, expected negative)
+selftest 17: held ↑ 1.0s on heading -189°: moved 189px to (-1202, -111)
+```
+
+**Both steps need the editor window to be frontmost**, because a background window drops its
+keys on purpose. A run launched behind the terminal reports Δ0° and 0 px — so each step now
+reads the key back before releasing it and appends *"key released early: the window was not
+frontmost"* when that is what happened. A silent Δ0 reads like a broken key handler and is
+not.
+
+### One bug this caught
+
+**The editor scattered cache directories into whatever folder it was launched from.**
+`URLCache(memoryCapacity:diskCapacity:diskPath:)` takes a *relative* path; on iOS that lands
+in the app's caches directory, but an unsandboxed macOS process resolves it against the
+current working directory. Running the editor from the repository left `joelsworld-tiles/`
+and `joelsworld-models/` — a `Cache.db` and its tile blobs — in the repo root, in `native/`
+and in `server/`. `Engine/Core/DiskCache.swift` now anchors both explicitly under the caches
+directory, so the two platforms agree.
 
 ## Build / run
 
@@ -853,7 +944,8 @@ available to inject touches):
 **macOS admin launch arguments** (`-map`, `-zoom` and `-at` are shared with the iOS build,
 since they live in `Engine/Core/WalkTest.swift`):
 - `-selftest` — drives selection, dragging, resizing, creation, an event-tree round trip and
-  deletion through the real mouse handlers, logging each step. Leaves the map as it found it.
+  deletion through the real mouse handlers, then a keyboard turn and walk through the real key
+  handlers, logging each step. Leaves the map as it found it.
 - `-shot <path>` — writes a PNG of the whole window and quits.
 - `-shotdelay <seconds>` — how long to wait first, so tiles and models have loaded. Default 6.
 - `-map <id>` — open straight onto a map. The server remembers the last map a session was on,
@@ -876,8 +968,11 @@ stub for `love`'s canvas. Pin `Date.now`, build a rig with the neutral targets
 `updateCharacter3D` restores, and call `emotes[name].updateLimbs3D`. Then diff against
 `-emotedump`. The harness is throwaway and lives in the session scratchpad.
 
-**Reproducing the Phase 3 parity check** (the method is worth repeating; the harness itself is
-throwaway and lives in the session scratchpad):
+**Reproducing the Phase 3 parity check — no longer possible.** It needed a running web client
+to diff against, and Phase 8 deleted it. Recorded because the *method* is the thing worth
+keeping: if a future parity question needs it, check the client out of git history
+(`git worktree add ../old-client <commit-before-deletion>`) and serve `client/public` from a
+throwaway static server rather than trying to resurrect it in the tree.
 
 1. `cd server && PORT=8099 node server.js`, and point the app at it with
    `Config.useLocalServer = true` / `localHost = "localhost:8099"`.
@@ -898,7 +993,9 @@ xcrun simctl spawn booted log stream --level info --predicate 'subsystem == "com
 ```
 
 The app targets `wss://joels-world.com`. Set `Config.useLocalServer = true` in
-`JoelsWorld/Core/Config.swift` to point at a local `npm run dev`.
+`Engine/Core/Config.swift` to point at a local `npm run dev` (and `localHost` if it is not on
+port 80). The macOS editor takes its host and key from the sidebar instead, persisted in
+`UserDefaults` — the compile-time flag does not affect it.
 
 ## Environment gotchas (cost real time — read these)
 
@@ -942,10 +1039,22 @@ The app targets `wss://joels-world.com`. Set `Config.useLocalServer = true` in
 
 ## Known gaps / next steps
 
-**Phase 8 is the whole remaining job** — retiring the web client. With the editor native and
-the emote list moved, nothing in `server/` reads `client/` code any more; what is left is the
-264 MB asset tree, which needs to move under `server/` in the same step that deletes
-`client/`. See "Phase 8 decoupling" below.
+**Every phase is done except Tag**, which is waiting on a design decision rather than on
+engineering — see below. What follows is the standing list of known gaps, none of them
+blocking.
+
+Phase 8 leaves these open:
+
+- **`server/assets/` is 264 MB inside the Docker build context.** It was 264 MB before too,
+  under `client/public`, so nothing got worse — but now that the tree is the only large thing
+  in the image, moving the map chunk tiles to a bucket is a much more obvious win than it was.
+- **The chunk, overlay and minimap generators write into `server/assets/`.** They always
+  wrote into the asset tree; it is just worth knowing that the tree is no longer purely
+  authored content, and that `server/assets/**/chunks/` is gitignored for that reason.
+- **`server/emotes.js` is still a second copy of the emote *names*.** With the web client's
+  `emotes.js` deleted there is no drift risk left between JS files, but the names now have to
+  stay in step with `Engine/Entity/Emotes.swift`, which owns the poses. A new emote is two
+  edits.
 
 Phase 9 leaves these open:
 
@@ -1069,49 +1178,39 @@ Smaller known gaps:
   through the synchronized group, and the font is registered at runtime because the target
   generates its `Info.plist` and there is no `INFOPLIST_KEY_` for `UIAppFonts`.
 
-## Phase 8 decoupling
+## Phase 8 decoupling — how it was unpicked
 
-**`physics.js` is moved — blocker cleared.** It now lives at `server/physics.js` as the
-single source of truth for both runtimes:
+All three couplings are cleared and `client/` is deleted. Kept as a record of what the
+dependency actually was, since none of it is visible in the tree any more.
 
-- Node imports it directly: `websocket.js:6`, `managers/NPCManager.js:4`,
-  `managers/AIAgentManager.js:5`.
-- The browser still imports the unchanged URL `/src/physics.js`; `static.js:35-42` routes
-  that URL to the server-side file, ahead of the `/src` static mount. **No client file
-  changed** — `main.js`, `characters.js`, `emotes.js` and `minigames/tag.js` keep their
-  `./physics.js` / `../physics.js` imports and resolve to the same URL.
-- `loadClipMask` (canvas/`Image`) now no-ops under Node instead of throwing; the server
-  never mask-tests. Everything else is byte-identical to the old file.
+**1. `physics.js` (2026-08-07).** `server/websocket.js` imported the client's physics engine
+across the directory boundary. It moved to `server/physics.js` as the single source of truth
+— Node imports it directly (`websocket.js:6`, `managers/NPCManager.js:4`,
+`managers/AIAgentManager.js:5`), and the browser was served the same file at its unchanged
+`/src/physics.js` URL until the client went. `loadClipMask` no-ops under Node rather than
+throwing; the server never mask-tests.
 
-`World/Physics.swift` and `server/physics.js` must stay behaviourally identical while both
-exist.
+**`Engine/World/Physics.swift` and `server/physics.js` must stay behaviourally identical.**
+This is the one live duplication the rewrite leaves behind, and it is deliberate: the server
+needs collision in JavaScript, the clients need it in Swift.
 
-Caveat: the legacy Capacitor shell (`client/ios`) bundles `client/public` as its `webDir`,
-so a fresh `npx cap sync` would produce a bundle without `physics.js`. That shell is retired
-by this rewrite and was not patched.
+**2. The emote list (2026-08-08).** `static.js` and `AIAgentManager.js` used to scrape the 20
+names out of `client/public/src/emotes.js` with a regular expression. `server/emotes.js` holds
+them now. The names have to stay in step with `Engine/Entity/Emotes.swift`, which owns the
+poses — a new emote is an edit to both.
 
-**The emote list is moved — second blocker cleared (2026-08-08).** `server/emotes.js` holds
-the 20 names; `static.js` and `AIAgentManager.js` import it instead of running a regular
-expression over `client/public/src/emotes.js`. The web client still has its own copy in
-`emotes.js` until it is deleted, and **the two must not drift**; the poses themselves live in
-`Engine/Entity/Emotes.swift`, which is what a new emote has to be added to.
-
-**No code-level coupling to `client/` remains.** What is left is the asset tree:
-
-| Reference | Needs |
-|---|---|
-| `static.js:34` (`/src`) | serves the web client's JavaScript — **deleted with the client** |
-| `static.js:35, 43` (`/public`, `/`) | serves the asset tree, which the **iOS app streams over HTTP** — repoint at the new location |
-| `scripts/slice_maps.js`, `create_overlays.js`, `generate_minimaps.js` | `client/public` as the asset root — repoint |
-| `views/index.ejs`, the `admin.html` route | the game page and admin panel markup — **deleted**; the macOS editor replaces it |
-
-264 MB has to move: 104 MB `models/`, 86 MB `junior_school/`, 37 MB `main_building/`,
-11 MB `media/`, 11 MB `minigames/`, 10 MB `pool/`, 4 MB `detention/`, and ~1.4 MB of
-`avatars/`, `minimaps/`, `icons/` and `fonts/`.
+**3. The asset tree (2026-08-08).** 264 MB moved from `client/public` to `server/assets/`,
+and `static.js` mounts it at the root so no URL changed. Details in "What Phase 8 actually
+delivers" above.
 
 **`admin.js` decision superseded (user, 2026-08-08): it became a macOS app.** The 2026-08-07
-decision that it would stay a web page no longer holds, and with it goes the last reason to
-keep any of `client/` alive — Phase 8 can now delete the directory outright.
+decision that it would stay a web page is what had been keeping `client/` alive; reversing it
+is what let Phase 8 delete the directory outright rather than keep a page served for the
+editor.
+
+Historical caveat, now moot: the legacy Capacitor shell bundled `client/public` as its
+`webDir`, so a fresh `npx cap sync` after the physics move would have produced a bundle
+without `physics.js`. The shell was never patched, and was deleted with everything else.
 
 ## Work log
 
@@ -1263,3 +1362,34 @@ keep any of `client/` alive — Phase 8 can now delete the directory outright.
   `git checkout -- server/data` mid-session. The server reads the maps once at boot and
   writes them back from memory; restarting it fixed the run, and the self-test now matches
   the created object by unseen id rather than by name.
+- **Phase 8 complete — the web client is retired.** Moved the 264 MB asset tree to
+  `server/assets/` (as a git rename, so history follows it), repointed the three generator
+  scripts and collapsed four static mounts and routes into one, and deleted `client/`.
+- Deleted with it: `views/index.ejs` and the EJS view engine, the `ejs` dependency (with the
+  lockfile regenerated — `npm ci` in the Docker build would otherwise have failed on the
+  mismatch), the root `package.json` that existed only to hold `@capacitor/ios`, and eight
+  root codemods that read `client/public/src/*.js` and were dead the moment it went.
+- Dropped the `/public` mount rather than repointing it. Nothing fetches it: the `public/`
+  prefix in `sound.js` was a *Capacitor bundle* path, not an HTTP one.
+- Tidied `.gitignore` on the way past — its chunk rule now points at `server/assets`, the
+  Capacitor exclusions are gone, and a pasted terminal transcript plus a second full copy of
+  the file (58 stray lines) were removed.
+- Verified nothing moved from the clients' point of view: the server boots and finds every
+  asset at the new root, every URL the native code fetches still serves, the three retired
+  web URLs 404, both targets build, `-walktest` reproduces the Phase 1 numbers on device, and
+  the editor's `-selftest` passes with `objects.json` byte-identical.
+- **Connected keyboard movement in the macOS editor** at the user's request. Extended
+  `InputState` with the tank controls the web client had (`turn`, `forward`) and taught
+  `GameState.update` to apply them, so the editor's camera-as-player walks through the shipped
+  movement and collision code; dragging still pans freely through walls, which is the right
+  split for framing a shot versus testing one. Arrows plus WASD, matched on physical key code.
+- Added two `-selftest` steps that drive the real key handlers with synthesised `NSEvent`s:
+  ← turned the heading 189° in a second (3°/frame, the JS rate), ↑ walked 189 px.
+- That caught a bug older than this phase: the editor wrote its `URLCache` to a *relative*
+  `diskPath`, which an unsandboxed Mac app resolves against its working directory — so every
+  run left `joelsworld-tiles/` and `joelsworld-models/` wherever it was launched from,
+  including three places in this repository. Both caches are anchored under the caches
+  directory now (`Engine/Core/DiskCache.swift`).
+- Read a Δ0° self-test result correctly on the second try rather than chasing it: the app had
+  been launched behind the terminal, and a background window drops its held keys by design.
+  The step now says so instead of reporting a silent zero.

@@ -9,11 +9,11 @@ struct MovementResult {
     var emoteCanceled: Bool
 }
 
-/// Direct port of `client/public/src/physics.js`.
+/// Direct port of `server/physics.js`, which the Node server still runs.
 ///
-/// The JS now lives at `server/physics.js` (the Node server and the web client share it).
-/// Kept behaviourally identical to that file — any change here must be mirrored there until
-/// the web client is retired. See PLAN.md §8.
+/// **Kept behaviourally identical to that file — any change here must be mirrored there.**
+/// This is the one duplication the native rewrite leaves behind, and it is deliberate: the
+/// server needs collision in JavaScript, the clients need it in Swift. See PLAN.md §8.
 final class PhysicsEngine {
     var clipMask: ClipMask?
 

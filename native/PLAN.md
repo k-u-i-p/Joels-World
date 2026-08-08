@@ -1,14 +1,17 @@
 # Joel's World — Native iOS Rewrite
 
 Full Swift rewrite of the game client. The Capacitor shell and the web client
-(`client/`) are retired at the end of this effort; the iOS app becomes the only client.
+(`client/`) were retired at the end of this effort; the iOS app is now the only client.
 The Node server in `server/` stays as the multiplayer backend.
 
 ---
 
-## 1. What is being replaced
+## 1. What was replaced
 
-The existing client is ~10k lines of JavaScript:
+The client that was replaced was ~10k lines of JavaScript. **`client/` was deleted in Phase 8
+(2026-08-08)** — every path below is historical, and the code is reachable only through git
+history (`git show <commit-before-deletion>:client/public/src/main.js`). It stops being the
+reference spec at that point: the Swift is.
 
 | Area | File | Lines | Notes |
 |---|---|---|---|
@@ -137,7 +140,8 @@ prompts on every rebuild), and nothing else. `ClipMask` moved from `UIImage(data
 
 ## 5. Asset pipeline
 
-264 MB of assets today, served over HTTP by the Node server:
+264 MB of assets, in `server/assets/` since Phase 8, served over HTTP by the Node server from
+the root (`/media/…`, `/models/…`, `/junior_school/chunks/…`):
 
 | Asset | Size | Plan |
 |---|---|---|
@@ -180,7 +184,7 @@ The session token moves from Capacitor `Preferences` to the **Keychain**.
 | **7. Minigames** | Tennis (2160 lines) | **done** (a 2D canvas game, so it brought a `CanvasRenderingContext2D` work-alike and an extended SVG rasteriser rather than renderer work) |
 | **7b. Tag** | Tag (591 lines) | **deferred** — decided by the user on 2026-08-08: the game is being reworked first. See `PROGRESS.md` for what a future port needs |
 | **9. macOS admin app** | `admin.js` ported to a native Mac editor on the shared engine | **done** — see `PROGRESS.md` |
-| **8. Retire web** | Delete `client/`, move the asset tree under `server/`, strip static hosting | emote-list coupling resolved; asset move and deletion outstanding |
+| **8. Retire web** | Delete `client/`, move the asset tree under `server/`, strip static hosting | **done** — the tree lives at `server/assets/` and is served from the root at its old URLs; `client/` is gone |
 
 ### `admin.js`: superseded decision
 
@@ -220,9 +224,9 @@ behaviourally identical while both exist.
 | Reference | What it needs | Status |
 |---|---|---|
 | `static.js`, `AIAgentManager.js` | the valid-emote list | **done (2026-08-08)** — `server/emotes.js` holds the 20 names; neither file reads `client/` any more. Keep it in step with `Entity/Emotes.swift`, which owns the poses |
-| `scripts/slice_maps.js`, `create_overlays.js`, `generate_minimaps.js` | `client/public` as the asset root | outstanding — move the 264 MB asset tree under `server/` |
-| `static.js:34-43` | serves the web client and the asset tree from `client/public` | outstanding — the asset mounts stay (the iOS app streams tiles, models and audio over them), the `/src` mount and the `admin.html` route go |
-| `views/index.ejs` | the game page and the admin panel markup | outstanding — deleted with the client; the macOS editor replaces `admin.html` |
+| `scripts/slice_maps.js`, `create_overlays.js`, `generate_minimaps.js` | `client/public` as the asset root | **done (2026-08-08)** — `basePath` is `server/assets` |
+| `static.js:34-43` | serves the web client and the asset tree from `client/public` | **done (2026-08-08)** — one root mount on `server/assets`; the `/src` mount, the `/public` mount, the `/src/physics.js` route and the `admin.html` render are gone |
+| `views/index.ejs` | the game page and the admin panel markup | **done (2026-08-08)** — deleted with the client, along with the `ejs` dependency |
 
-No *code-level* coupling is left: everything above is "point at wherever the assets live",
-which the asset move resolves in one step.
+**No coupling of any kind is left: `client/` no longer exists.** The URLs the native clients
+fetch did not change, because the tree is still mounted at the root.

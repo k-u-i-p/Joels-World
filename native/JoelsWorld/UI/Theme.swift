@@ -26,8 +26,8 @@ enum Theme {
     // MARK: - Fonts
 
     /// `font-family: 'Pricedown'` — the display face used for headers, the map name and the
-    /// emote/badge rows. Registered from the bundled copy of `client/public/fonts/pricedown.otf`
-    /// at first use; falls back to a heavy rounded system face if the file is missing.
+    /// emote/badge rows. Registered at first use from `Resources/pricedown.otf` in the bundle;
+    /// falls back to a heavy rounded system face if the file is missing.
     static func display(_ size: CGFloat) -> UIFont {
         registerPricedownIfNeeded()
         if let font = UIFont(name: pricedownName ?? "", size: size) { return font }

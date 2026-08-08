@@ -7,7 +7,7 @@ COPY server/package*.json ./server/
 WORKDIR /app/server
 RUN npm ci --only=production
 
-# Copy the rest of the application (both client and server)
+# Copy the rest of the application (the server and its asset tree)
 WORKDIR /app
 COPY . .
 
