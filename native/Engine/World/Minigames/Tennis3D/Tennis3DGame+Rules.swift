@@ -230,6 +230,14 @@ extension Tennis3DGame {
     private func endPoint(banner: String, subtitle: String?, pause: Double) {
         phase = .pointOver
         phaseTimer = pause
+        // Put the ball on the floor where the point ended. Clearing `inFlight` stops the
+        // integrator dead, so without this the ball hangs in mid-air for the length of the
+        // banner with its shadow sitting on the grass underneath it — a small dark square
+        // floating on the lawn with nothing above it that anyone could see.
+        ball.z = Tennis3DCourt.ballRadius
+        ball.vx = 0
+        ball.vy = 0
+        ball.vz = 0
         player.swing = SwingState()
         npc.swing = SwingState()
         player.moveTarget = nil

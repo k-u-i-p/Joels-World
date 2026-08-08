@@ -165,6 +165,10 @@ extension Tennis3DGame {
 
         player.swing = SwingState()
         npc.swing = SwingState()
+        // Both anchors reset to the marks: the receiver measures the return from where they are
+        // standing to take it, and the server from where they serve.
+        player.anchor = (x: player.locomotion.x, y: player.locomotion.y)
+        npc.anchor = (x: npc.locomotion.x, y: npc.locomotion.y)
 
         phase = .ready
         phaseTimer = 0.85
@@ -375,9 +379,11 @@ extension Tennis3DGame {
         var elapsed: Double = 0
 
         let step = Tuning.physicsStep * 4
-        // The band a stroke is comfortable in: knee height to a little above the shoulder.
-        let lowest = Tennis3DCourt.metres(0.45)
-        let highest = Tennis3DCourt.metres(1.75)
+        // The band a stroke is comfortable in, centred on the height the strings actually pass
+        // through rather than on a guess about knees and shoulders.
+        let contactHeight = contactHeadHeight
+        let lowest = contactHeight - Tennis3DCourt.metres(0.6)
+        let highest = contactHeight + Tennis3DCourt.metres(0.6)
 
         // The first playable moment is usually not the useful one, and pointing at it was
         // quietly losing every service game. A serve bounces near the service line and kicks
@@ -394,6 +400,10 @@ extension Tennis3DGame {
         // If nothing is reachable, the closest near-miss comes back regardless, so the marker
         // still shows where the ball was catchable — a player who is out of position should see
         // by how much, not see nothing at all.
+        // Cost is measured from the **anchor** — where they stood when the shot was struck — and
+        // reachability from where they are now. Costing from the live position instead is the
+        // feedback loop described on `Side.anchor`, and it walked both players into the net.
+        let anchor = SIMD2(side.anchor.x, side.anchor.y)
         let here = SIMD2(side.locomotion.x, side.locomotion.y)
         let reach = Tuning.racketLength + Tuning.sweetRadius
         let topSpeed = side.isPlayer ? Tuning.playerTopSpeed : Tuning.npcTopSpeed
@@ -430,11 +440,18 @@ extension Tennis3DGame {
             guard velocity.z < 0 || bounces > 0 else { continue }
             guard position.z >= lowest, position.z <= highest else { continue }
 
-            let needed = max(0, simd_length(SIMD2(position.x, position.y) - here) - reach)
+            let ground = SIMD2(position.x, position.y)
+            // Cost is "how far do I have to move", plus a penalty for a ball that is not at the
+            // height the racket swings through — a shin-high ball two steps away is a worse
+            // proposition than a waist-high one three steps away, and the ground distance alone
+            // cannot say so.
+            let offHeight = abs(position.z - contactHeight)
+            let cost = max(0, simd_length(ground - anchor) - reach) + offHeight * 1.5
+            let needed = max(0, simd_length(ground - here) - reach)
             let possible = groundCovered(in: elapsed, topSpeed: topSpeed)
 
             if needed <= possible {
-                if best == nil || needed < best!.cost { best = (position, needed) }
+                if best == nil || cost < best!.cost { best = (position, cost) }
             } else if nearest == nil || needed - possible < nearest!.shortfall {
                 nearest = (position, needed - possible)
             }
@@ -529,24 +546,29 @@ extension Tennis3DGame {
 
     /// The green X, straight out of the 2D game — where the racket should meet the ball.
     ///
-    /// Drawn twice: once floating at the intercept itself, and once as a fainter copy flat on
-    /// the court directly beneath it. The floating one is the honest answer; the one on the
-    /// ground is the one a player can actually run to, because from a camera this high a mark
-    /// in mid-air is impossible to judge the position of.
+    /// Drawn twice: once floating where the strings should meet the ball, and once flat on the
+    /// court **where the feet should be**.
+    ///
+    /// Those two are not the same place, and drawing the second one under the first was a quiet
+    /// lie the game told for as long as it existed. The racket head is more than a metre in
+    /// front of and to the side of the body, so a player who runs to the mark under the ball has
+    /// put their chest where their strings needed to be, and the ball goes past inside their
+    /// reach. The ground mark now shows the stance, which is the thing you can actually stand
+    /// on; the floating one still shows the ball.
     private func interceptMarker() -> [ScenePrimitive] {
         guard let intercept = idealIntercept() else { return [] }
+        let feet = stance(toMeet: intercept, for: player)
 
         let arm = Float(Tennis3DCourt.metres(0.42))
         let thickness = Float(Tennis3DCourt.metres(0.07))
         let green = parseHexColor("#2ecc71")
         var out: [ScenePrimitive] = []
 
-        func cross(atZ z: Float, opacity: Float, scale: Float) {
+        func cross(x: Double, y: Double, atZ z: Float, opacity: Float, scale: Float) {
             for sign in [Float(1), Float(-1)] {
                 out.append(ScenePrimitive(
                     shape: .box(width: arm * 2 * scale, height: thickness, depth: thickness),
-                    transform: Float4x4.translation(SIMD3(Float(intercept.x),
-                                                          Float(-intercept.y), z))
+                    transform: Float4x4.translation(SIMD3(Float(x), Float(-y), z))
                         * Float4x4.rotationZ(sign * .pi / 4),
                     color: green,
                     opacity: opacity,
@@ -555,8 +577,8 @@ extension Tennis3DGame {
             }
         }
 
-        cross(atZ: Float(intercept.z), opacity: 0.95, scale: 1)
-        cross(atZ: 2.0, opacity: 0.35, scale: 0.85)
+        cross(x: intercept.x, y: intercept.y, atZ: Float(intercept.z), opacity: 0.95, scale: 1)
+        cross(x: feet.x, y: feet.y, atZ: 2.0, opacity: 0.35, scale: 0.85)
         return out
     }
 }

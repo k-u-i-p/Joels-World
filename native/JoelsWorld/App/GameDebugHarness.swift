@@ -158,8 +158,9 @@ final class GameDebugHarness {
                 return
             }
 
-            if let intercept = game.idealIntercept() {
-                game.steer(toWorldX: intercept.x, y: intercept.y)
+            // `idealStance`, not `idealIntercept`: where the feet go, not where the ball is.
+            if let stance = game.idealStance() {
+                game.steer(toWorldX: stance.x, y: stance.y)
             } else {
                 game.steer(toWorldX: 0,
                            y: Tennis3DCourt.halfLength + Tennis3DCourt.metres(0.5))

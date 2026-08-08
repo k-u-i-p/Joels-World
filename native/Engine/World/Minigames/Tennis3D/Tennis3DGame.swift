@@ -33,9 +33,15 @@ final class Tennis3DGame: WorldRenderedMinigame {
         /// A groundstroke leaves the racket at about 15 m/s. A professional's is 25.
         static let rallySpeed = Tennis3DCourt.metres(15)
         /// A first serve. Fast enough to be worth getting right, slow enough to return.
-        static let firstServeSpeed = Tennis3DCourt.metres(21)
+        ///
+        /// It was 21 m/s, and at that pace the point was over the moment the ball left the
+        /// strings: every single game in a test match was a love game, on both sides, because
+        /// the receiver had no time to do anything at all. A game whose only shot is the serve
+        /// is not the game — the rally is. 16.5 leaves the server a real advantage and the
+        /// receiver a real chance, which is the ratio worth having.
+        static let firstServeSpeed = Tennis3DCourt.metres(16.5)
         /// A second serve is safer and slower, as it should be.
-        static let secondServeSpeed = Tennis3DCourt.metres(15)
+        static let secondServeSpeed = Tennis3DCourt.metres(14)
         /// Nothing leaves a racket faster than this, whatever the maths says.
         static let maxBallSpeed = Tennis3DCourt.metres(30)
 
@@ -52,14 +58,23 @@ final class Tennis3DGame: WorldRenderedMinigame {
         static let magnus = 0.45
 
         /// Hard court: a ball comes off at about three-quarters of the speed it arrived, and
-        /// loses a quarter of its pace along the ground.
+        /// loses about a third of its pace along the ground.
+        ///
+        /// The friction figure was 0.76, and it was the single biggest reason nobody could
+        /// return serve. A serve bouncing on the service line kept so much pace that its
+        /// **second** bounce was four and a half metres past the baseline — the ball went by the
+        /// receiver at chest height with a metre a second of closing speed to spare. At 0.64,
+        /// which is what a real hard court does to a ball with this much topspin, the same serve
+        /// dies around the baseline and can be met.
         static let bounceRestitution = 0.73
-        static let bounceFriction = 0.76
+        static let bounceFriction = 0.64
 
         /// Players. 6.5 m/s flat out, and legs that can change that by 18 m/s² — which is what
         /// makes the difference between a lunge and a stroll feel like a decision.
         static let playerTopSpeed = Tennis3DCourt.metres(6.5)
-        static let npcTopSpeed = Tennis3DCourt.metres(6.2)
+        /// Alex's legs are the third thing `difficulty` moves. At 0 she is a plodder; at 1 she
+        /// covers the court slightly faster than the player can.
+        static var npcTopSpeed: Double { Tennis3DCourt.metres(5.4 + 1.4 * clampedDifficulty) }
         static let acceleration = Tennis3DCourt.metres(18)
         static let braking = Tennis3DCourt.metres(26)
         /// Degrees a second the body can re-aim. Low enough that a sudden change of direction
@@ -68,10 +83,16 @@ final class Tennis3DGame: WorldRenderedMinigame {
         static let strideLength = Tennis3DCourt.metres(2.3)
 
         /// How far the racket head reaches from the shoulder, and how big its sweet spot is.
-        /// A real head is 13 cm across; this is more than double that, because a real one is
+        /// A real head is 13 cm across; this is nearly seven times that, because a real one is
         /// unplayable with a thumb on a phone.
+        ///
+        /// 0.42 m rather than the 0.30 m it started at. With everything else fixed, a well-run
+        /// return was landing between 0.44 m and 0.57 m of the strings — close enough that the
+        /// difference between a hit and a miss was a rounding error in the run-up, which reads
+        /// as the game cheating. At 0.42 the good ones go in and the ones half a metre out still
+        /// do not, so where you stand still decides the point.
         static let racketLength = Tennis3DCourt.metres(0.62)
-        static let sweetRadius = Tennis3DCourt.metres(0.30)
+        static let sweetRadius = Tennis3DCourt.metres(0.42)
 
         /// Swing timings, in seconds.
         static let backswingTime: Double = 0.22
@@ -87,10 +108,26 @@ final class Tennis3DGame: WorldRenderedMinigame {
         /// with no timer running and nothing to press.
         static let ballEventTimeout: Double = 8
 
+        /// How good Alex is, from 0 (a friendly hit-up) to 1 (as good as the simulation allows).
+        ///
+        /// One knob rather than three, because "make her harder" is the only thing anyone will
+        /// ever actually want. `-tennisdifficulty <0…1>` overrides it for a balancing run, and
+        /// it is a `var` for exactly that reason — nothing in the game changes it mid-match.
+        ///
+        /// Measured against the `-tennis3ddemo` bot, which reads the ball perfectly and has no
+        /// reaction time, so it is a good deal better than a ten-year-old: at 0.5 it won 16
+        /// points out of 16, at 1.0 it won 10 out of 16. 0.6 leaves Joel a match he can win
+        /// while Alex still takes points off him. Turn it up as he gets better.
+        static var difficulty: Double = 0.6
+
         /// How long the opponent takes to react to a shot before it starts moving.
-        static let npcReaction: Double = 0.20
+        static var npcReaction: Double { 0.34 - 0.24 * clampedDifficulty }
         /// How far off perfect the opponent positions itself, at most.
-        static let npcPositionError = Tennis3DCourt.metres(0.9)
+        static var npcPositionError: Double {
+            Tennis3DCourt.metres(1.5 - 1.1 * clampedDifficulty)
+        }
+
+        private static var clampedDifficulty: Double { min(max(difficulty, 0), 1) }
 
         /// Games needed to win the match, and so the badge.
         static let gamesToWinMatch = 2
@@ -114,6 +151,17 @@ final class Tennis3DGame: WorldRenderedMinigame {
         var moveTarget: (x: Double, y: Double)?
         /// Counts down before the opponent reacts to a shot.
         var reactionDelay: Double = 0
+
+        /// Where this player was standing when the ball was last put in play against them.
+        ///
+        /// `intercept(for:)` scores candidate meeting points by how far the player has to move
+        /// to reach them, and it has to measure that from a **fixed** point. Measuring from
+        /// where they are right now is a feedback loop: step towards the ball and the earlier,
+        /// shallower part of its path becomes the cheaper option, which pulls you a step further
+        /// forward, which makes an earlier part cheaper still. Both players used to walk
+        /// themselves all the way to the service line during a serve and let it fly over their
+        /// shoulder, which is why nobody could break.
+        var anchor: (x: Double, y: Double) = (0, 0)
         /// Deterministic positioning error for this shot, so it does not jitter every frame.
         var positionBias: (x: Double, y: Double) = (0, 0)
 
@@ -148,6 +196,12 @@ final class Tennis3DGame: WorldRenderedMinigame {
         var cooldown: Double = 0
         /// Where the racket head was on the previous sub-step, for the swept contact test.
         var previousHead: SIMD3<Double>?
+        /// The closest the head ever got to the ball during the forward swing, and where the
+        /// ball was at that moment. Diagnostic only — it is the difference between "you were
+        /// nowhere near" and "you were four centimetres out", which is not a distinction any
+        /// other number in the game makes.
+        var closestApproach: Double = .infinity
+        var closestBall: SIMD3<Double> = .zero
 
         var isSwinging: Bool { stage != .idle }
     }
@@ -261,7 +315,11 @@ final class Tennis3DGame: WorldRenderedMinigame {
     // MARK: - Lifecycle
 
     func start() {
-        Log.world("[Tennis3D] Starting on a \(Int(Tennis3DCourt.length))-unit court")
+        #if DEBUG
+        if let override = WalkTest.tennisDifficulty { Tuning.difficulty = override }
+        #endif
+        Log.world("[Tennis3D] Starting on a \(Int(Tennis3DCourt.length))-unit court, "
+                  + "difficulty \(String(format: "%.2f", Tuning.difficulty))")
         active = true
         staticGeometry = Tennis3DCourt.staticPrimitives()
 
@@ -349,8 +407,11 @@ final class Tennis3DGame: WorldRenderedMinigame {
         switch phase {
         case .walkOn:
             if atRest(player) && atRest(npc) {
-                phase = .toMarks
-                phaseTimer = 0.4
+                // Onto the serving marks, the same as between every other point. This used to
+                // fall straight through to `.toMarks` with the walk-on positions still in place,
+                // so the very first point of a match was played from the wrong end of the court
+                // — the receiver stood two and a half metres inside their baseline.
+                moveToServeMarks()
             }
 
         case .toMarks:
@@ -403,12 +464,13 @@ final class Tennis3DGame: WorldRenderedMinigame {
 
         server.moveTarget = (x: serveX, y: server.half * baseline)
 
-        // The receiver stands just behind their own baseline, on the diagonal the serve is
-        // coming down.
+        // The receiver stands well behind their own baseline, on the diagonal the serve is
+        // coming down — two metres back, which is where a returner actually stands for a first
+        // serve and, more to the point, where this one is still travelling when it gets there.
         let box = Tennis3DCourt.serviceBox(receiverHalf: receiver.half, deuceCourt: deuceCourt)
         let boxCentreX = (box.minX + box.maxX) / 2
         receiver.moveTarget = (x: boxCentreX * 1.15,
-                               y: receiver.half * (baseline + Tennis3DCourt.metres(0.9)))
+                               y: receiver.half * (baseline + Tennis3DCourt.metres(2.0)))
 
         phase = .toMarks
         phaseTimer = 0.5

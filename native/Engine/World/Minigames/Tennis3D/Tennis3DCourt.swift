@@ -175,17 +175,24 @@ enum Tennis3DCourt {
                 castsShadow: false))
         }
 
-        // Grass, then the hard-court apron, then the darker playing area inside the lines. Each
-        // sits a hair above the last so they never z-fight.
-        slab(x: 0, y: 0, width: surfaceHalfWidth * 6, length: surfaceHalfLength * 6, z: 0,
+        // Grass, then the hard-court apron, then the darker playing area inside the lines.
+        //
+        // The gaps between them used to be 0.4 units — a centimetre and a half — and the grass
+        // was six times the size of the surface, which is nearly three hundred metres long. A
+        // depth buffer asked to separate three planes a centimetre apart across three hundred
+        // metres cannot, and the result was ragged slabs of the wrong colour appearing off the
+        // corners of the court and vanishing again as the camera drifted. Two units of
+        // separation and a grass plane only big enough to fill the frame is plenty of room; from
+        // a camera twenty-five metres up, seven centimetres of lift is invisible.
+        slab(x: 0, y: 0, width: surfaceHalfWidth * 5, length: surfaceHalfLength * 3, z: 0,
              color: grassColor, unlit: false)
-        slab(x: 0, y: 0, width: surfaceHalfWidth * 2, length: surfaceHalfLength * 2, z: 0.4,
+        slab(x: 0, y: 0, width: surfaceHalfWidth * 2, length: surfaceHalfLength * 2, z: 2,
              color: surfaceColor, unlit: false)
-        slab(x: 0, y: 0, width: doublesWidth, length: length, z: 0.8,
+        slab(x: 0, y: 0, width: doublesWidth, length: length, z: 4,
              color: insideColor, unlit: false)
 
         // --- Painted lines ---
-        let lineZ = 1.2
+        let lineZ = 6.0
 
         func lineAlongX(y: Double, from x0: Double, to x1: Double, width: Double) {
             slab(x: (x0 + x1) / 2, y: y, width: abs(x1 - x0), length: width, z: lineZ,

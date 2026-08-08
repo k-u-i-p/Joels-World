@@ -279,7 +279,10 @@ final class Tennis3DView: UIView {
         let dt = min(0.1, max(0, now - (lastStepTime ?? now)))
         lastStepTime = now
 
-        fade(bannerPanel, to: game.announcement == nil ? 0 : 1, rate: 9, dt: dt)
+        // The match-over panel and the banner both sit in the middle of the screen and overlap,
+        // so the "GAME, SET AND MATCH" call goes away as soon as the panel it duplicates is up.
+        let bannerWanted: CGFloat = (game.announcement == nil || !matchPanel.isHidden) ? 0 : 1
+        fade(bannerPanel, to: bannerWanted, rate: 9, dt: dt)
 
         // The hint is up until the player first touches the court, and comes back if they stop
         // playing for a while — a ten-year-old who puts the phone down mid-match should not

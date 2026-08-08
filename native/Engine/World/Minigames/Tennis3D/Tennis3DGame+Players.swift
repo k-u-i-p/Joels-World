@@ -48,6 +48,85 @@ extension Tennis3DGame {
     /// from where this puts the strings.
     var serveContactHandLocal: SIMD3<Double> { SIMD3(11, 7, 46) }
 
+    /// The three poses of a groundstroke on the racket side: loaded behind the hip, through the
+    /// ball, finished across the body. `mirror` flips them for a backhand.
+    ///
+    /// One definition. `handLocal` animates through it and `stance(toMeet:for:)` measures from
+    /// it, so where the strings arrive and where the feet are told to be cannot drift apart.
+    func groundstrokePoses(mirror: Double)
+        -> (loaded: SIMD3<Double>, contact: SIMD3<Double>, finish: SIMD3<Double>) {
+        (loaded: SIMD3(-7, 22 * mirror, 19),
+         contact: SIMD3(16, 17 * mirror, 21),
+         finish: SIMD3(9, -9 * mirror, 30))
+    }
+
+    /// Where the racket hand is at the instant the swing is **timed** to meet the ball.
+    ///
+    /// Not the `contact` pose — the *middle* of the forward swing. `considerStartingSwing` starts
+    /// the backswing so that `forwardSwingTime × 0.5` lands on the ball, and `strike` scores
+    /// timing quality against that same midpoint, so the midpoint is where the game believes the
+    /// strings meet the ball. Measuring the stance from the end pose instead put the feet most
+    /// of a metre wrong on every single shot — which showed up as a beautifully consistent
+    /// half-metre near miss, over and over, whatever the player did.
+    var strikeHandLocal: SIMD3<Double> {
+        let poses = groundstrokePoses(mirror: 1)
+        return poses.loaded + (poses.contact - poses.loaded) * 0.5
+    }
+
+    /// **Where the feet have to be** for the strings to meet a ball at `meeting`.
+    ///
+    /// This is the piece that was missing, and without it nobody could return a serve. Both
+    /// players were being sent to stand *where the ball would be* — but the racket head is a
+    /// metre and a bit forward and to the racket side of the body, so a player standing on the
+    /// ball watches it go past inside their reach. The closest the strings ever got was 1.0 m,
+    /// against a sweet spot of 0.33 m: near enough to look like bad luck, and never once a hit.
+    ///
+    /// The offset is computed from the same contact pose the swing actually uses, rotated by the
+    /// heading they will be facing — which is always the net.
+    func stance(toMeet meeting: SIMD3<Double>, for side: Side) -> (x: Double, y: Double) {
+        let offset = contactHeadWorldOffset(for: side)
+        return (x: meeting.x - offset.x, y: meeting.y - offset.y)
+    }
+
+    /// The ground-plane vector from a player's feet to their strings at contact, in world space.
+    /// One definition, used by the stance, by the swing trigger and by the marker.
+    func contactHeadWorldOffset(for side: Side) -> SIMD2<Double> {
+        let head = contactHeadLocal
+        let radians = netFacing(for: side) * .pi / 180
+        // The rotation half of `worldPoint(local:of:)`.
+        return SIMD2(head.x * cos(radians) + head.y * sin(radians),
+                     head.x * sin(radians) - head.y * cos(radians))
+    }
+
+    /// Where the player should be standing to play whatever is coming, or nil if nothing is.
+    func idealStance() -> (x: Double, y: Double)? {
+        guard let meeting = idealIntercept() else { return nil }
+        return stance(toMeet: meeting, for: player)
+    }
+
+    /// How high off the court the strings pass on a groundstroke. `worldPoint` lifts a local
+    /// point by the rig's 15.5-unit body pivot, so this is that same sum.
+    ///
+    /// The intercept used to accept any ball between knee and shoulder and pick purely on how
+    /// far the player had to run, which meant it happily chose one a third of a metre above
+    /// where the racket was ever going to be. Every return was then a near miss of exactly that
+    /// size, over and over, which is what a systematic error looks like in a log.
+    var contactHeadHeight: Double { contactHeadLocal.z + 15.5 }
+
+    /// The racket head at the timed strike, in the character's own frame. Derived from the
+    /// swing choreography, not written down separately.
+    private var contactHeadLocal: SIMD3<Double> {
+        let hand = strikeHandLocal
+        var reach = hand - shoulderLocal
+        let length = simd_length(reach)
+        reach = length > 1e-6 ? reach / length : SIMD3(1, 0, 0)
+        return hand + reach * Tuning.racketLength
+    }
+
+    /// 270° points at −Y for the near player, 90° at +Y for the far one. Both keep their chest
+    /// to the net, which is what makes the racket offset above a fixed direction in world space.
+    func netFacing(for side: Side) -> Double { side.isPlayer ? 270 : 90 }
+
     /// Where the racket head is right now, in world space.
     ///
     /// The hand goes wherever the swing puts it; the head is a fixed distance further along the
@@ -89,9 +168,10 @@ extension Tennis3DGame {
             contact = serveContactHandLocal
             finish = SIMD3(8, -13, 8)
         } else {
-            loaded = SIMD3(-7, 22 * mirror, 19)
-            contact = SIMD3(16, 17 * mirror, 21)
-            finish = SIMD3(9, -9 * mirror, 30)
+            let poses = groundstrokePoses(mirror: mirror)
+            loaded = poses.loaded
+            contact = poses.contact
+            finish = poses.finish
         }
 
         switch swing.stage {
@@ -198,15 +278,14 @@ extension Tennis3DGame {
         case .follow where side.swing.elapsed >= Tuning.followThroughTime:
             if !side.swing.hasStruck {
                 let metre = Tennis3DCourt.unitsPerMetre
-                let head = racketHead(of: side)
-                trace(String(format: "MISS %@ at (%.1f, %.1f)m head=(%.1f, %.1f, %.1f)m target=(%.1f, %.1f)m — ball (%.1f, %.1f, %.1f)m, %.1fm from head",
+                let close = side.swing.closestBall
+                trace(String(format: "MISS %@ at (%.1f, %.1f)m — closest the strings got was %.2fm, "
+                             + "with the ball at (%.1f, %.1f, %.1f)m (sweet spot is %.2fm)",
                              side.isPlayer ? "you" : opponentName,
                              side.locomotion.x / metre, side.locomotion.y / metre,
-                             head.x / metre, head.y / metre, head.z / metre,
-                             (side.moveTarget?.x ?? .nan) / metre,
-                             (side.moveTarget?.y ?? .nan) / metre,
-                             ball.x / metre, ball.y / metre, ball.z / metre,
-                             simd_length(ball.position - head) / metre))
+                             side.swing.closestApproach / metre,
+                             close.x / metre, close.y / metre, close.z / metre,
+                             (Tuning.sweetRadius + Tennis3DCourt.ballRadius) / metre))
             }
             side.swing = SwingState()
             side.swing.cooldown = Tuning.swingCooldown
@@ -221,6 +300,12 @@ extension Tennis3DGame {
         // Only the forward half of the stroke can hit anything, and only once.
         guard side.swing.stage == .forward, !side.swing.hasStruck, ball.inFlight else { return }
         guard canHit(side) else { return }
+
+        let separation = simd_length(ball.position - headAfter)
+        if separation < side.swing.closestApproach {
+            side.swing.closestApproach = separation
+            side.swing.closestBall = ball.position
+        }
 
         if let contact = sweptContact(headFrom: headBefore, headTo: headAfter, dt: dt) {
             side.swing.hasStruck = true
@@ -325,7 +410,12 @@ extension Tennis3DGame {
         var bounces = ball.bounces
 
         let step = Tuning.physicsStep * 4
-        let reach = Tuning.racketLength + Tuning.sweetRadius + Tennis3DCourt.metres(0.35)
+        // Measured against where the **strings** will be, not where the body will be. Those are
+        // 1.4 m apart, and once both players started standing off the ball so the racket could
+        // reach it — which is what makes a return possible at all — a body-centred test stopped
+        // firing entirely and the opponent simply watched every serve go by without swinging.
+        let reach = Tuning.sweetRadius + Tennis3DCourt.metres(0.6)
+        let headOffset = contactHeadWorldOffset(for: side)
         let lowest = Tennis3DCourt.metres(0.15)
         let highest = Tennis3DCourt.metres(2.6)
 
@@ -355,7 +445,7 @@ extension Tennis3DGame {
             if isServeInFlight && side !== server && bounces == 0 { continue }
             guard position.z >= lowest, position.z <= highest else { continue }
 
-            let standing = predictedStandingPosition(of: side, after: elapsed)
+            let standing = predictedStandingPosition(of: side, after: elapsed) + headOffset
             let distance = hypot(position.x - standing.x, position.y - standing.y)
             if distance <= reach { return elapsed }
         }
@@ -438,9 +528,12 @@ extension Tennis3DGame {
             isServeInFlight = true
         }
 
-        // The opponent needs a moment before it starts running, and a fresh dose of error.
+        // The opponent needs a moment before it starts running, and a fresh dose of error. Its
+        // anchor is pinned here too: from this instant until it plays the ball, "how far do I
+        // have to move" is measured from where it was standing when the shot was struck.
         let other = side.isPlayer ? npc : player
         other.reactionDelay = Tuning.npcReaction
+        other.anchor = (x: other.locomotion.x, y: other.locomotion.y)
         other.positionBias = (x: random.spread(Tuning.npcPositionError),
                               y: random.spread(Tuning.npcPositionError))
 
@@ -542,9 +635,10 @@ extension Tennis3DGame {
                 // the player's serve was unbreakable. `intercept(for:)` accounts for how far she
                 // can actually run in the time available.
                 if let meeting = intercept(for: npc) {
+                    let feet = stance(toMeet: meeting, for: npc)
                     npc.moveTarget = (
-                        x: meeting.x + npc.positionBias.x + Tennis3DCourt.metres(0.45),
-                        y: min(-Tennis3DCourt.metres(1.0), meeting.y + npc.positionBias.y)
+                        x: feet.x + npc.positionBias.x,
+                        y: min(-Tennis3DCourt.metres(1.0), feet.y + npc.positionBias.y)
                     )
                 } else if let landing = predictedLanding(), landing.point.y < 0 {
                     // Nothing playable predicted — cover the bounce and hope.
