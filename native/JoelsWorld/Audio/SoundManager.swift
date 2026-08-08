@@ -21,6 +21,11 @@ final class SoundManager {
         fileprivate var volume: Float = 1
         fileprivate var fadeTimer: Timer?
 
+        /// What this handle is playing, kept so the graph can be rebuilt from scratch when the
+        /// system reconfigures the audio route out from under it.
+        fileprivate var buffer: AVAudioPCMBuffer?
+        fileprivate var loops = false
+
         /// True once the caller has asked for this to stop; a buffer that is still loading
         /// checks it before starting.
         private(set) var stopped = false
@@ -83,6 +88,17 @@ final class SoundManager {
         // music keeps playing with the ring switch on silent, which is what players expect
         // from a game rather than from a web page.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(configurationChanged),
+                           name: .AVAudioEngineConfigurationChange, object: engine)
+        center.addObserver(self, selector: #selector(sessionInterrupted),
+                           name: AVAudioSession.interruptionNotification,
+                           object: AVAudioSession.sharedInstance())
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Playback
@@ -139,6 +155,8 @@ final class SoundManager {
         engine.connect(handle.varispeed, to: engine.mainMixerNode, format: buffer.format)
         handle.attached = true
         handle.player.volume = handle.volume
+        handle.buffer = buffer
+        handle.loops = loop
         active.append(handle)
 
         // The engine is started *after* the first player is wired up. Starting (or preparing)
@@ -178,6 +196,70 @@ final class SoundManager {
         engine.detach(handle.player)
         engine.detach(handle.varispeed)
         active.removeAll { $0 === handle }
+    }
+
+    // MARK: - Route changes
+
+    /// The system reconfigured the engine — most often because something else on the device
+    /// wanted the output. Raising the keyboard is one of those: the keyboard's click sounds
+    /// join the route and the hardware format is renegotiated.
+    ///
+    /// `AVAudioEngine` stops itself and drops its connections when this fires. Nodes that were
+    /// left `play()`ing carry on rendering into the dead graph, which is what players hear as
+    /// a crackle, so the graph has to be built again rather than merely restarted.
+    @objc private func configurationChanged(_ notification: Notification) {
+        // Posted from an audio thread; the graph is main-thread work.
+        DispatchQueue.main.async { [weak self] in
+            Log.world("Audio route reconfigured — rebuilding the engine graph")
+            self?.rebuildGraph()
+        }
+    }
+
+    @objc private func sessionInterrupted(_ notification: Notification) {
+        guard let info = notification.userInfo,
+              let raw = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: raw)
+        else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            switch type {
+            case .began:
+                // The session is gone; so is the engine. Drop the graph and wait.
+                self.sessionActive = false
+                self.rebuildGraph(restart: false)
+
+            case .ended:
+                let options = AVAudioSession.InterruptionOptions(
+                    rawValue: info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
+                guard options.contains(.shouldResume) else { return }
+                self.activateSession()
+                self.rebuildGraph()
+
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    /// Tears the whole graph down and, when `restart` is set, brings the loops back.
+    ///
+    /// Only looping sounds are restored. A one-shot is a splash or a racket hit that is over
+    /// in well under a second, and restarting it from the top would be more noticeable than
+    /// losing it.
+    private func rebuildGraph(restart: Bool = true) {
+        let loops: [(Handle, AVAudioPCMBuffer)] = active.compactMap { handle in
+            guard handle.loops, !handle.stopped, let buffer = handle.buffer else { return nil }
+            return (handle, buffer)
+        }
+
+        for handle in active { tearDown(handle) }
+        engine.stop()
+
+        guard restart else { return }
+        for (handle, buffer) in loops {
+            start(handle: handle, buffer: buffer, loop: true)
+        }
     }
 
     private func activateSession() {

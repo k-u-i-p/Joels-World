@@ -302,12 +302,8 @@ private final class PaddedLabel: UILabel {
         super.drawText(in: rect.inset(by: insets))
     }
 
-    override var intrinsicContentSize: CGSize {
-        let size = super.intrinsicContentSize
-        return CGSize(width: size.width + insets.left + insets.right,
-                      height: size.height + insets.top + insets.bottom)
-    }
-
+    /// `intrinsicContentSize` is derived from `textRect(forBounds:)`, so the outset below is
+    /// already in the measurement — adding the insets again here doubled every row's padding.
     override func textRect(forBounds bounds: CGRect, limitedToNumberOfLines numberOfLines: Int) -> CGRect {
         let rect = super.textRect(forBounds: bounds.inset(by: insets),
                                   limitedToNumberOfLines: numberOfLines)

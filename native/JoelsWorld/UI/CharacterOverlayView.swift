@@ -172,14 +172,41 @@ private final class ChatBubbleView: UIView {
                         width: size.width + padding.left + padding.right,
                         height: size.height + padding.top + padding.bottom + arrowHeight)
 
-        let bodyRect = CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height - arrowHeight)
-        let path = UIBezierPath(roundedRect: bodyRect, cornerRadius: 8)
-        // The arrow is part of the same filled path, so the shadow wraps it too.
-        path.move(to: CGPoint(x: bounds.midX - arrowWidth / 2, y: bodyRect.maxY - 1))
-        path.addLine(to: CGPoint(x: bounds.midX, y: bounds.maxY))
-        path.addLine(to: CGPoint(x: bounds.midX + arrowWidth / 2, y: bodyRect.maxY - 1))
-        path.close()
+        let path = bubblePath(bodyHeight: bounds.height - arrowHeight)
         arrow.path = path.cgPath
         arrow.frame = bounds
+        // Without an explicit path the shadow is traced from the layer's composited alpha,
+        // which picks out the arrow's edges as if it were a separate view.
+        layer.shadowPath = path.cgPath
+    }
+
+    /// The body and the arrow as one continuous outline. Two subpaths that merely overlap
+    /// cancel each other along the seam under the non-zero fill rule, which leaves a hairline
+    /// gap where the arrow meets the bubble.
+    private func bubblePath(bodyHeight: CGFloat) -> UIBezierPath {
+        let radius: CGFloat = 8
+        let width = bounds.width
+        let midX = bounds.midX
+        let half = arrowWidth / 2
+
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: radius, y: 0))
+        path.addLine(to: CGPoint(x: width - radius, y: 0))
+        path.addArc(withCenter: CGPoint(x: width - radius, y: radius), radius: radius,
+                    startAngle: -.pi / 2, endAngle: 0, clockwise: true)
+        path.addLine(to: CGPoint(x: width, y: bodyHeight - radius))
+        path.addArc(withCenter: CGPoint(x: width - radius, y: bodyHeight - radius), radius: radius,
+                    startAngle: 0, endAngle: .pi / 2, clockwise: true)
+        path.addLine(to: CGPoint(x: midX + half, y: bodyHeight))
+        path.addLine(to: CGPoint(x: midX, y: bodyHeight + arrowHeight))
+        path.addLine(to: CGPoint(x: midX - half, y: bodyHeight))
+        path.addLine(to: CGPoint(x: radius, y: bodyHeight))
+        path.addArc(withCenter: CGPoint(x: radius, y: bodyHeight - radius), radius: radius,
+                    startAngle: .pi / 2, endAngle: .pi, clockwise: true)
+        path.addLine(to: CGPoint(x: 0, y: radius))
+        path.addArc(withCenter: CGPoint(x: radius, y: radius), radius: radius,
+                    startAngle: .pi, endAngle: -.pi / 2, clockwise: true)
+        path.close()
+        return path
     }
 }
