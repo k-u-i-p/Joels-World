@@ -196,6 +196,18 @@ extension Tennis3DGame {
             side.swing.stage = .follow
             side.swing.elapsed = 0
         case .follow where side.swing.elapsed >= Tuning.followThroughTime:
+            if !side.swing.hasStruck {
+                let metre = Tennis3DCourt.unitsPerMetre
+                let head = racketHead(of: side)
+                trace(String(format: "MISS %@ at (%.1f, %.1f)m head=(%.1f, %.1f, %.1f)m target=(%.1f, %.1f)m — ball (%.1f, %.1f, %.1f)m, %.1fm from head",
+                             side.isPlayer ? "you" : opponentName,
+                             side.locomotion.x / metre, side.locomotion.y / metre,
+                             head.x / metre, head.y / metre, head.z / metre,
+                             (side.moveTarget?.x ?? .nan) / metre,
+                             (side.moveTarget?.y ?? .nan) / metre,
+                             ball.x / metre, ball.y / metre, ball.z / metre,
+                             simd_length(ball.position - head) / metre))
+            }
             side.swing = SwingState()
             side.swing.cooldown = Tuning.swingCooldown
             return
@@ -436,6 +448,13 @@ extension Tennis3DGame {
         host.minigamePlayEffect(path: sound,
                                 volume: 0.55 + quality * 0.45,
                                 rate: 0.86 + quality * 0.26)
+
+        let metre = Tennis3DCourt.unitsPerMetre
+        trace(String(format: "STRIKE %@%@ at (%.1f, %.1f, %.1f)m quality=%.2f aim=(%.1f, %.1f)m",
+                     side.isPlayer ? "you" : opponentName,
+                     side.swing.isServe ? " serve" : (side.swing.isBackhand ? " backhand" : ""),
+                     contact.x / metre, contact.y / metre, contact.z / metre,
+                     quality, aim.x / metre, aim.y / metre))
     }
 
     // MARK: - Aiming
@@ -516,9 +535,19 @@ extension Tennis3DGame {
         let servingOwnToss = phase == .toss && server === npc
         if (phase == .rally || phase == .toss) && !servingOwnToss {
             if npc.reactionDelay <= 0, ball.inFlight, ball.vy < 0 || ball.y < 0 {
-                if let landing = predictedLanding(), landing.point.y < 0 {
-                    // Stand where the racket, not the body, meets the ball: a stride behind the
-                    // bounce and offset towards the racket side.
+                // Stand where the ball can be *struck*, not where it lands. Those are the same
+                // place for a groundstroke and eight metres apart for a serve, which bounces
+                // near the service line and runs on past the baseline — so aiming at the bounce
+                // sent Alex charging forward into a ball already going over her shoulder, and
+                // the player's serve was unbreakable. `intercept(for:)` accounts for how far she
+                // can actually run in the time available.
+                if let meeting = intercept(for: npc) {
+                    npc.moveTarget = (
+                        x: meeting.x + npc.positionBias.x + Tennis3DCourt.metres(0.45),
+                        y: min(-Tennis3DCourt.metres(1.0), meeting.y + npc.positionBias.y)
+                    )
+                } else if let landing = predictedLanding(), landing.point.y < 0 {
+                    // Nothing playable predicted — cover the bounce and hope.
                     let standOff = Tennis3DCourt.metres(1.1)
                     npc.moveTarget = (
                         x: landing.point.x + npc.positionBias.x + Tennis3DCourt.metres(0.45),

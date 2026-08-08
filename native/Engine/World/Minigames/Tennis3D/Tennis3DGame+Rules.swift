@@ -41,6 +41,15 @@ extension Tennis3DGame {
 
     /// Called for every bounce, from the ball's own integrator.
     func onBounce() {
+        let metre = Tennis3DCourt.unitsPerMetre
+        trace(String(format: "bounce %d at (%.1f, %.1f)m — %@ to play, %@ %.1fm from it",
+                     ball.bounces, ball.x / metre, ball.y / metre,
+                     ball.lastHitByPlayer == true ? opponentName : "you",
+                     ball.lastHitByPlayer == true ? opponentName : "you",
+                     (ball.lastHitByPlayer == true
+                      ? hypot(ball.x - npc.locomotion.x, ball.y - npc.locomotion.y)
+                      : hypot(ball.x - player.locomotion.x, ball.y - player.locomotion.y)) / metre))
+
         switch phase {
         case .toss:
             // The toss came back down without being struck. In a real match you would catch it;
@@ -120,6 +129,7 @@ extension Tennis3DGame {
     private func callFault(reason: String) {
         faults += 1
         ball.inFlight = false
+        trace("fault \(faults) — \(reason)")
 
         if faults >= 2 {
             awardPoint(toPlayer: !serverIsPlayer, reason: "DOUBLE FAULT")
@@ -159,6 +169,9 @@ extension Tennis3DGame {
         isServeInFlight = false
 
         if toPlayer { score.playerPoints += 1 } else { score.npcPoints += 1 }
+        trace("POINT to \(toPlayer ? "you" : opponentName) — \(reason) "
+              + "(\(score.text.player)–\(score.text.npc), games "
+              + "\(score.playerGames)–\(score.npcGames))")
 
         guard let gameWinner = score.gameWinner else {
             let line = score.text

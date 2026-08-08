@@ -50,12 +50,36 @@ enum HairColors {
 }
 
 /// The primitive body parts, each of which maps to one procedural mesh and one colour.
+///
+/// This used to be eleven parts — a squashed capsule for the torso, a capsule per limb segment
+/// and a sphere for each hand. Next to the head GLBs, which are modelled down to individual
+/// strands of hair, a body with no neck, no shoulders, no waist and ball hands was the thing
+/// giving the characters away. The additions are all joints: the places where two capsules meet
+/// at an angle and, before this, simply crossed through one another.
 enum RigPart: CaseIterable {
     case torso
-    case leftUpperArm, leftLowerArm, leftHand
-    case rightUpperArm, rightLowerArm, rightHand
-    case leftUpperLeg, leftLowerLeg
-    case rightUpperLeg, rightLowerLeg
+    /// The hips, in trouser colour. Splitting it off the torso is what gives a character a
+    /// waistline instead of one shirt-coloured tube from neck to knee.
+    case pelvis
+    case neck
+    case leftShoulder, rightShoulder
+    case leftUpperArm, leftLowerArm, leftElbow, leftHand
+    case rightUpperArm, rightLowerArm, rightElbow, rightHand
+    case leftUpperLeg, leftLowerLeg, leftKnee
+    case rightUpperLeg, rightLowerLeg, rightKnee
+
+    /// True for the parts that only smooth a joint over. They sit inside the silhouette the
+    /// limbs and body already cast, so the shadow pass skips them: the shadow map is identical
+    /// either way and it is the one pass that draws every character a second time.
+    var isJointFiller: Bool {
+        switch self {
+        case .neck, .leftShoulder, .rightShoulder,
+             .leftElbow, .rightElbow, .leftKnee, .rightKnee:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 /// Per-character palette. Defaults match `buildSkeletonMaterials` (`characters.js:770-779`).
@@ -122,12 +146,27 @@ typealias RigOverride = (inout RigMutation) -> Void
 /// that outlives a frame is kept on the caller's `RigRuntime`.
 enum CharacterRig {
 
-    // Limb dimensions, from `buildSkeletonLimbs`.
-    static let upperArmRadius: Float = 3.3, upperArmLength: Float = 8
-    static let lowerArmRadius: Float = 3.3, lowerArmLength: Float = 8
+    /// Bone lengths — joint to joint. `IKSolver` solves against these, **and every capsule is
+    /// built to exactly this length**, which is the load-bearing part.
+    ///
+    /// A capsule is a cylinder of `length` with a hemisphere of `radius` on each end. Make the
+    /// cylinder the length of the bone and each hemisphere is centred precisely on a joint, so
+    /// the limb's cross-section at the joint is a full `radius` and a sphere of that radius
+    /// placed there is exactly tangent — invisible on a straight limb, and filling the notch on
+    /// a bent one. Make the cylinder any shorter and the cap is centred short of the joint, the
+    /// limb pinches in before it gets there, and the joint sphere becomes a bulge sitting proud
+    /// of it. That is the difference between an arm and a string of beads, and the arms had it
+    /// wrong: 8 against a bone of 8.5. The legs were already right.
+    static let armBone: Float = 8.5
+    static let thighBone: Float = 12
+    static let shinBone: Float = 9.7
+
+    // Limb radii, from `buildSkeletonLimbs`.
+    static let upperArmRadius: Float = 3.3, upperArmLength: Float = armBone
+    static let lowerArmRadius: Float = 3.3, lowerArmLength: Float = armBone
     static let handRadius: Float = 3.8
-    static let upperLegRadius: Float = 3.6, upperLegLength: Float = 12
-    static let lowerLegRadius: Float = 3.6, lowerLegLength: Float = 9.7
+    static let upperLegRadius: Float = 3.6, upperLegLength: Float = thighBone
+    static let lowerLegRadius: Float = 3.6, lowerLegLength: Float = shinBone
     static let torsoRadius: Float = 9, torsoLength: Float = 8
 
     // Joint anchors, from `buildSkeletonRig`.
@@ -135,6 +174,110 @@ enum CharacterRig {
     private static let rightShoulder = SIMD3<Float>(3, 10, 26)
     private static let leftHip = SIMD3<Float>(0, -6, 10)
     private static let rightHip = SIMD3<Float>(0, 6, 10)
+
+    // MARK: - Anatomy
+    //
+    // Everything below is new. The numbers are all in the rig's own frame — +X forward, +Y the
+    // character's left, +Z up — measured from the body pivot, which stands 15.5 above the
+    // ground. The old body was a capsule spanning z 7…33 with a half-width of 10.35 and a
+    // half-depth of 5.85; the torso and pelvis profiles below are built to sit inside that same
+    // envelope, so a character still fits the doorways, nameplates and clip mask it always did.
+    // Widen them and you will find the walls first.
+
+    /// Where the torso mesh is centred, and how it is squashed. Front-to-back is much thinner
+    /// than side-to-side, which is what stops a character reading as a barrel from overhead —
+    /// the angle almost every camera in this game looks from.
+    static let torsoCentreZ: Float = 20
+    static let torsoSquash = SIMD3<Float>(0.62, 1, 1.12)
+
+    /// Shirt: hem, waist, chest and the slope up into the neck. Read bottom to top; the radius
+    /// is before `torsoSquash`, so the widest point comes out at 9.3 × 1.12 = 10.4 across.
+    static let torsoProfile: [(y: Float, radius: Float)] = [
+        (-6.4, 0.0),    // closed, and buried inside the pelvis
+        (-6.0, 7.2),
+        (-4.6, 8.0),    // hem — wider than the shorts underneath it, so it hangs over them
+        (-2.4, 7.9),    // waist — the narrowest point above the hips
+        ( 0.8, 8.4),
+        ( 4.0, 9.0),
+        ( 6.6, 9.3),    // chest, widest
+        ( 8.6, 9.2),
+        (10.2, 8.6),    // shoulder yoke
+        (11.4, 7.0),    // trapezius, sloping in
+        (12.5, 5.0),
+        (13.2, 3.6),    // neck root
+        (13.6, 0.0),    // closed, under the neck
+    ]
+
+    /// Shorts. Its own solid rather than a colour band on the torso, because the two want
+    /// different silhouettes: hips flare where a waist tucks in.
+    static let pelvisCentreZ: Float = 11
+    static let pelvisSquash = SIMD3<Float>(0.62, 1, 1.10)
+    static let pelvisProfile: [(y: Float, radius: Float)] = [
+        (-6.2, 0.0),
+        (-5.6, 6.2),    // where the thighs leave
+        (-4.0, 7.4),
+        (-1.4, 8.0),    // hip, widest
+        ( 1.2, 7.6),
+        ( 3.2, 6.6),
+        ( 4.4, 5.0),    // tucks in under the hem rather than pushing through it
+        ( 5.0, 0.0),    // closed, under the shirt
+    ]
+
+    /// Neck: a short taper from the shoulders up into the head model, which swallows the top of
+    /// it. Without one the head sits straight on the chest, which is the single most obvious
+    /// tell that the body is not modelled to the same standard as the hair.
+    static let neckBase = SIMD3<Float>(1, 0, 30.5)
+    static let neckLength: Float = 7
+    static let neckRadiusBottom: Float = 4.1
+    static let neckRadiusTop: Float = 3.2
+    /// How much of the head's rotation the neck takes. A head that turns while the neck stays
+    /// bolted forward looks broken; taking a share of it reads as the neck twisting with it.
+    static let neckFollowsHead: Float = 0.45
+
+    /// How much of its radius each limb keeps at each end. The value at a joint is shared by
+    /// both segments that meet there, so the two capsules line up exactly and the limb reads as
+    /// one tapering shape rather than as two tubes of different thickness butted together.
+    static let shoulderEndScale: Float = 1.12
+    static let elbowEndScale: Float = 0.95
+    static let wristEndScale: Float = 0.72
+    static let hipEndScale: Float = 1.06
+    static let kneeEndScale: Float = 0.95
+    static let ankleEndScale: Float = 0.62
+
+    /// Deltoid. Elongated along the humerus and turned to follow it, so it caps the shoulder
+    /// rather than sitting on it as a ball — and so it covers the seam where the upper arm
+    /// crosses into the chest.
+    static let shoulderRadius: Float = 3.75
+    static let shoulderStretch = SIMD3<Float>(1, 1.25, 1)
+
+    /// Elbow and knee, at **exactly** the radius the limb has there.
+    ///
+    /// The first attempt made these deliberately wider, on the theory that a bulge reads as a
+    /// joint. It does not: it reads as a balloon animal, three separate blobs stacked up an arm.
+    /// Matched to the limb they are invisible on a straight limb — which is the point — and on a
+    /// bent one they fill the notch the two capsule caps would otherwise leave on the inside of
+    /// the bend. A wave emote is the case that needs them.
+    static let elbowRadius: Float = upperArmRadius * elbowEndScale
+    static let kneeRadius: Float = upperLegRadius * kneeEndScale
+
+    /// The hand, revolved about the forearm so it has no roll to get wrong. `IKSolver`'s
+    /// `quaternionFromUnitY` pins the direction a limb points and nothing else, so anything with
+    /// a front and a back would spin freely about the wrist. A mitt does not care.
+    ///
+    /// y = 0 is the wrist and +Y runs out to the fingertips. The forearm is the one limb built
+    /// with `domeEnd: false`, so it finishes flush at the wrist and everything past that belongs
+    /// to the hand. The first attempt at this had a domed forearm reaching a full radius past
+    /// the wrist and a mitt too short to cover it, which came out as a bracelet with a thumb
+    /// poking through the end.
+    static let handProfile: [(y: Float, radius: Float)] = [
+        (-2.6, 0.0),
+        (-2.0, 2.5),    // cuff, flush with the sleeve
+        (-0.2, 3.05),
+        ( 1.4, 3.15),   // knuckles, widest
+        ( 3.0, 2.85),
+        ( 4.4, 2.0),
+        ( 5.2, 0.0),    // fingertips, past the forearm's cap at 3.3
+    ]
 
     // Neutral limb targets, reset every frame in `updateCharacter3D:1136-1139`.
     private static let baseLeftHand = SIMD3<Float>(9, -16, 12)
@@ -375,12 +518,31 @@ enum CharacterRig {
                                 runtime.bodyPivotRotation.y,
                                 runtime.bodyPivotRotation.z)
 
-        // --- Torso (`buildSkeletonRig:807-808`, breathing at :1153) ---
+        // --- Torso and pelvis ---
+        // Both are lathes standing on +Y, so `rotationX(π/2)` turns them upright. The breath
+        // swells the chest only — nobody's hips inflate when they inhale.
         let torso = bodyPivot
-            * Float4x4.translation(SIMD3(0, 0, 20))
+            * Float4x4.translation(SIMD3(0, 0, torsoCentreZ))
             * Float4x4.rotationX(.pi / 2)
-            * Float4x4.scale(SIMD3(1 + breath, 1 + breath, 1))
+            * Float4x4.scale(SIMD3(1 + breath, 1, 1 + breath))
         pose.parts.append((.torso, torso))
+
+        let pelvis = bodyPivot
+            * Float4x4.translation(SIMD3(0, 0, pelvisCentreZ))
+            * Float4x4.rotationX(.pi / 2)
+        pose.parts.append((.pelvis, pelvis))
+
+        // --- Neck ---
+        // Hinged at its base and taking a share of the head's rotation, so a nod or a turn
+        // carries down into it instead of snapping the head off the shoulders.
+        let neck = bodyPivot
+            * Float4x4.translation(neckBase)
+            * Float4x4.eulerXYZ(runtime.headRotation.x * neckFollowsHead,
+                                runtime.headRotation.y * neckFollowsHead,
+                                runtime.headRotation.z * neckFollowsHead)
+            * Float4x4.translation(SIMD3(0, 0, neckLength / 2))
+            * Float4x4.rotationX(.pi / 2)
+        pose.parts.append((.neck, neck))
 
         // --- Head (`buildSkeletonRig:810-812` + `applyHeadModel:209-213`) ---
         // The head *group* — props parented to it (laser beams, tears, crumbs) inherit this
@@ -403,13 +565,13 @@ enum CharacterRig {
         var rightAnkle = rightFoot; rightAnkle.z += 2.3
 
         let leftElbow = IKSolver.solve(start: leftShoulder, end: &leftHand,
-                                       l1: 8.5, l2: 8.5, bendingNormal: bendNormalArmL)
+                                       l1: armBone, l2: armBone, bendingNormal: bendNormalArmL)
         let rightElbow = IKSolver.solve(start: rightShoulder, end: &rightHand,
-                                        l1: 8.5, l2: 8.5, bendingNormal: bendNormalArmR)
+                                        l1: armBone, l2: armBone, bendingNormal: bendNormalArmR)
         let leftKnee = IKSolver.solve(start: leftHip, end: &leftAnkle,
-                                      l1: 12, l2: 9.7, bendingNormal: bendNormalLegL)
+                                      l1: thighBone, l2: shinBone, bendingNormal: bendNormalLegL)
         let rightKnee = IKSolver.solve(start: rightHip, end: &rightAnkle,
-                                       l1: 12, l2: 9.7, bendingNormal: bendNormalLegR)
+                                       l1: thighBone, l2: shinBone, bendingNormal: bendNormalLegR)
 
         func append(_ part: RigPart, _ start: SIMD3<Float>, _ end: SIMD3<Float>) {
             if let local = IKSolver.segmentTransform(start: start, end: end) {
@@ -425,6 +587,31 @@ enum CharacterRig {
         append(.leftLowerLeg, leftKnee, leftAnkle)
         append(.rightUpperLeg, rightHip, rightKnee)
         append(.rightLowerLeg, rightKnee, rightAnkle)
+
+        // --- Joints ---
+        // Two capsules meeting at an angle cross through each other and leave a ridge where
+        // their surfaces intersect. A ball fractionally wider than either turns that ridge into
+        // a bulge, which is what an elbow, a knee and a shoulder actually look like — and it is
+        // what lets the limbs taper without opening a step at the join.
+        //
+        // The deltoids are turned to follow the humerus so their long axis lies along the arm.
+        // Elbows and knees are spheres and need no orientation.
+        func joint(_ part: RigPart, at position: SIMD3<Float>, alignedTo direction: SIMD3<Float>? = nil) {
+            var transform = bodyPivot * Float4x4.translation(position)
+            if let direction {
+                transform = transform * IKSolver.rotationFromUnitY(to: direction)
+            }
+            pose.parts.append((part, transform))
+        }
+
+        joint(.leftShoulder, at: leftShoulder,
+              alignedTo: safeDirection(from: leftShoulder, to: leftElbow))
+        joint(.rightShoulder, at: rightShoulder,
+              alignedTo: safeDirection(from: rightShoulder, to: rightElbow))
+        joint(.leftElbow, at: leftElbow)
+        joint(.rightElbow, at: rightElbow)
+        joint(.leftKnee, at: leftKnee)
+        joint(.rightKnee, at: rightKnee)
 
         // Hands inherit the forearm's orientation.
         let leftForearmRotation = Float4x4(IKSolver.quaternionFromUnitY(to: safeDirection(from: leftElbow, to: leftHand)))

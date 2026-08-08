@@ -33,6 +33,14 @@ final class WalkTest {
         argument("-zoom").flatMap(Double.init)
     }
 
+    /// `-pitch <radians>` tips the overworld camera off its near-overhead default. It exists for
+    /// looking at the character rig: from above you can see a hat and a pair of shoes, and
+    /// nothing about whether the body underneath has a neck, a waist or a knee. 0 is straight
+    /// down and π/2.1 is the flattest the camera will go; 0.9 is a good three-quarter view.
+    static var pitchOverride: Double? {
+        argument("-pitch").flatMap(Double.init)
+    }
+
     /// `-at <x> <y>` drops the player at a fixed world position on spawn, so the same view can
     /// be rendered in both clients and the two images diffed.
     static var positionOverride: (x: Double, y: Double)? {

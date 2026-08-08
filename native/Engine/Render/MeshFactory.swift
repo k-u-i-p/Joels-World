@@ -45,6 +45,79 @@ enum MeshFactory {
         return lathe(profile: profile, radialSegments: radialSegments)
     }
 
+    /// Revolves a hand-authored silhouette around the +Y axis.
+    ///
+    /// The three.js primitives can describe a limb but not a body: a torso is a capsule squashed
+    /// in two axes, which gives a character no shoulders, no waist and no hips. This is the way
+    /// out — `profile` is a list of `(height, radius)` pairs read bottom to top, and the shape
+    /// between them is whatever the artist wrote down. Give it a zero radius at each end to close
+    /// the solid; leave one open and you get a tube.
+    ///
+    /// The profile is smooth-shaded, so keep the steps small where the curvature is high or the
+    /// shoulder line will facet.
+    static func revolved(profile: [(y: Float, radius: Float)], radialSegments: Int = 20) -> MeshData {
+        lathe(profile: profile.map { SIMD2($0.radius, $0.y) }, radialSegments: radialSegments)
+    }
+
+    /// One limb segment: a shaft tapering from `radiusStart` at `−length/2` to `radiusEnd` at
+    /// `+length/2`, with each end either domed *past* its joint or closed *at* it.
+    ///
+    /// `capsule` plus `applyTaper` gets close but cannot express the second case, and the
+    /// difference matters. `applyTaper` narrows a hemispherical cap without shortening it, so a
+    /// tapered capsule still reaches a full untapered radius beyond its own joint. At a shoulder,
+    /// an elbow or a knee that is exactly what you want — the overshoot buries itself in the
+    /// neighbouring segment and the surfaces blend. At a **wrist** it is a bug: the forearm
+    /// reaches three units past the hand and wears it like a bracelet.
+    ///
+    /// - Parameters:
+    ///   - domeStart/domeEnd: `true` puts a hemisphere of the local radius beyond the joint, so a
+    ///     joint sphere of that radius sits tangent to it. `false` tucks a rounded end inside, so
+    ///     the segment finishes flush with the joint plane and whatever comes next owns
+    ///     everything past it.
+    static func limb(length: Float,
+                     radiusStart: Float,
+                     radiusEnd: Float,
+                     domeStart: Bool = true,
+                     domeEnd: Bool = true,
+                     radialSegments: Int = 14,
+                     capSegments: Int = 6) -> MeshData {
+        let half = length / 2
+        let steps = max(2, capSegments)
+        var profile: [SIMD2<Float>] = []
+
+        // Bottom end.
+        if domeStart {
+            // A hemisphere centred on the joint, bulging past it.
+            for i in 0...steps {
+                let angle = Float.pi / 2 * (Float(i) / Float(steps) - 1)
+                profile.append(SIMD2(radiusStart * cos(angle), -half + radiusStart * sin(angle)))
+            }
+        } else {
+            // A quarter-ellipse tucked inside, closing exactly on the joint plane.
+            let inset = radiusStart * 0.9
+            for i in 0...steps {
+                let angle = Float.pi / 2 * (Float(i) / Float(steps) - 1)
+                profile.append(SIMD2(radiusStart * cos(angle), -half + inset * (1 + sin(angle))))
+            }
+        }
+
+        // Top end.
+        if domeEnd {
+            for i in 0...steps {
+                let angle = Float.pi / 2 * (Float(i) / Float(steps))
+                profile.append(SIMD2(radiusEnd * cos(angle), half + radiusEnd * sin(angle)))
+            }
+        } else {
+            let inset = radiusEnd * 0.9
+            for i in 0...steps {
+                let angle = Float.pi / 2 * (Float(i) / Float(steps))
+                profile.append(SIMD2(radiusEnd * cos(angle), half - inset * (1 - sin(angle))))
+            }
+        }
+
+        return lathe(profile: profile, radialSegments: radialSegments)
+    }
+
     /// Port of `THREE.SphereGeometry(radius, widthSegments, heightSegments)`.
     static func sphere(radius: Float, widthSegments: Int = 12, heightSegments: Int = 12) -> MeshData {
         var profile: [SIMD2<Float>] = []
@@ -223,29 +296,10 @@ enum MeshFactory {
         return MeshData(vertices: vertices, indices: [0, 1, 2, 0, 2, 3])
     }
 
-    /// Port of the `applyTaper` closure at `characters.js:849`. Scales X and Z by a factor
-    /// interpolated along Y across the cylindrical midsection, leaving the caps at their
-    /// end scale, then rebuilds normals — which is what makes the calves narrow at the ankle.
-    static func applyTaper(_ mesh: inout MeshData, topScale: Float, bottomScale: Float, length: Float) {
-        let half = length / 2
-
-        for index in mesh.vertices.indices {
-            let y = mesh.vertices[index].position.y
-            let scale: Float
-            if y >= half {
-                scale = topScale
-            } else if y <= -half {
-                scale = bottomScale
-            } else {
-                let t = (y + half) / length
-                scale = bottomScale + t * (topScale - bottomScale)
-            }
-            mesh.vertices[index].position.x *= scale
-            mesh.vertices[index].position.z *= scale
-        }
-
-        recomputeNormals(&mesh)
-    }
+    // `applyTaper` — the port of the closure at `characters.js:849` — used to live here. It
+    // scaled a capsule's X and Z along its length, which narrows the hemispherical end caps
+    // without shortening them, so a tapered limb still reached a full untapered radius past its
+    // own joint. `limb(...)` above replaces it and controls both.
 
     /// Bakes a non-uniform scale into the geometry, matching `BufferGeometry.scale()` —
     /// normals are scaled by the inverse so they stay perpendicular to the squashed surface.

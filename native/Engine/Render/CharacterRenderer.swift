@@ -84,11 +84,16 @@ final class CharacterRenderer {
 
     // Shared primitive geometry — built once, drawn for every character.
     private var torsoMesh: GPUMesh!
+    private var pelvisMesh: GPUMesh!
+    private var neckMesh: GPUMesh!
+    private var shoulderMesh: GPUMesh!
     private var upperArmMesh: GPUMesh!
     private var lowerArmMesh: GPUMesh!
+    private var elbowMesh: GPUMesh!
     private var handMesh: GPUMesh!
     private var upperLegMesh: GPUMesh!
     private var lowerLegMesh: GPUMesh!
+    private var kneeMesh: GPUMesh!
     private var shoeBoxMesh: GPUMesh!
     private var shadowMesh: GPUMesh!
     private var shadowTexture: MTLTexture?
@@ -117,42 +122,80 @@ final class CharacterRenderer {
 
     // MARK: - Setup
 
+    /// Every limb is generated with +Y running from its **start** joint to its **end** joint,
+    /// because that is the axis `IKSolver.segmentTransform` maps onto the bone. So for an upper
+    /// arm, `radiusStart` is the shoulder and `radiusEnd` the elbow; for a calf, `radiusStart` is
+    /// the knee and `radiusEnd` the ankle.
+    ///
+    /// That is worth spelling out because the old calf had it backwards — it was tapered to 60%
+    /// at the *knee* and left full width at the ankle, which is a leg on upside down. It is the
+    /// one place here that deliberately departs from `characters.js`.
     private func buildMeshes() -> Bool {
-        // Torso: a capsule widened across the shoulders and flattened front-to-back, matching
-        // the geometry-space scale at characters.js:792.
-        var torso = MeshFactory.capsule(radius: CharacterRig.torsoRadius,
-                                        length: CharacterRig.torsoLength,
-                                        capSegments: 10, radialSegments: 16)
-        MeshFactory.applyScale(&torso, SIMD3(0.65, 1, 1.15))
+        // Torso and pelvis are hand-authored silhouettes rather than squashed capsules: a
+        // capsule cannot have a shoulder line and a waist, and without those a character is a
+        // pill with a beautifully modelled head on top.
+        var torso = MeshFactory.revolved(profile: CharacterRig.torsoProfile, radialSegments: 24)
+        MeshFactory.applyScale(&torso, CharacterRig.torsoSquash)
 
-        let upperArm = MeshFactory.capsule(radius: CharacterRig.upperArmRadius,
-                                           length: CharacterRig.upperArmLength,
-                                           capSegments: 8, radialSegments: 10)
-        let lowerArm = MeshFactory.capsule(radius: CharacterRig.lowerArmRadius,
-                                           length: CharacterRig.lowerArmLength,
-                                           capSegments: 8, radialSegments: 10)
-        let hand = MeshFactory.sphere(radius: CharacterRig.handRadius,
-                                      widthSegments: 12, heightSegments: 12)
+        var pelvis = MeshFactory.revolved(profile: CharacterRig.pelvisProfile, radialSegments: 24)
+        MeshFactory.applyScale(&pelvis, CharacterRig.pelvisSquash)
 
-        // Thighs stay uniform; calves taper to 60% at the ankle (characters.js:872-874).
-        var upperLeg = MeshFactory.capsule(radius: CharacterRig.upperLegRadius,
-                                           length: CharacterRig.upperLegLength,
-                                           capSegments: 8, radialSegments: 10)
-        MeshFactory.applyTaper(&upperLeg, topScale: 1.0, bottomScale: 1.0,
-                               length: CharacterRig.upperLegLength)
+        let neck = MeshFactory.cylinder(radiusTop: CharacterRig.neckRadiusTop,
+                                        radiusBottom: CharacterRig.neckRadiusBottom,
+                                        height: CharacterRig.neckLength,
+                                        radialSegments: 16)
 
-        var lowerLeg = MeshFactory.capsule(radius: CharacterRig.lowerLegRadius,
-                                           length: CharacterRig.lowerLegLength,
-                                           capSegments: 8, radialSegments: 10)
-        MeshFactory.applyTaper(&lowerLeg, topScale: 1.0, bottomScale: 0.6,
-                               length: CharacterRig.lowerLegLength)
+        // Deltoid: a sphere stretched along the humerus, which the pose turns to follow it.
+        var shoulder = MeshFactory.sphere(radius: CharacterRig.shoulderRadius,
+                                          widthSegments: 14, heightSegments: 12)
+        MeshFactory.applyScale(&shoulder, CharacterRig.shoulderStretch)
+
+        // Arms thicken towards the body and thin towards the wrist, as arms do. Both segments
+        // use `elbowEndScale` where they meet, so the taper runs continuously through the joint.
+        //
+        // The wrist is the only end of any limb that nothing else covers, so it is the only one
+        // closed flush rather than domed past its joint — see `MeshFactory.limb`. Everywhere
+        // else the overshoot is what makes the joint blend.
+        let upperArm = MeshFactory.limb(length: CharacterRig.upperArmLength,
+                                        radiusStart: CharacterRig.upperArmRadius * CharacterRig.shoulderEndScale,
+                                        radiusEnd: CharacterRig.upperArmRadius * CharacterRig.elbowEndScale)
+
+        let lowerArm = MeshFactory.limb(length: CharacterRig.lowerArmLength,
+                                        radiusStart: CharacterRig.lowerArmRadius * CharacterRig.elbowEndScale,
+                                        radiusEnd: CharacterRig.lowerArmRadius * CharacterRig.wristEndScale,
+                                        domeEnd: false)
+
+        let elbow = MeshFactory.sphere(radius: CharacterRig.elbowRadius,
+                                       widthSegments: 12, heightSegments: 10)
+
+        // A mitt rather than a ball. See `CharacterRig.handProfile` for why it is revolved.
+        let hand = MeshFactory.revolved(profile: CharacterRig.handProfile, radialSegments: 16)
+
+        // Thighs are heaviest at the hip; calves are heaviest at the knee and narrow into the
+        // ankle, where the shoe takes over.
+        let upperLeg = MeshFactory.limb(length: CharacterRig.upperLegLength,
+                                        radiusStart: CharacterRig.upperLegRadius * CharacterRig.hipEndScale,
+                                        radiusEnd: CharacterRig.upperLegRadius * CharacterRig.kneeEndScale)
+
+        // The ankle end is domed past the joint on purpose: the shoe model swallows it.
+        let lowerLeg = MeshFactory.limb(length: CharacterRig.lowerLegLength,
+                                        radiusStart: CharacterRig.lowerLegRadius * CharacterRig.kneeEndScale,
+                                        radiusEnd: CharacterRig.lowerLegRadius * CharacterRig.ankleEndScale)
+
+        let knee = MeshFactory.sphere(radius: CharacterRig.kneeRadius,
+                                      widthSegments: 12, heightSegments: 10)
 
         guard let torsoMesh = GPUMesh(device: device, mesh: torso),
+              let pelvisMesh = GPUMesh(device: device, mesh: pelvis),
+              let neckMesh = GPUMesh(device: device, mesh: neck),
+              let shoulderMesh = GPUMesh(device: device, mesh: shoulder),
               let upperArmMesh = GPUMesh(device: device, mesh: upperArm),
               let lowerArmMesh = GPUMesh(device: device, mesh: lowerArm),
+              let elbowMesh = GPUMesh(device: device, mesh: elbow),
               let handMesh = GPUMesh(device: device, mesh: hand),
               let upperLegMesh = GPUMesh(device: device, mesh: upperLeg),
               let lowerLegMesh = GPUMesh(device: device, mesh: lowerLeg),
+              let kneeMesh = GPUMesh(device: device, mesh: knee),
               let shoeBoxMesh = GPUMesh(device: device, mesh: MeshFactory.box(width: 11, height: 8, depth: 5)),
               let shadowMesh = GPUMesh(device: device, mesh: MeshFactory.plane(width: 28, height: 28))
         else {
@@ -161,11 +204,16 @@ final class CharacterRenderer {
         }
 
         self.torsoMesh = torsoMesh
+        self.pelvisMesh = pelvisMesh
+        self.neckMesh = neckMesh
+        self.shoulderMesh = shoulderMesh
         self.upperArmMesh = upperArmMesh
         self.lowerArmMesh = lowerArmMesh
+        self.elbowMesh = elbowMesh
         self.handMesh = handMesh
         self.upperLegMesh = upperLegMesh
         self.lowerLegMesh = lowerLegMesh
+        self.kneeMesh = kneeMesh
         self.shoeBoxMesh = shoeBoxMesh
         self.shadowMesh = shadowMesh
 
@@ -277,14 +325,18 @@ final class CharacterRenderer {
     /// - Parameter includeProps: `false` for the shadow pass. Emote props are added to the rig
     ///   after `ensureThreeSetup`'s `castShadow` traverse has already run (`characters.js:970`),
     ///   so in the JS they never cast — the held model does, because `loadHoldingModel` sets
-    ///   `castShadow` on its own clone.
+    ///   `castShadow` on its own clone. It doubles as the flag for "this is the shadow pass",
+    ///   which is also where the joint fillers are dropped: they sit inside the silhouette the
+    ///   limbs already cast, and the shadow pass is the one that draws every character twice.
     func draw(pose: RigPose,
               viewProjection: Float4x4,
               encoder: MTLRenderCommandEncoder,
               includeProps: Bool = true) {
         encoder.setFragmentTexture(clipTexture ?? whiteTexture, index: 1)
 
+        let shadowPass = !includeProps
         for (part, transform) in pose.parts {
+            if shadowPass && part.isJointFiller { continue }
             guard let mesh = mesh(for: part) else { continue }
             drawMesh(mesh, transform: transform, color: SIMD4(color(for: part, colors: pose.colors), 1),
                      texture: nil, unlit: false, material: material(for: part),
@@ -451,29 +503,51 @@ final class CharacterRenderer {
     private func mesh(for part: RigPart) -> GPUMesh? {
         switch part {
         case .torso: return torsoMesh
+        case .pelvis: return pelvisMesh
+        case .neck: return neckMesh
+        case .leftShoulder, .rightShoulder: return shoulderMesh
         case .leftUpperArm, .rightUpperArm: return upperArmMesh
         case .leftLowerArm, .rightLowerArm: return lowerArmMesh
+        case .leftElbow, .rightElbow: return elbowMesh
         case .leftHand, .rightHand: return handMesh
         case .leftUpperLeg, .rightUpperLeg: return upperLegMesh
         case .leftLowerLeg, .rightLowerLeg: return lowerLegMesh
+        case .leftKnee, .rightKnee: return kneeMesh
         }
     }
 
+    /// A joint takes the colour of whatever it is a joint *in*: a deltoid belongs to the sleeve,
+    /// a knee to the trouser leg. The neck is the one that belongs to neither — it is skin, and
+    /// it is what carries the head colour down onto the body.
     private func color(for part: RigPart, colors: RigColors) -> SIMD3<Float> {
         switch part {
         case .torso: return colors.shirt
-        case .leftUpperArm, .leftLowerArm, .rightUpperArm, .rightLowerArm: return colors.arm
+        case .pelvis: return colors.pants
+        case .neck: return colors.skin
+        case .leftShoulder, .rightShoulder,
+             .leftUpperArm, .leftLowerArm, .rightUpperArm, .rightLowerArm,
+             .leftElbow, .rightElbow:
+            return colors.arm
         case .leftHand, .rightHand: return colors.skin
-        case .leftUpperLeg, .leftLowerLeg, .rightUpperLeg, .rightLowerLeg: return colors.pants
+        case .leftUpperLeg, .leftLowerLeg, .rightUpperLeg, .rightLowerLeg,
+             .leftKnee, .rightKnee:
+            return colors.pants
         }
     }
 
     private func material(for part: RigPart) -> SurfaceMaterial {
         switch part {
         case .torso: return .shirt
-        case .leftUpperArm, .leftLowerArm, .rightUpperArm, .rightLowerArm: return .arm
+        case .pelvis: return .pants
+        case .neck: return .skin
+        case .leftShoulder, .rightShoulder,
+             .leftUpperArm, .leftLowerArm, .rightUpperArm, .rightLowerArm,
+             .leftElbow, .rightElbow:
+            return .arm
         case .leftHand, .rightHand: return .skin
-        case .leftUpperLeg, .leftLowerLeg, .rightUpperLeg, .rightLowerLeg: return .pants
+        case .leftUpperLeg, .leftLowerLeg, .rightUpperLeg, .rightLowerLeg,
+             .leftKnee, .rightKnee:
+            return .pants
         }
     }
 

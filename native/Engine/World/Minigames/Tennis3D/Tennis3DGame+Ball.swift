@@ -357,11 +357,16 @@ extension Tennis3DGame {
     /// racket can actually reach, is the answer.
     ///
     /// Nil when there is nothing to hit — the opponent's ball to play, or a shot already gone.
-    func idealIntercept() -> SIMD3<Double>? {
+    func idealIntercept() -> SIMD3<Double>? { intercept(for: player) }
+
+    /// The same question asked on either side of the net. The opponent's brain uses it too:
+    /// standing a stride behind where the ball will *land* is wrong for a serve, which lands
+    /// near the service line and then travels another ten metres.
+    func intercept(for side: Side) -> SIMD3<Double>? {
         // `isTheirBall`, not `canHit`: the marker has to be up *before* the serve bounces,
-        // because running to it is exactly what the player needs the extra half second for.
+        // because running to it is exactly what the receiver needs the extra half second for.
         // The loop below already refuses to return a point before the bounce.
-        guard ball.inFlight, isTheirBall(player) else { return nil }
+        guard ball.inFlight, isTheirBall(side) else { return nil }
 
         var position = ball.position
         var velocity = SIMD3(ball.vx, ball.vy, ball.vz)
@@ -373,6 +378,27 @@ extension Tennis3DGame {
         // The band a stroke is comfortable in: knee height to a little above the shoulder.
         let lowest = Tennis3DCourt.metres(0.45)
         let highest = Tennis3DCourt.metres(1.75)
+
+        // The first playable moment is usually not the useful one, and pointing at it was
+        // quietly losing every service game. A serve bounces near the service line and kicks
+        // on past the baseline; the earliest instant it is at hitting height is a few metres
+        // *in front of* a receiver who is standing behind their own baseline. The marker sent
+        // them sprinting forward into a ball that was already going over their shoulder.
+        //
+        // So the walk below scores every playable moment by **how far the player has to move to
+        // meet it**, and picks the cheapest one they can actually get to. That is what a tennis
+        // player does: stand still and let the ball come, and move only as far as you have to.
+        // Taking the earliest playable moment instead is a lunge at a ball that was about to
+        // arrive anyway, which is how both sides were losing every return.
+        //
+        // If nothing is reachable, the closest near-miss comes back regardless, so the marker
+        // still shows where the ball was catchable — a player who is out of position should see
+        // by how much, not see nothing at all.
+        let here = SIMD2(side.locomotion.x, side.locomotion.y)
+        let reach = Tuning.racketLength + Tuning.sweetRadius
+        let topSpeed = side.isPlayer ? Tuning.playerTopSpeed : Tuning.npcTopSpeed
+        var best: (point: SIMD3<Double>, cost: Double)?
+        var nearest: (point: SIMD3<Double>, shortfall: Double)?
 
         while elapsed < 2.5 {
             let speed = simd_length(velocity)
@@ -393,21 +419,40 @@ extension Tennis3DGame {
                 velocity.x *= Tuning.bounceFriction
                 velocity.y *= Tuning.bounceFriction
                 bounces += 1
-                if bounces >= 2 { return nil }
+                if bounces >= 2 { break }
             }
 
-            // Not playable until it is over the net, and — off a serve — not until it has
-            // bounced in the box.
-            guard position.y > Tennis3DCourt.metres(0.4) else { continue }
-            if isServeInFlight && bounces == 0 { continue }
+            // Not playable until it is over the net and on this side of it, and — off a serve —
+            // not until it has bounced in the box.
+            guard position.y * side.half > Tennis3DCourt.metres(0.4) else { continue }
+            if isServeInFlight && side !== server && bounces == 0 { continue }
             // Prefer the ball on its way down, which is where a groundstroke is struck.
             guard velocity.z < 0 || bounces > 0 else { continue }
             guard position.z >= lowest, position.z <= highest else { continue }
 
-            return position
+            let needed = max(0, simd_length(SIMD2(position.x, position.y) - here) - reach)
+            let possible = groundCovered(in: elapsed, topSpeed: topSpeed)
+
+            if needed <= possible {
+                if best == nil || needed < best!.cost { best = (position, needed) }
+            } else if nearest == nil || needed - possible < nearest!.shortfall {
+                nearest = (position, needed - possible)
+            }
         }
 
-        return nil
+        return best?.point ?? nearest?.point
+    }
+
+    /// How far a player can travel from a standing start in `time`, accelerating at
+    /// `Tuning.acceleration` up to `topSpeed`.
+    ///
+    /// The straight `topSpeed × time` this replaces was optimistic by about a metre over the
+    /// length of a return — enough that a lunge the player could not actually make looked
+    /// reachable, which is exactly the ball they then arrived at a stride too late for.
+    private func groundCovered(in time: Double, topSpeed: Double) -> Double {
+        let timeToTopSpeed = topSpeed / Tuning.acceleration
+        if time <= timeToTopSpeed { return 0.5 * Tuning.acceleration * time * time }
+        return 0.5 * topSpeed * timeToTopSpeed + topSpeed * (time - timeToTopSpeed)
     }
 
     /// Where the live ball is going to land, for the opponent's brain and the aim marker.
@@ -440,9 +485,18 @@ extension Tennis3DGame {
 
         // A shadow that shrinks and fades with height, which is the only cue a top-down camera
         // gives for how high the ball is.
+        //
+        // **The size is quantised, and it has to be.** `ScenePrimitiveRenderer` caches one GPU
+        // mesh per distinct `Shape` and keeps it, on the assumption — true of a court — that a
+        // scene resolves to a dozen or so. A shadow that shrinks smoothly is a *different* plane
+        // every frame, so it minted a fresh pair of Metal buffers sixty times a second and never
+        // freed one. Memory climbed until iOS killed the app mid-match, which is what was ending
+        // every run about ten seconds in. Rounded to the centimetre it resolves to about thirty
+        // sizes, and the stepping is invisible on a shadow this soft.
         let height = max(0, ball.z)
-        let shadowSize = Float(Tennis3DCourt.metres(0.34)
-                               / (1 + height / Tennis3DCourt.metres(3.0)))
+        let smooth = Tennis3DCourt.metres(0.34) / (1 + height / Tennis3DCourt.metres(3.0))
+        let step = Tennis3DCourt.metres(0.01)
+        let shadowSize = Float((smooth / step).rounded() * step)
         out.append(ScenePrimitive(
             shape: .plane(width: shadowSize, height: shadowSize),
             transform: Float4x4.translation(SIMD3(Float(ball.x), Float(-ball.y), 1.6)),

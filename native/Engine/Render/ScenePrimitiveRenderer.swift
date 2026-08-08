@@ -17,6 +17,14 @@ import simd
 final class ScenePrimitiveRenderer {
     private let device: MTLDevice
     private var meshes: [ScenePrimitive.Shape: GPUMesh] = [:]
+    /// Guards the assumption above. A caller that varies a size smoothly — the ball's shadow
+    /// used to shrink by a fraction of a millimetre a frame — asks for a brand new mesh sixty
+    /// times a second and never stops, and an unbounded cache of Metal buffers gets the app
+    /// killed by the memory monitor a minute later with no crash report to explain it. Past this
+    /// many distinct shapes the cache stops growing and says so once; the shapes still draw,
+    /// they just rebuild each time, which is slow enough to notice and find.
+    private static let cacheLimit = 256
+    private var warnedAboutCacheLimit = false
 
     init(device: MTLDevice) {
         self.device = device
@@ -26,6 +34,7 @@ final class ScenePrimitiveRenderer {
     /// for the rest of the session.
     func clear() {
         meshes.removeAll()
+        warnedAboutCacheLimit = false
     }
 
     /// Draws the opaque primitives, or the blended ones, depending on `blended`.
@@ -110,6 +119,17 @@ final class ScenePrimitiveRenderer {
             Log.render("Failed to build a scene primitive mesh for \(shape)")
             return nil
         }
+
+        if meshes.count >= Self.cacheLimit {
+            if !warnedAboutCacheLimit {
+                warnedAboutCacheLimit = true
+                Log.render("Scene primitives have asked for more than \(Self.cacheLimit) distinct "
+                           + "shapes — something is varying a size continuously. Not caching any "
+                           + "more; quantise the size instead. Latest: \(shape)")
+            }
+            return built
+        }
+
         meshes[shape] = built
         return built
     }

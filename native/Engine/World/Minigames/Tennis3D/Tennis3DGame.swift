@@ -449,6 +449,19 @@ final class Tennis3DGame: WorldRenderedMinigame {
         onPresentationChanged?()
     }
 
+    /// One line per thing that actually happens — a strike, a bounce judgement, a point — when
+    /// `-tennis3dtrace` is on.
+    ///
+    /// The once-a-second sample that came with the flag turned out to be far too coarse to
+    /// answer the question that mattered: a whole point is over in three seconds, so "the score
+    /// went up and I do not know why" was all it ever said. Events are what a rally is made of.
+    func trace(_ message: @autoclosure () -> String) {
+        #if DEBUG
+        guard WalkTest.traces3DTennis else { return }
+        Log.world("tennis3d · \(message())")
+        #endif
+    }
+
     var backgroundColor: String? { Tennis3DCourt.grassHex }
 
     // MARK: - Scene

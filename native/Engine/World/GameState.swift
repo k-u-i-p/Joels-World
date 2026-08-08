@@ -464,6 +464,13 @@ final class GameState {
         updateEmoteLifecycles()
         updateProximityInteractions()
 
+        #if DEBUG
+        // `-pitch` tips the camera over so the rig can be looked at from the side. Reapplied
+        // every frame because a pinch or a map change would otherwise put it back.
+        if let override = WalkTest.pitchOverride { camera.pitch = override }
+        if let override = WalkTest.zoomOverride { camera.zoom = override }
+        #endif
+
         camera.update(playerX: player.x,
                       playerY: player.y,
                       viewport: viewport,
