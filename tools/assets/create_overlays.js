@@ -1,30 +1,20 @@
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const basePath = path.resolve(__dirname, '../../assets');
-const mapsJsonPath = path.resolve(__dirname, '../../data/maps.json');
+import { pathToFileURL } from 'url';
+import { assetPath, assetRelative, readMaps } from './paths.js';
 
 export async function processOverlays() {
   console.log('[OverlayGen] Starting overlay generation process...');
 
-  let mapsData;
-  try {
-    mapsData = JSON.parse(fs.readFileSync(mapsJsonPath, 'utf8'));
-  } catch (err) {
-    console.error('[OverlayGen] Error reading maps.json:', err);
-    return;
-  }
+  const mapsData = readMaps('[OverlayGen]');
+  if (!mapsData) return;
 
   for (const map of mapsData) {
     if (!map.clip_mask || !map.layers) continue;
 
-    const clipMaskRel = map.clip_mask.startsWith('/') ? map.clip_mask.substring(1) : map.clip_mask;
-    const clipMaskPath = path.join(basePath, clipMaskRel);
+    const clipMaskRel = assetRelative(map.clip_mask);
+    const clipMaskPath = assetPath(clipMaskRel);
 
     if (!fs.existsSync(clipMaskPath)) {
       console.warn(`[OverlayGen] Map "${map.name}" defines a clip_mask but the file is missing: ${clipMaskPath}`);
@@ -36,8 +26,8 @@ export async function processOverlays() {
     for (const layer of map.layers) {
         if (!layer.source_image || layer.overlay || layer.source_image.includes('_overlay.')) continue;
 
-        const sourceRel = layer.source_image.startsWith('/') ? layer.source_image.substring(1) : layer.source_image;
-        const sourcePath = path.join(basePath, sourceRel);
+        const sourceRel = assetRelative(layer.source_image);
+        const sourcePath = assetPath(sourceRel);
 
         if (!fs.existsSync(sourcePath)) {
           console.warn(`[OverlayGen] Layer source image missing, skipping: ${sourcePath}`);
@@ -46,7 +36,7 @@ export async function processOverlays() {
 
         const parsedSource = path.parse(sourceRel);
         const outName = `${parsedSource.name}_overlay.png`;
-        const outPath = path.join(basePath, parsedSource.dir, outName);
+        const outPath = assetPath(parsedSource.dir, outName);
 
         if (fs.existsSync(outPath)) {
           console.log(`  -> Skipping existing overlay: ${sourceRel}`);
@@ -120,6 +110,8 @@ export async function processOverlays() {
   console.log('\n[OverlayGen] Finished generating overlays!');
 }
 
-if (process.argv[1] === __filename) {
+// `build.js` runs all three stages; this one is also the slowest to redo by hand, so it stays
+// runnable on its own with `node create_overlays.js`.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   processOverlays().catch(console.error);
 }

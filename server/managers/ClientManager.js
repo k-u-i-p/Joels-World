@@ -1,4 +1,6 @@
 
+import { sendError } from '../protocol.js';
+
 export class ClientManager {
   constructor(mapManager, npcManager, aiAgentManager, chatManager) {
     this.mapManager = mapManager;
@@ -31,13 +33,6 @@ export class ClientManager {
     if (this.globalPlayerIdCounter < 255) this.globalPlayerIdCounter = 255;
   }
 
-  sendError(ws, message) {
-    if (ws.readyState === 1) {
-      ws.send(JSON.stringify({ type: 'error', message }));
-    }
-    ws.close();
-  }
-
   handleConnection(ws, wss, session, urlParams, sessionID) {
     console.log('Client connected');
 
@@ -45,7 +40,7 @@ export class ClientManager {
     const token = urlParams.get('token');
 
         if (stateParam === 'running' && token && (!session || !session.player)) {
-          this.sendError(ws, 'No player session');
+          sendError(ws, 'No player session');
           return;
         } else if (session && session.player) {
           console.log(session.player.name + ' has resumed game with valid session token');
@@ -74,7 +69,7 @@ export class ClientManager {
           // Find any existing ghost connection or other window for this session and terminate it
           for (const client of wss.clients) {
             if (client !== ws && client.readyState === 1 && client.clientId === session.player.id) {
-              this.sendError(client, 'Session already active in another window.');
+              sendError(client, 'Session already active in another window.');
             }
           }
 
@@ -109,7 +104,7 @@ export class ClientManager {
               const playerName = data.name || '';
 
               if (!playerName || !/^[a-zA-Z]+$/.test(playerName)) {
-                this.sendError(ws, 'Invalid Name. Please use only English letters with no spaces or symbols.');
+                sendError(ws, 'Invalid Name. Please use only English letters with no spaces or symbols.');
                 return;
               }
 

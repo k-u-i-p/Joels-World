@@ -80,15 +80,16 @@ enum AdminScreenshot {
     }
 
     /// Composites the whole window: the AppKit chrome and sidebar from `cacheDisplay`, the
-    /// captured Metal frame in the map's rectangle, then the editor overlay on top of it.
+    /// captured Metal frame in the map's rectangle, then everything that sits over the map —
+    /// the editor's overlay, and the portrait and door prompt the world itself raises.
     ///
-    /// Three layers rather than one because `cacheDisplay` renders every AppKit view but
-    /// leaves the Metal view blank, and the overlay — an ordinary `NSView` — has to land
-    /// *after* the world image that would otherwise paint over it.
-    static func write(world: CGImage, overlay: NSView, to path: String) -> Bool {
-        guard let content = overlay.window?.contentView else { return false }
+    /// Layered rather than taken in one shot because `cacheDisplay` renders every AppKit view
+    /// but leaves the Metal view blank, so anything above the map has to land *after* the
+    /// world image that would otherwise paint over it.
+    static func write(world: CGImage, map: NSView, overlays: [NSView], to path: String) -> Bool {
+        guard let content = map.window?.contentView else { return false }
 
-        let scale = overlay.window?.backingScaleFactor ?? 2
+        let scale = map.window?.backingScaleFactor ?? 2
         let pixelWidth = Int(content.bounds.width * scale)
         let pixelHeight = Int(content.bounds.height * scale)
 
@@ -107,10 +108,10 @@ enum AdminScreenshot {
         }
 
         // The map view's rectangle in the content view's (Y-up) coordinate space.
-        let mapRect = overlay.convert(overlay.bounds, to: content)
-        ctx.draw(world, in: mapRect)
-        if let overlayImage = snapshot(of: overlay) {
-            ctx.draw(overlayImage, in: mapRect)
+        ctx.draw(world, in: map.convert(map.bounds, to: content))
+        for layer in overlays where !layer.isHidden {
+            guard let image = snapshot(of: layer) else { continue }
+            ctx.draw(image, in: layer.convert(layer.bounds, to: content))
         }
 
         guard let composed = ctx.makeImage() else { return false }

@@ -1,16 +1,9 @@
-import fs from 'fs';
-import path from 'path';
 import { WebSocketServer } from 'ws';
-import { fileURLToPath } from 'url';
-import { PhysicsEngine } from './physics.js';
 import { AIAgentManager } from './managers/AIAgentManager.js';
 import { NPCManager } from './managers/NPCManager.js';
 import { MapManager } from './managers/MapManager.js';
 import { ChatManager } from './managers/ChatManager.js';
 import { ClientManager } from './managers/ClientManager.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const physicsEngine = new PhysicsEngine();
 
 export function setupWebSocket(server, sessionManager) {
   const wss = new WebSocketServer({ server });

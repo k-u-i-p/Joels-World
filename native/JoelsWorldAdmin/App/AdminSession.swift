@@ -32,6 +32,19 @@ struct AdminServerSettings {
     }
 }
 
+/// Where the game's own UI gets drawn. The map view controller is the only object with a
+/// surface to put it on, so the session holds it at arm's length through this.
+protocol AdminGameUI: AnyObject {
+    func showDialog(_ request: DialogRequest)
+    func hideDialog()
+    func showAvatar(sourceId: Int, name: String?, imagePath: String)
+    /// A nil `sourceId` dismisses whatever portrait is up; an id only dismisses that NPC's.
+    func hideAvatar(sourceId: Int?)
+    func setMapName(_ name: String?)
+    func addChatMessage(sender: String, message: String)
+    func clearChat()
+}
+
 protocol AdminSessionDelegate: AnyObject {
     /// A fresh `init` frame landed: new map, objects and NPCs.
     func adminSessionDidLoadWorld()
@@ -47,6 +60,10 @@ final class AdminSession {
     let network = NetworkClient()
 
     weak var delegate: AdminSessionDelegate?
+
+    /// Set by `AdminMapViewController` once its views exist. Nil until then, which is why
+    /// every forward below is optional rather than assumed.
+    weak var ui: AdminGameUI?
 
     /// The map list comes out of the bundled `maps.json` now, not out of `init`.
     let maps: [MapListEntry] = WorldData.mapsList
@@ -110,6 +127,8 @@ final class AdminSession {
         switch message {
         case .initWorld(let payload):
             state.apply(initPayload: payload)
+            ui?.setMapName(state.mapData?.name)
+            ui?.clearChat()
             delegate?.adminSessionDidLoadWorld()
             delegate?.adminSession(didChangeStatus: statusLine())
             requestInitialMapIfNeeded()
@@ -135,7 +154,20 @@ final class AdminSession {
             delegate?.adminSession(didChangeStatus: "Server error — \(text)")
             Log.net("Server error: \(text)")
 
-        case .chat, .badgeEarned, .mapChangeRejected, .sessionToken:
+        case .chat(let id, let text):
+            // Both halves of what the game does with a line: a bubble over the speaker's head,
+            // and a row in the HUD's feed.
+            let sender = state.applyChat(id: id, message: text)
+            ui?.addChatMessage(sender: sender, message: text)
+            Log.world("Chat — \(sender): \(text)")
+
+        case .badgeEarned(let badge):
+            // The editor connects as an ordinary player, so it can be awarded one.
+            state.addBadge(badge)
+            ui?.addChatMessage(sender: "System", message: "You earned the badge: \(badge)!")
+            Log.world("Badge earned: \(badge)")
+
+        case .mapChangeRejected, .sessionToken:
             break
 
         case .unknown(let type):
@@ -164,6 +196,38 @@ final class AdminSession {
                  + "with -data <path to the checkout's data/>.\n\(line)"
         }
         return line
+    }
+
+    // MARK: - Chat
+
+    /// Port of `GameViewController.submitChat`, minus the audio. The `/emote` branch is kept:
+    /// the editor connects as a real player, so an operator checking how an emote *looks* on a
+    /// map should be able to fire one from the same place a player would.
+    func submitChat(_ message: String) {
+        guard !message.isEmpty else { return }
+
+        if message.hasPrefix("/") {
+            let command = String(message.dropFirst()).lowercased()
+            // Gated on the local emote table, not the server's, exactly as `main.js:222` does.
+            guard Emotes.definition(command) != nil else {
+                Log.world("Ignoring unknown command '/\(command)'")
+                return
+            }
+            state.setPlayerEmote(EmoteState(name: command,
+                                            startTime: EventInterpreter.nowMilliseconds()))
+
+            // The emote announces itself in chat — "{name} waved at {target_name}". The line
+            // comes back off the socket as an ordinary `chat`, which is what fills the feed.
+            // Only its sound goes missing here; the editor has no audio stack.
+            if let line = state.emoteMessage(for: command) {
+                network.sendChat(line)
+                state.setLocalChat(line)
+            }
+            return
+        }
+
+        network.sendChat(message)
+        state.setLocalChat(message)
     }
 
     // MARK: - Editing
@@ -206,9 +270,14 @@ final class AdminSession {
     }
 }
 
-/// The editor implements only the two hooks it wants. Everything else on `GameStateDelegate`
-/// has a no-op default: `say`, `avatar`, sounds and door dialogs all fire while the camera
-/// wanders over a map, and the editor has no surface for any of them.
+/// The editor implements the hooks it has a surface for and inherits the no-op defaults for
+/// the rest: the sounds, the footstep loop and the emote audio all need an audio stack this
+/// app does not have, and an editor that thumped every time the camera crossed a trigger
+/// would be miserable to use.
+///
+/// The portraits and the door prompts *are* wanted, though. Walking the camera through a map
+/// is how the operator checks that an NPC's events fire where they were authored to, and that
+/// check needs the same UI the player gets.
 extension AdminSession: GameStateDelegate {
     func gameStateSyncPlayer(_ character: GameCharacter) {
         network.syncPlayer(character)
@@ -220,5 +289,34 @@ extension AdminSession: GameStateDelegate {
 
     func gameStateChangeMap(_ mapId: Int) {
         network.sendChangeMap(mapId)
+    }
+
+    // MARK: - Dialogs and portraits
+
+    func gameStateShowDialog(_ request: DialogRequest) {
+        ui?.showDialog(request)
+    }
+
+    func gameStateHideDialog() {
+        ui?.hideDialog()
+    }
+
+    func gameStateShowAvatar(sourceId: Int, name: String?, imagePath: String) {
+        Log.world("Avatar: \(name ?? "NPC") (\(sourceId)) \(imagePath)")
+        ui?.showAvatar(sourceId: sourceId, name: name, imagePath: imagePath)
+    }
+
+    func gameStateHideAvatar() {
+        ui?.hideAvatar(sourceId: nil)
+    }
+
+    /// Walking back out of an NPC's radius takes its portrait and anything it raised with it.
+    func gameStateCleanupNPCUI(sourceId: Int) {
+        ui?.hideAvatar(sourceId: sourceId)
+        ui?.hideDialog()
+    }
+
+    func gameStateDidSay(sourceId: Int, name: String?, message: String) {
+        Log.world("Say: \(name ?? "NPC") (\(sourceId)): \(message)")
     }
 }

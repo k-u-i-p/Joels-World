@@ -31,8 +31,9 @@ done
 mkdir -p "$DEST"
 
 # Whole directories. Everything in them is reachable at runtime: every GLB is a character part
-# or a map prop, every clip is an emote, an ambience or a minigame sound.
-WHOLE_DIRS=(models media avatars minimaps)
+# or a map prop, every clip is an emote, an ambience or a minigame sound, and `fonts` carries
+# Pricedown — staged rather than bundled per-target so both apps register the same face.
+WHOLE_DIRS=(models media avatars minimaps fonts)
 
 # Per-map: the sliced tiles, the walkability mask, and any GLB props the map places. The
 # source layers next to them are slicer input and are deliberately left behind.

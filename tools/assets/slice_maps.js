@@ -1,23 +1,12 @@
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const basePath = path.resolve(__dirname, '../../assets');
-const mapsJsonPath = path.resolve(__dirname, '../../data/maps.json');
+import { assetPath, assetRelative, readMaps, writeMaps } from './paths.js';
 
 export async function ensureMapChunks() {
   console.log('[Chunker] Checking map chunk allocations...');
-  let mapsData;
-  try {
-    mapsData = JSON.parse(fs.readFileSync(mapsJsonPath, 'utf8'));
-  } catch (err) {
-    console.error('[Chunker] Error reading maps.json:', err);
-    return;
-  }
+  const mapsData = readMaps('[Chunker]');
+  if (!mapsData) return;
   
   let mapsModified = false;
   
@@ -26,10 +15,10 @@ export async function ensureMapChunks() {
     
     for (const layer of map.layers) {
         if (layer.chunked && layer.source_image) {
-          const sourceRel = layer.source_image.startsWith('/') ? layer.source_image.substring(1) : layer.source_image;
-          const inputPath = path.join(basePath, sourceRel);
+          const sourceRel = assetRelative(layer.source_image);
+          const inputPath = assetPath(sourceRel);
           const parsed = path.parse(sourceRel);
-          const chunksDir = path.join(basePath, parsed.dir, 'chunks');
+          const chunksDir = assetPath(parsed.dir, 'chunks');
           
           if (fs.existsSync(inputPath)) {
             try {
@@ -85,7 +74,7 @@ export async function ensureMapChunks() {
     }
 
   if (mapsModified) {
-    fs.writeFileSync(mapsJsonPath, JSON.stringify(mapsData, null, 2));
+    writeMaps(mapsData);
     console.log('[Chunker] Updated maps.json with calculated grid dimensions.');
   }
 }

@@ -18,9 +18,14 @@ Welcome to **Joel's World**, a persistent, multiplayer top-down RPG map experien
 | `tools/assets/` | The offline asset pipeline — slicing, overlays, minimaps — and the staging script the Xcode builds run |
 
 Inside `native/`, each target is grouped by role: `Engine/` splits into `Core` `Net` `Entity`
-`Render` `World`, the iOS app into `App` `UI` `Input` `Audio`, and the editor into `App`
+`Render` `World` `UI`, the iOS app into `App` `UI` `Input` `Audio`, and the editor into `App`
 `Data` `Editor` `Inspector`. All three are file-system-synchronised Xcode groups, so a new
 file in one of those directories is in the build with no project edit.
+
+`Engine/UI` holds no views — UIKit and AppKit share no view type, so the two apps' chrome
+cannot be one file. What it holds is the *rules* the two copies must agree on
+(`PendingDialog`, `PortraitOwner`) and the policy they share (`AssetImageCache`), so a change
+lands once rather than twice.
 
 The browser client was retired in favour of the native apps — see `native/PROGRESS.md`.
 
@@ -85,8 +90,12 @@ is an ordinary one, and exists only to show live players on the map being edited
 ### Map Layering
 Environments are split into layered depths (`background`, `trees+overlay`, `foreground`). The renderer draws each layer at its own Z, so characters visually walk "behind" structures, trees, and other obstacles without requiring heavy real-time masking.
 
-### Shared Physics
-`server/physics.js` is the single source of truth for collision, wall sliding, clip masks and proximity interactions. `native/Engine/World/Physics.swift` is a port of it, and the two are kept behaviourally identical.
+### Physics
+`native/Engine/World/Physics.swift` owns collision, wall sliding, clip masks and proximity
+interactions. It began as a port of the server's `physics.js`, which the retired browser
+client shared; since the clients simulate their own movement and the server only relays the
+result, that copy had nothing left calling it and is gone. All the server still asks of the
+world is which NPCs a player is standing near, which is `server/proximity.js`.
 
 ### Stateless Server Synchronization
 The Node.js server acts strictly as a low-latency broadcaster. It does not tick an internal physics loop. It maintains a dictionary of connected `player_id`s and relays their calculated `x/y` coordinates, `rotation`, and active `emotes` across the WebSocket buffer to all clients concurrently.

@@ -18,9 +18,9 @@ final class HUDView: UIView {
     private var avatarWidth: NSLayoutConstraint!
     private var avatarHeight: NSLayoutConstraint!
 
-    /// Which NPC the portrait belongs to, so only that NPC's exit clears it
-    /// (`data-npc-id`, `ui.js:25`).
-    private var avatarSourceId: Int?
+    /// Which NPC the portrait belongs to, so only that NPC's exit clears it. The rule is
+    /// shared with the editor's portrait; only the chrome around it differs.
+    private var avatarOwner = PortraitOwner()
     /// The map's own name, restored when the portrait goes away
     /// (`dataset.originalName`, `ui.js:36`).
     private var mapName: String?
@@ -67,7 +67,7 @@ final class HUDView: UIView {
         avatarView.clipsToBounds = true
         avatarView.layer.cornerRadius = 8
         avatarView.layer.borderWidth = 2
-        avatarView.layer.borderColor = UIColor(hex: 0xecf0f1).cgColor
+        avatarView.layer.borderColor = Theme.portraitBorder.cgColor
         avatarView.alpha = 0
         avatarWidth = avatarView.widthAnchor.constraint(equalToConstant: 0)
         avatarHeight = avatarView.heightAnchor.constraint(equalToConstant: 0)
@@ -144,17 +144,17 @@ final class HUDView: UIView {
     func setMapName(_ name: String?) {
         mapName = name
         // A portrait currently owns the title bar; it restores this name when it goes.
-        if avatarSourceId == nil { mapNameLabel.text = name }
+        if avatarOwner.isVacant { mapNameLabel.text = name }
     }
 
     /// The `avatar` event handler (`events.js:5-51`): the portrait slides in and the title
     /// bar takes the NPC's name.
     func showAvatar(sourceId: Int, name: String?, imagePath: String) {
-        avatarSourceId = sourceId
+        avatarOwner.claim(sourceId)
         mapNameLabel.text = name ?? "NPC"
 
         ImageLoader.load(path: imagePath) { [weak self] image in
-            guard let self, self.avatarSourceId == sourceId, let image else { return }
+            guard let self, self.avatarOwner.sourceId == sourceId, let image else { return }
             self.avatarView.image = image
             self.avatarWidth.constant = 128
             self.avatarHeight.constant = 128
@@ -167,9 +167,7 @@ final class HUDView: UIView {
 
     /// `cleanupNpcUI` — only the NPC that owns the portrait can dismiss it.
     func hideAvatar(sourceId: Int?) {
-        if let sourceId, avatarSourceId != sourceId { return }
-        guard avatarSourceId != nil else { return }
-        avatarSourceId = nil
+        guard avatarOwner.release(sourceId) else { return }
         mapNameLabel.text = mapName
 
         avatarWidth.constant = 0
@@ -178,7 +176,7 @@ final class HUDView: UIView {
             self.avatarView.alpha = 0
             self.layoutIfNeeded()
         }, completion: { _ in
-            if self.avatarSourceId == nil { self.avatarView.image = nil }
+            if self.avatarOwner.isVacant { self.avatarView.image = nil }
         })
     }
 
@@ -226,7 +224,7 @@ final class HUDView: UIView {
     private func makeChatRow(sender: String, message: String) -> UIView {
         let label = PaddedLabel()
         label.numberOfLines = 0
-        label.backgroundColor = UIColor(white: 1, alpha: 0.95)
+        label.backgroundColor = Theme.chatRowBackground
         label.layer.cornerRadius = 8
         label.layer.borderWidth = 1
         label.layer.borderColor = Theme.glassBorder.cgColor

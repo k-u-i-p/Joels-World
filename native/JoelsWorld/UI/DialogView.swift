@@ -12,8 +12,9 @@ final class DialogView: UIView {
     private let yesButton = Theme.makePlainButton()
     private let noButton = Theme.makePlainButton()
 
-    private var pendingAction: DialogAction?
-    private var pendingHandler: (() -> Void)?
+    /// The request's own state — shared with the editor's dialog, which reads exactly the same
+    /// rules off it.
+    private var pending = PendingDialog.none
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -90,19 +91,15 @@ final class DialogView: UIView {
 
     func present(_ request: DialogRequest) {
         messageLabel.text = request.text
-        pendingAction = request.confirmAction
-        pendingHandler = request.onConfirm
-        // An informational dialog has nothing to confirm, so Yes just dismisses it.
-        let isActionable = request.confirmAction != nil || request.onConfirm != nil
-        yesButton.setTitle(isActionable ? "Yes" : "OK", for: .normal)
-        noButton.isHidden = !isActionable
+        pending = PendingDialog(request)
+        yesButton.setTitle(pending.isActionable ? "Yes" : "OK", for: .normal)
+        noButton.isHidden = !pending.isActionable
         isHidden = false
     }
 
     func dismiss() {
         isHidden = true
-        pendingAction = nil
-        pendingHandler = nil
+        pending = .none
     }
 
     @objc private func dismissTapped() {
@@ -110,10 +107,9 @@ final class DialogView: UIView {
     }
 
     @objc private func confirmTapped() {
-        let action = pendingAction
-        let handler = pendingHandler
+        let answer = pending.take()
         dismiss()
-        if let action { onConfirm?(action) }
-        handler?()
+        if let action = answer.action { onConfirm?(action) }
+        answer.handler?()
     }
 }

@@ -21,6 +21,9 @@ final class AdminOverlayView: NSView {
         var waypointRoute: [(x: Double, y: Double)] = []
         var backgroundImage: NSImage?
         var backgroundOrigin: (x: Double, y: Double) = (0, 0)
+        /// The nameplates and speech bubbles for this frame, already projected by
+        /// `CharacterOverlay` — the same pass the iOS build runs.
+        var characters: [OverlayEntry] = []
     }
 
     var snapshot = Snapshot(camera: Camera()) {
@@ -53,6 +56,12 @@ final class AdminOverlayView: NSView {
         for npc in snapshot.npcs where snapshot.selection.npcId == npc.id {
             draw(npc: npc, in: ctx, screenPoint: screenPoint)
         }
+
+        // Last, so a bubble is never buried under an object box.
+        AdminCharacterOverlay.draw(entries: snapshot.characters,
+                                   zoom: camera.zoom,
+                                   bounds: bounds,
+                                   in: ctx)
     }
 
     // MARK: - Pieces

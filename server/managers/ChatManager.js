@@ -1,15 +1,10 @@
+import { sendError } from '../protocol.js';
+
 export class ChatManager {
   constructor(mapManager, npcManager, aiAgentManager) {
     this.mapManager = mapManager;
     this.npcManager = npcManager;
     this.aiAgentManager = aiAgentManager;
-  }
-
-  sendError(ws, message) {
-    if (ws.readyState === 1) {
-      ws.send(JSON.stringify({ type: 'error', message }));
-    }
-    ws.close();
   }
 
   handleLogMessage(ws, data, mapData) {
@@ -44,7 +39,7 @@ export class ChatManager {
 
     // Discard if it contains newlines, tabs, escape backslashes, or HTML brackets.
     if (/[\r\n\t\\<>]/.test(data.message)) {
-      this.sendError(ws, 'Invalid message. Please use only English letters with no spaces or symbols.');
+      sendError(ws, 'Invalid message. Please use only English letters with no spaces or symbols.');
       return;
     }
 

@@ -1,28 +1,13 @@
 import UIKit
 
-/// One character's screen-space furniture for this frame.
-struct OverlayEntry {
-    var id: Int
-    var name: String?
-    /// Screen position of the character's origin, in points.
-    var screen: CGPoint
-    /// True when the character passed the JS frustum test and should be drawn at all.
-    var isVisible: Bool
-    var chatMessage: String?
-    var showsNameplate: Bool
-}
-
 /// Nameplates and speech bubbles. These are DOM elements in the web build
 /// (`.character-nameplate` / `.character-chat-bubble`, positioned every frame at
 /// `characters.js:1240-1290`), so they stay a UIKit layer here rather than becoming Metal
 /// geometry — the text stays crisp and the styling matches `style.css` directly.
+///
+/// Which characters appear and where is `CharacterOverlay`'s job, shared with the editor.
+/// This is only the chrome.
 final class CharacterOverlayView: UIView {
-    /// The web build refuses to draw more than three bubbles in a frame
-    /// (`currentFrameChatCount`, `characters.js:1262`).
-    private static let maxBubblesPerFrame = 3
-    /// A bubble lives five seconds from the moment the message arrived.
-    private static let bubbleLifetime: TimeInterval = 5
-
     private var nameplates: [Int: UILabel] = [:]
     private var bubbles: [Int: ChatBubbleView] = [:]
 
@@ -38,19 +23,16 @@ final class CharacterOverlayView: UIView {
         isUserInteractionEnabled = false
     }
 
-    /// Repositions everything for this frame. `zoom` scales the offsets above the head
-    /// exactly as the JS does (`45 * cameraZoom`, `55 * cameraZoom`).
+    /// Repositions everything for this frame.
     func update(entries: [OverlayEntry], zoom: Double) {
         var liveNameplates: Set<Int> = []
         var liveBubbles: Set<Int> = []
         var bubblesDrawn = 0
 
-        let nameOffset = CGFloat(45 * zoom)
-        let chatOffset = CGFloat(55 * zoom)
+        let nameOffset = CharacterOverlay.nameOffset(zoom: zoom)
+        let chatOffset = CharacterOverlay.chatOffset(zoom: zoom)
 
         for entry in entries {
-            guard entry.isVisible else { continue }
-
             if entry.showsNameplate, let name = entry.name, !name.isEmpty {
                 let label = nameplates[entry.id] ?? makeNameplate(for: entry.id)
                 if label.text != name {
@@ -62,7 +44,7 @@ final class CharacterOverlayView: UIView {
                 liveNameplates.insert(entry.id)
             }
 
-            if let message = entry.chatMessage, bubblesDrawn < Self.maxBubblesPerFrame {
+            if let message = entry.chatMessage, bubblesDrawn < CharacterOverlay.maxBubblesPerFrame {
                 bubblesDrawn += 1
                 let bubble = bubbles[entry.id] ?? makeBubble(for: entry.id)
                 bubble.setMessage(message, maxWidth: bounds.width - 40)
@@ -94,12 +76,6 @@ final class CharacterOverlayView: UIView {
     func removeCharacter(id: Int) {
         nameplates.removeValue(forKey: id)?.removeFromSuperview()
         bubbles.removeValue(forKey: id)?.removeFromSuperview()
-    }
-
-    /// Whether a message posted at `time` is still inside the bubble's five-second window.
-    static func isBubbleLive(chatTime: TimeInterval?) -> Bool {
-        guard let chatTime else { return false }
-        return Date.timeIntervalSinceReferenceDate - chatTime < bubbleLifetime
     }
 
     private func makeNameplate(for id: Int) -> UILabel {

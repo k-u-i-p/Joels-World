@@ -10,6 +10,10 @@ final class AdminMapViewController: NSViewController {
     private var metalView: MTKView!
     private var renderer: Renderer?
     private let overlay = AdminOverlayView()
+    /// The game's own UI, above the editor's: the HUD the world raises as the camera walks
+    /// past its triggers, and the door prompts it puts up.
+    private let hud = AdminHUDView()
+    private let dialog = AdminDialogView()
     private var editorView: AdminEditorView { view as! AdminEditorView }
 
     /// The held-key set the frame loop polls. Exposed so `-selftest` can drive the real
@@ -78,6 +82,8 @@ final class AdminMapViewController: NSViewController {
         overlay.autoresizingMask = [.width, .height]
         view.addSubview(overlay)
 
+        installGameUI()
+
         guard let renderer = Renderer(view: metalView, state: session.state) else {
             presentFatal("Failed to initialise the renderer.")
             return
@@ -114,7 +120,10 @@ final class AdminMapViewController: NSViewController {
                                         device: device) { image in
                     guard let self else { return }
                     self.renderer?.captureHandler = nil
-                    if let image, AdminScreenshot.write(world: image, overlay: self.overlay, to: path) {
+                    if let image, AdminScreenshot.write(world: image,
+                                                        map: self.overlay,
+                                                        overlays: [self.overlay, self.hud, self.dialog],
+                                                        to: path) {
                         Log.render("Screenshot written to \(path)")
                     } else {
                         Log.render("Screenshot failed")
@@ -128,6 +137,52 @@ final class AdminMapViewController: NSViewController {
     override func viewDidAppear() {
         super.viewDidAppear()
         view.window?.makeFirstResponder(editorView)
+    }
+
+    // MARK: - The game's UI
+
+    /// Puts the HUD and the door prompt above the editor's overlay.
+    ///
+    /// Both are click-through except for the one control in each that has to take a mouse —
+    /// the chat field and the prompt's panel — so neither can take the map away from the
+    /// operator while it is up.
+    ///
+    /// `session.ui` is wired from here rather than from the root controller because it only
+    /// means anything once these two views exist.
+    private func installGameUI() {
+        hud.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(hud)
+
+        dialog.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(dialog)
+
+        NSLayoutConstraint.activate([
+            hud.topAnchor.constraint(equalTo: view.topAnchor),
+            hud.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hud.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            hud.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            dialog.topAnchor.constraint(equalTo: view.topAnchor),
+            dialog.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            dialog.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            dialog.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+
+        hud.onChatSubmit = { [weak self] message in
+            self?.session.submitChat(message)
+        }
+
+        // The same wiring `GameViewController` gives its dialog: Yes on a door prompt is the
+        // only route to a map change.
+        dialog.onConfirm = { [weak self] action in
+            switch action {
+            case .changeMap(let mapId):
+                Log.world("Requesting map change to \(mapId)")
+                self?.session.changeMap(mapId)
+            }
+        }
+
+        session.ui = self
     }
 
     private func presentFatal(_ message: String) {
@@ -146,6 +201,12 @@ final class AdminMapViewController: NSViewController {
         snapshot.selection = selection
         snapshot.backgroundImage = backgroundImage
         snapshot.backgroundOrigin = backgroundOrigin
+
+        // Projected against the overlay's own bounds, which is the space it draws in.
+        let viewport = SIMD2<Float>(Float(overlay.bounds.width), Float(overlay.bounds.height))
+        if viewport.x > 0, viewport.y > 0 {
+            snapshot.characters = CharacterOverlay.entries(in: session.state, viewport: viewport)
+        }
 
         // The roam circle is centred on where the NPC was authored, not where it has wandered
         // to. `NPCBehaviour` seeds `startX`/`startY` the first time it moves one.
@@ -285,6 +346,41 @@ final class AdminMapViewController: NSViewController {
     func syncSelectedNPC(_ message: (GameCharacter) -> AdminMessage) {
         guard let npc = selectedNPC else { return }
         session.send(message(npc))
+    }
+}
+
+// MARK: - The game's UI
+
+/// `AdminSession` forwards the simulation's presentation calls here. The views do the rest of
+/// the work — in particular, which NPC owns the portrait, so that walking out of one NPC's
+/// radius cannot clear a portrait another has since raised.
+extension AdminMapViewController: AdminGameUI {
+    func showDialog(_ request: DialogRequest) {
+        dialog.present(request)
+    }
+
+    func hideDialog() {
+        dialog.dismiss()
+    }
+
+    func showAvatar(sourceId: Int, name: String?, imagePath: String) {
+        hud.showAvatar(sourceId: sourceId, name: name, imagePath: imagePath)
+    }
+
+    func hideAvatar(sourceId: Int?) {
+        hud.hideAvatar(sourceId: sourceId)
+    }
+
+    func setMapName(_ name: String?) {
+        hud.setMapName(name)
+    }
+
+    func addChatMessage(sender: String, message: String) {
+        hud.addChatMessage(sender: sender, message: message)
+    }
+
+    func clearChat() {
+        hud.clearChat()
     }
 }
 

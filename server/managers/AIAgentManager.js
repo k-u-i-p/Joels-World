@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Anthropic from '@anthropic-ai/sdk';
-import { PhysicsEngine } from '../physics.js';
+import { findCharactersNear } from '../proximity.js';
 import { VALID_EMOTES } from '../emotes.js';
 import { dataPath } from '../paths.js';
 
@@ -79,7 +79,6 @@ const ACTIONS_SCHEMA = {
 
 export class AIAgentManager {
     constructor(mapManager, npcManager) {
-        this.physicsEngine = new PhysicsEngine();
         this.npcManager = npcManager;
         this.ai = null;
         this.apiKey = process.env.ANTHROPIC_API_KEY;
@@ -324,7 +323,7 @@ export class AIAgentManager {
                 const playerIdsInRange = new Set();
                 if (mapData.characters) {
                     Object.values(mapData.characters).forEach(player => {
-                        const npcsNearPlayer = this.physicsEngine.findCharacters([npcChar], player.x, player.y);
+                        const npcsNearPlayer = findCharactersNear([npcChar], player.x, player.y);
                         if (npcsNearPlayer.length > 0) {
                             playerIdsInRange.add(player.id);
                         }

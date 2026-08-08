@@ -1,27 +1,15 @@
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const basePath = path.resolve(__dirname, '../../assets');
-const mapsJsonPath = path.resolve(__dirname, '../../data/maps.json');
-const minimapsDir = path.resolve(__dirname, '../../assets/minimaps');
+import { MINIMAPS_DIR, assetPath, assetRelative, readMaps } from './paths.js';
 
 export async function ensureMinimaps() {
   console.log('[Minimaps] Checking map minimap generation...');
-  let mapsData;
-  try {
-    mapsData = JSON.parse(fs.readFileSync(mapsJsonPath, 'utf8'));
-  } catch (err) {
-    console.error('[Minimaps] Error reading maps.json:', err);
-    return;
-  }
+  const mapsData = readMaps('[Minimaps]');
+  if (!mapsData) return;
   
-  if (!fs.existsSync(minimapsDir)) {
-    fs.mkdirSync(minimapsDir, { recursive: true });
+  if (!fs.existsSync(MINIMAPS_DIR)) {
+    fs.mkdirSync(MINIMAPS_DIR, { recursive: true });
   }
   
   for (const map of mapsData) {
@@ -31,10 +19,10 @@ export async function ensureMinimaps() {
     const baseLayer = map.layers.find(l => l.z === 0) || map.layers[0];
     
     if (baseLayer && baseLayer.source_image) {
-      const sourceRel = baseLayer.source_image.startsWith('/') ? baseLayer.source_image.substring(1) : baseLayer.source_image;
-      const inputPath = path.join(basePath, sourceRel);
+      const sourceRel = assetRelative(baseLayer.source_image);
+      const inputPath = assetPath(sourceRel);
       
-      const outputPath = path.join(minimapsDir, `${map.id}.png`);
+      const outputPath = path.join(MINIMAPS_DIR, `${map.id}.png`);
       let needsGeneration = false;
       
       if (!fs.existsSync(inputPath)) {

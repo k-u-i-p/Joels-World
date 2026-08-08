@@ -10,27 +10,29 @@ enum Theme {
 
     // MARK: - Palette (`style.css :root`)
 
-    static let bgPrimary = UIColor(hex: 0x7bed9f)
-    static let panelDark = UIColor(hex: 0x2c3e50)
-    static let primary = UIColor(hex: 0x3498db)
-    static let primaryHover = UIColor(hex: 0x2980b9)
-    static let success = UIColor(hex: 0x2ecc71)
-    static let danger = UIColor(hex: 0xe74c3c)
-    static let warning = UIColor(hex: 0xf1c40f)
-    static let textMuted = UIColor(hex: 0xcbd5e1)
+    static let bgPrimary = UIColor(hex: Palette.bgPrimary)
+    static let panelDark = UIColor(hex: Palette.panelDark)
+    static let primary = UIColor(hex: Palette.primary)
+    static let primaryHover = UIColor(hex: Palette.primaryHover)
+    static let success = UIColor(hex: Palette.success)
+    static let danger = UIColor(hex: Palette.danger)
+    static let warning = UIColor(hex: Palette.warning)
+    static let textMuted = UIColor(hex: Palette.textMuted)
+    static let portraitBorder = UIColor(hex: Palette.portraitBorder)
 
-    static let glassTint = UIColor(white: 87.0 / 255.0, alpha: 0.5)
-    static let glassBorder = UIColor(white: 1, alpha: 0.3)
-    static let overlayScrim = UIColor(white: 0, alpha: 0.5)
+    static let glassTint = UIColor(white: Palette.glassTintWhite, alpha: Palette.glassTintAlpha)
+    static let glassBorder = UIColor(white: 1, alpha: Palette.glassBorderAlpha)
+    static let overlayScrim = UIColor(white: 0, alpha: Palette.scrimAlpha)
+    static let chatRowBackground = UIColor(white: 1, alpha: Palette.chatRowAlpha)
 
     // MARK: - Fonts
 
-    /// `font-family: 'Pricedown'` — the display face used for headers, the map name and the
-    /// emote/badge rows. Registered at first use from `Resources/pricedown.otf` in the bundle;
-    /// falls back to a heavy rounded system face if the file is missing.
+    /// `font-family: 'Pricedown'`, registered out of the staged assets by `DisplayFont` so the
+    /// editor gets the same face. Falls back to a heavy rounded system font if it is missing.
     static func display(_ size: CGFloat) -> UIFont {
-        registerPricedownIfNeeded()
-        if let font = UIFont(name: pricedownName ?? "", size: size) { return font }
+        if let name = DisplayFont.postScriptName, let font = UIFont(name: name, size: size) {
+            return font
+        }
         let base = UIFont.systemFont(ofSize: size, weight: .heavy)
         guard let descriptor = base.fontDescriptor.withDesign(.rounded) else { return base }
         return UIFont(descriptor: descriptor, size: size)
@@ -38,27 +40,6 @@ enum Theme {
 
     static func body(_ size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
         .systemFont(ofSize: size, weight: weight)
-    }
-
-    private static var pricedownName: String?
-    private static var pricedownAttempted = false
-
-    private static func registerPricedownIfNeeded() {
-        guard !pricedownAttempted else { return }
-        pricedownAttempted = true
-
-        guard let url = Bundle.main.url(forResource: "pricedown", withExtension: "otf"),
-              let data = try? Data(contentsOf: url),
-              let provider = CGDataProvider(data: data as CFData),
-              let font = CGFont(provider)
-        else {
-            Log.render("Pricedown not bundled — UI falls back to the system display face")
-            return
-        }
-        // Registering at runtime rather than through `UIAppFonts`: the target generates its
-        // Info.plist from build settings, and there is no `INFOPLIST_KEY_` for a font list.
-        CTFontManagerRegisterGraphicsFont(font, nil)
-        pricedownName = font.postScriptName as String?
     }
 
     // MARK: - Components

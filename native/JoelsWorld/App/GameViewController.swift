@@ -212,30 +212,8 @@ final class GameViewController: UIViewController {
             return
         }
 
-        let camera = state.camera
-        var entries: [OverlayEntry] = []
-        entries.reserveCapacity(16)
-
-        for subject in state.overlaySubjects {
-            // The JS frustum test projects five units above the character's origin.
-            let probe = camera.project(worldX: subject.x, worldY: subject.y, z: subject.z + 5,
-                                       viewport: viewport)
-            let isVisible = probe.ndc.z <= 1 && abs(probe.ndc.x) <= 1.3 && abs(probe.ndc.y) <= 1.3
-            guard isVisible else { continue }
-
-            let anchor = camera.project(worldX: subject.x, worldY: subject.y, z: subject.z,
-                                        viewport: viewport)
-            let live = CharacterOverlayView.isBubbleLive(chatTime: subject.chatTime)
-            entries.append(OverlayEntry(
-                id: subject.id,
-                name: subject.name,
-                screen: CGPoint(x: CGFloat(anchor.screen.x), y: CGFloat(anchor.screen.y)),
-                isVisible: true,
-                chatMessage: live ? subject.chatMessage : nil,
-                showsNameplate: !subject.hideNameplate))
-        }
-
-        overlay.update(entries: entries, zoom: camera.zoom)
+        overlay.update(entries: CharacterOverlay.entries(in: state, viewport: viewport),
+                       zoom: state.camera.zoom)
 
         if minimap.isOpen, let mapData = state.mapData {
             minimap.updateDot(playerX: state.player.x, playerY: state.player.y,

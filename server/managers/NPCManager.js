@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { PhysicsEngine } from '../physics.js';
+import { findCharactersNear } from '../proximity.js';
 import { dataPath } from '../paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -9,7 +9,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export class NPCManager {
   constructor(mapManager) {
     this.mapManager = mapManager;
-    this.physicsEngine = new PhysicsEngine();
   }
 
   logEventToNearbyNPCs(mapData, logEntry, aiAgentManager, specificNpcId = null) {
@@ -27,7 +26,7 @@ export class NPCManager {
       // Proximity scan for all nearby NPCs
       if (mapData.characters) {
         Object.values(mapData.characters).forEach(player => {
-          const npcs = this.physicsEngine.findCharacters(mapData.npcs, player.x, player.y);
+          const npcs = findCharactersNear(mapData.npcs, player.x, player.y);
           npcs.forEach(n => targetNpcs.add(n));
         });
       }

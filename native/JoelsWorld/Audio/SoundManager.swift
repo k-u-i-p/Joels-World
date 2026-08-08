@@ -70,6 +70,16 @@ final class SoundManager {
     private let engine = AVAudioEngine()
     private var sessionActive = false
 
+    /// Set whenever something outside this class can have taken the output away — an
+    /// interruption, a route change, a trip through the background, a media services reset.
+    ///
+    /// It exists because neither `AVAudioSession` nor `AVAudioEngine` will admit to it: the
+    /// session reports itself active and the engine reports `isRunning` while the IO it was
+    /// rendering into is long gone. `play()` on a player node in that state raises
+    /// `player did not see an IO cycle` and takes the process with it, so the next sound
+    /// stops the engine outright and builds the graph again from a state we know.
+    private var needsRestart = true
+
     /// Decoded PCM keyed by asset path, so the same splash costs one download and one decode.
     private var buffers: [String: AVAudioPCMBuffer] = [:]
     private var pendingLoads: [String: [(AVAudioPCMBuffer?) -> Void]] = [:]
@@ -94,6 +104,9 @@ final class SoundManager {
                            name: .AVAudioEngineConfigurationChange, object: engine)
         center.addObserver(self, selector: #selector(sessionInterrupted),
                            name: AVAudioSession.interruptionNotification,
+                           object: AVAudioSession.sharedInstance())
+        center.addObserver(self, selector: #selector(mediaServicesReset),
+                           name: AVAudioSession.mediaServicesWereResetNotification,
                            object: AVAudioSession.sharedInstance())
     }
 
@@ -138,16 +151,31 @@ final class SoundManager {
     }
 
     /// Stops everything — used when the app goes to the background.
+    ///
+    /// The engine goes down with the sounds. A suspended app has its session deactivated for
+    /// it, and an engine left "running" against that dead session is precisely what kills the
+    /// first sound played on the way back in.
     func stopAll() {
         for handle in active { handle.pause() }
         background = nil
         currentBackgroundPath = nil
+
+        engine.stop()
+        sessionActive = false
+        needsRestart = true
     }
 
     // MARK: - Engine
 
     private func start(handle: Handle, buffer: AVAudioPCMBuffer, loop: Bool) {
-        activateSession()
+        if needsRestart {
+            needsRestart = false
+            engine.stop()
+        }
+        guard activateSession() else {
+            // No session, no IO cycle. Better a silent sound than a dead process.
+            return
+        }
 
         engine.attach(handle.player)
         engine.attach(handle.varispeed)
@@ -171,6 +199,15 @@ final class SoundManager {
                 tearDown(handle)
                 return
             }
+        }
+
+        // `play()` aborts the process rather than throwing if the engine is not rendering, so
+        // this is the last chance to back out.
+        guard engine.isRunning else {
+            Log.world("Audio engine is not running; dropping the sound")
+            needsRestart = true
+            tearDown(handle)
+            return
         }
 
         if loop {
@@ -208,6 +245,10 @@ final class SoundManager {
     /// left `play()`ing carry on rendering into the dead graph, which is what players hear as
     /// a crackle, so the graph has to be built again rather than merely restarted.
     @objc private func configurationChanged(_ notification: Notification) {
+        // Flagged here rather than in the hop below: a sound started in between would see an
+        // engine that still claims to be running and play into nothing.
+        needsRestart = true
+
         // Posted from an audio thread; the graph is main-thread work.
         DispatchQueue.main.async { [weak self] in
             Log.world("Audio route reconfigured — rebuilding the engine graph")
@@ -227,18 +268,31 @@ final class SoundManager {
             case .began:
                 // The session is gone; so is the engine. Drop the graph and wait.
                 self.sessionActive = false
+                self.needsRestart = true
                 self.rebuildGraph(restart: false)
 
             case .ended:
                 let options = AVAudioSession.InterruptionOptions(
                     rawValue: info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
                 guard options.contains(.shouldResume) else { return }
-                self.activateSession()
                 self.rebuildGraph()
 
             @unknown default:
                 break
             }
+        }
+    }
+
+    /// The audio server died and took every session, engine and node with it. Nothing that was
+    /// playing survives; the category has to be set again on the replacement session.
+    @objc private func mediaServicesReset(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            Log.world("Media services were reset — reconfiguring audio")
+            self.sessionActive = false
+            self.needsRestart = true
+            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            self.rebuildGraph()
         }
     }
 
@@ -262,14 +316,16 @@ final class SoundManager {
         }
     }
 
-    private func activateSession() {
-        guard !sessionActive else { return }
+    @discardableResult
+    private func activateSession() -> Bool {
+        guard !sessionActive else { return true }
         do {
             try AVAudioSession.sharedInstance().setActive(true)
             sessionActive = true
         } catch {
             Log.world("Audio session failed to activate: \(error.localizedDescription)")
         }
+        return sessionActive
     }
 
     // MARK: - Loading
