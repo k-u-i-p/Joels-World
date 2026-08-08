@@ -31,6 +31,7 @@ final class GameViewController: UIViewController {
     private let rejectedOverlay = MapChangeRejectedView()
     private let disconnectDialog = DisconnectDialogView()
     let tennis = TennisView()
+    let tennis3d = Tennis3DView()
 
     #if DEBUG
     private(set) lazy var debug = GameDebugHarness(host: self)
@@ -94,9 +95,9 @@ final class GameViewController: UIViewController {
 
     private func setupOverlays() {
         // Bottom to top: world, the 2D minigame surface, nameplates, controls, HUD, dialogs.
-        for subview in [tennis, overlay, joystick, buttons, hud, minimap, emotesDialog,
-                        badgesDialog, helpDialog, dialog, rejectedOverlay, disconnectDialog,
-                        lobby] as [UIView] {
+        for subview in [tennis, tennis3d, overlay, joystick, buttons, hud, minimap,
+                        emotesDialog, badgesDialog, helpDialog, dialog, rejectedOverlay,
+                        disconnectDialog, lobby] as [UIView] {
             subview.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(subview)
         }
@@ -135,7 +136,11 @@ final class GameViewController: UIViewController {
         buttons.onEmotes = { [weak self] in self?.emotesDialog.present() }
         buttons.onHelp = { [weak self] in self?.helpDialog.present() }
         buttons.onExit = { [weak self] in
-            (self?.state.minigame as? TennisGame)?.requestExit()
+            switch self?.state.minigame {
+            case let game as TennisGame: game.requestExit()
+            case let game as Tennis3DGame: game.requestExit()
+            default: break
+            }
         }
 
         emotesDialog.onEmote = { [weak self] command in self?.submitChat(command) }
@@ -159,8 +164,9 @@ final class GameViewController: UIViewController {
         ]
 
         // Everything else is a full-screen layer.
-        for subview in [tennis, overlay, hud, minimap, emotesDialog, badgesDialog, helpDialog,
-                        dialog, rejectedOverlay, disconnectDialog, lobby] as [UIView] {
+        for subview in [tennis, tennis3d, overlay, hud, minimap, emotesDialog,
+                        badgesDialog, helpDialog, dialog, rejectedOverlay, disconnectDialog,
+                        lobby] as [UIView] {
             constraints += [
                 subview.topAnchor.constraint(equalTo: view.topAnchor),
                 subview.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -212,6 +218,13 @@ final class GameViewController: UIViewController {
         // A 2D minigame redraws its own surface instead, once per simulated frame.
         if state.suppressesWorldRendering {
             tennis.step()
+            return
+        }
+
+        // A 3D one is already on screen behind the HUD; only its score furniture needs a tick,
+        // and its nameplates stay off, so there is nothing else to do this frame.
+        if state.worldRenderedMinigame != nil {
+            tennis3d.step()
             return
         }
 

@@ -67,6 +67,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let modelStore: ModelStore
     private var characters: CharacterRenderer!
     private var props: PropRenderer!
+    /// The court, the net and the ball, when a minigame is drawing through this renderer.
+    private var primitives: ScenePrimitiveRenderer!
     private let state: GameState
 
     /// Per-character rig state that outlives a frame, keyed by character id. three.js keeps
@@ -110,6 +112,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         guard let characters = CharacterRenderer(device: device, models: modelStore) else { return nil }
         self.characters = characters
         self.props = PropRenderer(models: modelStore)
+        self.primitives = ScenePrimitiveRenderer(device: device)
 
         // The composite pass owns the drawable and needs no depth of its own.
         view.colorPixelFormat = Self.sceneColorFormat
@@ -331,8 +334,12 @@ final class Renderer: NSObject, MTKViewDelegate {
         if state.mapDidChange {
             textures.purge()
             props.clear()
+            primitives.clear()
             state.clearMapChangedFlag()
-            clearColor = Self.backgroundClearColor(state.mapData?.background_color)
+            // A minigame paints its own surround — the tennis court's grass green — in place of
+            // whatever the map named.
+            clearColor = Self.backgroundClearColor(state.worldRenderedMinigame?.backgroundColor
+                                                   ?? state.mapData?.background_color)
         }
 
         onFrame?(viewportPoints)
@@ -355,6 +362,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         props.sync(objects: state.objects)
 
+        // A minigame rebuilds its geometry every frame: the court is static but the ball is not,
+        // and at this scale one array is cheaper than tracking what moved.
+        let scenePrimitives = state.worldRenderedMinigame?.scenePrimitives ?? []
+
         lighting.update(cameraTarget: state.camera.renderTarget)
         var scene = lighting.uniforms(camera: state.camera,
                                       viewport: SIMD2(Float(targetSize.x), Float(targetSize.y)),
@@ -363,12 +374,13 @@ final class Renderer: NSObject, MTKViewDelegate {
         let poses = preparePoses()
 
         if shadowsEnabled {
-            encodeShadowPass(commandBuffer: commandBuffer, poses: poses)
+            encodeShadowPass(commandBuffer: commandBuffer, poses: poses,
+                             primitives: scenePrimitives)
         }
 
         encodeScenePass(commandBuffer: commandBuffer,
                         color: sceneColor, normal: sceneNormal, depth: sceneDepth,
-                        scene: &scene, poses: poses)
+                        scene: &scene, poses: poses, primitives: scenePrimitives)
 
         if ssaoEnabled, let ao = aoTexture, let aoBlur = aoBlurTexture {
             encodeSSAOPass(commandBuffer: commandBuffer, target: ao,
@@ -414,7 +426,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// three.js avoids shadow acne by rendering back faces (`shadowSide`); here the equivalent
     /// job is done by the constant bias in `sampleShadow`, which does not depend on every mesh
     /// in the asset set being consistently wound.
-    private func encodeShadowPass(commandBuffer: MTLCommandBuffer, poses: [RigPose]) {
+    private func encodeShadowPass(commandBuffer: MTLCommandBuffer,
+                                  poses: [RigPose],
+                                  primitives scenePrimitives: [ScenePrimitive]) {
         let descriptor = MTLRenderPassDescriptor()
         descriptor.depthAttachment.texture = shadowTexture
         descriptor.depthAttachment.loadAction = .clear
@@ -432,6 +446,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         props.draw(viewProjection: lighting.viewProjection, encoder: encoder,
                    fallbackTexture: characters.fallbackTexture)
+        primitives.drawShadowCasters(scenePrimitives,
+                                     viewProjection: lighting.viewProjection,
+                                     encoder: encoder,
+                                     fallbackTexture: characters.fallbackTexture)
         for pose in poses {
             characters.draw(pose: pose, viewProjection: lighting.viewProjection,
                             encoder: encoder, includeProps: false)
@@ -445,7 +463,8 @@ final class Renderer: NSObject, MTKViewDelegate {
                                  normal: MTLTexture,
                                  depth: MTLTexture,
                                  scene: inout SceneUniforms,
-                                 poses: [RigPose]) {
+                                 poses: [RigPose],
+                                 primitives scenePrimitives: [ScenePrimitive]) {
         let descriptor = MTLRenderPassDescriptor()
         descriptor.colorAttachments[0].texture = color
         descriptor.colorAttachments[0].loadAction = .clear
@@ -492,7 +511,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         // Props are opaque and depth-tested, so they sort against the ground on their own.
-        if !props.isEmpty {
+        if !props.isEmpty || !scenePrimitives.isEmpty {
             encoder.setRenderPipelineState(characterPipeline)
             encoder.setFragmentSamplerState(linearSamplerState, index: 0)
             // `characterFragment` declares `clipSampler` at 1, so it has to be bound even though
@@ -501,6 +520,10 @@ final class Renderer: NSObject, MTKViewDelegate {
             encoder.setFragmentTexture(characters.fallbackTexture, index: 1)
             props.draw(viewProjection: viewProjection, encoder: encoder,
                        fallbackTexture: characters.fallbackTexture)
+            // A minigame's court is the ground for this frame, so it goes down before the
+            // characters standing on it.
+            primitives.draw(scenePrimitives, blended: false, viewProjection: viewProjection,
+                            encoder: encoder, fallbackTexture: characters.fallbackTexture)
         }
 
         drawCharacters(viewProjection: viewProjection, encoder: encoder, poses: poses)
@@ -516,6 +539,18 @@ final class Renderer: NSObject, MTKViewDelegate {
             encoder.setFragmentTexture(characters.fallbackTexture, index: 1)
             props.draw(viewProjection: viewProjection, encoder: encoder,
                        fallbackTexture: characters.fallbackTexture, transmissive: true)
+        }
+
+        // A minigame's blended geometry — the ball's ground shadow, the aim marker — after the
+        // characters, so it lays over them rather than punching a hole in one.
+        if scenePrimitives.contains(where: { $0.blended }) {
+            encoder.setRenderPipelineState(characterBlendPipeline)
+            encoder.setDepthStencilState(overlayDepthState)
+            encoder.setFragmentSamplerState(linearSamplerState, index: 0)
+            encoder.setFragmentSamplerState(samplerState, index: 1)
+            encoder.setFragmentTexture(characters.fallbackTexture, index: 1)
+            primitives.draw(scenePrimitives, blended: true, viewProjection: viewProjection,
+                            encoder: encoder, fallbackTexture: characters.fallbackTexture)
         }
 
         // Overlays last, blended, ascending in depth.
@@ -651,12 +686,13 @@ final class Renderer: NSObject, MTKViewDelegate {
             }()
 
             poses.append(CharacterRig.pose(character: entry.character,
-                                           legAnimationTime: entry.legAnimationTime,
+                                           gait: entry.gait,
                                            mapCharacterScale: scale,
                                            time: now,
                                            runtime: runtime,
                                            cameraRight: cameraRight,
-                                           cameraUp: cameraUp))
+                                           cameraUp: cameraUp,
+                                           override: entry.poseOverride))
         }
 
         // Characters that left the world take their rig state with them, the way the JS drops

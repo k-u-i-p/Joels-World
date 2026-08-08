@@ -21,6 +21,14 @@ struct Player {
     var isRunning = false
     var runDirectionStart: TimeInterval?
     var legAnimationTime: Double = 0
+
+    /// Carried-over velocity, in world units per second. The player used to be teleported by
+    /// `speed × dt` every frame with no memory between them, which is why letting go of the
+    /// stick stopped them dead. `Locomotion` owns this now; see `GameState.update`.
+    var velocityX: Double = 0
+    var velocityY: Double = 0
+    /// How the legs should be moving — including sideways, while the body is still turning.
+    var gait = Gait()
     var activeBuilding: Int?
     var emote: EmoteState?
     /// Badges earned, carried on the session record and topped up by `badge_earned`.

@@ -21,6 +21,11 @@ struct RigMutation {
 
     /// `c.holding` — the model to put in the right hand. Only `tennis` sets it.
     var holding: String?
+
+    /// An extra rotation for the held model, in the hand's own frame. The overworld leaves it
+    /// nil and the racket simply points along the forearm, as it always has; the 3D tennis game
+    /// uses it to roll the strings towards the ball on contact.
+    var holdingRotation: SIMD3<Float>?
 }
 
 /// What an emote closure knows about the moment it is being posed for.

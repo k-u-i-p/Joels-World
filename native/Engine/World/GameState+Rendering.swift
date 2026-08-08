@@ -7,13 +7,34 @@ import Foundation
 /// nothing at all while a minigame is up: it owns the screen, and neither the overworld roster
 /// nor its DOM-era nameplates are on it.
 extension GameState {
-    /// Everything that should be drawn as a character this frame: the local player first,
-    /// then remote players, then NPCs — each with the walk phase its rig should use.
-    var drawableCharacters: [(character: GameCharacter, legAnimationTime: Double)] {
-        // A minigame owns the screen; the overworld roster is not on it.
-        if minigame != nil { return [] }
+    /// One character the renderer should pose and draw this frame.
+    ///
+    /// This used to be a bare `(character, legAnimationTime)` pair, which could only ever
+    /// describe a forward walk — the reason every character in the game turns on the spot
+    /// before setting off. `Gait` replaces the single phase with the velocity resolved into the
+    /// body's own frame, so side-stepping and back-pedalling are expressible; `poseOverride` is
+    /// how a minigame aims a racket arm at a ball.
+    struct DrawableCharacter {
+        var character: GameCharacter
+        var gait: Gait
+        var poseOverride: RigOverride?
+    }
 
-        var out: [(GameCharacter, Double)] = []
+    /// Everything that should be drawn as a character this frame: the local player first,
+    /// then remote players, then NPCs — each with the gait its rig should use.
+    var drawableCharacters: [DrawableCharacter] {
+        // A minigame owns the screen. One drawn by the Metal renderer supplies its own cast;
+        // one that draws itself on a 2D canvas has nothing here at all.
+        if let minigame {
+            guard let world = minigame as? WorldRenderedMinigame else { return [] }
+            return world.sceneCharacters.map {
+                DrawableCharacter(character: $0.character,
+                                  gait: $0.gait,
+                                  poseOverride: $0.poseOverride)
+            }
+        }
+
+        var out: [DrawableCharacter] = []
 
         if var mine = player.appearance {
             mine.x = player.x
@@ -25,14 +46,21 @@ extension GameState {
             // arrived with — without this the local player is the one character whose emote
             // never poses the rig.
             mine.emote = player.emote
-            out.append((mine, player.legAnimationTime))
+            out.append(DrawableCharacter(character: mine, gait: player.gait))
         }
 
+        // Remote players and NPCs are interpolated towards server or waypoint targets rather
+        // than driven by a controller, so all `Locomotion` can tell about them is the walk
+        // phase — which is exactly what they had before.
         for character in characters where character.id != player.id {
-            out.append((character, visuals[character.id]?.legAnimationTime ?? 0))
+            out.append(DrawableCharacter(
+                character: character,
+                gait: .walking(phase: visuals[character.id]?.legAnimationTime ?? 0)))
         }
         for npc in npcs {
-            out.append((npc, visuals[npc.id]?.legAnimationTime ?? 0))
+            out.append(DrawableCharacter(
+                character: npc,
+                gait: .walking(phase: visuals[npc.id]?.legAnimationTime ?? 0)))
         }
 
         return out

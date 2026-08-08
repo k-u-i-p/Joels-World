@@ -57,6 +57,12 @@ final class GameState {
         return !minigame.usesWorldRenderer
     }
 
+    /// The running minigame, if it is one the Metal renderer draws. The renderer asks it for
+    /// its court and its cast; nothing else in the engine needs to know it exists.
+    var worldRenderedMinigame: WorldRenderedMinigame? {
+        minigame as? WorldRenderedMinigame
+    }
+
     /// True once an `init` payload has been applied.
     private(set) var hasWorld = false
     /// Raised for one frame when a new map is applied, so the renderer can drop tiles.
@@ -179,14 +185,24 @@ final class GameState {
     }
 
     private func startMinigame(importPath: String, mapName: String?) {
-        guard let kind = MinigameKind(importPath: importPath) else {
+        guard var kind = MinigameKind(importPath: importPath) else {
             Log.world("Map '\(mapName ?? "?")' imports '\(importPath)', which is not a known minigame")
             return
         }
 
+        #if DEBUG
+        // `-tennis2d` puts the superseded canvas game back on the same map, for a side-by-side.
+        if kind == .tennis3d, WalkTest.prefers2DTennis { kind = .tennis }
+        #endif
+
         switch kind {
         case .tennis:
             let game = TennisGame(host: self, npcs: npcs, myCharacter: player.appearance)
+            minigame = game
+            game.start()
+            delegate?.gameStateDidStartMinigame(game)
+        case .tennis3d:
+            let game = Tennis3DGame(host: self, npcs: npcs, myCharacter: player.appearance)
             minigame = game
             game.start()
             delegate?.gameStateDidStartMinigame(game)
@@ -305,6 +321,11 @@ final class GameState {
         // `characterManager` at all).
         if let minigame {
             minigame.update(dt: dt)
+            // A minigame drawn by the real renderer needs the camera pointed at its court; one
+            // that draws itself on a 2D canvas does not care where the camera is.
+            if let world = minigame as? WorldRenderedMinigame {
+                world.updateCamera(&camera, viewport: viewport)
+            }
             return
         }
 
@@ -323,18 +344,6 @@ final class GameState {
             player.rotation += input.turn * player.rotationSpeed * timeScale
         }
 
-        if input.isMoving {
-            // The joystick drives heading directly, matching `input.js:188`.
-            player.rotation = input.angleDegrees
-        }
-
-        // `getDemandedMovementVector`: a thumbstick takes the whole branch and always drives
-        // forward, so the keys only count when there is no stick input.
-        let forward = input.isMoving ? 1.0 : input.forward
-
-        var dx: Double = 0
-        var dy: Double = 0
-
         // A jump pins the player in place for its first 800 ms, and is cancelled outright if
         // it would land them inside something (`main.js:340-349`).
         var emoteForcedMove = false
@@ -342,30 +351,60 @@ final class GameState {
             emoteForcedMove = EventInterpreter.nowMilliseconds() - emote.startTime < 800
         }
 
-        if forward != 0 && !emoteForcedMove {
+        // Holding a direction for two and a half seconds breaks into a run (`main.js:334`).
+        let holdingDirection = !emoteForcedMove && (input.isMoving || input.forward != 0)
+        if holdingDirection {
             if player.runDirectionStart == nil {
                 player.runDirectionStart = Date.timeIntervalSinceReferenceDate
             }
-            let heldFor = Date.timeIntervalSinceReferenceDate - (player.runDirectionStart ?? 0)
-            player.isRunning = heldFor >= 2.5
-
-            let speed = player.isRunning ? player.moveSpeed * 1.2 : player.moveSpeed
-            let scaledSpeed = speed * timeScale * forward
-            let angle = player.rotation * .pi / 180
-            dx = cos(angle) * scaledSpeed
-            dy = sin(angle) * scaledSpeed
+            player.isRunning = Date.timeIntervalSinceReferenceDate
+                - (player.runDirectionStart ?? 0) >= 2.5
         } else {
             player.runDirectionStart = nil
             player.isRunning = false
         }
 
+        // The player's own `moveSpeed` is authored in the old per-frame units — 3 units per
+        // 1/60 s — so it is scaled up to the per-second ones `Locomotion` works in.
+        var profile = player.isRunning ? LocomotionProfile.playerRunning : .player
+        profile.maxSpeed = player.moveSpeed * 60 * (player.isRunning ? 1.2 : 1)
+
+        // `getDemandedMovementVector`: a thumbstick takes the whole branch and always drives
+        // forward, so the keys only count when there is no stick input.
+        var desired = (x: 0.0, y: 0.0)
+        /// Tank controls aim the body themselves; a thumbstick lets it turn towards travel,
+        /// which is what leaves a window where the legs are side-stepping.
+        var facingIntent: Double? = input.turn != 0 ? player.rotation : nil
+
+        if !emoteForcedMove {
+            if input.isMoving {
+                let angle = input.angleDegrees * .pi / 180
+                desired = (cos(angle) * profile.maxSpeed, sin(angle) * profile.maxSpeed)
+            } else if input.forward != 0 {
+                let angle = player.rotation * .pi / 180
+                let signedSpeed = profile.maxSpeed * input.forward
+                desired = (cos(angle) * signedSpeed, sin(angle) * signedSpeed)
+                facingIntent = player.rotation
+            }
+        }
+
+        var locomotion = LocomotionState(x: player.x, y: player.y,
+                                         vx: player.velocityX, vy: player.velocityY,
+                                         facing: player.rotation,
+                                         gait: player.gait)
+        let demand = Locomotion.step(&locomotion,
+                                     desired: desired,
+                                     facingIntent: facingIntent,
+                                     profile: profile,
+                                     dt: dt)
+
         var isMoving = false
 
-        if dx != 0 || dy != 0 {
+        if demand.dx != 0 || demand.dy != 0 {
             let result = physics.processMovement(
                 entity: (x: player.x, y: player.y, id: player.id),
-                dx: dx,
-                dy: dy,
+                dx: demand.dx,
+                dy: demand.dy,
                 objects: objects,
                 mapData: mapData,
                 isEmoteForced: false,
@@ -374,8 +413,8 @@ final class GameState {
 
             let actualDx = result.newX - player.x
             let actualDy = result.newY - player.y
-            let blockedDx = dx - actualDx
-            let blockedDy = dy - actualDy
+            let blockedDx = demand.dx - actualDx
+            let blockedDy = demand.dy - actualDy
 
             // Push the camera back when walking into a wall, then let it decay.
             if abs(blockedDx) > 0.01 {
@@ -396,23 +435,30 @@ final class GameState {
             }
 
             isMoving = result.isMoving
-            player.x = result.newX
-            player.y = result.newY
+            // Feed the accepted movement back, so walking into a wall bleeds the velocity off
+            // rather than leaving it stored up to fire the player sideways on release.
+            Locomotion.commit(&locomotion, actualDx: actualDx, actualDy: actualDy, dt: dt)
 
             applyBuildingTransition(to: result.actuallyInObject)
         }
 
+        player.x = locomotion.x
+        player.y = locomotion.y
+        player.rotation = locomotion.facing
+        player.velocityX = locomotion.vx
+        player.velocityY = locomotion.vy
+        player.gait = locomotion.gait
+        // Kept in step for anything still reading the old single-number walk phase.
+        player.legAnimationTime = locomotion.gait.phase
+
         if isMoving {
-            let legRate = player.isRunning ? 0.26 : 0.2
-            player.legAnimationTime += legRate * timeScale
-            // A jump zeroes `dx`/`dy` above, so `isMoving` is already false while one is in
+            // A jump zeroes the demand above, so `isMoving` is already false while one is in
             // flight — the JS `clearWalkingAudio()` on that branch has nothing left to do.
             delegate?.gameStateSetWalkingAudio(active: true, isRunning: player.isRunning)
             cancelEmoteIfWalkingOutOfIt()
         } else {
             camera.springX *= decay
             camera.springY *= decay
-            player.legAnimationTime = 0
             delegate?.gameStateSetWalkingAudio(active: false, isRunning: false)
         }
 

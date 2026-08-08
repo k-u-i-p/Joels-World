@@ -161,7 +161,7 @@
   {
     "id": 4,
     "name": "Tennis",
-    "import": "/src/minigames/tennis.js",
+    "import": "/src/minigames/tennis3d.js",
     "default_zoom": 1
   }
 ]

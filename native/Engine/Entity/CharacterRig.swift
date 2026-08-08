@@ -100,6 +100,18 @@ struct RigPose {
     var holdingTransform = matrix_identity_float4x4
 }
 
+/// A last word on the pose, applied after the walk cycle and any emote.
+///
+/// The rig's poses all come from tables — a walk phase, an emote, an idle sway — which is fine
+/// for the overworld, where nothing needs to point a limb at a moving object. A minigame does:
+/// the tennis player's racket arm has to arrive at the ball. Rather than bolt a tennis-shaped
+/// special case into `updateCharacter3D`, a caller can hand over a closure and pose whatever it
+/// likes in the character's own local frame (+X forward, +Y left, +Z up).
+///
+/// `RigMutation` is what the emote table already mutates, so an override composes with an emote
+/// rather than fighting it.
+typealias RigOverride = (inout RigMutation) -> Void
+
 /// Poses the procedural character rig.
 ///
 /// Port of `buildSkeletonRig` / `buildSkeletonLimbs` / `updateCharacter3D` /
@@ -191,18 +203,22 @@ enum CharacterRig {
     /// finally the IK.
     ///
     /// - Parameters:
-    ///   - legAnimationTime: the walk phase; `0` means standing (`characters.js:1157`).
+    ///   - gait: how the legs are moving. `Gait.still` is standing; `Gait.walking(phase:)` is
+    ///     the forward-only walk this used to be able to express and nothing more.
     ///   - time: seconds, used for the idle breathing and sway.
     ///   - runtime: state that has to survive between frames, because three.js keeps it on the
     ///     retained `Object3D`s — see `RigRuntime`.
     ///   - cameraRight/cameraUp: world-space camera basis, so sprite props can face the viewer.
+    ///   - override: a final pass over the pose, for callers that need to aim a limb somewhere
+    ///     the tables cannot describe. See `RigOverride`.
     static func pose(character: GameCharacter,
-                     legAnimationTime: Double,
+                     gait: Gait,
                      mapCharacterScale: Double,
                      time: Double,
                      runtime: RigRuntime,
                      cameraRight: SIMD3<Float> = SIMD3(1, 0, 0),
-                     cameraUp: SIMD3<Float> = SIMD3(0, 0, 1)) -> RigPose {
+                     cameraUp: SIMD3<Float> = SIMD3(0, 0, 1),
+                     override: RigOverride? = nil) -> RigPose {
         var pose = RigPose(colors: colors(for: character))
 
         // --- Root transform (`ensureThreeSetup` + `drawCharacter:1220`) ---
@@ -248,28 +264,49 @@ enum CharacterRig {
         var leftFoot = baseLeftFoot
         var rightFoot = baseRightFoot
 
-        let isWalking = legAnimationTime > 0
+        let isWalking = gait.isMoving || gait.phase > 0
 
         if isWalking {
-            let legTimer = Float(legAnimationTime)
-            runtime.bodyPivotPosition.z = 15.5 + cos(legTimer * 2) * 0.5
-            runtime.bodyPivotPosition.x = cos(legTimer * 2) * 1.0
+            let legTimer = Float(gait.phase)
+            let effort = Float(min(1.2, max(abs(gait.forward), abs(gait.lateral))))
+            runtime.bodyPivotPosition.z = 15.5 + cos(legTimer * 2) * 0.5 * effort
+            runtime.bodyPivotPosition.x = cos(legTimer * 2) * 1.0 * effort
 
-            // applyWalkCycle (`characters.js:981-1001`)
+            // applyWalkCycle (`characters.js:981-1001`), split into a forward stride and a
+            // lateral one. Running dead ahead reproduces the original exactly — `forward` is 1
+            // and `lateral` is 0, so every added term below falls away.
             let legSwing = sin(legTimer)
             let legVelocity = cos(legTimer)
             let armSwingX: Float = 6, armLiftZ: Float = 6
             let legStrideX: Float = 14, stepLiftZ: Float = 8
+            // Feet stay inside the hips' 12-unit separation, so a side-step shuffles rather
+            // than crossing its own legs over.
+            let legStrideY: Float = 5.5
 
-            leftHand.x += -legSwing * armSwingX
-            leftHand.z += abs(legSwing) * armLiftZ
-            rightHand.x += legSwing * armSwingX
-            rightHand.z += abs(legSwing) * armLiftZ
+            let forward = Float(gait.forward)
+            let lateral = Float(gait.lateral)
 
-            leftFoot.x += legSwing * legStrideX
-            leftFoot.z += max(0, legVelocity) * stepLiftZ
-            rightFoot.x += -legSwing * legStrideX
-            rightFoot.z += max(0, -legVelocity) * stepLiftZ
+            leftHand.x += -legSwing * armSwingX * forward
+            leftHand.z += abs(legSwing) * armLiftZ * effort
+            rightHand.x += legSwing * armSwingX * forward
+            rightHand.z += abs(legSwing) * armLiftZ * effort
+
+            // Side-stepping throws the arms out for balance instead of pumping them.
+            leftHand.y -= abs(lateral) * 4
+            rightHand.y += abs(lateral) * 4
+
+            leftFoot.x += legSwing * legStrideX * forward
+            leftFoot.y += legSwing * legStrideY * lateral
+            leftFoot.z += max(0, legVelocity) * stepLiftZ * effort
+
+            rightFoot.x += -legSwing * legStrideX * forward
+            rightFoot.y += -legSwing * legStrideY * lateral
+            rightFoot.z += max(0, -legVelocity) * stepLiftZ * effort
+
+            // Both feet drift towards the direction of travel, so the whole stance leads the
+            // shuffle rather than the legs scissoring around a stationary centre.
+            leftFoot.y += lateral * 2.5
+            rightFoot.y += lateral * 2.5
         } else if emoteDefinition == nil {
             // Standing *and* not posed by an emote. When an emote is running the JS leaves the
             // body pivot wherever the emote put it, so a `wave` that started mid-stride keeps
@@ -285,6 +322,15 @@ enum CharacterRig {
             rightHand.z += armSwayZ
             rightHand.x -= armSwayX
         }
+
+        // --- Lean into the acceleration ---
+        // Nothing in the JS does this; it is what sells the inertia `Locomotion` introduced.
+        // Rotation about local Y tips "up" towards +X, so a positive angle leans forward; about
+        // local X it tips towards −Y, so the sign flips for a bank to the character's left.
+        // Capped well short of anything that would put a shoulder through the floor.
+        let maxLean: Float = 0.22
+        runtime.bodyPivotRotation.y += min(maxLean, max(-maxLean, Float(gait.leanForward) * maxLean))
+        runtime.bodyPivotRotation.x = min(maxLean, max(-maxLean, Float(-gait.leanLateral) * maxLean))
 
         // --- Emote overrides (`applyEmoteOverrides:1015-1026`) ---
         var mutation = RigMutation(bodyPivotPosition: runtime.bodyPivotPosition,
@@ -310,6 +356,9 @@ enum CharacterRig {
             mutation.leftHandTarget = SIMD3(5, -20, 35)
             mutation.rightHandTarget = SIMD3(5, 20, 35)
         }
+
+        // The caller's last word, after the tables have had theirs.
+        override?(&mutation)
 
         runtime.bodyPivotPosition = mutation.bodyPivotPosition
         runtime.bodyPivotRotation = mutation.bodyPivotRotation
@@ -388,7 +437,10 @@ enum CharacterRig {
         // --- Held model (`characters.js:1184-1206`) ---
         // `HOLDABLE_OBJECTS.tennis_racket` is offset (0,0,0), unrotated, scaled 3×.
         if pose.holding != nil {
-            pose.holdingTransform = rightHandAnchor * Float4x4.scale(SIMD3(repeating: 3))
+            let twist = mutation.holdingRotation.map {
+                Float4x4.eulerXYZ($0.x, $0.y, $0.z)
+            } ?? matrix_identity_float4x4
+            pose.holdingTransform = rightHandAnchor * twist * Float4x4.scale(SIMD3(repeating: 3))
         }
 
         // --- Emote props ---

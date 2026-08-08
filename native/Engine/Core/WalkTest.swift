@@ -43,6 +43,12 @@ final class WalkTest {
         return (x, y)
     }
 
+    /// `-tennis2d` loads the superseded 2D canvas tennis game on the tennis map instead of the
+    /// 3D rebuild. The old game is kept in the tree for comparison; this is how to reach it.
+    static var prefers2DTennis: Bool {
+        ProcessInfo.processInfo.arguments.contains("-tennis2d")
+    }
+
     /// `-npctrace` logs every roaming or patrolling NPC once a second, so the Phase 4
     /// behaviour port can be checked without watching the screen.
     static var tracesNPCs: Bool {
