@@ -1,7 +1,8 @@
 import AppKit
 
 protocol AdminEditorViewDelegate: AnyObject {
-    func editorMouseDown(at point: CGPoint, shiftHeld: Bool)
+    /// `controlHeld` turns the drag into a camera orbit instead of a selection or a pan.
+    func editorMouseDown(at point: CGPoint, shiftHeld: Bool, controlHeld: Bool)
     func editorMouseDragged(to point: CGPoint)
     func editorMouseUp(at point: CGPoint)
     func editorMouseMoved(to point: CGPoint)
@@ -90,7 +91,8 @@ final class AdminEditorView: NSView {
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         delegate?.editorMouseDown(at: point(for: event),
-                                  shiftHeld: event.modifierFlags.contains(.shift))
+                                  shiftHeld: event.modifierFlags.contains(.shift),
+                                  controlHeld: event.modifierFlags.contains(.control))
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -103,6 +105,22 @@ final class AdminEditorView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         delegate?.editorMouseMoved(to: point(for: event))
+    }
+
+    /// A ⌃-click reaches `mouseDown` with the modifier set as long as the view has no context
+    /// menu, which this one does not. The right button is the same gesture for anyone on a
+    /// two-button mouse, so it is taken as an orbit too rather than falling through to AppKit.
+    override func rightMouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+        delegate?.editorMouseDown(at: point(for: event), shiftHeld: false, controlHeld: true)
+    }
+
+    override func rightMouseDragged(with event: NSEvent) {
+        delegate?.editorMouseDragged(to: point(for: event))
+    }
+
+    override func rightMouseUp(with event: NSEvent) {
+        delegate?.editorMouseUp(at: point(for: event))
     }
 
     override func scrollWheel(with event: NSEvent) {

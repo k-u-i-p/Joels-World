@@ -33,6 +33,8 @@ final class AdminMapViewController: NSViewController {
         case none
         /// Panning the map by moving the camera focus.
         case panning(lastPoint: CGPoint)
+        /// ⌃-dragging: swinging the camera round the focus point instead of moving it.
+        case orbiting(lastPoint: CGPoint)
         /// Moving every selected object, each from where it was when the drag began.
         case objects(startWorldX: Double, startWorldY: Double, origins: [Int: (x: Double, y: Double)])
         case npc(offsetX: Double, offsetY: Double)
@@ -113,7 +115,8 @@ final class AdminMapViewController: NSViewController {
         }
     }
 
-    /// **R and F tip the camera over; Q and E swing it round; 0 puts it back.**
+    /// **R and F tip the camera over; Q and E swing it round; 0 puts it back.** ⌃-drag (or a
+    /// right-drag) does both at once with the mouse — see `editorMouseDragged`.
     ///
     /// Applied per frame off the held-key set rather than on the keystroke, the same way the
     /// movement keys are, so holding one turns smoothly instead of stuttering on key repeat.
@@ -444,7 +447,18 @@ extension AdminMapViewController: AdminEditorViewDelegate {
     /// The order matters and is preserved: the resize handle wins over everything, then NPCs
     /// beat objects, and a second click on something already selected starts a drag rather
     /// than re-selecting it.
-    func editorMouseDown(at point: CGPoint, shiftHeld: Bool) {
+    ///
+    /// ⌃ is the editor's own addition, ahead of all of that: the browser build had no way to
+    /// look at the world from anywhere but overhead.
+    func editorMouseDown(at point: CGPoint, shiftHeld: Bool, controlHeld: Bool = false) {
+        // Before anything else, including the unproject below: once the camera is tipped near
+        // the horizon the cursor can be pointing at sky, `worldPoint` returns nil, and an orbit
+        // tested any later would be the one gesture that could not undo itself.
+        if controlHeld {
+            dragMode = .orbiting(lastPoint: point)
+            return
+        }
+
         guard let world = worldPoint(at: point) else { return }
         onCursorMoved?(world.x, world.y)
 
@@ -514,6 +528,17 @@ extension AdminMapViewController: AdminEditorViewDelegate {
             session.state.setCameraFocus(x: session.state.player.x + (lastPoint.x - point.x) / zoom,
                                          y: session.state.player.y + (lastPoint.y - point.y) / zoom)
             dragMode = .panning(lastPoint: point)
+
+        case .orbiting(let lastPoint):
+            // The mouse version of R/F/Q/E (`applyCameraKeys`), at a radian per 100 points:
+            // 160 points of drag takes the camera from overhead all the way to the horizon,
+            // and the width of the window is a turn and a half of yaw.
+            let sensitivity = 0.01
+            session.state.camera.yaw += Double(point.x - lastPoint.x) * sensitivity
+            // The view is Y-down, so dragging *down* pushes the camera towards the horizon and
+            // dragging up brings it back overhead. `setPitch` holds the 0…90° clamp.
+            session.state.camera.setPitch(delta: Double(point.y - lastPoint.y) * sensitivity)
+            dragMode = .orbiting(lastPoint: point)
 
         case .resizing(let anchorX, let anchorY):
             guard let world = worldPoint(at: point),
@@ -592,7 +617,7 @@ extension AdminMapViewController: AdminEditorViewDelegate {
                 session.send(.moveNPC(id: npc.id, x: npc.x, y: npc.y))
             }
 
-        case .none, .panning, .tracingImage:
+        case .none, .panning, .orbiting, .tracingImage:
             break
         }
 

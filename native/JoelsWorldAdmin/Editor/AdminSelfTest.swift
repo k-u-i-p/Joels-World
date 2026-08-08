@@ -39,6 +39,7 @@ final class AdminSelfTest {
         schedule(6.5) { self.testCreateEditDelete() }
         schedule(9.0) { self.testKeyboardTurn() }
         schedule(10.5) { self.testKeyboardWalk() }
+        schedule(11.7) { self.testCameraOrbitDrag() }
         schedule(12.0) { self.testWaypointRoute() }
         schedule(12.5) { self.testRotationField() }
         schedule(13.5) { self.testEventResaveIsClean() }
@@ -535,6 +536,38 @@ final class AdminSelfTest {
             self.log("held ← 1.0s: rotation \(Int(before.rounded()))° → \(Int(after.rounded()))° " +
                      "(Δ\(Int(delta.rounded()))°, expected negative)\(Self.focusNote(stillHeld))")
         }
+    }
+
+    /// ⌃-drag orbits the camera instead of selecting or panning: right swings the yaw round,
+    /// down tips the pitch towards the horizon, and neither the selection nor the focus point
+    /// may move while it happens.
+    private func testCameraOrbitDrag() {
+        let startPitch = session.state.camera.pitch
+        let startYaw = session.state.camera.yaw
+        let startSelection = map.selection.objectIds
+        let focusX = session.state.player.x
+
+        // Deliberately started on an object: ⌃ has to win over the hit test.
+        let origin = map.selectedObject
+            .flatMap { screenPoint(worldX: $0.x, worldY: $0.y, z: $0.z ?? 0) }
+            ?? CGPoint(x: map.view.bounds.midX, y: map.view.bounds.midY)
+        let dragged = CGPoint(x: origin.x + 120, y: origin.y + 60)
+
+        map.editorMouseDown(at: origin, shiftHeld: false, controlHeld: true)
+        map.editorMouseDragged(to: dragged)
+        map.editorMouseUp(at: dragged)
+
+        let pitch = session.state.camera.pitch
+        let yaw = session.state.camera.yaw
+        log("⌃-dragged (+120, +60): pitch \(Int((startPitch * 180 / .pi).rounded()))° → " +
+            "\(Int((pitch * 180 / .pi).rounded()))°, yaw \(Int((startYaw * 180 / .pi).rounded()))° → " +
+            "\(Int((yaw * 180 / .pi).rounded()))°" +
+            (pitch > startPitch && yaw > startYaw ? "" : "  FAIL: the camera did not orbit") +
+            (map.selection.objectIds == startSelection ? "" : "  FAIL: the orbit changed the selection") +
+            (abs(session.state.player.x - focusX) < 0.5 ? "" : "  FAIL: the orbit panned the camera"))
+
+        session.state.camera.pitch = startPitch
+        session.state.camera.yaw = startYaw
     }
 
     /// A background window drops its keys on purpose (`resignFirstResponder` /
