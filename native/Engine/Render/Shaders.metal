@@ -322,6 +322,14 @@ struct CharacterInOut {
     /// interpolant only because the palette is a vertex-stage buffer and this is needed after a
     /// texture fetch.
     float3 trim;
+    /// Roughness and metalness for the two materials the *texture* can introduce: `xy` for skin,
+    /// `zw` for trim. Constant across the mesh, and here for the same reason `trim` is.
+    ///
+    /// Without these, a bare arm below a short sleeve is lit as cotton, because `surfaceParams`
+    /// comes from the vertex's colour slot and the bare mix happens two stages later in the
+    /// fragment. Skin is rougher-but-metallic (0.6 / 0.1) and cotton is matte (0.8 / 0.0), so the
+    /// difference is a soft sheen along a forearm and a calf that cloth has no business having.
+    float4 detailSurface;
 };
 
 vertex CharacterInOut characterVertex(uint vertexID [[vertex_id]],
@@ -340,6 +348,7 @@ vertex CharacterInOut characterVertex(uint vertexID [[vertex_id]],
     // No clothing atlas on a rigid draw: a head, a shoe or a prop keeps its own texture at 0.
     out.bare = float4(0.0);
     out.trim = float3(0.0);
+    out.detailSurface = float4(0.0);
     return out;
 }
 
@@ -383,6 +392,8 @@ vertex CharacterInOut characterSkinnedVertex(uint vertexID [[vertex_id]],
     // `surface.y` is the renderer saying it managed to build the clothing atlas and bind it.
     out.bare = float4(palette[SKIN_SLOT_SKIN].rgb, uniforms.surface.y);
     out.trim = palette[SKIN_SLOT_TRIM].rgb;
+    out.detailSurface = float4(palette[SKIN_SLOT_SKIN + SKIN_PALETTE_COUNT].xy,
+                               palette[SKIN_SLOT_TRIM + SKIN_PALETTE_COUNT].xy);
     return out;
 }
 
@@ -398,6 +409,9 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
                                     sampler shadowSampler [[sampler(2)]])
 {
     float4 color = in.tint;
+    /// x = roughness, y = metalness. The vertex's own to begin with; the clothing branch below
+    /// moves it wherever the texture moves the colour.
+    float2 surfaceParams = in.surfaceParams;
     if (in.bare.a > 0.5) {
         // **The clothes.** Texture 0 is `ClothingAtlas` — not an albedo but three instructions
         // about the colour the palette already gave this vertex, so one texture dresses every
@@ -412,6 +426,12 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
         float3 cloth = mix(color.rgb, in.bare.rgb, detail.b);
         cloth = mix(cloth, in.trim, detail.g);
         color.rgb = cloth * (detail.r * 2.0);
+
+        // The material follows the colour. A texel that is skin is *lit* as skin — the mix runs
+        // in the same order as the colour's, so a collar over a bare arm would come out as
+        // cotton, which is what a collar over a bare arm is.
+        surfaceParams = mix(surfaceParams, in.detailSurface.xy, detail.b);
+        surfaceParams = mix(surfaceParams, in.detailSurface.zw, detail.g);
     } else if (uniforms.flags.x > 0.5) {
         color *= baseColor.sample(baseSampler, in.uv);
     }
@@ -471,7 +491,7 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
         // the see-through itself.
         float transmission = uniforms.surface.x;
 
-        float3 shaded = shadeStandard(color.rgb, in.surfaceParams.x, in.surfaceParams.y,
+        float3 shaded = shadeStandard(color.rgb, surfaceParams.x, surfaceParams.y,
                                       uniforms.specular.xyz, uniforms.specular.w,
                                       1.0 - transmission,
                                       normal, viewDir, light);

@@ -296,16 +296,30 @@ extension Tennis3DGame {
             verticalSpeed *= scale
         }
 
-        // The mishit. Pace decides whether it lands short or long; loft decides whether it clips
-        // the cord or floats past the baseline. Both are signed and deterministic, so a given
-        // point still plays out the same way every time it is replayed.
+        // The mishit, in all three of the ways a shot can go wrong. Pace decides whether it lands
+        // short or long, loft whether it clips the cord or floats past the baseline, and the
+        // sideways swing of the racket face whether it goes wide.
+        //
+        // The third one is easy to leave out and the game is poorer without it: with only pace
+        // and loft, `aimX` is honoured exactly on every ball ever struck, so aiming down the line
+        // is free and no shot is ever wide. Every mistake looked like the same mistake.
+        //
+        // Signed and deterministic, like everything else here, so a given point still plays out
+        // the same way every time it is replayed.
+        var aimedX = directionX
+        var aimedY = directionY
         if mishit > 0 {
             horizontalSpeed *= 1 + random.spread(Tuning.mishitPace * mishit)
             verticalSpeed *= 1 + random.spread(Tuning.mishitLoft * mishit)
+
+            let swing = random.spread(Tuning.mishitFace * mishit)
+            let cosine = cos(swing), sine = sin(swing)
+            (aimedX, aimedY) = (directionX * cosine - directionY * sine,
+                                directionX * sine + directionY * cosine)
         }
 
-        ball.vx = directionX * horizontalSpeed
-        ball.vy = directionY * horizontalSpeed
+        ball.vx = aimedX * horizontalSpeed
+        ball.vy = aimedY * horizontalSpeed
         ball.vz = verticalSpeed
         ball.topspin = topspin
         ball.inFlight = true

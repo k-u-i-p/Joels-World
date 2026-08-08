@@ -31,11 +31,25 @@ enum ClothingRegion: Int, CaseIterable {
 ///
 /// | channel | what it says |
 /// |---|---|
-/// | red   | **shade** — multiply by `2 × r`, so 0.5 is "leave it alone". Seams, folds, the shadow a sleeve casts. |
+/// | red   | **shade** — multiply by `2 × r`, so 0.5 is "leave it alone". Seams, folds, and the shadow one part of the body throws on another. |
 /// | green | **trim** — mix towards `trimColor`. Collars and socks. |
 /// | blue  | **bare** — mix towards the character's own skin colour. Below a short sleeve, between the shorts and the sock. |
 ///
 /// One texture serves every character in the game, in the one draw call the body already costs.
+///
+/// **Half of what the red channel does is stand in for light that is not there.** The scene has
+/// one spotlight and a flat ambient term, and without an environment map `shadeStandard`
+/// contributes no indirect light at all — so a surface facing away from the spotlight is lit
+/// exactly as brightly whether it is out in the open or wedged under an arm. Nothing in the
+/// renderer knows that the deltoid is buried in the chest or that the shirt hangs over the
+/// shorts, and a body with no shadow anywhere it folds reads as a painted cylinder however good
+/// the silhouette underneath is. The armpit wedge in `shirt`, the hem shadow in `shorts` and the
+/// contact shadows under the sleeve and the shorts hem are all that occlusion, painted by hand
+/// because there is nowhere else for it to come from.
+///
+/// The price is that it is *baked*: the shadow under an arm is there when the arm is raised. Each
+/// of those marks is kept shallow enough to read as a crease in cloth when it is wrong, which is
+/// the whole reason none of them is as dark as the real occlusion would be.
 ///
 /// **The blue channel is the one that changes how everyone looks.** Before it, an arm was shirt
 /// colour from the shoulder to the wrist and a leg was shorts colour from the hip to the shoe,
@@ -79,6 +93,19 @@ enum ClothingAtlas {
     static let shortsEnd: Float = 0.30
     /// Where the sock starts, a little below the knee (which is at about 0.57).
     static let sockTop: Float = 0.70
+
+    /// Where the hem of the shirt crosses the shorts, in the *shorts'* `v`.
+    ///
+    /// Nothing in the geometry says this — the shirt and the shorts are two separate lathes and
+    /// neither knows about the other — so it is worked out from where they sit. Both stand on the
+    /// body pivot, the shirt's at `torsoCentreZ` 20 and the shorts' at `pelvisCentreZ` 11, and the
+    /// shirt closes at its own y −6.4, which is rig z 13.6, with its last full ring at 14.0. Rig z
+    /// 14.0 is the shorts' y 3.0, and their profile runs −6.2…5.0, so: (3.0 + 6.2) / 11.2 = 0.82.
+    ///
+    /// **Move this if either lathe moves.** Above it the shorts are inside the shirt and painted
+    /// nearly black; below it they come out of a cast shadow. Both are wrong by the same amount if
+    /// this is wrong, which at least makes the error easy to see.
+    static let shirtHem: Float = 0.82
 
     /// Turns a region-local `(u, v)` into a texture coordinate.
     ///
@@ -184,14 +211,21 @@ enum ClothingAtlas {
         // The collar, with a V at the front. `dip` is 1 on the centre line and 0 by a fifth of
         // the way round, and squaring it makes the V pointed rather than round-bottomed.
         //
-        // 0.795 rather than the neck root at 0.98, and the V down to 0.66, because of what the
+        // 0.775 rather than the neck root at 0.98, and the V down to 0.63, because of what the
         // *silhouette* does up there: from 0.83 upwards the profile is the trapezius sloping in
         // to the neck, which faces almost straight up and is hidden by the head from every camera
         // this game has. A collar painted where a collar sits is a collar nobody sees. This one
         // sits on the shoulders and opens onto the chest, which is where it reads.
         let dip = max(0, 1 - u / 0.21)
-        let collarBottom = 0.795 - 0.135 * dip * dip
+        let collarBottom = 0.775 - 0.145 * dip * dip
         detail.trim = rise(v, at: collarBottom, over: 0.018)
+
+        // **The shadow under the collar**, which is what makes it a collar rather than a white
+        // area. Almost all of the trim above faces up and away, so from a camera looking down at
+        // a character it is edge-on and only a few pixels of it survive; the eye finds a garment
+        // edge far more reliably by the dark line beneath it than by the light band itself. This
+        // is that line, and it is drawn on shirt-coloured cloth where it stays visible.
+        detail.shade -= 0.15 * between(v, collarBottom - 0.095, collarBottom - 0.004, soft: 0.030)
 
         // The button placket: a strip of doubled cloth down the centre, a seam either side of it
         // and four buttons on it. It stops where the collar starts.
@@ -210,10 +244,38 @@ enum ClothingAtlas {
 
         // The shirt is loose over the shorts, so the crease at the hem is in its own shadow.
         // Gently — at this size a strong band across the waist stops reading as a shadow and
-        // starts reading as a belt.
-        detail.shade -= 0.07 * (1 - rise(v, at: 0.075, over: 0.07))
+        // starts reading as a belt. It is the top half of the pair the shorts finish: this is
+        // the underside of the hem going dark, `shorts` is the shadow it throws.
+        detail.shade -= 0.12 * (1 - rise(v, at: 0.085, over: 0.080))
         // The yoke seam across the shoulders.
         detail.shade -= 0.055 * line(v, at: 0.815, halfWidth: 0.006)
+
+        // **Under the arm.** `limbRings` domes the top of an arm back *past* the shoulder joint
+        // on purpose, so the deltoid is buried in this surface and the ribs beside it are in a
+        // pocket the spotlight never reaches. There is no indirect light in this scene — three.js
+        // contributes none without an environment map and neither does `shadeStandard` — so that
+        // pocket was coming out exactly as bright as the middle of the chest, and a body with no
+        // shadow where its arm meets it reads as a painted cylinder however good the silhouette
+        // underneath is. This is the single darkest mark in the atlas for that reason.
+        //
+        // The shoulder joint sits at rig z 26, which is v 0.62, and the deltoid is 3.75 across;
+        // the wedge is centred just below it. `u` 0.5 is the side seam, and the fold means the
+        // one mark is drawn under both arms.
+        let flank = line(u, at: 0.5, halfWidth: 0.34)
+        detail.shade -= 0.22 * flank * between(v, 0.38, 0.70, soft: 0.14)
+        // Fainter, further down: where a hanging arm lies against the ribs. It is wrong the
+        // moment the arm lifts, which is what a baked shadow costs — kept shallow for that
+        // reason, and at this depth a raised arm reads as the shirt creasing rather than as a
+        // shadow with nothing casting it.
+        detail.shade -= 0.08 * flank * between(v, 0.06, 0.42, soft: 0.16)
+
+        // Drape. A school shirt on a ten-year-old is not shrink-wrapped to him — it hangs off the
+        // chest and gathers into soft vertical creases on the way to the hem. Two of them, wide
+        // and shallow: `u` is folded, so each is drawn on both sides of the body, which is what a
+        // garment hanging off two shoulders does anyway.
+        let hangs = between(v, 0.04, 0.60, soft: 0.22)
+        detail.shade -= 0.045 * line(u, at: 0.33, halfWidth: 0.11) * hangs
+        detail.shade -= 0.035 * line(u, at: 0.68, halfWidth: 0.10) * hangs
         return detail
     }
 
@@ -222,6 +284,22 @@ enum ClothingAtlas {
     /// rest is inside the shirt.
     private static func shorts(u: Float, v: Float) -> Detail {
         var detail = Detail()
+
+        // **The shirt's shadow, and the reason the shorts read as shorts.**
+        //
+        // Shirt and shorts are two per-character colours in `npc.json` and a great many
+        // characters have them near enough the same — the Admin's are both the same teal — so
+        // from the side there was one unbroken field of colour from the collar to the knee and
+        // nothing anywhere saying which part of it was a garment. Colour cannot fix that, because
+        // the colours are Joel's to choose. Light can: a shirt hanging over a pair of shorts
+        // throws a shadow on them, and a shadow is the same shadow whatever colour it falls on.
+        //
+        // Two marks. The cast shadow, deepest where the hem crosses and easing out over about
+        // three units of shorts below it; then everything above the hem, which is *inside* the
+        // shirt and should be nearly black.
+        detail.shade -= 0.30 * rise(v, at: shirtHem - 0.17, over: 0.30)
+        detail.shade -= 0.13 * rise(v, at: shirtHem - 0.01, over: 0.05)
+
         // The turn-up at the bottom of the leg, and the stitch line holding it.
         detail.shade -= 0.11 * between(v, 0.03, 0.13, soft: 0.015)
         detail.shade -= 0.10 * line(v, at: 0.15, halfWidth: 0.008)
@@ -230,6 +308,8 @@ enum ClothingAtlas {
         detail.shade -= 0.11 * line(u, at: 0.5, halfWidth: 0.014)
         // The fly, front centre and only as far up as the shirt.
         detail.shade -= 0.09 * line(u, at: 0, halfWidth: 0.045) * between(v, 0.05, 0.44, soft: 0.05)
+        // The same drape the shirt has, on the part of the shorts that hangs free of the hip.
+        detail.shade -= 0.045 * line(u, at: 0.27, halfWidth: 0.10) * between(v, 0.02, 0.38, soft: 0.14)
         return detail
     }
 
@@ -242,9 +322,23 @@ enum ClothingAtlas {
         // The turn-up hem, just above the edge.
         detail.shade -= 0.16 * between(v, sleeveEnd - 0.060, sleeveEnd - 0.004, soft: 0.008)
         // The shadow the sleeve drops on the arm below it, fading out over an inch of skin.
-        detail.shade -= 0.15 * detail.bare * (1 - rise(v, at: sleeveEnd, over: 0.075))
+        detail.shade -= 0.17 * detail.bare * (1 - rise(v, at: sleeveEnd, over: 0.090))
         // Where the sleeve is set into the yoke.
         detail.shade -= 0.06 * line(v, at: 0.115, halfWidth: 0.010)
+
+        // The elbow, at three fifths along. Nothing here can tell the inside of an arm from the
+        // outside — `u` on a limb is the ring index, and the ring frame is parallel-transported
+        // rather than anatomical (`SkinnedBody.appendTube`) — so this is a ring right round,
+        // which is a crease all the way round rather than a fold on the inside. Kept faint
+        // enough to be that: it reads as the arm narrowing at the joint, which it does.
+        detail.shade -= 0.045 * line(v, at: 0.60, halfWidth: 0.055)
+
+        // The wrist. The hand is a separate mesh butted onto the end of this tube and deliberately
+        // not blended across the join (see `SkinnedBody.appendBody` — a blend there screws the
+        // wrist shut), so the seam is a hard edge between two flat fields of the same colour. A
+        // little shade in the last of the arm turns it into a wrist rather than into the joint of
+        // a doll.
+        detail.shade -= 0.12 * rise(v, at: 0.90, over: 0.10)
         return detail
     }
 
@@ -254,12 +348,18 @@ enum ClothingAtlas {
         var detail = Detail()
         detail.bare = rise(v, at: shortsEnd, over: 0.018)
         detail.trim = rise(v, at: sockTop, over: 0.015)
-        // The hem of the shorts, and its shadow on the thigh.
+        // The hem of the shorts, and its shadow on the thigh. The shadow runs further down the
+        // leg than the sleeve's does on the arm, because the shorts hang further off what is
+        // under them than a sleeve does — a bare thigh straight out of a bright hem is the tell
+        // that the two are painted on one surface rather than one hanging over the other.
         detail.shade -= 0.11 * between(v, shortsEnd - 0.06, shortsEnd - 0.005, soft: 0.010)
-        detail.shade -= 0.13 * detail.bare * (1 - rise(v, at: shortsEnd, over: 0.06))
+        detail.shade -= 0.20 * detail.bare * (1 - rise(v, at: shortsEnd, over: 0.14))
         // The roll at the top of the sock — the fold, then the ribbing under it.
         detail.shade -= 0.09 * line(v, at: sockTop + 0.030, halfWidth: 0.016)
         detail.shade -= 0.05 * between(v, sockTop + 0.05, sockTop + 0.12, soft: 0.02)
+        // The ankle, which the shoe swallows. Free where it does; where a stride pulls a gap open
+        // between the two it is a shadow inside a shoe rather than a bright white stub.
+        detail.shade -= 0.12 * rise(v, at: 0.94, over: 0.06)
         return detail
     }
 

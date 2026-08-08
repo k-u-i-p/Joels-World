@@ -36,6 +36,9 @@ struct SurfaceMaterial {
     static let pants = SurfaceMaterial(roughness: 0.9, metalness: 0.0)
     static let shoe = SurfaceMaterial(roughness: 0.7, metalness: 0.2)
     static let hair = SurfaceMaterial(roughness: 0.5, metalness: 0.1)
+    /// Collars, cuffs and socks. No vertex carries this one — the clothing atlas picks it per
+    /// texel and the fragment shader mixes towards it, colour and material together.
+    static let trim = SurfaceMaterial(roughness: 0.85, metalness: 0.0)
 
     /// The material of an imported model's draw group, extensions included.
     init(group: ModelGroup) {
@@ -483,7 +486,10 @@ final class CharacterRenderer {
         palette[3] = SIMD4(pose.colors.pants, 1)
         // No vertex carries the trim slot; the clothing atlas picks it per texel.
         palette[4] = SIMD4(ClothingAtlas.trimColor, 1)
-        for (offset, material) in [SurfaceMaterial.skin, .shirt, .arm, .pants, .shirt].enumerated() {
+        // Skin's and trim's entries are read by the *texture*, not by a vertex: `characterFragment`
+        // mixes towards them wherever it mixes the colour, so a bare forearm below a short sleeve
+        // is lit as skin rather than as the cotton the vertex it belongs to is made of.
+        for (offset, material) in [SurfaceMaterial.skin, .shirt, .arm, .pants, .trim].enumerated() {
             palette[SkinnedBody.paletteCount + offset] = SIMD4(material.roughness, material.metalness, 0, 0)
         }
 

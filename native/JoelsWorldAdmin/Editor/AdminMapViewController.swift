@@ -123,6 +123,23 @@ final class AdminMapViewController: NSViewController {
     /// This is the editor's own control and nothing the game ships — it exists so a character
     /// can be looked at from the side, which is the only angle a rig can be judged from.
     private func applyCameraKeys() {
+        // A headless shot has to hold its camera against the world. Loading a map applies that
+        // map's own zoom, and a reconnect — which happens on its own if a second editor is open,
+        // "Session already active in another window" — loads it again, so a camera set once at
+        // launch is quietly put back overhead somewhere in the delay before the grab. Reasserting
+        // it each frame is the difference between a scripted side-on shot and a top-down one that
+        // looks like the flags were ignored. Only in `-shot` mode: interactively, R/F/Q/E and the
+        // scroll wheel must still win.
+        if AdminScreenshot.quitsAfterShot {
+            if let pitch = AdminScreenshot.cameraPitch, session.state.camera.pitch != pitch {
+                session.state.camera.setPitch(delta: pitch - session.state.camera.pitch)
+            }
+            if let yaw = AdminScreenshot.cameraYaw { session.state.camera.yaw = yaw }
+            if let zoom = AdminScreenshot.cameraZoom {
+                session.state.camera.zoom = min(max(0.1, zoom), 5)
+            }
+        }
+
         let nudge = editorView.keyboard.cameraNudge()
         if nudge.reset {
             session.state.camera.pitch = 0

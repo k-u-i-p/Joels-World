@@ -199,12 +199,18 @@ final class Tennis3DGame: WorldRenderedMinigame {
         /// useful width is about a third of the number given to it. These are the full width, and
         /// a first pass at 0.10/0.13 produced a measured error rate of exactly zero — a 1% pace
         /// error cannot miss a target with two metres of margin behind it.
-        static let mishitPace = 0.58
-        static let mishitLoft = 0.70
+        static let mishitPace = 0.76
+        static let mishitLoft = 0.92
+
+        /// How far the racket face swings off line on the worst shot, in **radians**. A ball
+        /// travels about eighteen metres, so 0.09 full width — a third of that in practice — is
+        /// roughly half a metre of sideways error, against an `aimX` clamped half a metre inside
+        /// the singles line. Enough to go wide when you were already going for the line.
+        static let mishitFace = 0.14
 
         /// How badly a ball has to be struck before it starts to go astray at all. Below this,
         /// contact is exact — see the note in `strike`.
-        static let mishitThreshold = 0.25
+        static let mishitThreshold = 0.20
 
         /// A clean shot is never a mishit, so this scales with how badly it was struck — and with
         /// difficulty, on both sides of the net. Easy forgives the player and punishes Alex.

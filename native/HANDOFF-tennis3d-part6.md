@@ -81,6 +81,23 @@ point ends — a real gesture rather than a stream of separate grabs.
 
 It plays. `DRAG grabbed, offset (0.00, -0.00)m`, then strikes with no misses.
 
+### What is and is not now proven about the controls
+
+Worth being exact, because "nobody has played it with a thumb" has been carried forward four
+times and should not be carried forward a fifth without saying what it still means.
+
+| | |
+|---|---|
+| A touch on the court reaches `Tennis3DView` | **Proven**, all four probes, live hierarchy |
+| Screen point → ray cast → racket offset → court | **Proven**, `-tennis3dtaps` |
+| The aiming tap on Alex's half | **Proven**, `-tennis3daim` |
+| The drag's grab test, held offset and `.began`/`.changed` | **Proven**, `-tennis3ddrag` |
+| UIKit delivering a `UITouch` to the recogniser | **Not proven.** Apple's code, and the hit-test probe shows the view it would be delivered to |
+
+The remaining gap is small and it is not where a bug is likely to be. It is also, for now,
+untestable on this machine: `simctl` cannot inject a touch, `idb` and `cliclick` are not
+installed, and the panel's injection reports success while doing nothing.
+
 ---
 
 ## The ball does not carry too far, and never did
@@ -174,18 +191,49 @@ oddly" and none of them is.
   and the run is not worth waiting for. Measure one difficulty at a time.
 - A rally now runs 7–15 shots at Normal against the drag bot, so a point takes the best part of a
   minute and twenty-four points is twenty minutes of wall clock. Budget for it.
-- **`--console-pty` ties the app's life to the shell that launched it.** Every measured run died
-  part-way through — mid-rally, no crash report, the log just stopping with the PID line — because
-  the launching shell was reaped and took the app with it. Launch it detached:
+- **`--console-pty` is why measurement has been miserable for six sessions. Stop using it.**
+  Every measured run this session died part-way through — mid-rally, no crash report, the log
+  simply stopping. Sometimes the pipe took the app with it. Worse, sometimes it did not: the app
+  played happily on while the log stopped growing, so a run that looks finished after two points
+  has really played twenty and thrown eighteen away. Every balance number in parts 2 to 6 was
+  measured through that pipe, which is worth bearing in mind before trusting any of them.
 
-  ```bash
-  nohup xcrun simctl launch --console-pty <udid> com.allr.joelsworld \
-      -autojoin Joel -map 4 -tennis3dtrace -tennis3ddrag > run.log 2>&1 & disown
-  ```
+**So `-tennis3dtrace` now writes to a file inside the app's container as well**
+(`Tennis3DTraceFile`), which survives both the pipe and the shell. Launch **without**
+`--console-pty` — that detaches properly and the app runs for as long as you like — and read the
+file whenever you want, during or after:
 
-**Sanity-check every run before you wait on it.** Two `wc -l` thirty seconds apart, and expect
-about 93. A run at 10 lines a minute is a run you will draw conclusions from twelve times too
-slowly, and it looks exactly like a run that is working.
+```bash
+xcrun simctl launch <udid> com.allr.joelsworld -autojoin Joel -map 4 -tennis3dtrace -tennis3ddrag
+DIR=$(xcrun simctl get_app_container <udid> com.allr.joelsworld data)
+cp "$DIR/Documents/tennis3d-trace.log" run.log
+```
+
+`scratchpad/pull.sh` is that last pair of lines. The file is truncated once per launch, so it is
+one run per file with no bleed from the last match.
+
+### And the simulator throttles to a twelfth of real time with nothing watching it
+
+The last and worst of them. **`Simulator.app` is not present in this Xcode install** — only
+`SimulatorTrampoline` — so there is no window, no display client, and the app is throttled down
+to about fifteen trace lines a minute instead of the ~93 per thirty seconds it manages at full
+speed. A four-minute match takes fifty minutes and looks, from the log, exactly like a match that
+is playing normally but slowly.
+
+`xcrun simctl io <udid> screenshot` forces a frame, so a screenshot once a second keeps it at
+roughly 70% of real time:
+
+```bash
+for i in $(seq 1 900); do
+  xcrun simctl io <udid> screenshot /tmp/keepalive.png >/dev/null 2>&1; sleep 1
+done &
+```
+
+**Sanity-check every run before you wait on it.** Two line counts thirty seconds apart, and expect
+about 60–93. A run at 10 lines a minute is a run you will draw conclusions from twelve times too
+slowly, and it looks exactly like a run that is working. Several of the intermediate numbers in
+this session's tuning table came from runs that were quietly starved this way, which is why they
+have small sample sizes next to them.
 
 ## ⏳ Still to do this session
 
