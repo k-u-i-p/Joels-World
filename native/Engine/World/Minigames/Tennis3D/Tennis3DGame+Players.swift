@@ -25,8 +25,10 @@ extension Tennis3DGame {
     /// Turns a point in a character's own frame into world space.
     ///
     /// Local axes are the rig's: **+X forward, +Y the character's left, +Z up**, with the origin
-    /// at the feet. The rig's body pivot sits 15.5 units up, and that offset is folded in here
-    /// so callers can write shoulder and hand positions straight out of `CharacterRig`.
+    /// at the feet. The rig's body pivot sits `CharacterRig.bodyPivotHeight` up, and that offset
+    /// is folded in here so callers can write shoulder and hand positions straight out of
+    /// `CharacterRig`. **Do not write that height out as a number anywhere** — see `headHeight`,
+    /// which did, and cost this game a session's worth of near misses for it.
     func worldPoint(local: SIMD3<Double>, of side: Side) -> SIMD3<Double> {
         side.motor.localToWorld(local)
     }
@@ -136,13 +138,24 @@ extension Tennis3DGame {
     }
 
     /// How high off the court the strings pass on a groundstroke played at `lift`. `worldPoint`
-    /// lifts a local point by the rig's 15.5-unit body pivot, so this is that same sum.
+    /// lifts a local point by the rig's body pivot, so this is that same sum.
     ///
     /// The intercept used to accept any ball between knee and shoulder and pick purely on how
     /// far the player had to run, which meant it happily chose one a third of a metre above
     /// where the racket was ever going to be. Every return was then a near miss of exactly that
     /// size, over and over, which is what a systematic error looks like in a log.
-    func headHeight(lift: Double) -> Double { contactHeadLocal(lift: lift).z + 15.5 }
+    ///
+    /// **And it happened again**, in the session that lengthened the rig's legs. This sum was
+    /// written as a literal `15.5` while `worldPoint` went through `CharacterMotor`, which reads
+    /// `CharacterRig.bodyPivotHeight`. The moment that stopped being 15.5 the two disagreed by
+    /// 3.4 units — 0.13 m — and the log filled with misses whose strings finished between 0.46
+    /// and 0.60 m from a ball, against a 0.45 m sweet spot: near misses of exactly one systematic
+    /// size, on low balls, which is the same fingerprint as last time. Reading the constant is
+    /// the fix, and it is the fourth handoff in a row to be written about two pieces of code
+    /// disagreeing about where the strings are.
+    func headHeight(lift: Double) -> Double {
+        contactHeadLocal(lift: lift).z + Double(CharacterRig.bodyPivotHeight)
+    }
 
     /// Where the strings pass on the plain waist-high stroke. The height everything falls back
     /// to when there is no particular ball to play.

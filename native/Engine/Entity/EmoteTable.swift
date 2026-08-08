@@ -19,6 +19,15 @@ import simd
 /// This is the twenty poses and nothing else. The types they are written in terms of, and the
 /// lookup and chat-line code written in terms of them, are in `Emotes.swift`.
 extension Emotes {
+
+    /// **A foot standing on the ground**, in the rig's local frame.
+    ///
+    /// Every pose in this table used to write a literal `-13` for this, which was the neutral
+    /// foot height of a rig with a 12-unit thigh. The legs are longer now and that number moved;
+    /// twelve copies of it would not have, and the symptom would have been a character standing
+    /// an inch above the floor in nine different emotes. Derived, so it cannot go stale again.
+    static let groundedFoot = CharacterRig.neutralLeftFoot.z
+
     // Palette, linearised the same way every other colour in the client is.
     private static let laserRed = parseHexColor("#ff0000")
     private static let waterBlue = parseHexColor("#3498db")
@@ -62,7 +71,7 @@ extension Emotes {
             sound: "/media/laser.mp3",
             pose: { rig, ctx in
                 let hover = Float(sin(ctx.elapsed / 100) * 3)
-                rig.bodyPivotPosition = SIMD3(0, 0, 15.5 + hover + 10)
+                rig.bodyPivotPosition = SIMD3(0, 0, CharacterRig.bodyPivotHeight + hover + 10)
 
                 rig.leftHandTarget = SIMD3(0, -25, 15)
                 rig.rightHandTarget = SIMD3(0, 25, 15)
@@ -298,12 +307,12 @@ extension Emotes {
                 // the wire, and the shadow stays on the floor where it belongs. What is left
                 // here is the *pose* — the tuck, the lean and the arm swing — which is what an
                 // emote table is for.
-                rig.bodyPivotPosition.z = 15.5
+                rig.bodyPivotPosition.z = CharacterRig.bodyPivotHeight
                 rig.bodyPivotRotation.y = Float(sin(progress * .pi) * 0.4)
 
                 let tuck = Float(sin(progress * .pi))
-                rig.leftFootTarget = SIMD3(-2, -6, -13 + tuck * 15)
-                rig.rightFootTarget = SIMD3(-2, 6, -13 + tuck * 15)
+                rig.leftFootTarget = SIMD3(-2, -6, groundedFoot + tuck * 15)
+                rig.rightFootTarget = SIMD3(-2, 6, groundedFoot + tuck * 15)
 
                 let armSwing = Float(cos(progress * .pi * 2))
                 rig.leftHandTarget = SIMD3(10 * armSwing, -16, 20 - armSwing * 10)
@@ -336,7 +345,7 @@ extension Emotes {
                 let bob = Float(abs(sin(danceTime * 2)) * 6)
                 let tilt = Float(sin(danceTime) * 0.3)
 
-                rig.bodyPivotPosition.z = 15.5 + bob
+                rig.bodyPivotPosition.z = CharacterRig.bodyPivotHeight + bob
                 rig.bodyPivotRotation.x = tilt
 
                 let armSwing = Float(sin(danceTime * 2))
@@ -344,8 +353,8 @@ extension Emotes {
 
                 rig.leftHandTarget = SIMD3(0, -20 - armSwing * 10, 20 + armSwing * 15)
                 rig.rightHandTarget = SIMD3(0, 20 - armSwing * 10, 20 - armSwing * 15)
-                rig.leftFootTarget = SIMD3(0, -6 - max(0, -legStep * 10), -13)
-                rig.rightFootTarget = SIMD3(0, 6 + max(0, legStep * 10), -13)
+                rig.leftFootTarget = SIMD3(0, -6 - max(0, -legStep * 10), groundedFoot)
+                rig.rightFootTarget = SIMD3(0, 6 + max(0, legStep * 10), groundedFoot)
 
                 // The notes tumble by a fixed step per frame rather than off the clock, so the
                 // spin has to be carried forward the way three.js carries `note.rotation`.
@@ -456,15 +465,15 @@ extension Emotes {
                 let swing = Float(sin(danceTime))
                 let fastSwing = Float(sin(danceTime * 2))
 
-                rig.bodyPivotPosition.z = 15.5 - abs(fastSwing * 4)
+                rig.bodyPivotPosition.z = CharacterRig.bodyPivotHeight - abs(fastSwing * 4)
                 rig.bodyPivotPosition.x = fastSwing * 2
 
                 if swing > 0 {
-                    rig.leftFootTarget = SIMD3(-2, -6, -13)
-                    rig.rightFootTarget = SIMD3(10, 16, -13)
+                    rig.leftFootTarget = SIMD3(-2, -6, groundedFoot)
+                    rig.rightFootTarget = SIMD3(10, 16, groundedFoot)
                 } else {
-                    rig.leftFootTarget = SIMD3(10, -16, -13)
-                    rig.rightFootTarget = SIMD3(-2, 6, -13)
+                    rig.leftFootTarget = SIMD3(10, -16, groundedFoot)
+                    rig.rightFootTarget = SIMD3(-2, 6, groundedFoot)
                 }
 
                 rig.leftHandTarget = SIMD3(10 + swing * 8, -6, 12)
@@ -511,14 +520,14 @@ extension Emotes {
             pose: { rig, ctx in
                 let age = ctx.elapsed
                 let hover = Float(sin(age / 150) * 2)
-                rig.bodyPivotPosition.z = 15.5 + hover
+                rig.bodyPivotPosition.z = CharacterRig.bodyPivotHeight + hover
 
                 rig.leftHandTarget = SIMD3(10, -2, 12)
                 rig.rightHandTarget = SIMD3(10, 2, 12)
 
                 let kick = Float(max(0, -sin(age / 150) * 8))
-                rig.leftFootTarget = SIMD3(-kick, -3, -13 + kick * 0.5)
-                rig.rightFootTarget = SIMD3(-kick, 3, -13 + kick * 0.5)
+                rig.leftFootTarget = SIMD3(-kick, -3, groundedFoot + kick * 0.5)
+                rig.rightFootTarget = SIMD3(-kick, 3, groundedFoot + kick * 0.5)
 
                 let start = rig.props.count
                 var lastOpacity: Float = 1
@@ -550,9 +559,9 @@ extension Emotes {
             pose: { rig, ctx in
                 rig.holding = "tennis_racket"
 
-                rig.bodyPivotPosition.z = 15.5
-                rig.leftFootTarget = SIMD3(-2, -8, -13)
-                rig.rightFootTarget = SIMD3(2, 10, -13)
+                rig.bodyPivotPosition.z = CharacterRig.bodyPivotHeight
+                rig.leftFootTarget = SIMD3(-2, -8, groundedFoot)
+                rig.rightFootTarget = SIMD3(2, 10, groundedFoot)
 
                 let bounceCycle = mod(ctx.elapsed, 1000) / 1000
                 let ballZ = Float(-2 + 1.5 + (4 * 50 * bounceCycle * (1 - bounceCycle)))
@@ -612,7 +621,7 @@ extension Emotes {
                 let swimTime = ctx.elapsed / 200
                 let bob = Float(sin(swimTime) * 3)
 
-                rig.bodyPivotPosition = SIMD3(0, 0, 15.5 + bob)
+                rig.bodyPivotPosition = SIMD3(0, 0, CharacterRig.bodyPivotHeight + bob)
                 rig.bodyPivotRotation.y = .pi / 2
                 // The only emote that poses the head separately — it holds it above the water.
                 rig.headRotation.y = -.pi / 3
@@ -625,8 +634,8 @@ extension Emotes {
                 let frogZ = sweep * 8
                 let spread = max(0, stroke * 12)
                 let frogX = Float(cos(swimTime * 2) * 3)
-                rig.leftFootTarget = SIMD3(frogX, -4 - spread, -13 + frogZ)
-                rig.rightFootTarget = SIMD3(frogX, 4 + spread, -13 + frogZ)
+                rig.leftFootTarget = SIMD3(frogX, -4 - spread, groundedFoot + frogZ)
+                rig.rightFootTarget = SIMD3(frogX, 4 + spread, groundedFoot + frogZ)
 
                 let start = rig.props.count
                 var lastOpacity: Float = 1

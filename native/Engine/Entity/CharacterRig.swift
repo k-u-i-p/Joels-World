@@ -174,8 +174,20 @@ enum CharacterRig {
     /// of it. That is the difference between an arm and a string of beads, and the arms had it
     /// wrong: 8 against a bone of 8.5. The legs were already right.
     static let armBone: Float = 8.5
-    static let thighBone: Float = 12
-    static let shinBone: Float = 9.7
+
+    /// **The legs are 20% longer than they were** (12 / 9.7). Measured off a render, the old rig
+    /// stood with its hip joint at 38.6% of its total height; a real ten-year-old's is at about
+    /// 48%, and even a deliberately chunky cartoon child is around 43%. Short legs under a large
+    /// head is *toddler* proportion, and it was the thing making these read as much younger than
+    /// the pupils they are meant to be.
+    ///
+    /// The head cannot be part of the fix — it is an authored GLB, scaled to match the web
+    /// version, and it is 31% of the character's height on its own. So the legs do the work, and
+    /// they get the hip to 41.7%. Everything downstream follows on its own: `bodyPivotHeight` is
+    /// derived from these, so the feet stay on the floor, and the stride is written in angles, so
+    /// a longer leg simply takes a longer step.
+    static let thighBone: Float = 14.4
+    static let shinBone: Float = 11.6
 
     // Limb radii, from `buildSkeletonLimbs`. The lengths are aliases kept so the renderer reads
     // as "the upper arm is this long" rather than "the arm bone is this long, twice".
@@ -188,9 +200,35 @@ enum CharacterRig {
     static let upperLegRadius: Float = 3.6, upperLegLength: Float = thighBone
     static let lowerLegRadius: Float = 3.6, lowerLegLength: Float = shinBone
 
+    // MARK: - Standing on the floor
+
+    /// **How big the shoe is drawn.** It was 0.65, and at 0.65 the slip-on GLB is 18.3 units from
+    /// heel to toe on a character 66 units tall — 28% of its own height in foot. A real foot is
+    /// about 15% and a chunky cartoon one about 20%. They were clown shoes, and next to a leg of
+    /// 20.8 they were the loudest wrong thing on the whole character.
+    static let shoeScale: Float = 0.50
+
+    /// How far `slip_on_shoes.glb` hangs below its own origin, in the model's units — measured
+    /// off the file, not guessed (its lowest vertex is at −0.07 under a node scaled 100 and
+    /// translated −2). The shoe is drawn with its origin **at the ankle**, so this is what ties
+    /// how big the shoe is to how high the character has to stand.
+    static let shoeSoleBelowAnkle: Float = 9.001
+
+    /// How far the sole is allowed under the floor. A shoe resting exactly on z = 0 shows a hard
+    /// line where it meets the ground; a little sink hides it. The old rig had 1.05 of sink by
+    /// accident, which is where "the feet look planted" came from.
+    static let footSink: Float = 0.4
+
     /// How high the body pivot stands off the ground. Every local coordinate in this file is
     /// measured from it, so anything converting a rig-local point into world space adds it back.
-    static let bodyPivotHeight: Float = 15.5
+    ///
+    /// **Derived, not chosen.** It used to be a flat 15.5, which meant that changing a bone
+    /// length or a shoe scale left the character hovering or buried and the only way to find out
+    /// was to look. It is now whatever puts the sole of the shoe `footSink` under the floor with
+    /// the legs at rest, so the three things that decide it — leg length, shoe size and sink —
+    /// are each a number with a name and none of them can be changed alone and be wrong.
+    static let bodyPivotHeight: Float =
+        shoeSoleBelowAnkle * shoeScale - footSink - (neutralLeftFoot.z + ankleLift)
 
     // Joint anchors, from `buildSkeletonRig`. Public because `CharacterMotor` measures a limb's
     // reach from them — an arm can only get so far from the shoulder it hangs off.
@@ -323,14 +361,53 @@ enum CharacterRig {
         /// Radians about +X: tips the capsule's +Y axis towards +Z.
         static let thumbSplay: Float = 0.9
         static let thumbRoot = SIMD3<Float>(0.1, 1.6, 1.85)
+
+        /// **How far the hand is turned about the forearm**, on top of the basis the arm's
+        /// bending normal gives it.
+        ///
+        /// Without this the hand comes out with its **thumb pointing across the body and its
+        /// palm facing backwards**, which is not a hand at rest — it is a hand halfway through
+        /// being turned over. That falls out of `IKSolver.basis` honestly: the roll is pinned to
+        /// the plane the elbow bends in, which is the right reference for *where the elbow goes*
+        /// and simply not the same thing as which way a palm faces.
+        ///
+        /// A quarter turn about the forearm's own long axis puts the thumb forward, the back of
+        /// the hand outward and the palm against the thigh, which is where a hanging hand's palm
+        /// is. It works out as the same sign for both hands — the left hand's mesh is mirrored in
+        /// X, and that mirrors what "the back of the hand" means along with it.
+        ///
+        /// **It is applied to the hand mesh only, not to `rightHandAnchor`.** The racket and
+        /// every emote prop ride on that anchor, and their placement was tuned against the
+        /// unrolled frame; spinning it here would roll the strings a quarter turn with it and
+        /// turn the tennis racket edge-on.
+        static let restRoll: Float = 1.25
     }
 
     // Neutral limb targets, reset every frame in `updateCharacter3D:1136-1139`. Public because
     // `CharacterMotor` starts every limb here, and a released one settles back to it.
-    static let neutralLeftHand = SIMD3<Float>(9, -16, 12)
-    static let neutralRightHand = SIMD3<Float>(9, 16, 12)
-    static let neutralLeftFoot = SIMD3<Float>(2, -6, -13)
-    static let neutralRightFoot = SIMD3<Float>(2, 6, -13)
+    //
+    // **These are derived from the neutral angles rather than written down beside them.** They
+    // used to be four hand-typed vectors that had to agree with `neutralArmSwing` and friends to
+    // within 0.01, with a self-test assertion standing over them to check that two constants
+    // still matched. Deriving them means the question cannot be asked: change an angle, or a bone
+    // length, and the position follows. The assertion still passes, and now says something about
+    // `armTarget` rather than about somebody's arithmetic.
+    static let neutralLeftHand = armTarget(shoulder: leftShoulder,
+                                           swing: neutralArmSwing,
+                                           sideways: -neutralArmSideways,
+                                           flex: neutralArmFlex)
+    static let neutralRightHand = armTarget(shoulder: rightShoulder,
+                                            swing: neutralArmSwing,
+                                            sideways: neutralArmSideways,
+                                            flex: neutralArmFlex)
+    static let neutralLeftFoot = legTarget(hip: leftHip,
+                                           swing: neutralLegSwing,
+                                           sideways: -neutralLegSideways,
+                                           flex: neutralLegFlex)
+    static let neutralRightFoot = legTarget(hip: rightHip,
+                                            swing: neutralLegSwing,
+                                            sideways: neutralLegSideways,
+                                            flex: neutralLegFlex)
 
     private static let bendNormalArmL = simd_normalize(SIMD3<Float>(0, 1, -0.5))
     private static let bendNormalArmR = simd_normalize(SIMD3<Float>(0, 1, 0.5))
@@ -380,16 +457,26 @@ enum CharacterRig {
         return shoulder + direction * reach
     }
 
-    /// The neutral arm written in those angles, so a standing character is posed by exactly the
-    /// same call as a running one and `neutralLeftHand` comes back out unchanged.
+    /// **The resting arm.** This is where a character's arms are whenever nothing else has an
+    /// opinion, which is most of the time on most of the characters on screen, so it is worth
+    /// more than any pose in the walk cycle.
     ///
-    /// They are the decomposition of `neutralLeftHand - leftShoulder` = (6, −6, −14): 16.37 long,
-    /// 0.405 rad forward of vertical, 0.375 rad out from the body, and a 0.546 rad elbow —
-    /// which is the 31° of bend a hand hanging that far from its shoulder implies.
-    /// `LocomotionSelfTest` pins the round trip.
-    static let neutralArmSwing: Float = 0.40492
-    static let neutralArmSideways: Float = 0.37533
-    static let neutralArmFlex: Float = 0.54558
+    /// They were 0.405 forward and 0.375 out: **23° of shoulder flexion and 21° of abduction**,
+    /// held there permanently. That is not a person standing, it is a person carrying two
+    /// invisible buckets, and from the side it read as sleepwalking — the hands hung six units
+    /// clear in front of the hips with daylight under both armpits.
+    ///
+    /// A relaxed arm hangs almost straight down. The numbers now are 7° forward, so the hand sits
+    /// just ahead of the hip rather than in front of the body, and 10° out — which is not styling
+    /// but clearance: the pelvis is 8.8 units of half-width at hip height and a wrist hanging
+    /// dead vertical from a shoulder at y = ±10 would be inside the shorts.
+    ///
+    /// `flex` stays where it was. A resting elbow really does carry 25–30° of bend, and it is
+    /// also what keeps the arm off full extension — `LocomotionSelfTest` requires the neutral
+    /// reach to stay 0.4 clear of `2 · armBone` so the IK has somewhere to go.
+    static let neutralArmSwing: Float = 0.13
+    static let neutralArmSideways: Float = 0.17
+    static let neutralArmFlex: Float = 0.52
 
     // MARK: - Legs, by angle rather than by displacement
 
@@ -435,12 +522,20 @@ enum CharacterRig {
         return hip + direction * reach - SIMD3<Float>(0, 0, ankleLift)
     }
 
-    /// The neutral leg in those angles — the decomposition of the ankle under `neutralLeftFoot`,
-    /// which sits 20.80 from the hip, 0.0963 rad forward of vertical, square to the body, on a
+    /// The neutral leg in those angles: 0.0963 rad forward of vertical, square to the body, on a
     /// 0.5826 rad knee. `LocomotionSelfTest` pins the round trip, both legs.
+    ///
+    /// Unchanged by the longer bones, because they are angles — the leg got longer and the pose
+    /// did not move. What *is* different is what they span, which is `neutralLegSpan`.
     static let neutralLegSwing: Float = 0.09632
     static let neutralLegSideways: Float = 0
     static let neutralLegFlex: Float = 0.58257
+
+    /// Hip to ankle with the leg at rest. The law of cosines again, and the number anything
+    /// wanting to move a hip *sideways by a distance* has to divide by to get an angle — see
+    /// `IdleBehaviour.loadWeight`, which is the reason it has a name.
+    static let neutralLegSpan: Float = (thighBone * thighBone + shinBone * shinBone
+                                        + 2 * thighBone * shinBone * cos(neutralLegFlex)).squareRoot()
 
     /// One leg's three angles. Named for the character's own sides, not the rig's.
     struct LegAngles {
@@ -690,6 +785,14 @@ enum CharacterRig {
         var waistTwist: Float = 0
         // How far the head turns off the chest to look where the body is going.
         var headTurn: Float = 0
+        // And the rest of the head, which only the idle behaviour has anything to say about.
+        var headPitch: Float = 0
+        var headTilt: Float = 0
+
+        // What this character is doing with itself while it stands there. Zero unless the idle
+        // branch below fills it in; the body-pivot half of it is spent much further down, after
+        // the inertia block, because that block *assigns* the pivot roll rather than adding to it.
+        var idle = IdleBehaviour.Offsets()
 
         if isWalking {
             let legTimer = Float(gait.phase)
@@ -780,6 +883,27 @@ enum CharacterRig {
             let breathFlex = Float(sin(idleTime * 2.0)) * 0.10
             rightArmFlex += breathFlex
             leftArmFlex += breathFlex
+
+            // **And the part that is not a sine wave.** The sway above is what the JS did and it
+            // is the same on every character in the scene; `IdleBehaviour` is what makes one
+            // pupil stand differently from the pupil beside them and do something occasionally.
+            // It is handed the wall clock rather than a per-character timer, so every client
+            // watching the same NPC sees the same fidget at the same moment.
+            idle = IdleBehaviour.offsets(seed: IdleBehaviour.seed(for: character.id),
+                                         time: time,
+                                         legSpan: neutralLegSpan)
+
+            rightLeg.swing += idle.rightLeg.swing
+            rightLeg.sideways += idle.rightLeg.sideways
+            rightLeg.flex += idle.rightLeg.flex
+            leftLeg.swing += idle.leftLeg.swing
+            leftLeg.sideways += idle.leftLeg.sideways
+            leftLeg.flex += idle.leftLeg.flex
+
+            waistTwist += idle.chestTwist
+            headTurn += idle.headTurn
+            headPitch += idle.headPitch
+            headTilt += idle.headTilt
         }
 
         // --- Counteracting the inertia ---
@@ -847,6 +971,23 @@ enum CharacterRig {
         rightArmSwing += checkSwing
         leftArmSwing += checkSwing
 
+        // --- An idle gesture takes an arm over ---
+        //
+        // Everything else on this page is an offset from the hanging arm, because everything else
+        // *is* the hanging arm doing something. Reaching for your own face is not; it is a
+        // different pose, and the only honest way to write it is where the arm ends up. So these
+        // crossfade rather than add, and they do it last, after the swing and the counterweight
+        // have had their say — a hand on its way to a nose does not also need to be bracing.
+        func reach(_ swing: inout Float, _ side: inout Float, _ flex: inout Float,
+                   _ arm: IdleBehaviour.ArmReach?) {
+            guard let arm else { return }
+            swing += (arm.swing - swing) * arm.weight
+            side += (arm.sideways - side) * arm.weight
+            flex += (arm.flex - flex) * arm.weight
+        }
+        reach(&rightArmSwing, &rightArmSideways, &rightArmFlex, idle.rightArm)
+        reach(&leftArmSwing, &leftArmSideways, &leftArmFlex, idle.leftArm)
+
         // --- The arms become hand targets ---
         // Capped short of horizontal: past about 75° out, an arm is being held up rather than
         // swung, and none of the signals above mean that.
@@ -902,6 +1043,21 @@ enum CharacterRig {
         // acceleration lean above has nothing left to give once the character is at top speed.
         runtime.bodyPivotRotation.y += run * 0.12
 
+        // --- And the idle behaviour's half of the body pivot ---
+        //
+        // Down here, and not up in the idle branch, for one reason: the lean block immediately
+        // above **assigns** `bodyPivotRotation.x` rather than adding to it, so a roll written any
+        // earlier is thrown away. `.y` is left alone by nobody and could have gone either side.
+        //
+        // The lateral shift is what a weight shift actually is — the hips move over one foot —
+        // and it is applied here as a translation rather than being folded into the legs, because
+        // the legs have already been given the counter-angle that keeps their feet on the ground.
+        runtime.bodyPivotPosition.x += idle.hipShift.x
+        runtime.bodyPivotPosition.y = idle.hipShift.y
+        runtime.bodyPivotPosition.z += idle.hipShift.z
+        runtime.bodyPivotRotation.x += idle.lean.x
+        runtime.bodyPivotRotation.y += idle.lean.y
+
         // --- Emote overrides (`applyEmoteOverrides:1015-1026`) ---
         var mutation = RigMutation(bodyPivotPosition: runtime.bodyPivotPosition,
                                    bodyPivotRotation: runtime.bodyPivotRotation,
@@ -920,7 +1076,7 @@ enum CharacterRig {
             // pair of shoulders. A minigame that wants a coil adds one back in its `override`,
             // which runs after this — that is what the tennis swing does.
             mutation.chestTwist = 0
-            headTurn = 0
+            headTurn = 0; headPitch = 0; headTilt = 0
             emoteDefinition.pose(&mutation,
                                  EmoteContext(elapsed: EventInterpreter.nowMilliseconds() - emote.startTime,
                                               nowMs: EventInterpreter.nowMilliseconds(),
@@ -949,7 +1105,7 @@ enum CharacterRig {
         // `runtime.headRotation` survives between frames, so anything folded into it would
         // accumulate a frame at a time until the character was looking over its own shoulder.
         // This is a view of it for this frame only.
-        let headRotation = runtime.headRotation + SIMD3<Float>(0, 0, headTurn)
+        let headRotation = runtime.headRotation + SIMD3<Float>(headTilt, headPitch, headTurn)
 
         let bodyPivot = meshGroup
             * Float4x4.translation(runtime.bodyPivotPosition)
@@ -1100,8 +1256,18 @@ enum CharacterRig {
                                                   rolledTowards: bendNormalArmR)
         let leftHandAnchor = chest * Float4x4.translation(leftHandChest) * leftForearmRotation
         let rightHandAnchor = chest * Float4x4.translation(rightHandChest) * rightForearmRotation
-        pose.parts.append((.leftHand, leftHandAnchor))
-        pose.parts.append((.rightHand, rightHandAnchor))
+
+        // The hand *mesh* is rolled about the forearm; the **anchor is not** — see
+        // `Hand.restRoll`. Everything that rides in a hand hangs off the anchor, and the racket's
+        // grip was tuned against the unrolled frame.
+        //
+        // This reaches the skinned body as well as the rigid parts, and by the right route: the
+        // renderer builds each bone as `transform × inverseBind`, and `bindPose` does *not* apply
+        // the roll — so the hand is built unrolled and turned at draw time, rather than being
+        // baked into the mesh and cancelled straight back out again.
+        let handRoll = Float4x4.rotationY(Hand.restRoll)
+        pose.parts.append((.leftHand, leftHandAnchor * handRoll))
+        pose.parts.append((.rightHand, rightHandAnchor * handRoll))
 
         // --- Held model (`characters.js:1184-1206`) ---
         // `HOLDABLE_OBJECTS.tennis_racket` is offset (0,0,0), unrotated, scaled 3×.
@@ -1158,7 +1324,8 @@ enum CharacterRig {
         let rightShoeGroup = bodyPivot * Float4x4.translation(rightAnkle)
             * Float4x4.rotationY(atan2(rightShin.y, -rightShin.z))
 
-        let shoeModelLocal = Float4x4.eulerXYZ(0, .pi / 2, .pi / 2) * Float4x4.scale(SIMD3(repeating: 0.65))
+        let shoeModelLocal = Float4x4.eulerXYZ(0, .pi / 2, .pi / 2)
+            * Float4x4.scale(SIMD3(repeating: shoeScale))
         pose.leftShoeModel = leftShoeGroup * shoeModelLocal
         pose.rightShoeModel = rightShoeGroup * shoeModelLocal
         pose.leftShoeBox = leftShoeGroup

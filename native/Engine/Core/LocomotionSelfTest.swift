@@ -1012,6 +1012,188 @@ enum LocomotionSelfTest {
         check("and its position is exactly where it was put",
               near(watched.x, observedStep * 120), "x \(watched.x)")
 
+        // MARK: Standing still
+
+        // `IdleBehaviour` is the one thing in the rig that is *supposed* to be irregular, which
+        // makes it the one thing a screenshot cannot check. A gesture is on screen for under two
+        // seconds every eight or so and picked at random per character, so catching a bad one by
+        // looking is luck. What can be pinned instead is the contract underneath it.
+        let span = CharacterRig.neutralLegSpan
+        func idlePose(_ seed: UInt64, _ t: Double) -> IdleBehaviour.Offsets {
+            IdleBehaviour.offsets(seed: seed, time: t, legSpan: span)
+        }
+
+        // Same character, same second, same pose — on every client. Idling is driven off the wall
+        // clock and the character id and keeps no state between frames, which is what lets two
+        // players watching the same NPC see it wipe its nose at the same moment.
+        check("idling is the same twice for the same character and time",
+              {
+                  for step in 0..<200 {
+                      let t = 1_000_000 + Double(step) * 0.37
+                      let a = idlePose(IdleBehaviour.seed(for: 7), t)
+                      let b = idlePose(IdleBehaviour.seed(for: 7), t)
+                      if a.hipShift.y != b.hipShift.y || a.headTurn != b.headTurn { return false }
+                      if (a.rightArm?.weight ?? 0) != (b.rightArm?.weight ?? 0) { return false }
+                  }
+                  return true
+              }())
+
+        // And different between characters. Two pupils standing together in unison is the exact
+        // failure this whole file exists to avoid, and it is what the old sine-wave sway did.
+        check("but different between two characters",
+              {
+                  var apart = 0
+                  for step in 0..<400 {
+                      let t = 2_000_000 + Double(step) * 0.5
+                      if abs(idlePose(IdleBehaviour.seed(for: 3), t).hipShift.y
+                             - idlePose(IdleBehaviour.seed(for: 4), t).hipShift.y) > 0.3 { apart += 1 }
+                  }
+                  return apart > 120
+              }())
+
+        // **Nothing may jump.** A gesture that switched on at full strength would snap a hand
+        // across the body in one frame, and the scheduler has three seams it could do that at:
+        // the start of a beat, the end of a gesture, and the changeover of the weight shift. A
+        // 60 Hz sweep over four minutes of a character's life crosses all of them many times.
+        // Each quantity gets its own ceiling, in its own units, sized at roughly a tenth of the
+        // whole gesture per frame. A single number scaled to cover all three cannot tell a hand
+        // reaching for a face in half a second — which is what a hand does — from one teleporting
+        // there in a frame, and the first version of this check failed on the former.
+        check("no idle pose ever jumps between frames",
+              {
+                  var worstHip: Float = 0, worstHead: Float = 0, worstArm: Float = 0
+                  for id in 1...6 {
+                      let s = IdleBehaviour.seed(for: id)
+                      var previous = idlePose(s, 3_000_000)
+                      for frame in 1...14_400 {
+                          let now = idlePose(s, 3_000_000 + Double(frame) / 60)
+                          worstHip = max(worstHip, abs(now.hipShift.y - previous.hipShift.y))
+                          worstHead = max(worstHead, abs(now.headTurn - previous.headTurn))
+                          worstArm = max(worstArm, abs((now.rightArm?.weight ?? 0)
+                                                       - (previous.rightArm?.weight ?? 0)))
+                          worstArm = max(worstArm, abs((now.leftArm?.weight ?? 0)
+                                                       - (previous.leftArm?.weight ?? 0)))
+                          previous = now
+                      }
+                  }
+                  return worstHip < 0.25 && worstHead < 0.05 && worstArm < 0.12
+              }())
+
+        // **A standing character always has a foot on the ground.** The hips translate sideways
+        // to take the weight onto one leg and both legs are given the counter-angle that should
+        // cancel it; if those two ever stop agreeing, the character slides along the floor with
+        // its feet stuck out sideways.
+        //
+        // The claim is deliberately about *one* foot rather than both, because `adjustFoot` picks
+        // one up and puts it down somewhere else — that is the gesture, not a bug. An earlier
+        // draft of this check asserted both and failed on working code.
+        check("one foot stays planted however the weight moves",
+              {
+                  var worst: Float = 0
+                  for id in 1...8 {
+                      let s = IdleBehaviour.seed(for: id)
+                      for step in 0..<600 {
+                          let o = idlePose(s, 4_000_000 + Double(step) * 0.21)
+                          // Exactly the calls `pose` makes: the character's right leg goes to
+                          // `leftHip`, with its `sideways` **unnegated**.
+                          func planted(_ hip: SIMD3<Float>,
+                                       _ leg: IdleBehaviour.LegOffset,
+                                       _ rest: Float) -> Float {
+                              let y = CharacterRig.legTarget(
+                                  hip: hip,
+                                  swing: CharacterRig.neutralLegSwing + leg.swing,
+                                  sideways: CharacterRig.neutralLegSideways + leg.sideways,
+                                  flex: CharacterRig.neutralLegFlex + leg.flex).y
+                              return abs(y + o.hipShift.y - rest)
+                          }
+                          let right = planted(CharacterRig.leftHip, o.rightLeg,
+                                              CharacterRig.neutralLeftFoot.y)
+                          let left = planted(CharacterRig.rightHip, o.leftLeg,
+                                             CharacterRig.neutralRightFoot.y)
+                          worst = max(worst, min(right, left))
+                      }
+                  }
+                  return worst < 0.4
+              }())
+
+        // Every gesture is written as an absolute arm pose, so unlike everything else in the rig
+        // it is not bounded by construction. `armTarget` never produces an unreachable hand, but
+        // a pose that put a hand *through the head* would still draw.
+        check("no idle gesture reaches somewhere a hand cannot go",
+              {
+                  for id in 1...40 {
+                      let s = IdleBehaviour.seed(for: id)
+                      for step in 0..<2_000 {
+                          let o = idlePose(s, 5_000_000 + Double(step) * 0.11)
+                          for (arm, shoulder) in [(o.rightArm, CharacterRig.leftShoulder),
+                                                  (o.leftArm, CharacterRig.rightShoulder)] {
+                              guard let arm, arm.weight > 0.99 else { continue }
+                              let hand = CharacterRig.armTarget(shoulder: shoulder,
+                                                                swing: arm.swing,
+                                                                sideways: arm.sideways,
+                                                                flex: arm.flex)
+                              // Up by the face, not out in space and not inside the chest.
+                              if hand.z < 28 || hand.z > 46 { return false }
+                              if abs(hand.y) > 12 { return false }
+                              if simd_length(hand - shoulder) > CharacterRig.armBone * 2 { return false }
+                          }
+                      }
+                  }
+                  return true
+              }())
+
+        // Gestures have to actually happen, and all six of them. A weighting table with a typo in
+        // it fails silently — the character just never scratches its head again.
+        check("a character fidgets every few seconds, and not constantly",
+              {
+                  var busy = 0
+                  let s = IdleBehaviour.seed(for: 11)
+                  for step in 0..<6_000 {
+                      let o = idlePose(s, 6_000_000 + Double(step) * 0.1)
+                      if abs(o.headTurn) > 0.05 || abs(o.headTilt) > 0.05
+                          || o.rightArm != nil || o.leftArm != nil
+                          || abs(o.rightLeg.flex - o.leftLeg.flex) > 0.2 { busy += 1 }
+                  }
+                  // Ten minutes of standing about: busy some of the time, still most of it.
+                  return busy > 300 && busy < 3_000
+              }())
+
+        // MARK: Proportions
+
+        // These are the numbers a person would notice from across a playground, and every one of
+        // them was wrong enough to see before this session. They are pinned as *ranges*, because
+        // the point is not the exact value — it is that nobody changes a bone length or a shoe
+        // scale and silently walks the character back to a toddler with clown shoes.
+        let hipHeight = CharacterRig.bodyPivotHeight + CharacterRig.leftHip.z
+        let headTop = CharacterRig.bodyPivotHeight + 50.55   // measured off the head GLB
+        check("the hip sits about 40% of the way up the character",
+              hipHeight / headTop > 0.39 && hipHeight / headTop < 0.46,
+              "\(hipHeight) of \(headTop) — \(Int(hipHeight / headTop * 100))%")
+        check("the shoe is under a quarter of the character's height",
+              {
+                  let shoeLength = 28.163 * CharacterRig.shoeScale   // the GLB, measured
+                  return shoeLength / headTop < 0.24 && shoeLength / headTop > 0.13
+              }())
+        check("and the character stands on the floor rather than in it",
+              {
+                  let sole = CharacterRig.bodyPivotHeight
+                      + CharacterRig.neutralLeftFoot.z + CharacterRig.ankleLift
+                      - CharacterRig.shoeSoleBelowAnkle * CharacterRig.shoeScale
+                  return sole < 0 && sole > -1
+              }(),
+              "sole at \(CharacterRig.bodyPivotHeight + CharacterRig.neutralLeftFoot.z + CharacterRig.ankleLift - CharacterRig.shoeSoleBelowAnkle * CharacterRig.shoeScale)")
+
+        // A resting arm hangs. It used to be held 23° forward and 21° out, permanently, which is
+        // most of what made the old rig read as sleepwalking.
+        check("the resting arm hangs by the character's side",
+              CharacterRig.neutralArmSwing < 0.2 && CharacterRig.neutralArmSideways < 0.25)
+        check("and its hand clears the hips rather than passing through them",
+              {
+                  // The pelvis is 8.0 of profile radius by 1.10 of squash at its widest.
+                  abs(CharacterRig.neutralLeftHand.y) > 8.0 * 1.10 + 2
+              }(),
+              "hand at y \(CharacterRig.neutralLeftHand.y)")
+
         Log.world("selftest — \(passed) passed, \(failed) failed")
         return failed == 0
     }

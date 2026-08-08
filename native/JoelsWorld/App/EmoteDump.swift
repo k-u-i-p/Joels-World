@@ -29,7 +29,7 @@ enum EmoteDump {
 
             // The neutral targets `updateCharacter3D` restores before every pose, and the
             // zeroed sway `applyEmoteOverrides` applies on the way in.
-            var rig = RigMutation(bodyPivotPosition: SIMD3(0, 0, 15.5),
+            var rig = RigMutation(bodyPivotPosition: SIMD3(0, 0, CharacterRig.bodyPivotHeight),
                                   bodyPivotRotation: .zero,
                                   headRotation: .zero,
                                   leftHandTarget: SIMD3(9, -16, 12),

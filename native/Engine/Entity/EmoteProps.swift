@@ -102,8 +102,10 @@ struct Footprint {
 /// accumulated (`note.rotation.x += 0.1`) rather than derived from the clock. Reproducing the
 /// pose exactly means keeping the same values around.
 final class RigRuntime {
-    /// `bodyPivot.position`, reset to (0, 0, 15.5) whenever the emote changes.
-    var bodyPivotPosition = SIMD3<Float>(0, 0, 15.5)
+    /// `bodyPivot.position`, reset to standing height whenever the emote changes. It was a
+    /// literal 15.5 in both places; `bodyPivotHeight` is derived from the leg and shoe now, so a
+    /// copy of the old number here would have sunk every emoting character into the floor.
+    var bodyPivotPosition = SIMD3<Float>(0, 0, CharacterRig.bodyPivotHeight)
     /// `bodyPivot.rotation` as an XYZ Euler.
     var bodyPivotRotation = SIMD3<Float>(0, 0, 0)
     /// `rig.head.rotation` — only `swim` touches it.
@@ -120,7 +122,7 @@ final class RigRuntime {
     /// Called when `currentEmoteName` changes: the JS removes `emoteProps` and `crumbProps`
     /// from the scene and puts the body pivot back where it started.
     func resetForEmoteChange(to name: String?) {
-        bodyPivotPosition = SIMD3(0, 0, 15.5)
+        bodyPivotPosition = SIMD3(0, 0, CharacterRig.bodyPivotHeight)
         bodyPivotRotation = .zero
         headRotation = .zero
         footprints.removeAll()
