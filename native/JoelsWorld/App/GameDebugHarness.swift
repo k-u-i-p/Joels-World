@@ -302,7 +302,7 @@ final class GameDebugHarness {
             let board = game.scoreboard
             let metre = Tennis3DCourt.unitsPerMetre
 
-            Log.world(String(format:
+            game.traceSample(String(format:
                 "tennis3d %@ server=%@ faults=%d serveInFlight=%@ ball=(%.1f, %.1f, %.1f)m v=(%.1f, %.1f, %.1f)m/s bounces=%d spin=%.2f",
                 "\(game.phase)", board.serverIsPlayer ? "you" : board.opponentName,
                 game.faults, "\(game.isServeInFlight)",
@@ -310,7 +310,7 @@ final class GameDebugHarness {
                 game.ball.vx / metre, game.ball.vy / metre, game.ball.vz / metre,
                 game.ball.bounces, game.ball.topspin))
 
-            Log.world(String(format:
+            game.traceSample(String(format:
                 "tennis3d   you=(%.1f, %.1f)m face=%.0f° speed=%.1f swing=%@ | %@=(%.1f, %.1f)m face=%.0f° speed=%.1f swing=%@ | %@–%@ games %d–%d",
                 game.player.motor.x / metre, game.player.motor.y / metre,
                 game.player.motor.facing, game.player.motor.speed / metre,

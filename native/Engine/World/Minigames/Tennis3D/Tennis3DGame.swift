@@ -199,8 +199,8 @@ final class Tennis3DGame: WorldRenderedMinigame {
         /// useful width is about a third of the number given to it. These are the full width, and
         /// a first pass at 0.10/0.13 produced a measured error rate of exactly zero — a 1% pace
         /// error cannot miss a target with two metres of margin behind it.
-        static let mishitPace = 0.46
-        static let mishitLoft = 0.56
+        static let mishitPace = 0.58
+        static let mishitLoft = 0.70
 
         /// How badly a ball has to be struck before it starts to go astray at all. Below this,
         /// contact is exact — see the note in `strike`.
@@ -792,7 +792,21 @@ final class Tennis3DGame: WorldRenderedMinigame {
     func trace(_ message: @autoclosure () -> String) {
         #if DEBUG
         guard WalkTest.traces3DTennis else { return }
-        Log.world("tennis3d · \(message())")
+        let line = "tennis3d · \(message())"
+        Log.world(line)
+        // And to a file in the container, which outlives the pipe. See `Tennis3DTraceFile`.
+        Tennis3DTraceFile.write(line)
+        #endif
+    }
+
+    /// The once-a-second sample, which the debug harness owns rather than the game. Here so that
+    /// it lands in the same file as the events; a log with the events and not the positions is
+    /// half a measurement.
+    func traceSample(_ message: String) {
+        #if DEBUG
+        guard WalkTest.traces3DTennis else { return }
+        Log.world(message)
+        Tennis3DTraceFile.write(message)
         #endif
     }
 

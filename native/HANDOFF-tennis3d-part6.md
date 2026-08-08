@@ -158,7 +158,10 @@ plays Easy, Normal and Hard simultaneously, one per device, with `-tennis3ddrag 
 Four minutes of wall clock instead of twelve. `scratchpad/analyse.py` reads the logs and reports
 who won, how the points ended, rally lengths, and the quality/mishit distribution.
 
-Four things that cost time and are worth knowing:
+### Read this before you start a measured run
+
+Five things cost most of an afternoon between them. All five look like "the game is behaving
+oddly" and none of them is.
 
 - A point that ends in one stroke logs "after 1 **shot**", singular. A regex expecting `shots`
   silently reports "no completed points yet" on a log full of them.
@@ -169,8 +172,20 @@ Four things that cost time and are worth knowing:
   device on its own runs at real time — check it with `wc -l` twice thirty seconds apart, and
   expect about **93 lines per 30 s** (two trace lines a second plus events). Anything much less
   and the run is not worth waiting for. Measure one difficulty at a time.
-- A rally now runs 15 shots at Normal against the drag bot, so a point takes the best part of a
+- A rally now runs 7–15 shots at Normal against the drag bot, so a point takes the best part of a
   minute and twenty-four points is twenty minutes of wall clock. Budget for it.
+- **`--console-pty` ties the app's life to the shell that launched it.** Every measured run died
+  part-way through — mid-rally, no crash report, the log just stopping with the PID line — because
+  the launching shell was reaped and took the app with it. Launch it detached:
+
+  ```bash
+  nohup xcrun simctl launch --console-pty <udid> com.allr.joelsworld \
+      -autojoin Joel -map 4 -tennis3dtrace -tennis3ddrag > run.log 2>&1 & disown
+  ```
+
+**Sanity-check every run before you wait on it.** Two `wc -l` thirty seconds apart, and expect
+about 93. A run at 10 lines a minute is a run you will draw conclusions from twelve times too
+slowly, and it looks exactly like a run that is working.
 
 ## ⏳ Still to do this session
 

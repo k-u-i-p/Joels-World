@@ -698,10 +698,20 @@ extension Tennis3DGame {
 
         var aim = side.swing.aim
         // A mistimed shot drifts towards the middle of the court rather than flying anywhere —
-        // being late should cost you the corner, not hand you a winner.
+        // being late should cost you the corner, not hand you a winner. That is still true across
+        // the court, and it is why the sideways pull stays where it was.
+        //
+        // **The pull towards the service line does not.** It was 0.35 and it was quietly
+        // shortening every shot in the game by about half a metre — measured, the median ball was
+        // aimed 9.3 m out and struck 8.7 m. That was the right safety net when `quality` could
+        // only bleed pace, because a bad shot had to land somewhere sensible. Now that a bad shot
+        // genuinely misses (see `mishit` below), aiming it safer *as well* is counting the same
+        // mistake twice, and between them they made it impossible for any ball to reach the
+        // baseline. A player meant to hit it deep; what they get is the error, not a different
+        // plan.
         let drift = (1 - quality) * 1.4
         aim.x += (0 - aim.x) * drift * 0.6
-        aim.y += (side.half * -Tennis3DCourt.halfLength * 0.55 - aim.y) * drift * 0.35
+        aim.y += (side.half * -Tennis3DCourt.halfLength * 0.55 - aim.y) * drift * 0.10
 
         // Alex hits softer on Easy and harder on Hard. Pace is time — a ball 10% slower is most
         // of a stride's worth of extra time to reach it, and reaching it is the whole game.
@@ -840,8 +850,22 @@ extension Tennis3DGame {
         // and the median contact sits at 8.5 m against an 11.9 m baseline. Zeroing it on the line
         // pinned `attack` at 1 for every ball of every rally, which is a flat pace bonus with a
         // misleading name rather than a reason to move somebody.
-        let insideBaseline = (Tennis3DCourt.halfLength - Tennis3DCourt.metres(1.5)
-                              - abs(side.motor.y)) / Tennis3DCourt.metres(3.0)
+        // Part 5 moved this zero-point a stride and a half *inside* the line, because the median
+        // contact then sat at 8.5 m against an 11.9 m baseline and measuring from the line pinned
+        // `attack` at 1 for every ball of every rally — a flat pace bonus with a misleading name.
+        //
+        // It has since swung the whole way back. Measured over 69 shots this session the median
+        // contact is at **11.1 m**, three-quarters of a metre inside the line and a good two and a
+        // half metres further out than part 5 saw, because a deeper ball pushes the receiver back.
+        // Against a zero-point at 10.4 m that pins `attack` at **0** instead, and the short-ball
+        // attack — the pace bonus, the wider target, and now the deeper one — has been silently
+        // inert. A mechanic that is always 0 is as broken as one that is always 1, and it is
+        // harder to notice.
+        //
+        // Back on the line, then, with the full three metres to run over: the median ball is now
+        // played at about 0.26 of it and a genuine short ball reaches 1.
+        let insideBaseline = (Tennis3DCourt.halfLength - abs(side.motor.y))
+            / Tennis3DCourt.metres(3.0)
         let attack = min(1, max(0, insideBaseline))
 
         // Alex's range is the difficulty setting's second real lever: pulled in on Easy so the
@@ -882,15 +906,27 @@ extension Tennis3DGame {
         // it nearer the line, where a mishit costs a point. `attack` is already "how far inside
         // your own baseline you are", so the reward for good position and the risk that comes
         // with it are the same number.
-        // Measured at 0.60–0.84: the sloppiest shots were landing a metre off target and up to
-        // 3.2 m off, against a median margin to the baseline of 3.8 m — so still nothing went
-        // out. The margin has to be the same size as the error for the error to mean anything.
-        // 0.68–0.88 puts a normal ball 8.1–10.5 m out, and an attacking one within half a metre
-        // of the line, where a clean shot (0.4 m of error at worst) still lands in and a scramble
-        // does not.
+        // The margin to the baseline has to be the same size as the mishit for the mishit to mean
+        // anything, and it took three measured passes to get there:
+        //
+        // | Depth | Median aim | Deepest aim | Balls landing out |
+        // |---|---|---|---|
+        // | 0.58–0.82, what part 5 shipped | 7.6 m | 9.4 m | none in 228 |
+        // | 0.60–0.84 | 8.7 m | 9.8 m | none in 116 |
+        // | 0.68–0.88, with the drift fix | 9.1 m | 10.2 m | none in 69 |
+        // | 0.72–0.92 + 0.08 attack | 9.55 m | 10.7 m | none in 68, but 6 within a metre |
+        // | **0.76–0.96 + 0.10 attack** | ⏳ | ⏳ | ⏳ |
+        //
+        // The last of those got the deepest ball to 11.5 m — 0.4 m from the line — and still
+        // nothing out, because landing long needs a deep aim *and* a bad strike at the same time
+        // and each is only a tail. Measured over 186 shots the two are satisfyingly independent
+        // (median aim 9.3 m in every mishit bucket), the worst strikes miss by ±2.3 m, and the
+        // sum lands about one and a half standard deviations short of the line. Hence a move on
+        // both levers at once rather than a fourth nibble at one of them: this depth, and a
+        // bigger `mishitPace`/`mishitLoft` to go with it.
         let depth = stretched
             ? random.range(0.46, 0.64)
-            : random.range(0.68, 0.88) + 0.06 * attack
+            : random.range(0.76, 0.96) + 0.10 * attack
         let aimY = targetHalf * Tennis3DCourt.halfLength * depth
 
         return (aim: (x: aimX, y: aimY),
