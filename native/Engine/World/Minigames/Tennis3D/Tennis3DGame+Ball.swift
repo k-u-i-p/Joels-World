@@ -169,6 +169,8 @@ extension Tennis3DGame {
         // standing to take it, and the server from where they serve.
         player.anchor = (x: player.motor.x, y: player.motor.y)
         npc.anchor = (x: npc.motor.x, y: npc.motor.y)
+        // A second serve is the same point, but the rally starts again from the serve.
+        rallyShots = 0
 
         phase = .ready
         phaseTimer = 0.85
@@ -380,10 +382,11 @@ extension Tennis3DGame {
 
         let step = Tuning.physicsStep * 4
         // The band a stroke is comfortable in, centred on the height the strings actually pass
-        // through rather than on a guess about knees and shoulders.
+        // through rather than on a guess about knees and shoulders. `verticalReach` is the same
+        // band `timeUntilInReach` swings in — see the note on it.
         let contactHeight = contactHeadHeight
-        let lowest = contactHeight - Tennis3DCourt.metres(0.6)
-        let highest = contactHeight + Tennis3DCourt.metres(0.6)
+        let lowest = contactHeight - verticalReach
+        let highest = contactHeight + verticalReach
 
         // The first playable moment is usually not the useful one, and pointing at it was
         // quietly losing every service game. A serve bounces near the service line and kicks

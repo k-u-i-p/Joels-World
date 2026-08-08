@@ -171,7 +171,8 @@ extension Tennis3DGame {
         if toPlayer { score.playerPoints += 1 } else { score.npcPoints += 1 }
         trace("POINT to \(toPlayer ? "you" : opponentName) — \(reason) "
               + "(\(score.text.player)–\(score.text.npc), games "
-              + "\(score.playerGames)–\(score.npcGames))")
+              + "\(score.playerGames)–\(score.npcGames)) after \(rallyShots) shot"
+              + (rallyShots == 1 ? "" : "s"))
 
         guard let gameWinner = score.gameWinner else {
             let line = score.text
@@ -285,6 +286,8 @@ extension Tennis3DGame {
         isServeInFlight = false
         serverIsPlayer = true
         deuceCourt = true
+        rallyShots = 0
+        longestRally = 0
         random.reseed(0xA11CE)
         ball.parkOffCourt()
         announce("NEW MATCH", subtitle: "First to \(Tuning.gamesToWinMatch) games", duration: 2.0)
@@ -304,6 +307,9 @@ extension Tennis3DGame {
         var serverIsPlayer: Bool
         var isMatchOver: Bool
         var playerWonMatch: Bool
+        /// Shots in the point so far, and the best of the match.
+        var rallyShots: Int
+        var longestRally: Int
     }
 
     var scoreboard: Scoreboard {
@@ -315,6 +321,8 @@ extension Tennis3DGame {
                           opponentName: opponentName,
                           serverIsPlayer: serverIsPlayer,
                           isMatchOver: phase == .matchOver,
-                          playerWonMatch: score.playerGames >= Tuning.gamesToWinMatch)
+                          playerWonMatch: score.playerGames >= Tuning.gamesToWinMatch,
+                          rallyShots: rallyShots,
+                          longestRally: longestRally)
     }
 }

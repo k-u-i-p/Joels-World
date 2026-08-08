@@ -26,6 +26,14 @@ final class Tennis3DView: UIView {
     private let bannerSubtitle = UILabel()
 
     private let hint = UILabel()
+    /// "RALLY 6", once a point is long enough to be worth counting.
+    private let rallyLabel = UILabel()
+
+    /// The three difficulty buttons and the panel they sit in. Between points only — see
+    /// `updateDifficultyRow()`.
+    private let difficultyPanel = Theme.glassPanel(cornerRadius: 12)
+    private let difficultyCaption = UILabel()
+    private var difficultyButtons: [UIButton] = []
 
     private let matchPanel = Theme.glassPanel(cornerRadius: 18)
     private let matchTitle = UILabel()
@@ -36,6 +44,10 @@ final class Tennis3DView: UIView {
     private var game: Tennis3DGame?
     /// True while a finger is down, so the drag keeps re-aiming rather than the tap winning.
     private var isDragging = false
+    /// Set when a drag began on the player: how far the character was from the finger at that
+    /// moment, held constant for the rest of the drag. Nil for a drag that began anywhere else,
+    /// which steers straight at the finger. See `panned`.
+    private var grabOffset: (x: Double, y: Double)?
     /// When `step()` last ran, so the fades can be measured in seconds. See `step()`.
     private var lastStepTime: CFTimeInterval?
 
@@ -61,6 +73,8 @@ final class Tennis3DView: UIView {
         buildScoreboard()
         buildBanner()
         buildMatchPanel()
+        buildDifficultyRow()
+        buildRallyCounter()
         buildHint()
         buildGestures()
     }
@@ -204,13 +218,84 @@ final class Tennis3DView: UIView {
         ])
     }
 
+    /// **How good Alex is, as three buttons.**
+    ///
+    /// It was a constant with a debug flag on it, which meant the one thing a ten-year-old is
+    /// certain to want — "make her harder, I keep winning" — needed a rebuild. It sits just under
+    /// the scoreboard and shows itself **only between points**, so it is always a tap away and
+    /// never under the ball during a rally.
+    private func buildDifficultyRow() {
+        difficultyPanel.translatesAutoresizingMaskIntoConstraints = false
+        difficultyPanel.alpha = 0
+        addSubview(difficultyPanel)
+
+        style(difficultyCaption, size: 10, color: UIColor(white: 1, alpha: 0.75), weight: .semibold,
+              display: false)
+        difficultyCaption.text = "ALEX"
+        difficultyCaption.textAlignment = .center
+
+        difficultyButtons = Tennis3DDifficulty.allCases.map { level in
+            let button = Theme.makePlainButton()
+            button.setTitle(level.title, for: .normal)
+            button.titleLabel?.font = Theme.body(12, weight: .bold)
+            button.setTitleColor(.white, for: .normal)
+            button.layer.cornerRadius = 7
+            button.layer.cornerCurve = .continuous
+            // Sized rather than inset: `contentEdgeInsets` is deprecated, and a fixed pill is
+            // easier for a thumb to land on than one that hugs its own text.
+            button.translatesAutoresizingMaskIntoConstraints = false
+            button.heightAnchor.constraint(equalToConstant: 26).isActive = true
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 62).isActive = true
+            button.tag = level.rawValue
+            button.addTarget(self, action: #selector(difficultyTapped(_:)), for: .touchUpInside)
+            return button
+        }
+
+        let row = UIStackView(arrangedSubviews: [difficultyCaption] + difficultyButtons)
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.axis = .horizontal
+        row.alignment = .center
+        row.spacing = 6
+        difficultyPanel.contentView.addSubview(row)
+
+        NSLayoutConstraint.activate([
+            difficultyPanel.centerXAnchor.constraint(equalTo: centerXAnchor),
+            difficultyPanel.topAnchor.constraint(equalTo: scoreboard.bottomAnchor, constant: 6),
+
+            row.topAnchor.constraint(equalTo: difficultyPanel.contentView.topAnchor, constant: 5),
+            row.bottomAnchor.constraint(equalTo: difficultyPanel.contentView.bottomAnchor, constant: -5),
+            row.leadingAnchor.constraint(equalTo: difficultyPanel.contentView.leadingAnchor, constant: 10),
+            row.trailingAnchor.constraint(equalTo: difficultyPanel.contentView.trailingAnchor, constant: -10),
+        ])
+    }
+
+    /// The rally counter. Nothing in the rules turns on it — it is there because counting your
+    /// own rally is half of what makes hitting a ball back and forth fun, and because a game
+    /// that never tells you a rally was long has no way of saying "that was a good one".
+    private func buildRallyCounter() {
+        style(rallyLabel, size: 15, color: UIColor(white: 1, alpha: 0.9), display: true)
+        rallyLabel.translatesAutoresizingMaskIntoConstraints = false
+        rallyLabel.textAlignment = .center
+        rallyLabel.alpha = 0
+        addSubview(rallyLabel)
+
+        // Top left, on the grass. The middle of the screen is the court, the bottom is where the
+        // player stands, and the top middle is the scoreboard — this corner is the only part of
+        // the frame with nothing in it, at either end of a rally.
+        NSLayoutConstraint.activate([
+            rallyLabel.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor,
+                                                constant: 16),
+            rallyLabel.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12),
+        ])
+    }
+
     /// One line telling a ten-year-old what the controls are, which fades out once they have
     /// obviously worked it out.
     private func buildHint() {
         style(hint, size: 13, color: UIColor(white: 1, alpha: 0.85), weight: .semibold,
               display: false)
         hint.translatesAutoresizingMaskIntoConstraints = false
-        hint.text = "Drag yourself around the court — or tap where to run"
+        hint.text = "Grab yourself and drag — or tap where to run. Stand on the green X"
         hint.textAlignment = .center
         hint.numberOfLines = 0
         addSubview(hint)
@@ -249,7 +334,9 @@ final class Tennis3DView: UIView {
         self.game = game
         isHidden = false
         isDragging = false
+        grabOffset = nil
         hint.alpha = 1
+        difficultyPanel.alpha = 1
         lastStepTime = nil
         matchPanel.isHidden = true
 
@@ -289,6 +376,18 @@ final class Tennis3DView: UIView {
         // have to remember what the controls were. Twelve seconds is longer than any pause
         // between points, so it never flashes back on mid-match.
         fade(hint, to: game.secondsSinceSteer > 12 ? 1 : 0, rate: 4, dt: dt)
+
+        // The difficulty buttons are up whenever the ball is not, which is every pause between
+        // points. Never during a rally: they sit near the top of the screen, which is where the
+        // far player and a deep ball both are.
+        let playing = game.phase == .rally || game.phase == .toss
+        fade(difficultyPanel, to: playing ? 0 : 1, rate: 7, dt: dt)
+
+        // From the third shot, because "RALLY 1" on every serve is noise. It holds through the
+        // pause after the point so you get to see what you managed.
+        let shots = game.scoreboard.rallyShots
+        if shots >= 3 { rallyLabel.text = "RALLY \(shots)" }
+        fade(rallyLabel, to: shots >= 3 ? 1 : 0, rate: 6, dt: dt)
     }
 
     /// Exponential ease towards `target`, framed in seconds rather than in frames.
@@ -312,6 +411,15 @@ final class Tennis3DView: UIView {
         gamesLabel.text = "Games \(board.playerGames)—\(board.npcGames)"
         serveIndicator.text = board.serverIsPlayer ? "· your serve" : "· \(board.opponentName) serving"
 
+        difficultyCaption.text = board.opponentName.uppercased()
+        for button in difficultyButtons {
+            let selected = button.tag == game.difficulty.rawValue
+            button.backgroundColor = selected
+                ? Theme.primary
+                : UIColor(white: 1, alpha: 0.12)
+            button.setTitleColor(selected ? .white : UIColor(white: 1, alpha: 0.7), for: .normal)
+        }
+
         if let announcement = game.announcement {
             bannerTitle.text = announcement.text
             bannerSubtitle.text = announcement.subtitle
@@ -320,11 +428,14 @@ final class Tennis3DView: UIView {
 
         if board.isMatchOver {
             matchTitle.text = board.playerWonMatch ? "YOU WIN!" : "BEATEN"
-            matchDetail.text = board.playerWonMatch
+            let rally = board.longestRally >= 3
+                ? " Your longest rally was \(board.longestRally) shots."
+                : ""
+            matchDetail.text = (board.playerWonMatch
                 ? "You beat \(board.opponentName) \(board.playerGames)—\(board.npcGames). "
                     + "The tennis badge is yours."
                 : "\(board.opponentName) took it \(board.npcGames)—\(board.playerGames). "
-                    + "Another go?"
+                    + "Another go?") + rally
             // Only fade it in on the way up. `refresh()` runs on every presentation change, and
             // the announcement expiring is one — so without this the panel restarts its fade
             // from nothing a few seconds after it appears.
@@ -336,6 +447,13 @@ final class Tennis3DView: UIView {
         } else {
             matchPanel.isHidden = true
         }
+    }
+
+    @objc private func difficultyTapped(_ sender: UIButton) {
+        guard let game, let level = Tennis3DDifficulty(rawValue: sender.tag) else { return }
+        game.difficulty = level
+        game.announce("ALEX: \(level.title.uppercased())", subtitle: level.blurb, duration: 1.6)
+        refresh()
     }
 
     @objc private func playAgainTapped() {
@@ -355,13 +473,33 @@ final class Tennis3DView: UIView {
     /// court to head for, and `Locomotion` does the rest. That is why a drag feels like
     /// dragging rather than like teleporting: the character is accelerating towards the finger,
     /// not being placed under it.
+    ///
+    /// **A drag that starts on your own player grabs them instead**, and from then on the
+    /// character moves by however far the finger has moved rather than to wherever it now is.
+    /// The two behave identically once the finger has travelled — the difference is the first
+    /// instant. Without it, putting a thumb on your own character and moving it a centimetre
+    /// jerked them a metre sideways to line up under the middle of the thumb, because a thumb is
+    /// two centimetres across and a court is only sixteen metres wide on screen. Grabbing is also
+    /// the gesture that does not put a thumb on top of the thing you are trying to watch.
     @objc private func panned(_ recognizer: UIPanGestureRecognizer) {
         switch recognizer.state {
-        case .began, .changed:
+        case .began:
+            isDragging = true
+            grabOffset = nil
+            guard let game, let world = worldPoint(for: recognizer.location(in: self)) else {
+                return
+            }
+            let toPlayer = hypot(world.x - game.player.motor.x, world.y - game.player.motor.y)
+            if toPlayer < Tennis3DCourt.metres(1.8) {
+                grabOffset = (x: game.player.motor.x - world.x, y: game.player.motor.y - world.y)
+            }
+            steer(to: recognizer.location(in: self))
+        case .changed:
             isDragging = true
             steer(to: recognizer.location(in: self))
         default:
             isDragging = false
+            grabOffset = nil
         }
     }
 
@@ -372,7 +510,8 @@ final class Tennis3DView: UIView {
 
     private func steer(to point: CGPoint) {
         guard let game, let world = worldPoint(for: point) else { return }
-        game.steer(toWorldX: world.x, y: world.y)
+        let offset = grabOffset ?? (x: 0, y: 0)
+        game.steer(toWorldX: world.x + offset.x, y: world.y + offset.y)
     }
 
     /// Turns a point on the screen into a point on the court.
@@ -392,11 +531,15 @@ final class Tennis3DView: UIView {
     }
 
     /// Lets touches through to the panels, but never swallows one meant for the court.
+    ///
+    /// A panel only counts while it is actually on screen: the difficulty row fades out during a
+    /// rally, and an invisible strip of buttons across the top of the court that quietly ate the
+    /// first centimetre of every drag would be a genuinely maddening bug to be on the wrong end
+    /// of at ten years old.
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard !isHidden else { return nil }
-        if !matchPanel.isHidden {
-            let inPanel = matchPanel.convert(point, from: self)
-            if matchPanel.bounds.contains(inPanel) {
+        for panel in [matchPanel, difficultyPanel] where !panel.isHidden && panel.alpha > 0.5 {
+            if panel.bounds.contains(panel.convert(point, from: self)) {
                 return super.hitTest(point, with: event)
             }
         }

@@ -111,8 +111,9 @@ final class Tennis3DGame: WorldRenderedMinigame {
         /// How good Alex is, from 0 (a friendly hit-up) to 1 (as good as the simulation allows).
         ///
         /// One knob rather than three, because "make her harder" is the only thing anyone will
-        /// ever actually want. `-tennisdifficulty <0…1>` overrides it for a balancing run, and
-        /// it is a `var` for exactly that reason — nothing in the game changes it mid-match.
+        /// ever actually want. `Tennis3DDifficulty` is the three named notches on it that the
+        /// buttons under the scoreboard set, and `-tennisdifficulty <0…1>` overrides it outright
+        /// for a balancing run.
         ///
         /// Measured against the `-tennis3ddemo` bot, which reads the ball perfectly and has no
         /// reaction time, so it is a good deal better than a ten-year-old: at 0.5 it won 16
@@ -122,9 +123,19 @@ final class Tennis3DGame: WorldRenderedMinigame {
 
         /// How long the opponent takes to react to a shot before it starts moving.
         static var npcReaction: Double { 0.34 - 0.24 * clampedDifficulty }
-        /// How far off perfect the opponent positions itself, at most.
+
+        /// How far off perfect the opponent positions itself, at most — in **each** of x and y,
+        /// so the diagonal is worse again.
+        ///
+        /// It was 1.5 m falling to 0.4 m, which at the default difficulty put her feet up to
+        /// 0.84 m out in each axis against a sweet spot of 0.42 m. An error deliberately set
+        /// larger than the target is not "slightly worse", it is a coin toss on whether she can
+        /// play the ball at all — and it is why a service game was a run of aces she never
+        /// swung at. She should reliably *get* to the ball at every level, and the level should
+        /// decide how good the reply is: how quickly she sets off, how fast she runs, and how
+        /// well she aims.
         static var npcPositionError: Double {
-            Tennis3DCourt.metres(1.5 - 1.1 * clampedDifficulty)
+            Tennis3DCourt.metres(0.62 - 0.47 * clampedDifficulty)
         }
 
         private static var clampedDifficulty: Double { min(max(difficulty, 0), 1) }
@@ -303,10 +314,30 @@ final class Tennis3DGame: WorldRenderedMinigame {
     /// The banner text the HUD shows. Set by the rules, cleared on its own timer.
     var announcement: Announcement?
 
+    /// Which of the three named levels is in force, and the one place anything outside the
+    /// simulation sets it. Writing it moves `Tuning.difficulty` — which is what Alex's reactions,
+    /// her positioning and her legs are all derived from — and remembers the choice for next
+    /// time. Safe to change mid-match: nothing caches a value off it.
+    var difficulty: Tennis3DDifficulty = .normal {
+        didSet {
+            Tennis3DDifficulty.current = difficulty
+            Tuning.difficulty = difficulty.value
+            onPresentationChanged?()
+        }
+    }
+
     /// Seconds since the player last told anyone where to stand. Starts at infinity — nobody has
     /// touched the screen yet — which is what puts the controls hint up in the first place and
     /// brings it back if they stop playing.
     private(set) var secondsSinceSteer: Double = .infinity
+
+    /// Shots in the point so far, the serve included, and the best of the match.
+    ///
+    /// It is on the screen because a ten-year-old counting his own rally out loud is most of the
+    /// fun of the game, and it is in the trace because "how long are the rallies" was the one
+    /// question every balancing run has had to answer with `awk`.
+    var rallyShots = 0
+    var longestRally = 0
 
     /// Seconds since anything happened to the ball: a toss, a bounce, a net cord, a strike.
     /// The watchdog in `advancePhase` reads it. Not the length of the point — a twenty-shot
@@ -361,7 +392,10 @@ final class Tennis3DGame: WorldRenderedMinigame {
     // MARK: - Lifecycle
 
     func start() {
+        difficulty = Tennis3DDifficulty.current
         #if DEBUG
+        // The launch argument wins, so a balancing run is not at the mercy of whatever was last
+        // pressed on the device.
         if let override = WalkTest.tennisDifficulty { Tuning.difficulty = override }
         #endif
         Log.world("[Tennis3D] Starting on a \(Int(Tennis3DCourt.length))-unit court, "
@@ -373,6 +407,8 @@ final class Tennis3DGame: WorldRenderedMinigame {
         faults = 0
         serverIsPlayer = true
         deuceCourt = true
+        rallyShots = 0
+        longestRally = 0
         random.reseed(0xA11CE)
 
         // Walk on from behind the baselines, as the 2D game did — it is the one bit of
@@ -510,13 +546,20 @@ final class Tennis3DGame: WorldRenderedMinigame {
 
         server.moveTarget = (x: serveX, y: server.half * baseline)
 
-        // The receiver stands well behind their own baseline, on the diagonal the serve is
-        // coming down — two metres back, which is where a returner actually stands for a first
-        // serve and, more to the point, where this one is still travelling when it gets there.
+        // The receiver stands just behind their own baseline, on the diagonal the serve is
+        // coming down.
+        //
+        // Two metres back, which is what this was, is behind the **whole** window in which the
+        // serve is at racket height. A serve here lands about a metre inside the service line,
+        // comes off the court at 5.5 m/s upward, peaks a metre and a half up around mid-court
+        // and is back down to knee height a metre past the baseline. So the receiver stood
+        // watching it die at her feet, never swung, and every service game was a run of aces
+        // that no amount of tuning her legs or her reactions could have fixed — she was in the
+        // wrong place before the ball was struck.
         let box = Tennis3DCourt.serviceBox(receiverHalf: receiver.half, deuceCourt: deuceCourt)
         let boxCentreX = (box.minX + box.maxX) / 2
         receiver.moveTarget = (x: boxCentreX * 1.15,
-                               y: receiver.half * (baseline + Tennis3DCourt.metres(2.0)))
+                               y: receiver.half * (baseline + Tennis3DCourt.metres(0.9)))
 
         phase = .toMarks
         phaseTimer = 0.5

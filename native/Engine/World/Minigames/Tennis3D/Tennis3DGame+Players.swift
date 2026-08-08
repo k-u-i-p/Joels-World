@@ -131,6 +131,19 @@ extension Tennis3DGame {
     /// size, over and over, which is what a systematic error looks like in a log.
     var contactHeadHeight: Double { contactHeadLocal.z + 15.5 }
 
+    /// **How far above or below the strings a ball may be and still be a shot.**
+    ///
+    /// One definition, read by both the thing that picks where to stand (`intercept(for:)`) and
+    /// the thing that decides when to swing (`timeUntilInReach`). They disagreed by two metres
+    /// for as long as the game existed: the intercept would sensibly wait for a ball to drop to
+    /// racket height, and the swing trigger would fire the moment it was anywhere overhead. The
+    /// two questions have to be asked of the same strike zone or the feet and the arm are playing
+    /// different shots.
+    ///
+    /// A little wider than the sweet spot, because the swing is timed to a *predicted* height and
+    /// the ball is still falling while the racket comes through.
+    var verticalReach: Double { Tuning.sweetRadius + Tennis3DCourt.metres(0.16) }
+
     /// The racket head at the timed strike, in the character's own frame. Derived from the
     /// swing choreography, not written down separately.
     private var contactHeadLocal: SIMD3<Double> {
@@ -461,10 +474,11 @@ extension Tennis3DGame {
         // 1.4 m apart, and once both players started standing off the ball so the racket could
         // reach it — which is what makes a return possible at all — a body-centred test stopped
         // firing entirely and the opponent simply watched every serve go by without swinging.
+        //
+        // The horizontal margin is generous because the player is still running when this fires;
+        // the **vertical** one is not, and that is the whole point of it being separate.
         let reach = Tuning.sweetRadius + Tennis3DCourt.metres(0.6)
         let headOffset = contactHeadWorldOffset(for: side)
-        let lowest = Tennis3DCourt.metres(0.15)
-        let highest = Tennis3DCourt.metres(2.6)
 
         while elapsed < 2.0 {
             let speed = simd_length(velocity)
@@ -490,7 +504,23 @@ extension Tennis3DGame {
 
             // A serve is not returnable until it has bounced.
             if isServeInFlight && side !== server && bounces == 0 { continue }
-            guard position.z >= lowest, position.z <= highest else { continue }
+
+            // **The strings are at one height and they do not move.** The swing choreography
+            // puts the racket head just under a metre up and keeps it there, so a ball passing
+            // overhead at 1.8 m is not a shot — it is a ball going over your head.
+            //
+            // This test used to accept anything between 0.15 m and 2.6 m and then measure the
+            // distance on the ground plane alone, which is to say it ignored height entirely. A
+            // topspin rally ball lands mid-court and climbs back to about 1.7 m, and it passes
+            // directly *above* the receiver on the way to their baseline — so the test fired,
+            // the player swung a full stroke into thin air 0.7 m under it, and by the time the
+            // 0.63 s swing and its cooldown were done the ball had bounced twice behind them.
+            //
+            // Fourteen misses in a twenty-point match, every single one with the ball between
+            // 1.7 m and 1.8 m and the strings at 0.99 m. Nobody was out of position; everybody
+            // was swinging early at a ball they should have let drop. Waiting until it is at
+            // racket height is the difference between a swing and a return.
+            guard abs(position.z - contactHeadHeight) <= verticalReach else { continue }
 
             let standing = predictedStandingPosition(of: side, after: elapsed) + headOffset
             let distance = hypot(position.x - standing.x, position.y - standing.y)
@@ -547,6 +577,15 @@ extension Tennis3DGame {
         ball.bounces = 0
         ball.clippedNet = false
         timeSinceBallEvent = 0
+
+        rallyShots += 1
+        longestRally = max(longestRally, rallyShots)
+        if rallyShots == 4 || rallyShots == 8 {
+            // The crowd wakes up for a long one. Twice per point at most, so a twenty-shot rally
+            // does not turn into twenty overlapping claps.
+            host.minigamePlayEffect(path: "/media/clap.mp3", volume: 0.3 + 0.2 * Double(rallyShots) / 8)
+        }
+        onPresentationChanged?()
 
         // How cleanly it was struck: dead centre of the sweet spot at the middle of the forward
         // swing is a clean hit; anything else bleeds pace and skews the aim. This is where
@@ -632,8 +671,21 @@ extension Tennis3DGame {
         // Hit away from where the other player is standing. For the human this is automatic —
         // it is what a real player does without thinking, and there is no second thumb free to
         // aim with.
+        //
+        // How far off centre it is aimed is the single number that decides how long a rally
+        // runs, and it is worth knowing how narrow the useful band is. Measured against the
+        // `-tennis3ddemo` bot, which never misplaces its feet:
+        //
+        // | Range | What happened |
+        // |---|---|
+        // | 0.45–0.80 | mean rally 2.7 shots — a 3.3 m sprint on every ball, so the point was over by the third |
+        // | 0.30–0.68 | rallies that never ended at all: two points in four minutes |
+        // | **0.38–0.78** | what is here |
+        //
+        // A person will end points a good deal sooner than the bot does, so erring towards the
+        // longer rally is the right side to be on.
         let awayFromOpponent: Double = opponent.motor.x > 0 ? -1 : 1
-        var aimX = awayFromOpponent * Tennis3DCourt.halfSingles * random.range(0.45, 0.80)
+        var aimX = awayFromOpponent * Tennis3DCourt.halfSingles * random.range(0.38, 0.78)
 
         // Sliding across the court while you hit drags the ball with you, which gives the drag
         // control a second job: it steers the shot.
@@ -643,15 +695,26 @@ extension Tennis3DGame {
         aimX = min(max(aimX, -Tennis3DCourt.halfSingles + Tennis3DCourt.metres(0.5)),
                    Tennis3DCourt.halfSingles - Tennis3DCourt.metres(0.5))
 
-        // Depth: deep by default, with the odd shorter one. Struck from behind the baseline,
-        // aim shorter — a defensive ball hit for the baseline mostly goes long.
-        let stretched = abs(side.motor.y) > Tennis3DCourt.halfLength
-        let depth = stretched ? random.range(0.50, 0.68) : random.range(0.62, 0.86)
+        // Depth: deep by default, with the odd shorter one. Struck from a long way behind the
+        // baseline, aim shorter and loop it — a defensive ball hit flat for the baseline mostly
+        // goes long.
+        //
+        // The threshold was the baseline itself, and **every shot in the game qualified**: a
+        // topspin ball is met a metre or two behind the line, which is where a baseline player
+        // stands. So both players hit nothing but heavy defensive loops at each other. That is
+        // what made the rallies short — a 0.85-topspin ball dives, bounces steeply, sits up to
+        // 1.6 m and carries ten metres past the bounce, which is well past the back fence, so
+        // the point ended with somebody pinned against it watching the ball go over their head.
+        // Being properly stretched is a metre and a half further back than that.
+        let stretched = abs(side.motor.y) > Tennis3DCourt.halfLength + Tennis3DCourt.metres(1.5)
+        let depth = stretched ? random.range(0.46, 0.64) : random.range(0.58, 0.82)
         let aimY = targetHalf * Tennis3DCourt.halfLength * depth
 
         return (aim: (x: aimX, y: aimY),
                 power: stretched ? 0.82 : random.range(0.92, 1.05),
-                topspin: stretched ? 0.85 : random.range(0.45, 0.75))
+                // Enough spin to bring a hard ball down inside the baseline, not so much that it
+                // kicks over the receiver's shoulder. See the note on `stretched` above.
+                topspin: stretched ? 0.62 : random.range(0.30, 0.52))
     }
 
     // MARK: - Steering
@@ -697,7 +760,9 @@ extension Tennis3DGame {
                 }
             } else if ball.vy > 0 || ball.lastHitByPlayer == false {
                 // Its own ball is on the way over: recover towards the middle of the baseline.
-                npc.moveTarget = (x: 0, y: -Tennis3DCourt.halfLength - Tennis3DCourt.metres(0.6))
+                // A metre and a bit behind it, which is where the reply will be at racket height
+                // — recovering onto the line itself means walking backwards again immediately.
+                npc.moveTarget = (x: 0, y: -Tennis3DCourt.halfLength - Tennis3DCourt.metres(1.2))
             }
         }
 
