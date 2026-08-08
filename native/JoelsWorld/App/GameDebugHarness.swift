@@ -2,7 +2,8 @@
 import Foundation
 
 /// The launch-argument verification harness: `-walktest`, `-npctrace`, `-uidemo`,
-/// `-emotedemo`, `-emote`, `-map`, `-tennisdemo`, `-tennistrace`, `-exitafter`, `-autojoin`.
+/// `-emotedemo`, `-emote`, `-map`, `-tennisdemo`, `-tennistrace`, `-tennis3ddemo`,
+/// `-tennis3dtrace`, `-exitafter`, `-autojoin`, `-selftest`.
 ///
 /// `simctl` cannot inject touches, so every part of the game that a person would reach by
 /// tapping is reached from here instead — the dialogs open themselves, the emotes cycle, the
@@ -23,11 +24,20 @@ final class GameDebugHarness {
     private var tennisTraceTimer: Timer?
     private var tennisDemoTimer: Timer?
     private var tennisExitTimer: Timer?
+    private var tennis3DTraceTimer: Timer?
+    private var tennis3DDemoTimer: Timer?
+    /// The demo restarts the match once after it ends, to prove `restartMatch()` is clean and
+    /// that the badge does not fire a second time. Only once — otherwise it plays for ever.
+    private var tennis3DHasRestarted = false
     private var uiDemoStarted = false
     private var requestedInitialMap = false
 
     init(host: GameViewController) {
         self.host = host
+        // `-selftest` checks the pure movement maths. It needs no world, no Metal and no
+        // network, so it runs the moment the harness exists rather than waiting for a join
+        // that may never come.
+        if LocomotionSelfTest.isEnabled { LocomotionSelfTest.run() }
     }
 
     // MARK: - Hooks
@@ -69,33 +79,122 @@ final class GameDebugHarness {
         }
     }
 
-    /// `-tennisdemo` swings at every ball the prediction says is reachable; `-exitafter <s>`
-    /// presses the exit button once the rally has run long enough to be worth looking at.
+    /// `-tennisdemo` swings at every ball the prediction says is reachable; `-tennis3ddemo` does
+    /// the same job for the 3D rebuild; `-tennis3dtrace` narrates it; `-exitafter <s>` presses
+    /// the exit button once the rally has run long enough to be worth looking at.
     func minigameDidStart(_ minigame: Minigame) {
-        guard let game = minigame as? TennisGame else { return }
-
-        if WalkTest.playsTennis, tennisDemoTimer == nil {
-            tennisDemoTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak game] _ in
-                guard let game, let intercept = game.player.lastIntercept, intercept.t >= 0 else {
-                    return
-                }
-                game.handleTap(worldX: intercept.x, worldY: intercept.y)
-            }
+        if let game = minigame as? TennisGame {
+            startTennisDemo(game)
+            startExitTimer { [weak game] in game?.requestExit() }
         }
-
-        if let delay = WalkTest.exitAfterSeconds, tennisExitTimer == nil {
-            tennisExitTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak game] _ in
-                Log.world("-exitafter: pressing the exit button")
-                game?.requestExit()
-            }
+        if let game = minigame as? Tennis3DGame {
+            start3DTennisDemo(game)
+            start3DTennisTrace(game)
+            startExitTimer { [weak game] in game?.requestExit() }
         }
     }
 
     func minigameDidEnd() {
-        tennisDemoTimer?.invalidate()
+        for timer in [tennisDemoTimer, tennisExitTimer, tennis3DDemoTimer, tennis3DTraceTimer] {
+            timer?.invalidate()
+        }
         tennisDemoTimer = nil
-        tennisExitTimer?.invalidate()
         tennisExitTimer = nil
+        tennis3DDemoTimer = nil
+        tennis3DTraceTimer = nil
+        tennis3DHasRestarted = false
+    }
+
+    private func startTennisDemo(_ game: TennisGame) {
+        guard WalkTest.playsTennis, tennisDemoTimer == nil else { return }
+        tennisDemoTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak game] _ in
+            guard let game, let intercept = game.player.lastIntercept, intercept.t >= 0 else {
+                return
+            }
+            game.handleTap(worldX: intercept.x, worldY: intercept.y)
+        }
+    }
+
+    private func startExitTimer(_ press: @escaping () -> Void) {
+        guard let delay = WalkTest.exitAfterSeconds, tennisExitTimer == nil else { return }
+        tennisExitTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
+            Log.world("-exitafter: pressing the exit button")
+            press()
+        }
+    }
+
+    // MARK: - 3D tennis
+
+    /// `-tennis3ddemo`: plays the human's side without a human.
+    ///
+    /// It steers at the intercept the game itself predicts, through the same
+    /// `steer(toWorldX:y:)` a finger ends up in — so it exercises the real control path, not a
+    /// back door. Between shots it recovers to the middle of the baseline, which is what the
+    /// hint tells a person to do.
+    ///
+    /// This exists because balance cannot be judged from a screenshot. A whole match played out
+    /// against the trace below is the only way to see whether the opponent is any good, and it
+    /// is also the only way to reach the match-over panel, which no hand-played run ever did.
+    private func start3DTennisDemo(_ game: Tennis3DGame) {
+        guard WalkTest.plays3DTennis, tennis3DDemoTimer == nil else { return }
+        Log.world("-tennis3ddemo: playing the player's side")
+
+        tennis3DDemoTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self, weak game] _ in
+            guard let self, let game else { return }
+
+            if game.phase == .matchOver {
+                guard !self.tennis3DHasRestarted else { return }
+                self.tennis3DHasRestarted = true
+                Log.world("-tennis3ddemo: match over — restarting in 4 s to check the panel")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak game] in
+                    game?.restartMatch()
+                }
+                return
+            }
+
+            // Leave the serve alone: the server is standing on their mark and the toss is solved
+            // from where they are, so steering them mid-toss is a guaranteed double fault.
+            guard game.phase == .rally || (game.phase == .toss && !game.serverIsPlayer) else {
+                return
+            }
+
+            if let intercept = game.idealIntercept() {
+                game.steer(toWorldX: intercept.x, y: intercept.y)
+            } else {
+                game.steer(toWorldX: 0,
+                           y: Tennis3DCourt.halfLength + Tennis3DCourt.metres(0.5))
+            }
+        }
+    }
+
+    /// `-tennis3dtrace`: one line a second for the point, one for the two players.
+    private func start3DTennisTrace(_ game: Tennis3DGame) {
+        guard WalkTest.traces3DTennis, tennis3DTraceTimer == nil else { return }
+
+        tennis3DTraceTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak game] _ in
+            guard let game else { return }
+            let board = game.scoreboard
+            let metre = Tennis3DCourt.unitsPerMetre
+
+            Log.world(String(format:
+                "tennis3d %@ server=%@ faults=%d serveInFlight=%@ ball=(%.1f, %.1f, %.1f)m v=(%.1f, %.1f, %.1f)m/s bounces=%d spin=%.2f",
+                "\(game.phase)", board.serverIsPlayer ? "you" : board.opponentName,
+                game.faults, "\(game.isServeInFlight)",
+                game.ball.x / metre, game.ball.y / metre, game.ball.z / metre,
+                game.ball.vx / metre, game.ball.vy / metre, game.ball.vz / metre,
+                game.ball.bounces, game.ball.topspin))
+
+            Log.world(String(format:
+                "tennis3d   you=(%.1f, %.1f)m face=%.0f° speed=%.1f swing=%@ | %@=(%.1f, %.1f)m face=%.0f° speed=%.1f swing=%@ | %@–%@ games %d–%d",
+                game.player.locomotion.x / metre, game.player.locomotion.y / metre,
+                game.player.locomotion.facing, game.player.locomotion.speed / metre,
+                "\(game.player.swing.stage)",
+                board.opponentName,
+                game.npc.locomotion.x / metre, game.npc.locomotion.y / metre,
+                game.npc.locomotion.facing, game.npc.locomotion.speed / metre,
+                "\(game.npc.swing.stage)",
+                board.playerPoints, board.npcPoints, board.playerGames, board.npcGames))
+        }
     }
 
     /// Reads `-autojoin <Name>` from the launch arguments: skips the lobby, for scripted runs.

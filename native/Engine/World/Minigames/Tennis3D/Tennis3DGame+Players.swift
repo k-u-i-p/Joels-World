@@ -242,11 +242,28 @@ extension Tennis3DGame {
         return ballFrom + (ballTo - ballFrom) * t
     }
 
-    /// Is this player allowed to play the ball right now?
+    /// Is this player allowed to play the ball **right now**?
     ///
     /// Stated once, positively. The 2D game expressed the same rules as thirteen overlapping
     /// early returns, two of which were unreachable.
     func canHit(_ side: Side) -> Bool {
+        guard isTheirBall(side) else { return false }
+        // A serve has to bounce in the box before it can be returned.
+        if phase == .rally && isServeInFlight && ball.bounces == 0 { return false }
+        return true
+    }
+
+    /// Is this ball this player's to deal with at all — never mind whether the strings may
+    /// legally touch it this instant?
+    ///
+    /// The difference between this and `canHit` is the whole reason a serve was unreturnable.
+    /// A swing takes 0.285 s to bring the racket to the ball, and `canHit` says no until the
+    /// serve has **bounced** — which happens about 0.4 s before the ball reaches the receiver.
+    /// So the receiver could not begin to move the racket until it was almost too late, and
+    /// every legal serve in the game was an ace. Preparation asks this question instead;
+    /// `timeUntilInReach` only ever returns a moment after the bounce, so the strings still
+    /// arrive legally.
+    func isTheirBall(_ side: Side) -> Bool {
         switch phase {
         case .toss:
             // Only the server, only their own toss, and only before it lands.
@@ -255,8 +272,6 @@ extension Tennis3DGame {
             // Not your own ball back, and not after it has bounced twice.
             guard ball.bounces < 2 else { return false }
             if let last = ball.lastHitByPlayer, last == side.isPlayer { return false }
-            // A serve has to bounce in the box before it can be returned.
-            if isServeInFlight && ball.bounces == 0 { return false }
             return true
         default:
             return false
@@ -265,7 +280,7 @@ extension Tennis3DGame {
 
     /// Decides whether to start a swing, by asking when the ball will be within reach.
     private func considerStartingSwing(_ side: Side, dt: Double) {
-        guard side.swing.cooldown <= 0, ball.inFlight, canHit(side) else { return }
+        guard side.swing.cooldown <= 0, ball.inFlight, isTheirBall(side) else { return }
 
         // The opponent is given a beat to react; the player's swing is automatic, because the
         // player's job is to be standing in the right place.
@@ -493,7 +508,13 @@ extension Tennis3DGame {
     func steerOpponent(dt: Double) {
         if npc.reactionDelay > 0 { npc.reactionDelay -= dt }
 
-        if phase == .rally || phase == .toss {
+        // Never chase your own ball toss. `tossBall` solves the toss backwards from where the
+        // server's strings will be *given where they are standing now*, so a server who takes a
+        // single step after the toss swings through empty air — which is what made every one of
+        // Alex's service games a run of double faults. The ball is above their own baseline and
+        // heading down, so the "read the landing and go" branch below found it irresistible.
+        let servingOwnToss = phase == .toss && server === npc
+        if (phase == .rally || phase == .toss) && !servingOwnToss {
             if npc.reactionDelay <= 0, ball.inFlight, ball.vy < 0 || ball.y < 0 {
                 if let landing = predictedLanding(), landing.point.y < 0 {
                     // Stand where the racket, not the body, meets the ball: a stride behind the
@@ -532,7 +553,15 @@ extension Tennis3DGame {
         var desired = (x: 0.0, y: 0.0)
         var distance: Double = 0
 
-        if let target = side.moveTarget {
+        // A server stands still from the moment they take the ball until they have struck it.
+        // Not stagecraft — a requirement. `tossBall` solves the toss backwards from where the
+        // strings will be, given where the server is standing *at the moment of the toss*, so a
+        // server who drifts even half a metre swings through thin air. Both sides were losing
+        // serves to it; the opponent lost every one.
+        let isServing = (phase == .ready || phase == .toss) && side === server
+        if isServing {
+            side.moveTarget = nil
+        } else if let target = side.moveTarget {
             let dx = target.x - side.locomotion.x
             let dy = target.y - side.locomotion.y
             distance = hypot(dx, dy)

@@ -324,7 +324,7 @@ final class GameState {
             // A minigame drawn by the real renderer needs the camera pointed at its court; one
             // that draws itself on a 2D canvas does not care where the camera is.
             if let world = minigame as? WorldRenderedMinigame {
-                world.updateCamera(&camera, viewport: viewport)
+                world.updateCamera(&camera, viewport: viewport, dt: dt)
             }
             return
         }

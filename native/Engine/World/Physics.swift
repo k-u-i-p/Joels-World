@@ -468,4 +468,19 @@ struct CharacterVisual {
     var currentOffsetX: Double = 0
     var currentOffsetY: Double = 0
     var currentOffsetRotation: Double = 0
+
+    /// This NPC's own random stream, seeded from its id the first time it is asked for a
+    /// number. `Double.random` draws from the system generator, so the school used to be laid
+    /// out differently on every run and on every player's screen at once — and a roaming NPC
+    /// that misbehaved could never be watched twice. Seeding per id fixes all three: the same
+    /// NPC wanders the same way every time, and every client agrees on it.
+    private var roamRandom: DeterministicRandom?
+
+    /// The next number in this NPC's stream, in `[0, 1)`.
+    mutating func roamNoise(seed: Int) -> Double {
+        if roamRandom == nil {
+            roamRandom = DeterministicRandom(seed: UInt64(bitPattern: Int64(seed)))
+        }
+        return roamRandom!.unit()
+    }
 }

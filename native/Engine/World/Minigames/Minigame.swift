@@ -31,9 +31,11 @@ protocol WorldRenderedMinigame: Minigame {
     /// costs nothing at this scale and means the ball is just another entry.
     var scenePrimitives: [ScenePrimitive] { get }
 
-    /// Where the camera goes. Called after `update(dt:)`, in place of the overworld's
-    /// follow-the-player logic.
-    func updateCamera(_ camera: inout Camera, viewport: SIMD2<Float>)
+    /// Where the camera goes. Called after `update(dt:)` with the same step, in place of the
+    /// overworld's follow-the-player logic. It takes `dt` because a camera that eases towards
+    /// its target has to ease in *seconds* — a fixed fraction per frame runs at half speed on a
+    /// 120 Hz display and twice as fast on a dropped one.
+    func updateCamera(_ camera: inout Camera, viewport: SIMD2<Float>, dt: Double)
 
     /// Clear colour behind the scene, as a CSS hex string. Nil keeps the map's own.
     var backgroundColor: String? { get }

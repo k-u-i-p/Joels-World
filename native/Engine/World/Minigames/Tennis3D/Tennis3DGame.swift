@@ -386,7 +386,11 @@ final class Tennis3DGame: WorldRenderedMinigame {
     var server: Side { serverIsPlayer ? player : npc }
     var receiver: Side { serverIsPlayer ? npc : player }
 
+    /// On their mark **and stopped**. The speed test matters more than it looks: the serve is
+    /// solved from where the server is standing, so one that begins while they are still
+    /// drifting onto the mark puts the ball where they no longer are.
     private func atRest(_ side: Side) -> Bool {
+        guard side.locomotion.speed < Tennis3DCourt.metres(0.4) else { return false }
         guard let target = side.moveTarget else { return true }
         return hypot(target.x - side.locomotion.x, target.y - side.locomotion.y)
             < Tennis3DCourt.metres(0.35)
@@ -479,7 +483,7 @@ final class Tennis3DGame: WorldRenderedMinigame {
     /// and the ball's position is unambiguous — but tips the camera over far enough to see that
     /// the players are solid and the net has depth. It follows the action gently rather than
     /// tracking the ball, because a camera that chases a 15 m/s ball is unwatchable.
-    func updateCamera(_ camera: inout Camera, viewport: SIMD2<Float>) {
+    func updateCamera(_ camera: inout Camera, viewport: SIMD2<Float>, dt: Double) {
         let viewportWidth = Double(viewport.x)
         let viewportHeight = Double(viewport.y)
         guard viewportWidth > 0, viewportHeight > 0 else { return }
@@ -511,7 +515,10 @@ final class Tennis3DGame: WorldRenderedMinigame {
         )
 
         if cameraSettled {
-            cameraFocus += (clamped - cameraFocus) * 0.06
+            // Exponential ease in seconds, not in frames. 0.06 a frame at 60 Hz is the ~3.7/s
+            // rate below, and now it is that rate whatever the display is running at.
+            let step = 1 - exp(-3.7 * min(0.1, max(0, dt)))
+            cameraFocus += (clamped - cameraFocus) * step
         } else {
             cameraFocus = clamped
             cameraSettled = true

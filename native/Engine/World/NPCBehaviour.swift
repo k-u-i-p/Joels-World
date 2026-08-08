@@ -13,15 +13,19 @@ enum NPCBehaviour {
     private static let degToRad = 0.017453292519943295
 
     /// Advances every NPC's roam or patrol timer by `dt` seconds.
+    ///
+    /// Roaming used to draw from `Double.random`, which meant the school arranged itself
+    /// differently on every run and differently again on every player's screen. Each NPC now
+    /// has its own stream seeded from its id (`CharacterVisual.roamNoise`), so a given NPC walks
+    /// the same route every time and a misbehaving one can be watched twice.
     static func update(npcs: [GameCharacter],
                        visuals: inout [Int: CharacterVisual],
-                       dt: Double,
-                       randomSource: () -> Double = { Double.random(in: 0..<1) }) {
+                       dt: Double) {
         for npc in npcs {
             var visual = visuals[npc.id] ?? CharacterVisual()
 
             if let roamRadius = npc.roam_radius {
-                roam(npc: npc, radius: roamRadius, visual: &visual, dt: dt, random: randomSource)
+                roam(npc: npc, radius: roamRadius, visual: &visual, dt: dt)
             } else if let waypoints = npc.waypoints, !waypoints.isEmpty {
                 patrol(npc: npc, waypoints: waypoints, visual: &visual, dt: dt)
             }
@@ -38,8 +42,9 @@ enum NPCBehaviour {
     private static func roam(npc: GameCharacter,
                              radius: Double,
                              visual: inout CharacterVisual,
-                             dt: Double,
-                             random: () -> Double) {
+                             dt: Double) {
+        func random() -> Double { visual.roamNoise(seed: npc.id) }
+
         if visual.waitTimer == nil {
             visual.startX = npc.x
             visual.startY = npc.y

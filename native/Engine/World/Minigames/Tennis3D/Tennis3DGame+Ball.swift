@@ -358,7 +358,10 @@ extension Tennis3DGame {
     ///
     /// Nil when there is nothing to hit — the opponent's ball to play, or a shot already gone.
     func idealIntercept() -> SIMD3<Double>? {
-        guard ball.inFlight, canHit(player) else { return nil }
+        // `isTheirBall`, not `canHit`: the marker has to be up *before* the serve bounces,
+        // because running to it is exactly what the player needs the extra half second for.
+        // The loop below already refuses to return a point before the bounce.
+        guard ball.inFlight, isTheirBall(player) else { return nil }
 
         var position = ball.position
         var velocity = SIMD3(ball.vx, ball.vy, ball.vz)

@@ -1,4 +1,5 @@
 import UIKit
+import QuartzCore
 import simd
 
 /// The 3D tennis game's screen furniture: the scoreboard, the announcement banner, the
@@ -35,6 +36,8 @@ final class Tennis3DView: UIView {
     private var game: Tennis3DGame?
     /// True while a finger is down, so the drag keeps re-aiming rather than the tap winning.
     private var isDragging = false
+    /// When `step()` last ran, so the fades can be measured in seconds. See `step()`.
+    private var lastStepTime: CFTimeInterval?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -247,6 +250,7 @@ final class Tennis3DView: UIView {
         isHidden = false
         isDragging = false
         hint.alpha = 1
+        lastStepTime = nil
         matchPanel.isHidden = true
 
         game.onPresentationChanged = { [weak self] in self?.refresh() }
@@ -260,19 +264,37 @@ final class Tennis3DView: UIView {
     }
 
     /// Called once per rendered frame, after the simulation has stepped. Everything that
-    /// changes continuously — the banner's fade, the hint retiring itself — lives here; the
+    /// changes continuously — the banner's fade, the hint coming and going — lives here; the
     /// score does not, because it changes rarely and says so.
+    ///
+    /// The frame callback carries a viewport and no `dt`, so this measures its own. Both fades
+    /// used to ease a fixed fraction *per frame*, which meant they ran at half speed on a
+    /// 120 Hz display and twice as fast on a dropped frame.
     func step() {
         guard !isHidden, let game else { return }
 
-        let wanted: CGFloat = game.announcement == nil ? 0 : 1
-        if abs(bannerPanel.alpha - wanted) > 0.01 {
-            bannerPanel.alpha += (wanted - bannerPanel.alpha) * 0.2
-        }
+        let now = CACurrentMediaTime()
+        // Clamped the same way the simulation clamps its own step: a frame the app spent in the
+        // background must not fade everything at once.
+        let dt = min(0.1, max(0, now - (lastStepTime ?? now)))
+        lastStepTime = now
 
-        if hint.alpha > 0 && game.phase == .rally {
-            hint.alpha = max(0, hint.alpha - 0.01)
+        fade(bannerPanel, to: game.announcement == nil ? 0 : 1, rate: 9, dt: dt)
+
+        // The hint is up until the player first touches the court, and comes back if they stop
+        // playing for a while — a ten-year-old who puts the phone down mid-match should not
+        // have to remember what the controls were. Twelve seconds is longer than any pause
+        // between points, so it never flashes back on mid-match.
+        fade(hint, to: game.secondsSinceSteer > 12 ? 1 : 0, rate: 4, dt: dt)
+    }
+
+    /// Exponential ease towards `target`, framed in seconds rather than in frames.
+    private func fade(_ view: UIView, to target: CGFloat, rate: Double, dt: Double) {
+        guard abs(view.alpha - target) > 0.004 else {
+            view.alpha = target
+            return
         }
+        view.alpha += (target - view.alpha) * CGFloat(1 - exp(-rate * dt))
     }
 
     /// Pulls everything static out of the game in one go.
@@ -300,9 +322,14 @@ final class Tennis3DView: UIView {
                     + "The tennis badge is yours."
                 : "\(board.opponentName) took it \(board.npcGames)—\(board.playerGames). "
                     + "Another go?"
-            matchPanel.isHidden = false
-            matchPanel.alpha = 0
-            UIView.animate(withDuration: 0.35) { self.matchPanel.alpha = 1 }
+            // Only fade it in on the way up. `refresh()` runs on every presentation change, and
+            // the announcement expiring is one — so without this the panel restarts its fade
+            // from nothing a few seconds after it appears.
+            if matchPanel.isHidden {
+                matchPanel.isHidden = false
+                matchPanel.alpha = 0
+                UIView.animate(withDuration: 0.35) { self.matchPanel.alpha = 1 }
+            }
         } else {
             matchPanel.isHidden = true
         }
