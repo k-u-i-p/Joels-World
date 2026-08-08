@@ -7,6 +7,11 @@ Dockerfile
 .dockerignore
 original_images/
 server/sessions/
+
+# The API key reaches the container as ANTHROPIC_API_KEY (see server/deploy.sh); it has no
+# business being baked into the image
+server/claude-key.txt
+server/gemini_key
 server/node_modules/
 
 # The native iOS/macOS sources are not part of the server image

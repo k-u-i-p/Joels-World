@@ -268,7 +268,7 @@ The server was a WebSocket relay wearing an Express application. Three jobs went
 
 With those gone, so did `express`, `cookie-parser` and `sharp` — the last of which moved to
 `tools/assets/`, where the slicing runs offline instead of at boot. The server's dependencies
-are `ws` and `@google/genai`. `server.js` is 35 lines: an `http.createServer` that answers a
+are `ws` and `@anthropic-ai/sdk`. `server.js` is 35 lines: an `http.createServer` that answers a
 health check on `/` and 404s everything else, so `ws` has something to attach to and Cloud Run
 has something to probe.
 

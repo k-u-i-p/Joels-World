@@ -28,6 +28,7 @@ assets/**/chunks/
 
 # Secrets
 gemini_key
+claude-key.txt
 
 # AI Agent Logs
 log.txt
