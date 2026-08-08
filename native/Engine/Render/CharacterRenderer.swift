@@ -90,7 +90,8 @@ final class CharacterRenderer {
     private var upperArmMesh: GPUMesh!
     private var lowerArmMesh: GPUMesh!
     private var elbowMesh: GPUMesh!
-    private var handMesh: GPUMesh!
+    private var leftHandMesh: GPUMesh!
+    private var rightHandMesh: GPUMesh!
     private var upperLegMesh: GPUMesh!
     private var lowerLegMesh: GPUMesh!
     private var kneeMesh: GPUMesh!
@@ -168,8 +169,12 @@ final class CharacterRenderer {
         let elbow = MeshFactory.sphere(radius: CharacterRig.elbowRadius,
                                        widthSegments: 12, heightSegments: 10)
 
-        // A mitt rather than a ball. See `CharacterRig.handProfile` for why it is revolved.
-        let hand = MeshFactory.revolved(profile: CharacterRig.handProfile, radialSegments: 16)
+        // A hand with a thumb, assembled from four ellipsoids and merged into one mesh. See
+        // `CharacterRig.Hand` for the frame and for why this could not be done until the forearm
+        // had a basis instead of a direction.
+        let rightHand = Self.buildHand()
+        // The left is the right, mirrored — including the winding, or it renders inside-out.
+        let leftHand = MeshFactory.mirroredInX(rightHand)
 
         // Thighs are heaviest at the hip; calves are heaviest at the knee and narrow into the
         // ankle, where the shoe takes over.
@@ -192,7 +197,8 @@ final class CharacterRenderer {
               let upperArmMesh = GPUMesh(device: device, mesh: upperArm),
               let lowerArmMesh = GPUMesh(device: device, mesh: lowerArm),
               let elbowMesh = GPUMesh(device: device, mesh: elbow),
-              let handMesh = GPUMesh(device: device, mesh: hand),
+              let leftHandMesh = GPUMesh(device: device, mesh: leftHand),
+              let rightHandMesh = GPUMesh(device: device, mesh: rightHand),
               let upperLegMesh = GPUMesh(device: device, mesh: upperLeg),
               let lowerLegMesh = GPUMesh(device: device, mesh: lowerLeg),
               let kneeMesh = GPUMesh(device: device, mesh: knee),
@@ -210,7 +216,8 @@ final class CharacterRenderer {
         self.upperArmMesh = upperArmMesh
         self.lowerArmMesh = lowerArmMesh
         self.elbowMesh = elbowMesh
-        self.handMesh = handMesh
+        self.leftHandMesh = leftHandMesh
+        self.rightHandMesh = rightHandMesh
         self.upperLegMesh = upperLegMesh
         self.lowerLegMesh = lowerLegMesh
         self.kneeMesh = kneeMesh
@@ -222,6 +229,39 @@ final class CharacterRenderer {
         buildPropMeshes()
         heartTexture = ProceduralTextures.makeHeartTexture(device: device)
         return whiteTexture != nil
+    }
+
+    /// The right hand: a wrist, a palm, a finger block and a thumb, merged into one mesh.
+    ///
+    /// Ellipsoids rather than boxes, because everything else on this body is a lathe and a hard
+    /// edge in among them reads as a modelling mistake rather than as a knuckle. The thumb is
+    /// the one piece that has to be placed rather than scaled — it leaves the palm's plane, and
+    /// a scaled sphere cannot do that.
+    private static func buildHand() -> MeshData {
+        func blob(radii: SIMD3<Float>, at centre: SIMD3<Float>) -> MeshData {
+            var mesh = MeshFactory.sphere(radius: 1, widthSegments: 14, heightSegments: 12)
+            MeshFactory.applyScale(&mesh, radii)
+            return MeshFactory.translated(mesh, by: centre)
+        }
+
+        var thumb = MeshFactory.capsule(radius: CharacterRig.Hand.thumbRadius,
+                                        length: CharacterRig.Hand.thumbLength,
+                                        capSegments: 5, radialSegments: 10)
+        MeshFactory.applyRotation(&thumb, .rotationX(CharacterRig.Hand.thumbSplay))
+        // The capsule is centred on its own middle, so it has to be pushed half its length
+        // along the splayed axis before it starts at the root rather than through it.
+        let half = CharacterRig.Hand.thumbLength / 2
+        let along = SIMD3<Float>(0,
+                                 half * cos(CharacterRig.Hand.thumbSplay),
+                                 half * sin(CharacterRig.Hand.thumbSplay))
+        thumb = MeshFactory.translated(thumb, by: CharacterRig.Hand.thumbRoot + along)
+
+        return MeshFactory.merge([
+            blob(radii: CharacterRig.Hand.wristRadii, at: CharacterRig.Hand.wristCentre),
+            blob(radii: CharacterRig.Hand.palmRadii, at: CharacterRig.Hand.palmCentre),
+            blob(radii: CharacterRig.Hand.fingersRadii, at: CharacterRig.Hand.fingersCentre),
+            thumb,
+        ])
     }
 
     /// Every geometry the emote table instantiates, with the constructor arguments and the
@@ -509,7 +549,8 @@ final class CharacterRenderer {
         case .leftUpperArm, .rightUpperArm: return upperArmMesh
         case .leftLowerArm, .rightLowerArm: return lowerArmMesh
         case .leftElbow, .rightElbow: return elbowMesh
-        case .leftHand, .rightHand: return handMesh
+        case .leftHand: return leftHandMesh
+        case .rightHand: return rightHandMesh
         case .leftUpperLeg, .rightUpperLeg: return upperLegMesh
         case .leftLowerLeg, .rightLowerLeg: return lowerLegMesh
         case .leftKnee, .rightKnee: return kneeMesh

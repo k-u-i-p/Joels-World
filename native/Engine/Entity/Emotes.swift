@@ -17,6 +17,19 @@ struct RigMutation {
     var leftFootTarget: SIMD3<Float>
     var rightFootTarget: SIMD3<Float>
 
+    /// **Rotation at the waist**, in radians about the body's own up axis. Positive turns the
+    /// chest towards the character's left.
+    ///
+    /// The chest, the neck, the head, the shoulders and both arms take it; the pelvis, the legs
+    /// and the feet do not. That is the whole difference between a person turning into a shot
+    /// and a chess piece being twisted on its base — which is what the tennis swing's coil used
+    /// to be, because the only rotation available was `bodyPivotRotation.z` and that turns the
+    /// feet too.
+    ///
+    /// Hand targets stay in the body frame whatever this is, so a caller aiming a hand at a
+    /// point in space does not have to know the chest has turned.
+    var chestTwist: Float = 0
+
     var props: [PropDraw] = []
 
     /// `c.holding` — the model to put in the right hand. Only `tennis` sets it.

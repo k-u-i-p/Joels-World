@@ -21,9 +21,11 @@ struct Player {
     var isRunning = false
     var runDirectionStart: TimeInterval?
 
-    /// Carried-over velocity, in world units per second. The player used to be teleported by
-    /// `speed × dt` every frame with no memory between them, which is why letting go of the
-    /// stick stopped them dead. `Locomotion` owns this now; see `GameState.update`.
+    // Everything from here down is a **mirror of `GameState.playerMotor`**, written once at the
+    // end of each simulation step. The motor owns the position, the height, the velocity, the
+    // heading and the gait; these copies exist so the wire payload, the camera and the renderer
+    // can read them without knowing what a motor is. Assigning to them does not move anybody —
+    // `playerMotor.teleport` does.
     var velocityX: Double = 0
     var velocityY: Double = 0
     /// How the legs should be moving — including sideways, while the body is still turning.
@@ -36,6 +38,7 @@ struct Player {
     /// Last values sent upstream, so sync only fires on change.
     var lastSentX: Double?
     var lastSentY: Double?
+    var lastSentZ: Double?
     var lastSentRotation: Double?
     var lastSentEmote: EmoteState??
 

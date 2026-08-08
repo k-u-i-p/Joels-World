@@ -289,9 +289,16 @@ extension Emotes {
                 guard age < 800 else { return }
 
                 let progress = age / 800
-                let height = Float(progress * (1 - progress) * 4 * 30)
 
-                rig.bodyPivotPosition.z = 15.5 + height
+                // The height is **not** here any more. It used to be
+                // `bodyPivotPosition.z = 15.5 + progress × (1 − progress) × 4 × 30`, an arc
+                // drawn onto the mesh while the character stayed firmly on the ground.
+                // `CharacterMotor` integrates the same arc for real now
+                // (`GameState.jumpSpeed` / `jumpGravity`), so it is in `character.z`, it is on
+                // the wire, and the shadow stays on the floor where it belongs. What is left
+                // here is the *pose* — the tuck, the lean and the arm swing — which is what an
+                // emote table is for.
+                rig.bodyPivotPosition.z = 15.5
                 rig.bodyPivotRotation.y = Float(sin(progress * .pi) * 0.4)
 
                 let tuck = Float(sin(progress * .pi))

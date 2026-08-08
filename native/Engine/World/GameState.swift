@@ -9,6 +9,18 @@ import simd
 /// `GameState+Effects.swift`.
 final class GameState {
     private(set) var player = Player()
+
+    /// **The local player's movement.** Position, height, velocity, heading, gait and every
+    /// limb — the same `CharacterMotor` the tennis players and every other character in the
+    /// game run on.
+    ///
+    /// It is the source of truth; the matching fields on `Player` are a mirror written at the
+    /// end of each step, kept because the wire payload, the camera and the renderer all read
+    /// them and none of them should have to know what a motor is. Anything that moves the
+    /// player without walking there — a spawn, a map change, the editor's camera — has to
+    /// `teleport` the motor too, or the next frame will try to walk back.
+    let playerMotor = CharacterMotor(profile: .player)
+
     private(set) var mapData: MapData?
     private(set) var objects: [WorldObject] = []
     private(set) var npcs: [GameCharacter] = []
@@ -70,6 +82,19 @@ final class GameState {
 
     private let maxSpring: Double = 150
     private let springSpeed: Double = 0.75
+
+    /// The jump, as a launch speed and a gravity rather than as a drawn arc.
+    ///
+    /// The `jump` emote used to raise the body pivot along `progress × (1 − progress) × 4 × 30`
+    /// over its 800 ms — 30 units up, back down, and nothing about the character actually off
+    /// the ground. A projectile matching that arc peaks after 0.4 s at 30 units, which is
+    /// `v = 150` against `g = 375`. Same jump, real physics: it is integrated by the motor, it
+    /// is in `player.z`, and it goes out on the wire.
+    static let jumpSpeed: Double = 150
+    static let jumpGravity: Double = 375
+    /// True while the current jump emote has already been launched, so a held emote does not
+    /// re-fire the take-off every frame.
+    private var hasJumped = false
 
     private var lastSyncTime: TimeInterval = 0
 
@@ -157,6 +182,11 @@ final class GameState {
                 player.y = at.y
             }
             #endif
+
+            // Arriving in a world is a teleport, not a stride. Handing the motor the new
+            // position any other way would have it read the jump across the map as a sprint at
+            // a few thousand units a second and throw the torso flat on its face.
+            playerMotor.teleport(x: player.x, y: player.y, z: player.z, facing: player.rotation)
         }
 
         hasWorld = true
@@ -251,7 +281,15 @@ final class GameState {
 
     /// Records where a character is heading, without moving it there.
     private func setTarget(for character: GameCharacter) {
-        var visual = visuals[character.id] ?? CharacterVisual()
+        let existing = visuals[character.id]
+        var visual = existing ?? CharacterVisual()
+        // A character being seen for the first time is placed, not walked in. Without this the
+        // motor's first frame differentiates "was at the origin, is now four thousand units
+        // away" and every newly-visible character arrives mid-sprint.
+        if existing == nil {
+            visual.motor.teleport(x: character.x, y: character.y,
+                                  z: character.z ?? 0, facing: character.rotation ?? 0)
+        }
         visual.targetX = character.x
         visual.targetY = character.y
         if character.z != nil { visual.targetZ = character.z }
@@ -309,6 +347,7 @@ final class GameState {
     func setCameraFocus(x: Double, y: Double) {
         player.x = x
         player.y = y
+        playerMotor.teleport(x: x, y: y, z: player.z, facing: player.rotation)
     }
 
     // MARK: - Simulation
@@ -342,6 +381,7 @@ final class GameState {
         // shut; there is no minimap on the surface that sends `turn`.
         if input.turn != 0 {
             player.rotation += input.turn * player.rotationSpeed * timeScale
+            playerMotor.setFacing(player.rotation)
         }
 
         // A jump pins the player in place for its first 800 ms, and is cancelled outright if
@@ -349,6 +389,20 @@ final class GameState {
         var emoteForcedMove = false
         if let emote = player.emote, emote.name == "jump" {
             emoteForcedMove = EventInterpreter.nowMilliseconds() - emote.startTime < 800
+            // The height itself belongs to the motor. The emote used to draw the arc by hand —
+            // a parabola written straight onto the body pivot, peaking at 30 units after 400 ms
+            // — which is a limb being animated by a table rather than a character leaving the
+            // ground. `jumpSpeed` and `jumpGravity` are chosen to reproduce that arc exactly,
+            // so the jump looks the same and is now real: it goes out on the wire as `z`, other
+            // clients see it, and anything that ever wants to test whether a character is in
+            // the air can ask.
+            if !hasJumped {
+                hasJumped = true
+                playerMotor.gravity = Self.jumpGravity
+                playerMotor.jump(speed: Self.jumpSpeed)
+            }
+        } else {
+            hasJumped = false
         }
 
         // Holding a direction for two and a half seconds breaks into a run (`main.js:334`).
@@ -368,62 +422,70 @@ final class GameState {
         // 1/60 s — so it is scaled up to the per-second ones `Locomotion` works in.
         var profile = player.isRunning ? LocomotionProfile.playerRunning : .player
         profile.maxSpeed = player.moveSpeed * 60 * (player.isRunning ? 1.2 : 1)
+        playerMotor.profile = profile
 
         // `getDemandedMovementVector`: a thumbstick takes the whole branch and always drives
         // forward, so the keys only count when there is no stick input.
-        var desired = (x: 0.0, y: 0.0)
-        /// Tank controls aim the body themselves; a thumbstick lets it turn towards travel,
-        /// which is what leaves a window where the legs are side-stepping.
-        var facingIntent: Double? = input.turn != 0 ? player.rotation : nil
+        //
+        // Tank controls aim the body themselves; a thumbstick lets it turn towards travel,
+        // which is what leaves a window where the legs are side-stepping.
+        let tankFacing: Double? = input.turn != 0 ? player.rotation : nil
 
-        if !emoteForcedMove {
-            if input.isMoving {
-                let angle = input.angleDegrees * .pi / 180
-                desired = (cos(angle) * profile.maxSpeed, sin(angle) * profile.maxSpeed)
-            } else if input.forward != 0 {
-                let angle = player.rotation * .pi / 180
-                let signedSpeed = profile.maxSpeed * input.forward
-                desired = (cos(angle) * signedSpeed, sin(angle) * signedSpeed)
-                facingIntent = player.rotation
-            }
+        if emoteForcedMove {
+            playerMotor.holdPosition()
+        } else if input.isMoving {
+            let angle = input.angleDegrees * .pi / 180
+            playerMotor.driveCharacter(velocityX: cos(angle) * profile.maxSpeed,
+                                       velocityY: sin(angle) * profile.maxSpeed,
+                                       facing: tankFacing)
+        } else if input.forward != 0 {
+            let angle = player.rotation * .pi / 180
+            let signedSpeed = profile.maxSpeed * input.forward
+            playerMotor.driveCharacter(velocityX: cos(angle) * signedSpeed,
+                                       velocityY: sin(angle) * signedSpeed,
+                                       facing: player.rotation)
+        } else {
+            playerMotor.holdPosition()
+            playerMotor.faceTowards(tankFacing)
         }
 
-        var locomotion = LocomotionState(x: player.x, y: player.y,
-                                         vx: player.velocityX, vy: player.velocityY,
-                                         facing: player.rotation,
-                                         gait: player.gait)
-        let demand = Locomotion.step(&locomotion,
-                                     desired: desired,
-                                     facingIntent: facingIntent,
-                                     profile: profile,
-                                     dt: dt)
-
+        // The world's veto. `processMovement` is the wall test, and whatever it hands back is
+        // what the motor commits — so walking into a wall bleeds the velocity off into it
+        // rather than leaving it stored up to fire the player sideways on release.
         var isMoving = false
+        var blocked = SIMD2<Double>(0, 0)
+        var enteredObject: WorldObject?
 
-        if demand.dx != 0 || demand.dy != 0 {
-            let result = physics.processMovement(
-                entity: (x: player.x, y: player.y, id: player.id),
-                dx: demand.dx,
-                dy: demand.dy,
-                objects: objects,
-                mapData: mapData,
+        let step = playerMotor.stepBody(dt: dt) { proposedX, proposedY in
+            // Standing still asks the world nothing. The wall test is the most expensive thing
+            // in the frame and there is no answer it could give about a zero-length move.
+            guard proposedX != self.playerMotor.x || proposedY != self.playerMotor.y else {
+                return (x: proposedX, y: proposedY)
+            }
+            let result = self.physics.processMovement(
+                entity: (x: self.playerMotor.x, y: self.playerMotor.y, id: self.player.id),
+                dx: proposedX - self.playerMotor.x,
+                dy: proposedY - self.playerMotor.y,
+                objects: self.objects,
+                mapData: self.mapData,
                 isEmoteForced: false,
-                npcs: npcs
+                npcs: self.npcs
             )
+            isMoving = result.isMoving
+            enteredObject = result.actuallyInObject
+            blocked = SIMD2(proposedX - result.newX, proposedY - result.newY)
+            return (x: result.newX, y: result.newY)
+        }
 
-            let actualDx = result.newX - player.x
-            let actualDy = result.newY - player.y
-            let blockedDx = demand.dx - actualDx
-            let blockedDy = demand.dy - actualDy
-
+        if step.demanded != .zero {
             // Push the camera back when walking into a wall, then let it decay.
-            if abs(blockedDx) > 0.01 {
-                camera.springX += blockedDx * springSpeed
+            if abs(blocked.x) > 0.01 {
+                camera.springX += blocked.x * springSpeed
             } else {
                 camera.springX *= decay
             }
-            if abs(blockedDy) > 0.01 {
-                camera.springY += blockedDy * springSpeed
+            if abs(blocked.y) > 0.01 {
+                camera.springY += blocked.y * springSpeed
             } else {
                 camera.springY *= decay
             }
@@ -434,20 +496,19 @@ final class GameState {
                 camera.springY = (camera.springY / dist) * maxSpring
             }
 
-            isMoving = result.isMoving
-            // Feed the accepted movement back, so walking into a wall bleeds the velocity off
-            // rather than leaving it stored up to fire the player sideways on release.
-            Locomotion.commit(&locomotion, actualDx: actualDx, actualDy: actualDy, dt: dt)
-
-            applyBuildingTransition(to: result.actuallyInObject)
+            applyBuildingTransition(to: enteredObject)
+        } else {
+            isMoving = false
         }
 
-        player.x = locomotion.x
-        player.y = locomotion.y
-        player.rotation = locomotion.facing
-        player.velocityX = locomotion.vx
-        player.velocityY = locomotion.vy
-        player.gait = locomotion.gait
+        // The motor is the source of truth; these are the mirror everything downstream reads.
+        player.x = playerMotor.x
+        player.y = playerMotor.y
+        player.z = playerMotor.z
+        player.rotation = playerMotor.facing
+        player.velocityX = playerMotor.vx
+        player.velocityY = playerMotor.vy
+        player.gait = playerMotor.gait
 
         if isMoving {
             // A jump zeroes the demand above, so `isMoving` is already false while one is in
@@ -715,8 +776,12 @@ final class GameState {
         let now = Date.timeIntervalSinceReferenceDate
         guard now - lastSyncTime > 0.1 else { return }
 
+        // `z` is in here because a jump is real movement now: a player who leaps straight up
+        // without touching the stick changes nothing else, and every other client would watch
+        // them stand still.
         guard player.x != player.lastSentX
                 || player.y != player.lastSentY
+                || player.z != player.lastSentZ
                 || player.rotation != player.lastSentRotation
                 || player.lastSentEmote.map({ $0 != player.emote }) ?? true
         else { return }
@@ -730,6 +795,7 @@ final class GameState {
     private func syncPlayerNow() {
         player.lastSentX = player.x
         player.lastSentY = player.y
+        player.lastSentZ = player.z
         player.lastSentRotation = player.rotation
         player.lastSentEmote = .some(player.emote)
 

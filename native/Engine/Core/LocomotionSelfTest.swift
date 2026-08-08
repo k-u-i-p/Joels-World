@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import simd
 
 /// Assertions over the pure movement maths: `Locomotion`, `Gait` and `DeterministicRandom`.
 ///
@@ -327,6 +328,205 @@ enum LocomotionSelfTest {
                       first.roamNoise(seed: 42) != second.roamNoise(seed: 43)
                   }
               }())
+
+        // MARK: The movement manager
+        //
+        // `CharacterMotor` is the thing every character in the game now moves through, so what
+        // is worth pinning here is the *contract*: an ask is a best effort, and what comes back
+        // out is what really happened.
+
+        // Walk to a mark and stop on it, rather than skidding past and coming back.
+        let marcher = CharacterMotor(profile: .player)
+        marcher.teleport(x: 0, y: 0, facing: 0)
+        marcher.moveCharacterTo(x: 300, y: 0)
+        var walkFrames = 0
+        while !marcher.hasArrived() && walkFrames < 600 {
+            marcher.step(dt: 1.0 / 60)
+            walkFrames += 1
+        }
+        check("moveCharacterTo arrives at its mark",
+              marcher.hasArrived() && walkFrames < 600,
+              "stopped at \(marcher.x) after \(walkFrames) frames")
+        check("and does not overshoot it",
+              marcher.x <= 300 + marcher.arrivalRadius,
+              "x \(marcher.x)")
+        check("and is stopped when it gets there",
+              marcher.speed < 20, "speed \(marcher.speed)")
+
+        // A target speed below the profile's top speed has to be honoured, or "walk over there"
+        // and "sprint over there" are the same instruction.
+        let stroller = CharacterMotor(profile: .player)
+        stroller.moveCharacterTo(x: 5000, y: 0, targetSpeed: 60)
+        var peakStroll: Double = 0
+        for _ in 0..<180 {
+            stroller.step(dt: 1.0 / 60)
+            peakStroll = max(peakStroll, stroller.speed)
+        }
+        check("a target speed caps the walk",
+              peakStroll <= 60.001, "peaked at \(peakStroll)")
+
+        // The world's veto. A motor walked into a wall must shed the velocity into it.
+        let walled = CharacterMotor(profile: .player)
+        walled.driveCharacter(velocityX: LocomotionProfile.player.maxSpeed, velocityY: 0)
+        for _ in 0..<30 { walled.step(dt: 1.0 / 60) }
+        check("a motor reaches top speed against no constraint",
+              near(walled.speed, LocomotionProfile.player.maxSpeed, 0.001),
+              "speed \(walled.speed)")
+        let hit = walled.step(dt: 1.0 / 60) { _, _ in (x: walled.x, y: walled.y) }
+        check("a constraint that refuses the move is reported as blocked", hit.blocked)
+        check("and the refused velocity is shed, not stored",
+              walled.speed == 0, "speed \(walled.speed)")
+
+        // Jumping. The overworld's arc is a launch speed against a gravity, and it has to come
+        // back down in the 800 ms the emote lasts or the pose and the height drift apart.
+        let jumper = CharacterMotor(profile: .player)
+        jumper.gravity = 375
+        check("a jump only starts from the ground", jumper.jump(speed: 150))
+        check("and cannot be started again mid-air", !jumper.jump(speed: 150))
+        var apex: Double = 0
+        var airborneFrames = 0
+        while jumper.isAirborne && airborneFrames < 300 {
+            jumper.step(dt: 1.0 / 60)
+            apex = max(apex, jumper.z)
+            airborneFrames += 1
+        }
+        check("the jump peaks at exactly 30 units", near(apex, 30, 0.001), "apex \(apex)")
+        check("and lands inside 800 ms",
+              airborneFrames <= 49 && airborneFrames >= 44,
+              "\(airborneFrames) frames")
+        check("and finishes flat on the ground",
+              jumper.z == 0 && !jumper.isAirborne, "z \(jumper.z)")
+
+        // Deterministic animation means the same jump on a 60 Hz phone and a 120 Hz one.
+        check("the jump is the same height at any frame rate",
+              {
+                  func apex(dt: Double) -> Double {
+                      let motor = CharacterMotor(profile: .player)
+                      motor.gravity = 375
+                      motor.jump(speed: 150)
+                      var peak: Double = 0
+                      var frames = 0
+                      while motor.isAirborne && frames < 2000 {
+                          motor.step(dt: dt)
+                          peak = max(peak, motor.z)
+                          frames += 1
+                      }
+                      return peak
+                  }
+                  return near(apex(dt: 1.0 / 60), apex(dt: 1.0 / 120), 0.001)
+              }())
+
+        // MARK: Limbs
+
+        // `moveHandTo` is a request, and one outside the arm's reach has to be clamped **and
+        // reported**. `IKSolver` clamps silently, which is exactly the failure that had the
+        // tennis game missing every ball for a session: something is always returned, and
+        // nothing says it was not what you asked for.
+        let reacher = CharacterMotor(profile: .player)
+        let farAway = CharacterRig.rightShoulder + SIMD3<Float>(0, 500, 0)
+        reacher.moveHandTo(.rightHand, local: farAway)
+        for _ in 0..<120 { reacher.stepLimbs(dt: 1.0 / 60) }
+        let reachDistance = simd_length(reacher.limbPosition(.rightHand) - CharacterRig.rightShoulder)
+        check("a hand cannot go further than the arm is long",
+              reachDistance <= LimbProfile.arm.maxReach + 0.01,
+              "reached \(reachDistance) against a maximum of \(LimbProfile.arm.maxReach)")
+        check("and the shortfall is reported as strain",
+              reacher.strain(of: .rightHand) > 400,
+              "strain \(reacher.strain(of: .rightHand))")
+
+        // A reachable ask has to actually be reached, and reported as reached.
+        let pointer = CharacterMotor(profile: .player)
+        let nearby = CharacterRig.rightShoulder + SIMD3<Float>(6, 4, -8)
+        pointer.moveHandTo(.rightHand, local: nearby)
+        var handFrames = 0
+        while !pointer.limbHasArrived(.rightHand) && handFrames < 120 {
+            pointer.stepLimbs(dt: 1.0 / 60)
+            handFrames += 1
+        }
+        check("a reachable hand target is reached",
+              pointer.limbHasArrived(.rightHand) && handFrames < 120,
+              "\(handFrames) frames, \(simd_length(pointer.limbPosition(.rightHand) - nearby)) short")
+        check("and there is no strain in reaching it",
+              pointer.strain(of: .rightHand) == 0)
+        check("a driven hand has a velocity while it travels",
+              {
+                  let mover = CharacterMotor(profile: .player)
+                  mover.moveHandTo(.rightHand, local: nearby)
+                  mover.stepLimbs(dt: 1.0 / 60)
+                  return simd_length(mover.limbVelocity(.rightHand)) > 0
+              }())
+
+        // The hand-over. A limb nobody is driving must leave the rig's own animation alone, and
+        // one being driven must win outright. Anything in between is a crossfade, which is what
+        // stops a swing from snapping out of a walk cycle.
+        func handTarget(after motor: CharacterMotor, rigPose: SIMD3<Float>) -> SIMD3<Float> {
+            var mutation = RigMutation(bodyPivotPosition: .zero,
+                                       bodyPivotRotation: .zero,
+                                       headRotation: .zero,
+                                       leftHandTarget: .zero,
+                                       rightHandTarget: rigPose,
+                                       leftFootTarget: .zero,
+                                       rightFootTarget: .zero,
+                                       holding: nil)
+            motor.poseOverride()?(&mutation)
+            return mutation.rightHandTarget
+        }
+
+        let idle = CharacterMotor(profile: .player)
+        let walkCyclePose = SIMD3<Float>(4, 18, 9)
+        check("an undriven limb keeps whatever the rig gave it",
+              handTarget(after: idle, rigPose: walkCyclePose) == walkCyclePose)
+        check("and the motor tracks it, so taking over starts from where it is",
+              idle.limbPosition(.rightHand) == walkCyclePose,
+              "motor thinks the hand is at \(idle.limbPosition(.rightHand))")
+
+        let engaged = CharacterMotor(profile: .player)
+        engaged.moveHandTo(.rightHand, local: nearby)
+        for _ in 0..<60 { engaged.stepLimbs(dt: 1.0 / 60) }
+        check("a fully engaged limb overrides the rig",
+              simd_length(handTarget(after: engaged, rigPose: walkCyclePose) - nearby) < 0.6,
+              "posed at \(handTarget(after: engaged, rigPose: walkCyclePose))")
+
+        engaged.releaseLimb(.rightHand)
+        engaged.stepLimbs(dt: 1.0 / 60)
+        let midRelease = handTarget(after: engaged, rigPose: walkCyclePose)
+        check("releasing crossfades rather than snapping",
+              midRelease != walkCyclePose && simd_length(midRelease - nearby) > 0.01,
+              "posed at \(midRelease)")
+        for _ in 0..<60 { engaged.stepLimbs(dt: 1.0 / 60) }
+        check("and finishes back on the rig's own animation",
+              handTarget(after: engaged, rigPose: walkCyclePose) == walkCyclePose)
+
+        // MARK: Frames, once more with the motor
+
+        // The same sign convention the rig uses, now going through the motor's own converter.
+        // Facing 0° is +X; the character's left is local +Y, which lands on world −Y.
+        let framed = CharacterMotor(profile: .player)
+        framed.teleport(x: 100, y: 200, facing: 0)
+        let ahead = framed.localToWorld(SIMD3<Double>(10, 0, 0))
+        check("localToWorld puts local +X in front of the character",
+              near(ahead.x, 110) && near(ahead.y, 200),
+              "got (\(ahead.x), \(ahead.y))")
+        let toTheLeft = framed.localToWorld(SIMD3<Double>(0, 10, 0))
+        check("and local +Y on the character's left, which is world −Y",
+              near(toTheLeft.x, 100) && near(toTheLeft.y, 190),
+              "got (\(toTheLeft.x), \(toTheLeft.y))")
+        check("and lifts by the body pivot's height",
+              near(ahead.z, Double(CharacterRig.bodyPivotHeight)),
+              "z \(ahead.z)")
+
+        // The observed path, through the motor this time: every character in the game that this
+        // client does not drive goes through here.
+        let watched = CharacterMotor(profile: .observed)
+        watched.teleport(x: 0, y: 0, facing: 0)
+        for frame in 1...120 {
+            watched.observe(x: Double(frame) * 3, y: 0, z: 0, facing: 0, dt: 1.0 / 60)
+        }
+        check("an observed motor walking along its facing reads as forward",
+              near(watched.gait.forward, 1, 0.02) && near(watched.gait.lateral, 0, 0.02),
+              "forward \(watched.gait.forward), lateral \(watched.gait.lateral)")
+        check("and its position is exactly where it was put",
+              near(watched.x, 360), "x \(watched.x)")
 
         Log.world("selftest — \(passed) passed, \(failed) failed")
         return failed == 0

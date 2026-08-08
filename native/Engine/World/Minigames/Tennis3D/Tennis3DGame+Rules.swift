@@ -47,8 +47,8 @@ extension Tennis3DGame {
                      ball.lastHitByPlayer == true ? opponentName : "you",
                      ball.lastHitByPlayer == true ? opponentName : "you",
                      (ball.lastHitByPlayer == true
-                      ? hypot(ball.x - npc.locomotion.x, ball.y - npc.locomotion.y)
-                      : hypot(ball.x - player.locomotion.x, ball.y - player.locomotion.y)) / metre))
+                      ? hypot(ball.x - npc.motor.x, ball.y - npc.motor.y)
+                      : hypot(ball.x - player.motor.x, ball.y - player.motor.y)) / metre))
 
         switch phase {
         case .toss:

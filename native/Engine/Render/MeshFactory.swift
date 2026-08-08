@@ -118,6 +118,51 @@ enum MeshFactory {
         return lathe(profile: profile, radialSegments: radialSegments)
     }
 
+    /// Concatenates several meshes into one, so a shape made of parts costs one draw call.
+    ///
+    /// The character rig is drawn twice per character — scene and shadow map — and every part is
+    /// a separate draw. A hand built as a palm, a finger block and a thumb would be three, times
+    /// two, times everybody on the map. Merged it is one, and the parts are rigid relative to
+    /// each other anyway, so nothing is lost.
+    static func merge(_ meshes: [MeshData]) -> MeshData {
+        var out = MeshData(vertices: [], indices: [])
+        for mesh in meshes {
+            let offset = UInt32(out.vertices.count)
+            out.vertices.append(contentsOf: mesh.vertices)
+            out.indices.append(contentsOf: mesh.indices.map { $0 + offset })
+        }
+        return out
+    }
+
+    /// Moves a mesh in its own space, for assembling a composite out of primitives.
+    static func translated(_ mesh: MeshData, by offset: SIMD3<Float>) -> MeshData {
+        var copy = mesh
+        for index in copy.vertices.indices { copy.vertices[index].position += offset }
+        return copy
+    }
+
+    /// Mirrors a mesh through the YZ plane — a left hand from a right one.
+    ///
+    /// Negating X flips the winding of every triangle, so the index order is reversed too;
+    /// without that the mirrored copy is inside-out and backface culling eats it. Normals flip
+    /// with the positions for the same reason.
+    static func mirroredInX(_ mesh: MeshData) -> MeshData {
+        var copy = mesh
+        for index in copy.vertices.indices {
+            copy.vertices[index].position.x = -copy.vertices[index].position.x
+            copy.vertices[index].normal.x = -copy.vertices[index].normal.x
+        }
+        var indices: [UInt32] = []
+        indices.reserveCapacity(copy.indices.count)
+        var i = 0
+        while i + 2 < copy.indices.count {
+            indices.append(contentsOf: [copy.indices[i], copy.indices[i + 2], copy.indices[i + 1]])
+            i += 3
+        }
+        copy.indices = indices
+        return copy
+    }
+
     /// Port of `THREE.SphereGeometry(radius, widthSegments, heightSegments)`.
     static func sphere(radius: Float, widthSegments: Int = 12, heightSegments: Int = 12) -> MeshData {
         var profile: [SIMD2<Float>] = []

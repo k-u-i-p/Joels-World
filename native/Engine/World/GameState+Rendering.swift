@@ -46,7 +46,9 @@ extension GameState {
             // arrived with — without this the local player is the one character whose emote
             // never poses the rig.
             mine.emote = player.emote
-            out.append(DrawableCharacter(character: mine, gait: player.gait))
+            out.append(DrawableCharacter(character: mine,
+                                         gait: player.gait,
+                                         poseOverride: playerMotor.poseOverride()))
         }
 
         // Remote players and NPCs have no controller — the server names a position, or
@@ -55,14 +57,16 @@ extension GameState {
         // (`Locomotion.observe`), so they side-step and back-pedal on the same terms the local
         // player does rather than being stuck facing wherever they happen to be walking.
         for character in characters where character.id != player.id {
-            out.append(DrawableCharacter(
-                character: character,
-                gait: visuals[character.id]?.motion.gait ?? .still))
+            let motor = visuals[character.id]?.motor
+            out.append(DrawableCharacter(character: character,
+                                         gait: motor?.gait ?? .still,
+                                         poseOverride: motor?.poseOverride()))
         }
         for npc in npcs {
-            out.append(DrawableCharacter(
-                character: npc,
-                gait: visuals[npc.id]?.motion.gait ?? .still))
+            let motor = visuals[npc.id]?.motor
+            out.append(DrawableCharacter(character: npc,
+                                         gait: motor?.gait ?? .still,
+                                         poseOverride: motor?.poseOverride()))
         }
 
         return out

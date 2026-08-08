@@ -358,16 +358,10 @@ final class PhysicsEngine {
                               visual: inout CharacterVisual,
                               timeScale: Double,
                               dt: Double) {
-        // Where the character stood before anything below moved it. The gait is read back off
-        // the difference, so it stays honest even when the mover is a waypoint walker, a
-        // catch-up sprint or a character standing perfectly still.
-        let previousX = character.x
-        let previousY = character.y
-
         guard let targetX = visual.targetX, let targetY = visual.targetY else {
             // Nothing is driving this one. Let the stride finish its step and settle.
-            Locomotion.observe(&visual.motion, dx: 0, dy: 0,
-                               facing: character.rotation ?? 0, dt: dt)
+            visual.motor.observe(x: character.x, y: character.y, z: character.z ?? 0,
+                                 facing: character.rotation ?? 0, dt: dt)
             return
         }
 
@@ -421,17 +415,21 @@ final class PhysicsEngine {
         if teleported {
             // A jump across the map is not a stride. Feeding it in would read as a sprint at a
             // few thousand units a second and throw the torso flat on its face.
-            visual.motion.reset()
+            visual.motor.teleport(x: character.x, y: character.y, z: character.z ?? 0,
+                                  facing: character.rotation ?? 0)
             return
         }
 
         // Resolve against the heading the character has *now* — the interpolator has just turned
-        // it, and the walk this frame belongs to where the body ended up pointing.
-        Locomotion.observe(&visual.motion,
-                           dx: character.x - previousX,
-                           dy: character.y - previousY,
-                           facing: character.rotation ?? 0,
-                           dt: dt)
+        // it, and the walk this frame belongs to where the body ended up pointing. The motor
+        // remembers where it left the character last frame and differentiates from there, which
+        // is why the "nothing is driving this one" branch above still has to call it: a frame
+        // that is skipped is a frame the stride never gets to finish.
+        visual.motor.observe(x: character.x,
+                             y: character.y,
+                             z: character.z ?? 0,
+                             facing: character.rotation ?? 0,
+                             dt: dt)
     }
 }
 
@@ -443,9 +441,15 @@ struct CharacterVisual {
     var targetZ: Double?
     var targetRotation: Double?
 
-    /// Velocity carried between frames, read back out of the positions the interpolator walks
-    /// through. `motion.gait` is what poses this character's rig.
-    var motion = ObservedMotion()
+    /// **This character's movement.** The same `CharacterMotor` the local player and the tennis
+    /// players run on, in its observed mode: the position arrives from somewhere else — the
+    /// server for a remote player, `NPCBehaviour` for an NPC — and the motor reads the velocity
+    /// and the gait back out of it. `motor.gait` is what poses this character's rig, and its
+    /// limbs are there for anything that wants to pose one.
+    ///
+    /// A class, so a copy of this struct is a copy of the *reference*: there is one motor per
+    /// character id and it lives as long as the character does.
+    let motor = CharacterMotor(profile: .observed)
 
     /// The most recent thing this character said, and when — drawn as a chat bubble in
     /// Phase 5. `chatMessage` / `chatTime` on the JS character record.

@@ -144,11 +144,17 @@ final class Tennis3DGame: WorldRenderedMinigame {
     final class Side {
         let isPlayer: Bool
         var appearance: GameCharacter
-        var locomotion = LocomotionState()
+
+        /// **Everything about how this player moves**, body and arms alike — the same
+        /// `CharacterMotor` the overworld player and every NPC in the school run on.
+        ///
+        /// It used to be a bare `LocomotionState` plus a `moveTarget` tuple plus, in the swing
+        /// code, a remembered racket-head position so the contact test could work out how fast
+        /// the strings were going. All three are the motor's now: it holds the destination, it
+        /// holds the hand, and it holds the hand's velocity.
+        let motor: CharacterMotor
         var swing = SwingState()
 
-        /// Where the controller wants them to stand. Nil means "hold position".
-        var moveTarget: (x: Double, y: Double)?
         /// Counts down before the opponent reacts to a shot.
         var reactionDelay: Double = 0
 
@@ -172,6 +178,48 @@ final class Tennis3DGame: WorldRenderedMinigame {
         init(isPlayer: Bool, appearance: GameCharacter) {
             self.isPlayer = isPlayer
             self.appearance = appearance
+            motor = CharacterMotor(profile: LocomotionProfile(
+                maxSpeed: isPlayer ? Tuning.playerTopSpeed : Tuning.npcTopSpeed,
+                acceleration: Tuning.acceleration,
+                braking: Tuning.braking,
+                turnRate: Tuning.turnRate,
+                strideLength: Tuning.strideLength))
+            // The court is measured in metres, not in school corridors: a character the motor
+            // would happily call "arrived" at 4 units away is a third of a metre off the ball.
+            motor.arrivalRadius = Tennis3DCourt.metres(0.12)
+            motor.arrivalGain = 4.5
+            // A swing throws the hand thirty units in a tenth of a second, and the ball is hit
+            // where the strings **actually are**. So the arm has to track the choreography
+            // tightly, and `approachGain` is the number that decides how tightly: it is a
+            // first-order chase with a time constant of `1 / gain` seconds, and a hand chasing a
+            // target moving at 230 units a second trails it by exactly `speed / gain`.
+            //
+            // At the default gain of 14 that trail is 16 units — 0.6 m — and every serve in the
+            // match was a double fault, the racket passing 0.6 m under a ball tossed to where
+            // the choreography said the strings would be. At 120 it is 2 units, seven
+            // centimetres, comfortably inside a 0.45 m sweet spot and still visibly an arm with
+            // some weight in it rather than a teleport.
+            var arm = LimbProfile.arm
+            arm.maxSpeed = 1400
+            arm.acceleration = 40_000
+            arm.approachGain = 120
+            arm.engageTime = 0.05
+            arm.releaseTime = 0.12
+            motor.setLimbProfile(.rightHand, arm)
+            motor.setLimbProfile(.leftHand, arm)
+        }
+
+        /// Where this player is being sent, or nil if they are holding position. Reads through
+        /// to the motor, which owns it.
+        var moveTarget: (x: Double, y: Double)? {
+            get { motor.destination }
+            set {
+                if let newValue {
+                    motor.moveCharacterTo(x: newValue.x, y: newValue.y)
+                } else {
+                    motor.holdPosition()
+                }
+            }
         }
     }
 
@@ -194,8 +242,6 @@ final class Tennis3DGame: WorldRenderedMinigame {
         /// Set once contact is made, so a single swing cannot hit the ball twice.
         var hasStruck = false
         var cooldown: Double = 0
-        /// Where the racket head was on the previous sub-step, for the swept contact test.
-        var previousHead: SIMD3<Double>?
         /// The closest the head ever got to the ball during the forward swing, and where the
         /// ball was at that moment. Diagnostic only — it is the difference between "you were
         /// nowhere near" and "you were four centimetres out", which is not a distinction any
@@ -331,10 +377,10 @@ final class Tennis3DGame: WorldRenderedMinigame {
 
         // Walk on from behind the baselines, as the 2D game did — it is the one bit of
         // stagecraft that version had and it is worth keeping.
-        player.locomotion.teleport(x: -Tennis3DCourt.metres(2),
+        player.motor.teleport(x: -Tennis3DCourt.metres(2),
                                    y: Tennis3DCourt.surfaceHalfLength - 4,
                                    facing: 270)
-        npc.locomotion.teleport(x: Tennis3DCourt.metres(2),
+        npc.motor.teleport(x: Tennis3DCourt.metres(2),
                                 y: -Tennis3DCourt.surfaceHalfLength + 4,
                                 facing: 90)
         player.moveTarget = (x: 0, y: Tennis3DCourt.halfLength - Tennis3DCourt.metres(1.2))
@@ -451,9 +497,9 @@ final class Tennis3DGame: WorldRenderedMinigame {
     /// solved from where the server is standing, so one that begins while they are still
     /// drifting onto the mark puts the ball where they no longer are.
     private func atRest(_ side: Side) -> Bool {
-        guard side.locomotion.speed < Tennis3DCourt.metres(0.4) else { return false }
+        guard side.motor.speed < Tennis3DCourt.metres(0.4) else { return false }
         guard let target = side.moveTarget else { return true }
-        return hypot(target.x - side.locomotion.x, target.y - side.locomotion.y)
+        return hypot(target.x - side.motor.x, target.y - side.motor.y)
             < Tennis3DCourt.metres(0.35)
     }
 
@@ -534,14 +580,16 @@ final class Tennis3DGame: WorldRenderedMinigame {
 
     private func drawable(_ side: Side) -> MinigameCharacter {
         var character = side.appearance
-        character.x = side.locomotion.x
-        character.y = side.locomotion.y
-        character.z = 0
-        character.rotation = side.locomotion.facing
+        character.x = side.motor.x
+        character.y = side.motor.y
+        character.z = side.motor.z
+        character.rotation = side.motor.facing
 
+        // The motor poses the limbs; the swing adds the shoulder coil and the roll of the
+        // strings, which are not limbs. Nothing in this file writes a limb target.
         return MinigameCharacter(character: character,
-                                 gait: side.locomotion.gait,
-                                 poseOverride: swingPose(for: side))
+                                 gait: side.motor.gait,
+                                 poseOverride: side.motor.poseOverride(then: swingPose(for: side)))
     }
 
     var scenePrimitives: [ScenePrimitive] {
@@ -578,8 +626,8 @@ final class Tennis3DGame: WorldRenderedMinigame {
         // court never slides off the bottom of the screen.
         let ballWeight = ball.inFlight ? 0.35 : 0.0
         let target = SIMD2(
-            (player.locomotion.x * 0.5 + ball.x * ballWeight) / (0.5 + ballWeight),
-            (player.locomotion.y * 0.5 + ball.y * ballWeight) / (0.5 + ballWeight)
+            (player.motor.x * 0.5 + ball.x * ballWeight) / (0.5 + ballWeight),
+            (player.motor.y * 0.5 + ball.y * ballWeight) / (0.5 + ballWeight)
         )
         // Barely follows at all, and never far: the whole court has to stay on screen, with
         // both players inside it. Drifting with the action past that point loses the far

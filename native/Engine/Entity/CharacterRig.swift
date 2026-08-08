@@ -172,11 +172,16 @@ enum CharacterRig {
     static let upperLegRadius: Float = 3.6, upperLegLength: Float = thighBone
     static let lowerLegRadius: Float = 3.6, lowerLegLength: Float = shinBone
 
-    // Joint anchors, from `buildSkeletonRig`.
-    private static let leftShoulder = SIMD3<Float>(3, -10, 26)
-    private static let rightShoulder = SIMD3<Float>(3, 10, 26)
-    private static let leftHip = SIMD3<Float>(0, -6, 10)
-    private static let rightHip = SIMD3<Float>(0, 6, 10)
+    /// How high the body pivot stands off the ground. Every local coordinate in this file is
+    /// measured from it, so anything converting a rig-local point into world space adds it back.
+    static let bodyPivotHeight: Float = 15.5
+
+    // Joint anchors, from `buildSkeletonRig`. Public because `CharacterMotor` measures a limb's
+    // reach from them — an arm can only get so far from the shoulder it hangs off.
+    static let leftShoulder = SIMD3<Float>(3, -10, 26)
+    static let rightShoulder = SIMD3<Float>(3, 10, 26)
+    static let leftHip = SIMD3<Float>(0, -6, 10)
+    static let rightHip = SIMD3<Float>(0, 6, 10)
 
     // MARK: - Anatomy
     //
@@ -263,30 +268,53 @@ enum CharacterRig {
     static let elbowRadius: Float = upperArmRadius * elbowEndScale
     static let kneeRadius: Float = upperLegRadius * kneeEndScale
 
-    /// The hand, revolved about the forearm so it has no roll to get wrong. `IKSolver`'s
-    /// `quaternionFromUnitY` pins the direction a limb points and nothing else, so anything with
-    /// a front and a back would spin freely about the wrist. A mitt does not care.
+    /// **The hand.** A wrist, a palm, a finger block and a thumb.
     ///
-    /// y = 0 is the wrist and +Y runs out to the fingertips. The forearm is the one limb built
-    /// with `domeEnd: false`, so it finishes flush at the wrist and everything past that belongs
-    /// to the hand. The first attempt at this had a domed forearm reaching a full radius past
-    /// the wrist and a mitt too short to cover it, which came out as a bracelet with a thumb
-    /// poking through the end.
-    static let handProfile: [(y: Float, radius: Float)] = [
-        (-2.6, 0.0),
-        (-2.0, 2.5),    // cuff, flush with the sleeve
-        (-0.2, 3.05),
-        ( 1.4, 3.15),   // knuckles, widest
-        ( 3.0, 2.85),
-        ( 4.4, 2.0),
-        ( 5.2, 0.0),    // fingertips, past the forearm's cap at 3.3
-    ]
+    /// It was a mitt — one silhouette revolved about the forearm — and it was that shape for a
+    /// specific reason: `IKSolver.quaternionFromUnitY` pinned the direction the forearm pointed
+    /// and left the roll about it undefined, so anything with a front and a back would have spun
+    /// freely as the arm moved. A revolved solid cannot notice. `IKSolver.basis` now fixes the
+    /// roll against the arm's own bending normal, which is what makes a hand with a side
+    /// possible at all.
+    ///
+    /// The frame is the forearm's: **y = 0 is the wrist, +Y runs out to the fingertips, +Z is
+    /// the thumb side, +X is the back of the hand.** All four pieces are merged into one mesh,
+    /// because the rig is drawn twice per character and a hand worth three draws is a hand worth
+    /// six.
+    ///
+    /// The forearm is the one limb built with `domeEnd: false`, so it finishes flush at the
+    /// wrist and everything past that belongs to the hand. The first attempt at a hand had a
+    /// domed forearm reaching a full radius past the wrist and a mitt too short to cover it,
+    /// which came out as a bracelet with a thumb poking through the end.
+    enum Hand {
+        /// Wrist. Flatter than the forearm is round, which is what a wrist is.
+        static let wristCentre = SIMD3<Float>(0, 0.1, 0)
+        static let wristRadii = SIMD3<Float>(1.95, 1.7, 2.3)
 
-    // Neutral limb targets, reset every frame in `updateCharacter3D:1136-1139`.
-    private static let baseLeftHand = SIMD3<Float>(9, -16, 12)
-    private static let baseRightHand = SIMD3<Float>(9, 16, 12)
-    private static let baseLeftFoot = SIMD3<Float>(2, -6, -13)
-    private static let baseRightFoot = SIMD3<Float>(2, 6, -13)
+        /// Palm. Widest across the knuckles and thin front-to-back.
+        static let palmCentre = SIMD3<Float>(0, 2.2, 0.05)
+        static let palmRadii = SIMD3<Float>(1.7, 2.8, 2.65)
+
+        /// The four fingers, as one block. Modelling them separately at this scale buys nothing
+        /// but triangles: on the cameras this game is played from a finger is under a pixel.
+        static let fingersCentre = SIMD3<Float>(0, 4.9, 0.15)
+        static let fingersRadii = SIMD3<Float>(1.4, 2.0, 2.4)
+
+        /// Thumb. A capsule swung out of the palm's plane towards +Z, which is the whole point
+        /// of having a basis for the forearm rather than a direction.
+        static let thumbRadius: Float = 1.1
+        static let thumbLength: Float = 2.4
+        /// Radians about +X: tips the capsule's +Y axis towards +Z.
+        static let thumbSplay: Float = 0.9
+        static let thumbRoot = SIMD3<Float>(0.1, 1.6, 1.85)
+    }
+
+    // Neutral limb targets, reset every frame in `updateCharacter3D:1136-1139`. Public because
+    // `CharacterMotor` starts every limb here, and a released one settles back to it.
+    static let neutralLeftHand = SIMD3<Float>(9, -16, 12)
+    static let neutralRightHand = SIMD3<Float>(9, 16, 12)
+    static let neutralLeftFoot = SIMD3<Float>(2, -6, -13)
+    static let neutralRightFoot = SIMD3<Float>(2, 6, -13)
 
     private static let bendNormalArmL = simd_normalize(SIMD3<Float>(0, 1, -0.5))
     private static let bendNormalArmR = simd_normalize(SIMD3<Float>(0, 1, 0.5))
@@ -405,17 +433,17 @@ enum CharacterRig {
         runtime.bodyPivotRotation.y = Float(sin(idleTime * 1.5) * 0.05)
 
         // --- Walk cycle vs idle sway (`updateCharacter3D:1157-1174`) ---
-        var leftHand = baseLeftHand
-        var rightHand = baseRightHand
-        var leftFoot = baseLeftFoot
-        var rightFoot = baseRightFoot
+        var leftHand = neutralLeftHand
+        var rightHand = neutralRightHand
+        var leftFoot = neutralLeftFoot
+        var rightFoot = neutralRightFoot
 
         let isWalking = gait.isMoving || gait.phase > 0
 
         if isWalking {
             let legTimer = Float(gait.phase)
             let effort = Float(min(1.2, max(abs(gait.forward), abs(gait.lateral))))
-            runtime.bodyPivotPosition.z = 15.5 + cos(legTimer * 2) * 0.5 * effort
+            runtime.bodyPivotPosition.z = bodyPivotHeight + cos(legTimer * 2) * 0.5 * effort
             runtime.bodyPivotPosition.x = cos(legTimer * 2) * 1.0 * effort
 
             // applyWalkCycle (`characters.js:981-1001`), split into a forward stride and a
@@ -457,7 +485,7 @@ enum CharacterRig {
             // Standing *and* not posed by an emote. When an emote is running the JS leaves the
             // body pivot wherever the emote put it, so a `wave` that started mid-stride keeps
             // the last frame's walk bob until it ends.
-            runtime.bodyPivotPosition.z = 15.5
+            runtime.bodyPivotPosition.z = bodyPivotHeight
             runtime.bodyPivotPosition.x = 0
 
             // applyIdleSway (`characters.js:1003-1013`)
@@ -521,10 +549,32 @@ enum CharacterRig {
                                 runtime.bodyPivotRotation.y,
                                 runtime.bodyPivotRotation.z)
 
+        // --- The waist ---
+        //
+        // Everything above the hips hangs off `chest`, everything below off `bodyPivot`. The
+        // only difference between them is `chestTwist`, a rotation about the body's up axis —
+        // and that one rotation is the difference between a person turning into a shot and a
+        // chess piece being twisted on its base. The tennis coil used to be
+        // `bodyPivotRotation.z`, which turns the feet with the shoulders.
+        //
+        // Hand targets are written in the **body** frame and stay that way; they are rotated
+        // into the chest's frame only for the arm IK, and rotated back for anything world-facing.
+        // A caller aiming a hand at a point in space therefore never has to know the chest has
+        // moved, which is the property that lets `CharacterMotor` stay ignorant of tennis.
+        let chestTwist = mutation.chestTwist
+        let chest = bodyPivot * Float4x4.rotationZ(chestTwist)
+
+        let twistCos = cos(-chestTwist), twistSin = sin(-chestTwist)
+        func intoChest(_ point: SIMD3<Float>) -> SIMD3<Float> {
+            SIMD3(point.x * twistCos - point.y * twistSin,
+                  point.x * twistSin + point.y * twistCos,
+                  point.z)
+        }
+
         // --- Torso and pelvis ---
         // Both are lathes standing on +Y, so `rotationX(π/2)` turns them upright. The breath
         // swells the chest only — nobody's hips inflate when they inhale.
-        let torso = bodyPivot
+        let torso = chest
             * Float4x4.translation(SIMD3(0, 0, torsoCentreZ))
             * Float4x4.rotationX(.pi / 2)
             * Float4x4.scale(SIMD3(1 + breath, 1, 1 + breath))
@@ -538,7 +588,7 @@ enum CharacterRig {
         // --- Neck ---
         // Hinged at its base and taking a share of the head's rotation, so a nod or a turn
         // carries down into it instead of snapping the head off the shoulders.
-        let neck = bodyPivot
+        let neck = chest
             * Float4x4.translation(neckBase)
             * Float4x4.eulerXYZ(runtime.headRotation.x * neckFollowsHead,
                                 runtime.headRotation.y * neckFollowsHead,
@@ -550,7 +600,7 @@ enum CharacterRig {
         // --- Head (`buildSkeletonRig:810-812` + `applyHeadModel:209-213`) ---
         // The head *group* — props parented to it (laser beams, tears, crumbs) inherit this
         // whole transform, including the non-uniform 0.65/0.65/0.7 scale.
-        let headAnchor = bodyPivot
+        let headAnchor = chest
             * Float4x4.translation(SIMD3(2, 0, 36))
             * Float4x4.eulerXYZ(runtime.headRotation.x, runtime.headRotation.y, runtime.headRotation.z)
             * Float4x4.scale(SIMD3(0.65, 0.65, 0.7))
@@ -567,29 +617,37 @@ enum CharacterRig {
         var leftAnkle = leftFoot;  leftAnkle.z += 2.3
         var rightAnkle = rightFoot; rightAnkle.z += 2.3
 
-        let leftElbow = IKSolver.solve(start: leftShoulder, end: &leftHand,
+        // The arms are solved in the **chest** frame, so a turn at the waist carries the whole
+        // shoulder girdle with it and the arms stay attached to it. `IKSolver.solve` clamps an
+        // out-of-reach target in place, so `leftHandChest` comes back as where the hand really
+        // ended up — which is why the hand and the forearm are drawn from it rather than from
+        // what was asked for.
+        var leftHandChest = intoChest(leftHand)
+        var rightHandChest = intoChest(rightHand)
+
+        let leftElbow = IKSolver.solve(start: leftShoulder, end: &leftHandChest,
                                        l1: armBone, l2: armBone, bendingNormal: bendNormalArmL)
-        let rightElbow = IKSolver.solve(start: rightShoulder, end: &rightHand,
+        let rightElbow = IKSolver.solve(start: rightShoulder, end: &rightHandChest,
                                         l1: armBone, l2: armBone, bendingNormal: bendNormalArmR)
         let leftKnee = IKSolver.solve(start: leftHip, end: &leftAnkle,
                                       l1: thighBone, l2: shinBone, bendingNormal: bendNormalLegL)
         let rightKnee = IKSolver.solve(start: rightHip, end: &rightAnkle,
                                        l1: thighBone, l2: shinBone, bendingNormal: bendNormalLegR)
 
-        func append(_ part: RigPart, _ start: SIMD3<Float>, _ end: SIMD3<Float>) {
+        func append(_ part: RigPart, _ start: SIMD3<Float>, _ end: SIMD3<Float>, in frame: Float4x4) {
             if let local = IKSolver.segmentTransform(start: start, end: end) {
-                pose.parts.append((part, bodyPivot * local))
+                pose.parts.append((part, frame * local))
             }
         }
 
-        append(.leftUpperArm, leftShoulder, leftElbow)
-        append(.leftLowerArm, leftElbow, leftHand)
-        append(.rightUpperArm, rightShoulder, rightElbow)
-        append(.rightLowerArm, rightElbow, rightHand)
-        append(.leftUpperLeg, leftHip, leftKnee)
-        append(.leftLowerLeg, leftKnee, leftAnkle)
-        append(.rightUpperLeg, rightHip, rightKnee)
-        append(.rightLowerLeg, rightKnee, rightAnkle)
+        append(.leftUpperArm, leftShoulder, leftElbow, in: chest)
+        append(.leftLowerArm, leftElbow, leftHandChest, in: chest)
+        append(.rightUpperArm, rightShoulder, rightElbow, in: chest)
+        append(.rightLowerArm, rightElbow, rightHandChest, in: chest)
+        append(.leftUpperLeg, leftHip, leftKnee, in: bodyPivot)
+        append(.leftLowerLeg, leftKnee, leftAnkle, in: bodyPivot)
+        append(.rightUpperLeg, rightHip, rightKnee, in: bodyPivot)
+        append(.rightLowerLeg, rightKnee, rightAnkle, in: bodyPivot)
 
         // --- Joints ---
         // Two capsules meeting at an angle cross through each other and leave a ridge where
@@ -599,28 +657,40 @@ enum CharacterRig {
         //
         // The deltoids are turned to follow the humerus so their long axis lies along the arm.
         // Elbows and knees are spheres and need no orientation.
-        func joint(_ part: RigPart, at position: SIMD3<Float>, alignedTo direction: SIMD3<Float>? = nil) {
-            var transform = bodyPivot * Float4x4.translation(position)
+        func joint(_ part: RigPart,
+                   at position: SIMD3<Float>,
+                   in frame: Float4x4,
+                   alignedTo direction: SIMD3<Float>? = nil) {
+            var transform = frame * Float4x4.translation(position)
             if let direction {
                 transform = transform * IKSolver.rotationFromUnitY(to: direction)
             }
             pose.parts.append((part, transform))
         }
 
-        joint(.leftShoulder, at: leftShoulder,
+        joint(.leftShoulder, at: leftShoulder, in: chest,
               alignedTo: safeDirection(from: leftShoulder, to: leftElbow))
-        joint(.rightShoulder, at: rightShoulder,
+        joint(.rightShoulder, at: rightShoulder, in: chest,
               alignedTo: safeDirection(from: rightShoulder, to: rightElbow))
-        joint(.leftElbow, at: leftElbow)
-        joint(.rightElbow, at: rightElbow)
-        joint(.leftKnee, at: leftKnee)
-        joint(.rightKnee, at: rightKnee)
+        joint(.leftElbow, at: leftElbow, in: chest)
+        joint(.rightElbow, at: rightElbow, in: chest)
+        joint(.leftKnee, at: leftKnee, in: bodyPivot)
+        joint(.rightKnee, at: rightKnee, in: bodyPivot)
 
-        // Hands inherit the forearm's orientation.
-        let leftForearmRotation = Float4x4(IKSolver.quaternionFromUnitY(to: safeDirection(from: leftElbow, to: leftHand)))
-        let rightForearmRotation = Float4x4(IKSolver.quaternionFromUnitY(to: safeDirection(from: rightElbow, to: rightHand)))
-        let leftHandAnchor = bodyPivot * Float4x4.translation(leftHand) * leftForearmRotation
-        let rightHandAnchor = bodyPivot * Float4x4.translation(rightHand) * rightForearmRotation
+        // --- Hands ---
+        //
+        // A hand needs a **basis**, not a direction. `quaternionFromUnitY` pins where the
+        // forearm points and leaves the roll about it arbitrary, which is why the hand used to
+        // be a mitt revolved about the wrist: anything with a front and a back would have spun
+        // freely. `IKSolver.basis` fixes the roll against the arm's own bending normal — the
+        // vector the elbow already articulates about — so the palm faces the way the elbow
+        // bends, which is what a palm does, and the thumb has somewhere to be.
+        let leftForearmRotation = IKSolver.basis(alongY: safeDirection(from: leftElbow, to: leftHandChest),
+                                                 rolledTowards: bendNormalArmL)
+        let rightForearmRotation = IKSolver.basis(alongY: safeDirection(from: rightElbow, to: rightHandChest),
+                                                  rolledTowards: bendNormalArmR)
+        let leftHandAnchor = chest * Float4x4.translation(leftHandChest) * leftForearmRotation
+        let rightHandAnchor = chest * Float4x4.translation(rightHandChest) * rightForearmRotation
         pose.parts.append((.leftHand, leftHandAnchor))
         pose.parts.append((.rightHand, rightHandAnchor))
 
@@ -686,7 +756,13 @@ enum CharacterRig {
         pose.rightShoeBox = rightShoeGroup
 
         // --- Shadow blob (`buildShadowBlob:903-921`) ---
-        pose.shadowTransform = meshGroup * Float4x4.translation(SIMD3(0, 0, 0.5))
+        // On the **ground**, not on the character. It used to hang off `meshGroup`, which
+        // carries the character's height — fine while nothing was ever off the ground, and
+        // wrong the moment `CharacterMotor` made the jump real: the shadow went up with the
+        // jumper. It keeps the heading and the scale and drops the height.
+        pose.shadowTransform = Float4x4.translation(SIMD3(renderX, renderY, 0.5))
+            * Float4x4.rotationZ(Float(-(character.rotation ?? 0)) * degToRad)
+            * Float4x4.scale(SIMD3(repeating: maxScale))
 
         return pose
     }

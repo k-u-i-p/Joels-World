@@ -28,25 +28,40 @@ extension Tennis3DGame {
     /// at the feet. The rig's body pivot sits 15.5 units up, and that offset is folded in here
     /// so callers can write shoulder and hand positions straight out of `CharacterRig`.
     func worldPoint(local: SIMD3<Double>, of side: Side) -> SIMD3<Double> {
-        let radians = side.locomotion.facing * .pi / 180
-        let cosine = cos(radians)
-        let sine = sin(radians)
-
-        return SIMD3(
-            side.locomotion.x + local.x * cosine + local.y * sine,
-            side.locomotion.y + local.x * sine - local.y * cosine,
-            local.z + 15.5
-        )
+        side.motor.localToWorld(local)
     }
 
     /// The rig's right shoulder, which is where the racket arm hangs from.
     /// `CharacterRig.rightShoulder` is (3, 10, 26) in body-pivot space.
     private var shoulderLocal: SIMD3<Double> { SIMD3(3, 10, 26) }
 
+    /// **Pulls a hand pose inside the arm's reach**, exactly the way the motor will.
+    ///
+    /// Every pose below was authored against a rig that clamped silently. `IKSolver.solve` moves
+    /// an out-of-reach target in place and says nothing about it, so the swing *drew* the arm at
+    /// full stretch with the hand — and the racket — at the clamped position, while every
+    /// calculation in the game used the position that had been asked for: where to throw the
+    /// toss, where to put the feet, where the strings were for the contact test. The strings you
+    /// could see were never the strings that hit the ball.
+    ///
+    /// The serve pose is 21.7 units from the shoulder and an arm is 16.6 long. That is a fifth
+    /// of a metre of pure fiction, and the moment `CharacterMotor` started reporting where the
+    /// hand really was, every service game in the match became a run of double faults — the
+    /// server threw the ball to a point the arm could not reach and swung 0.63 m under it, over
+    /// and over. Clamping here, at the one place the poses are written down, puts the drawing
+    /// and the simulation back on the same arm.
+    func reachable(_ hand: SIMD3<Double>, from shoulder: SIMD3<Float>) -> SIMD3<Double> {
+        let clamped = LimbProfile.arm.reachable(
+            SIMD3<Float>(Float(hand.x), Float(hand.y), Float(hand.z)), from: shoulder)
+        return SIMD3(Double(clamped.x), Double(clamped.y), Double(clamped.z))
+    }
+
     /// The hand position at the moment a serve is struck — reaching up and slightly in front.
     /// Shared by the swing choreography and by `tossBall`, which solves the toss backwards
     /// from where this puts the strings.
-    var serveContactHandLocal: SIMD3<Double> { SIMD3(11, 7, 46) }
+    var serveContactHandLocal: SIMD3<Double> {
+        reachable(SIMD3(11, 7, 46), from: CharacterRig.rightShoulder)
+    }
 
     /// The three poses of a groundstroke on the racket side: loaded behind the hip, through the
     /// ball, finished across the body. `mirror` flips them for a backhand.
@@ -55,9 +70,12 @@ extension Tennis3DGame {
     /// it, so where the strings arrive and where the feet are told to be cannot drift apart.
     func groundstrokePoses(mirror: Double)
         -> (loaded: SIMD3<Double>, contact: SIMD3<Double>, finish: SIMD3<Double>) {
-        (loaded: SIMD3(-7, 22 * mirror, 19),
-         contact: SIMD3(16, 17 * mirror, 21),
-         finish: SIMD3(9, -9 * mirror, 30))
+        // Clamped to the arm, because a backhand mirrors these about the body's centre line and
+        // the mirrored poses are two arms' length from the racket shoulder. See `reachable`.
+        let shoulder = CharacterRig.rightShoulder
+        return (loaded: reachable(SIMD3(-7, 22 * mirror, 19), from: shoulder),
+                contact: reachable(SIMD3(16, 17 * mirror, 21), from: shoulder),
+                finish: reachable(SIMD3(9, -9 * mirror, 30), from: shoulder))
     }
 
     /// Where the racket hand is at the instant the swing is **timed** to meet the ball.
@@ -135,8 +153,15 @@ extension Tennis3DGame {
     ///
     /// `handOverride` asks the same question about a hand position the swing has not reached
     /// yet — "where *will* the strings be" — which is what the serve solver needs.
+    ///
+    /// Without an override this reads the hand **the motor has actually moved**, not the pose
+    /// the choreography asked for. The two are close but never identical: an arm has a top speed
+    /// and a mass, and the ball is met by the racket that exists rather than by the one that was
+    /// requested. Reading the same position the rig is drawn with is what keeps the contact test
+    /// honest — the 2D game's habit of reading its hitbox out of a frame-old drawing is the
+    /// failure mode at the other end of this.
     func racketHead(of side: Side, handOverride: SIMD3<Double>? = nil) -> SIMD3<Double> {
-        let hand = handOverride ?? handLocal(for: side)
+        let hand = handOverride ?? SIMD3<Double>(side.motor.limbPosition(.rightHand))
         var reach = hand - shoulderLocal
         let length = simd_length(reach)
         reach = length > 1e-6 ? reach / length : SIMD3(1, 0, 0)
@@ -151,7 +176,7 @@ extension Tennis3DGame {
     /// from anything, because a swing is choreography: these are the numbers that look right
     /// from the camera the game is played on.
     private func handLocal(for side: Side) -> SIMD3<Double> {
-        let rest = SIMD3<Double>(9, 16, 12)
+        let rest = SIMD3<Double>(CharacterRig.neutralRightHand)
         let swing = side.swing
         guard swing.isSwinging else { return rest }
 
@@ -191,7 +216,7 @@ extension Tennis3DGame {
 
     /// The off hand. It only does anything interesting during a serve, where it throws the ball.
     private func offHandLocal(for side: Side) -> SIMD3<Double> {
-        let rest = SIMD3<Double>(9, -16, 12)
+        let rest = SIMD3<Double>(CharacterRig.neutralLeftHand)
         guard side.swing.isServe, side.swing.isSwinging else { return rest }
 
         switch side.swing.stage {
@@ -204,10 +229,32 @@ extension Tennis3DGame {
         }
     }
 
-    /// Poses the rig for whatever the swing is doing, and rolls the racket face with it.
+    /// **Asks the motor to put the hands where the swing wants them.** Called on every physics
+    /// sub-step, because the racket head is where the ball is met and a tenth of a second is the
+    /// whole forward swing.
+    ///
+    /// This is the line the refactor draws. The choreography — the four poses of a forehand,
+    /// where a serve reaches — is tennis, and lives here. *Moving a hand there* is not, and does
+    /// not: `moveHandTo` works out whether the arm can reach, accelerates the hand, and keeps
+    /// its velocity. Nothing in this file writes a limb target or remembers where a hand was
+    /// last frame any more.
+    private func driveHands(for side: Side, dt: Double) {
+        if side.swing.isSwinging {
+            let hand = handLocal(for: side)
+            let offHand = offHandLocal(for: side)
+            side.motor.moveHandTo(.rightHand, local: SIMD3(Float(hand.x), Float(hand.y), Float(hand.z)))
+            side.motor.moveHandTo(.leftHand, local: SIMD3(Float(offHand.x), Float(offHand.y), Float(offHand.z)))
+        } else {
+            // Back to the walk cycle and the idle sway, eased rather than snapped.
+            side.motor.releaseLimb(.rightHand)
+            side.motor.releaseLimb(.leftHand)
+        }
+        side.motor.stepLimbs(dt: dt)
+    }
+
+    /// The parts of the pose that are not limbs: how far the shoulders turn into the shot, and
+    /// which way the strings are facing. Composed on top of the motor's own limb pass.
     func swingPose(for side: Side) -> RigOverride? {
-        let hand = handLocal(for: side)
-        let offHand = offHandLocal(for: side)
         let swing = side.swing
 
         // A neutral, still character needs no override at all — let the idle sway have it.
@@ -235,9 +282,7 @@ extension Tennis3DGame {
         let signedCoil = swing.isBackhand ? -coil : coil
 
         return { mutation in
-            mutation.rightHandTarget = SIMD3(Float(hand.x), Float(hand.y), Float(hand.z))
-            mutation.leftHandTarget = SIMD3(Float(offHand.x), Float(offHand.y), Float(offHand.z))
-            mutation.bodyPivotRotation.z += signedCoil
+            mutation.chestTwist += signedCoil
             mutation.holdingRotation = SIMD3(faceRoll, 0, 0)
         }
     }
@@ -260,12 +305,14 @@ extension Tennis3DGame {
         if side.swing.cooldown > 0 { side.swing.cooldown -= dt }
 
         guard side.swing.isSwinging else {
-            side.swing.previousHead = nil
+            driveHands(for: side, dt: dt)
             considerStartingSwing(side, dt: dt)
             return
         }
 
-        let headBefore = side.swing.previousHead ?? racketHead(of: side)
+        // Where the strings are *before* this sub-step moves them. No remembered copy: the hand
+        // has not moved yet, so asking is the same as remembering and cannot go stale.
+        let headBefore = racketHead(of: side)
         side.swing.elapsed += dt
 
         switch side.swing.stage {
@@ -282,7 +329,7 @@ extension Tennis3DGame {
                 trace(String(format: "MISS %@ at (%.1f, %.1f)m — closest the strings got was %.2fm, "
                              + "with the ball at (%.1f, %.1f, %.1f)m (sweet spot is %.2fm)",
                              side.isPlayer ? "you" : opponentName,
-                             side.locomotion.x / metre, side.locomotion.y / metre,
+                             side.motor.x / metre, side.motor.y / metre,
                              side.swing.closestApproach / metre,
                              close.x / metre, close.y / metre, close.z / metre,
                              (Tuning.sweetRadius + Tennis3DCourt.ballRadius) / metre))
@@ -294,8 +341,8 @@ extension Tennis3DGame {
             break
         }
 
+        driveHands(for: side, dt: dt)
         let headAfter = racketHead(of: side)
-        side.swing.previousHead = headAfter
 
         // Only the forward half of the stroke can hit anything, and only once.
         guard side.swing.stage == .forward, !side.swing.hasStruck, ball.inFlight else { return }
@@ -456,9 +503,9 @@ extension Tennis3DGame {
     /// Where a player will be in `time` seconds, given where they are heading. Straight-line
     /// extrapolation of the current velocity, clamped to the time it takes to reach the target.
     private func predictedStandingPosition(of side: Side, after time: Double) -> SIMD2<Double> {
-        let here = SIMD2(side.locomotion.x, side.locomotion.y)
+        let here = SIMD2(side.motor.x, side.motor.y)
         guard let target = side.moveTarget else {
-            return here + SIMD2(side.locomotion.vx, side.locomotion.vy) * time
+            return here + SIMD2(side.motor.vx, side.motor.vy) * time
         }
         let toTarget = SIMD2(target.x, target.y) - here
         let distance = simd_length(toTarget)
@@ -474,13 +521,12 @@ extension Tennis3DGame {
         swing.stage = .backswing
         swing.elapsed = 0
         swing.isServe = phase == .toss && side === server
-        swing.previousHead = racketHead(of: side)
 
         // Backhand when the ball is on the far side of the body from the racket arm. The racket
         // hangs off local +Y, so a ball at negative local Y has to be crossed to.
-        let radians = side.locomotion.facing * .pi / 180
-        let toBallX = ball.x - side.locomotion.x
-        let toBallY = ball.y - side.locomotion.y
+        let radians = side.motor.facing * .pi / 180
+        let toBallX = ball.x - side.motor.x
+        let toBallY = ball.y - side.motor.y
         let lateral = toBallX * sin(radians) - toBallY * cos(radians)
         swing.isBackhand = !swing.isServe && lateral < -Tennis3DCourt.metres(0.15)
 
@@ -533,7 +579,7 @@ extension Tennis3DGame {
         // have to move" is measured from where it was standing when the shot was struck.
         let other = side.isPlayer ? npc : player
         other.reactionDelay = Tuning.npcReaction
-        other.anchor = (x: other.locomotion.x, y: other.locomotion.y)
+        other.anchor = (x: other.motor.x, y: other.motor.y)
         other.positionBias = (x: random.spread(Tuning.npcPositionError),
                               y: random.spread(Tuning.npcPositionError))
 
@@ -586,20 +632,20 @@ extension Tennis3DGame {
         // Hit away from where the other player is standing. For the human this is automatic —
         // it is what a real player does without thinking, and there is no second thumb free to
         // aim with.
-        let awayFromOpponent: Double = opponent.locomotion.x > 0 ? -1 : 1
+        let awayFromOpponent: Double = opponent.motor.x > 0 ? -1 : 1
         var aimX = awayFromOpponent * Tennis3DCourt.halfSingles * random.range(0.45, 0.80)
 
         // Sliding across the court while you hit drags the ball with you, which gives the drag
         // control a second job: it steers the shot.
-        let radians = side.locomotion.facing * .pi / 180
-        let lateralSpeed = side.locomotion.vx * sin(radians) - side.locomotion.vy * cos(radians)
+        let radians = side.motor.facing * .pi / 180
+        let lateralSpeed = side.motor.vx * sin(radians) - side.motor.vy * cos(radians)
         aimX -= lateralSpeed / Tuning.playerTopSpeed * Tennis3DCourt.metres(2.4)
         aimX = min(max(aimX, -Tennis3DCourt.halfSingles + Tennis3DCourt.metres(0.5)),
                    Tennis3DCourt.halfSingles - Tennis3DCourt.metres(0.5))
 
         // Depth: deep by default, with the odd shorter one. Struck from behind the baseline,
         // aim shorter — a defensive ball hit for the baseline mostly goes long.
-        let stretched = abs(side.locomotion.y) > Tennis3DCourt.halfLength
+        let stretched = abs(side.motor.y) > Tennis3DCourt.halfLength
         let depth = stretched ? random.range(0.50, 0.68) : random.range(0.62, 0.86)
         let aimY = targetHalf * Tennis3DCourt.halfLength * depth
 
@@ -670,11 +716,15 @@ extension Tennis3DGame {
     ///
     /// The facing rule is the whole reason `Gait` exists. A tennis player keeps their chest to
     /// the net and shuffles; they only turn and run when the ball has put them a long way out of
-    /// position and there is time to get back. Both cases fall out of what `facingIntent` is set
-    /// to, and the legs follow automatically.
+    /// position and there is time to get back. Both cases fall out of what the motor is told to
+    /// face, and the legs follow automatically.
+    ///
+    /// What is left here after the motor took over is the *tennis*: who may move, which way they
+    /// look, and where the fence is. The acceleration, the braking, the turn, the arrival easing
+    /// and the velocity a fence sheds are all `CharacterMotor`'s, and identical to the
+    /// overworld's.
     private func run(_ side: Side, dt: Double, profile: LocomotionProfile) {
-        var desired = (x: 0.0, y: 0.0)
-        var distance: Double = 0
+        side.motor.profile = profile
 
         // A server stands still from the moment they take the ball until they have struck it.
         // Not stagecraft — a requirement. `tossBall` solves the toss backwards from where the
@@ -682,57 +732,36 @@ extension Tennis3DGame {
         // server who drifts even half a metre swings through thin air. Both sides were losing
         // serves to it; the opponent lost every one.
         let isServing = (phase == .ready || phase == .toss) && side === server
-        if isServing {
-            side.moveTarget = nil
-        } else if let target = side.moveTarget {
-            let dx = target.x - side.locomotion.x
-            let dy = target.y - side.locomotion.y
-            distance = hypot(dx, dy)
+        if isServing { side.motor.holdPosition() }
 
-            if distance > Tennis3DCourt.metres(0.12) {
-                // Ease off on the approach, so nobody skids past their mark and has to come
-                // back — the arrival behaviour every steering system needs and the 2D game's
-                // "snap when within 1 unit" did not have.
-                let approach = min(profile.maxSpeed, distance * 4.5)
-                desired = (dx / distance * approach, dy / distance * approach)
-            }
-        }
+        let distance = side.motor.distanceToDestination
 
         // Face the net by default. 270° points at −Y for the near player, 90° at +Y for the
         // far one.
         let netFacing: Double = side.isPlayer ? 270 : 90
-        var facingIntent: Double? = netFacing
+        var facing: Double? = netFacing
 
         // A long run with time to make it: turn and sprint properly rather than shuffling.
         let ballIsClose = ball.inFlight
-            && abs(ball.y - side.locomotion.y) < Tennis3DCourt.metres(7)
+            && abs(ball.y - side.motor.y) < Tennis3DCourt.metres(7)
         if distance > Tennis3DCourt.metres(3.0) && !ballIsClose && !side.swing.isSwinging {
-            facingIntent = nil
+            facing = nil
         }
         // Mid-swing the feet are planted; nothing turns the body but the stroke.
-        if side.swing.isSwinging { facingIntent = netFacing }
+        if side.swing.isSwinging { facing = netFacing }
+        side.motor.faceTowards(facing)
 
-        let demand = Locomotion.step(&side.locomotion,
-                                     desired: desired,
-                                     facingIntent: facingIntent,
-                                     profile: profile,
-                                     dt: dt)
-
-        // The court fence, and the net. Applied as a clamp on the accepted delta so
-        // `Locomotion.commit` sees what really happened and sheds the velocity into it.
-        var newX = side.locomotion.x + demand.dx
-        var newY = side.locomotion.y + demand.dy
-        newX = min(max(newX, -Tennis3DCourt.playableHalfWidth), Tennis3DCourt.playableHalfWidth)
-        let netKeepOut = Tennis3DCourt.metres(0.5)
-        if side.isPlayer {
-            newY = min(max(newY, netKeepOut), Tennis3DCourt.playableHalfLength)
-        } else {
-            newY = min(max(newY, -Tennis3DCourt.playableHalfLength), -netKeepOut)
+        // The court fence, and the net, as the world's veto on the move. The motor commits
+        // whatever comes back and sheds the blocked velocity into it, so a player pinned against
+        // the fence stops there instead of storing up speed to fire sideways on release.
+        side.motor.stepBody(dt: dt) { proposedX, proposedY in
+            let clampedX = min(max(proposedX, -Tennis3DCourt.playableHalfWidth),
+                               Tennis3DCourt.playableHalfWidth)
+            let netKeepOut = Tennis3DCourt.metres(0.5)
+            let clampedY = side.isPlayer
+                ? min(max(proposedY, netKeepOut), Tennis3DCourt.playableHalfLength)
+                : min(max(proposedY, -Tennis3DCourt.playableHalfLength), -netKeepOut)
+            return (x: clampedX, y: clampedY)
         }
-
-        Locomotion.commit(&side.locomotion,
-                          actualDx: newX - side.locomotion.x,
-                          actualDy: newY - side.locomotion.y,
-                          dt: dt)
     }
 }

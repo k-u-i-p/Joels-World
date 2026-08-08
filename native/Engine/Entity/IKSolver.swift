@@ -62,6 +62,40 @@ enum IKSolver {
         Float4x4(quaternionFromUnitY(to: direction))
     }
 
+    /// A **full orthonormal basis** with +Y along `direction`, rolled so that +Z leans towards
+    /// `reference`.
+    ///
+    /// `rotationFromUnitY` pins one axis and leaves the rotation about it undefined — whatever
+    /// the shortest-arc quaternion happens to produce, which swings about wildly as the limb
+    /// moves. That is fine for a capsule, which is round, and useless for anything with a front
+    /// and a back. It is why the hand was a mitt revolved about the wrist for a whole session:
+    /// a thumb would have spun.
+    ///
+    /// `reference` only has to be *not parallel* to the direction; the component along it is
+    /// projected out. The arms pass their own bending normal — the vector the elbow already
+    /// articulates about — so the palm faces the way the elbow bends, which is what a palm does.
+    static func basis(alongY direction: SIMD3<Float>,
+                      rolledTowards reference: SIMD3<Float>) -> Float4x4 {
+        let y = normalizedOrZero(direction)
+        guard simd_length(y) > 1e-6 else { return matrix_identity_float4x4 }
+
+        var z = reference - y * simd_dot(reference, y)
+        if simd_length(z) < 1e-4 {
+            // Degenerate: the reference lies along the limb. Any perpendicular will do, and the
+            // roll it produces is arbitrary but at least continuous.
+            let fallback: SIMD3<Float> = abs(y.z) < 0.9 ? SIMD3(0, 0, 1) : SIMD3(1, 0, 0)
+            z = fallback - y * simd_dot(fallback, y)
+        }
+        z = normalizedOrZero(z)
+        let x = simd_cross(y, z)
+
+        var matrix = matrix_identity_float4x4
+        matrix.columns.0 = SIMD4(x, 0)
+        matrix.columns.1 = SIMD4(y, 0)
+        matrix.columns.2 = SIMD4(z, 0)
+        return matrix
+    }
+
     static func quaternionFromUnitY(to direction: SIMD3<Float>) -> simd_quatf {
         let from = SIMD3<Float>(0, 1, 0)
         var r = simd_dot(from, direction) + 1

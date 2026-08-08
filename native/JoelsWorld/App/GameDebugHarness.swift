@@ -187,12 +187,12 @@ final class GameDebugHarness {
 
             Log.world(String(format:
                 "tennis3d   you=(%.1f, %.1f)m face=%.0f° speed=%.1f swing=%@ | %@=(%.1f, %.1f)m face=%.0f° speed=%.1f swing=%@ | %@–%@ games %d–%d",
-                game.player.locomotion.x / metre, game.player.locomotion.y / metre,
-                game.player.locomotion.facing, game.player.locomotion.speed / metre,
+                game.player.motor.x / metre, game.player.motor.y / metre,
+                game.player.motor.facing, game.player.motor.speed / metre,
                 "\(game.player.swing.stage)",
                 board.opponentName,
-                game.npc.locomotion.x / metre, game.npc.locomotion.y / metre,
-                game.npc.locomotion.facing, game.npc.locomotion.speed / metre,
+                game.npc.motor.x / metre, game.npc.motor.y / metre,
+                game.npc.motor.facing, game.npc.motor.speed / metre,
                 "\(game.npc.swing.stage)",
                 board.playerPoints, board.npcPoints, board.playerGames, board.npcGames))
         }

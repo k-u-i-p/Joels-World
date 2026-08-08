@@ -6,193 +6,221 @@ overworld.
 
 Zone note: this touches `Engine/Core`, `Engine/Entity`, `Engine/Render` and `Engine/World` —
 red under [AGENTS.md](../AGENTS.md). Ben asked for it directly ("maybe need a new character
-movement system that could be shared with the rest of the game i.e. the base map has inertia and
-models sidestep etc", and then for the character models to be modelled properly, joints and
-all), which is the say-so that rule wants. `server/**` and `JoelsWorld.xcodeproj/**` are
-untouched.
+movement system that could be shared with the rest of the game", then for the character models
+to be modelled properly, joints and all, and then for **one shared set of classes to handle all
+character movement in every minigame, with nothing else anywhere manipulating limbs or tracking
+velocity**). `server/**` and `JoelsWorld.xcodeproj/**` are untouched.
 
-**Two sessions so far.** Session 1 built `Locomotion` and the lateral stride. Session 2 pushed
-the gait out to every character, made the NPCs deterministic, added a self-test, and rebuilt the
-character mesh. Read "Where it stands" before picking anything up.
+**Three sessions so far.**
+- Session 1 built `Locomotion` and the lateral stride.
+- Session 2 pushed the gait out to every character, made NPCs deterministic, added `-selftest`,
+  and rebuilt the character mesh.
+- Session 3 — this one — built **`CharacterMotor`**, moved every character in the game onto it,
+  gave the rig hands with thumbs and a waist that twists, and made the jump real.
+
+Read "Where it stands" before picking anything up. **Read "Traps" before running anything.**
 
 ---
 
-## Part A — Movement
+## Part A — `CharacterMotor`, the movement manager
 
-### What changed and why
+### The one rule
 
-Before this, a character's whole animation state was **one number**: `legAnimationTime`, a walk
-phase. That number can only describe a forward walk, which is why every character in Joel's
-World used to turn on the spot and then walk in a straight line. And movement itself had no
-memory — each frame the player was teleported `speed × dt` along their heading, so releasing the
-joystick stopped them dead and a direction change was instant.
+> **`CharacterMotor` is the only thing in the game allowed to move a character or a limb, and
+> the only thing that tracks a velocity.**
 
-Two pieces fix both:
+Everything else asks. If you find yourself writing `mutation.rightHandTarget = …` outside
+`CharacterRig`, or remembering where something was last frame so you can work out how fast it is
+going, that is the rule being broken and there is an API for it.
 
-- **`Locomotion`** — velocity that carries between frames, bounded acceleration and braking, and
-  a bounded turn rate. Position, heading and gait all come out of one step function.
-- **`Gait`** — velocity resolved into the character's *own* axes, so "moving left while facing
-  forward" is expressible. The rig reads it and side-steps.
+### What it replaced
 
-### How it fits together
+Three separate systems, each with its own bookkeeping and its own bugs:
 
-```
-                        ┌─ the local player ─────────────────────────────┐
-input ──▶ desired velocity ──▶ Locomotion.step ──▶ demanded delta        │
-                                     │                   │               │
-                                     │              PhysicsEngine.processMovement (walls)
-                                     │                   │               │
-                                     ▼             accepted delta        │
-                                   Gait  ◀──── Locomotion.commit ────────┘
-                                     │
-                        ┌─ everyone else ────────────────────────────────┐
-server / NPCBehaviour ──▶ interpolation target                           │
-                                     │                                   │
-                        PhysicsEngine.processInterpolation               │
-                                     │                                   │
-                          displacement this frame                        │
-                                     │                                   │
-                                     ▼                                   │
-                            Locomotion.observe ──▶ Gait ◀────────────────┘
-                                     │
-                                     ▼
-                            CharacterRig.pose ──▶ RigPose ──▶ Renderer
+| Was | Where |
+|---|---|
+| A `LocomotionState` assembled by hand every frame out of loose fields on `Player`, then unpacked again | `GameState.update` |
+| An `ObservedMotion` carried beside each remote player and NPC | `PhysicsEngine.processInterpolation` |
+| A `LocomotionState` per side, a court clamp written out by hand, limb targets written straight into `RigMutation`, and a remembered racket-head position so the contact test could derive its speed | `Tennis3DGame` |
+
+All three are now one class. `Player`'s movement fields are a **mirror** written at the end of
+each step, kept only because the wire payload, the camera and the renderer read them.
+
+### The API
+
+```swift
+motor.moveCharacterTo(x: 400, y: 120, targetSpeed: 180, facing: 270)  // go and stand there
+motor.driveCharacter(velocityX: vx, velocityY: vy)                    // or: this way, this fast
+motor.holdPosition()                                                  // brake and settle
+motor.faceTowards(270)   /  motor.setFacing(90)                       // heading intent / outright
+motor.jump(speed: 150)                                                // leave the ground
+motor.moveHandTo(.rightHand, local: contactPose)                      // put that hand there
+motor.moveFootTo(.leftFoot, local: step)
+motor.releaseLimb(.rightHand)                                         // back to the walk cycle
+motor.step(dt: dt, constrain: walls)                                  // one frame of all of it
 ```
 
-Two ways in, one `Gait` out. The player's comes from a controller and a wall test;
-everyone else's is **read back out of the positions they were moved through**, because nothing
-in the interpolation path ever forms a velocity. That is `Locomotion.observe`, and it is what
-makes a patrolling NPC side-step across a corridor its waypoint rotation faces down.
+and what actually happened comes back out:
 
-`Locomotion.commit` is the important half of the player's path and easy to miss: it writes back
-**what the world actually allowed**, so a player pushed into a wall sheds their velocity into it
-instead of storing it up and firing sideways the moment they turn away.
+```swift
+motor.x / .y / .z / .facing / .speed / .gait / .isAirborne
+motor.hasArrived()        motor.distanceToDestination
+motor.limbPosition(.rightHand)   // where the hand IS, after reach and inertia
+motor.limbVelocity(.rightHand)   // how fast, so nobody has to remember last frame
+motor.strain(of: .rightHand)     // how far outside its reach the ask was. 0 means reachable.
+motor.limbHasArrived(.rightHand)
+motor.poseOverride(then: extra)  // hand this to CharacterRig.pose
+```
 
-### Frames and signs (get these wrong and everything mirrors)
+**Everything is a request and the motor makes a best effort.** A wall eats the movement; a hand
+target outside the arm's reach is clamped and the shortfall shows up as `strain`; a jump while
+airborne is ignored. That is deliberate — see the trap below about silent clamping.
+
+### `constrain` — the world's veto
+
+`step`/`stepBody` take a closure handed the position the motor would *like* and returning the
+one it is *allowed*. The overworld passes `PhysicsEngine.processMovement`; tennis passes a court
+clamp. Whatever comes back is committed **and fed back into the velocity**, so a character shoved
+into a wall sheds its speed into it instead of storing it up and firing sideways on release.
+
+### `stepBody` vs `stepLimbs`
+
+`step` does both. They are separable because a minigame running a fixed physics sub-step wants
+the limbs stepped at *that* rate — a racket head crossing a ball in four milliseconds is the whole
+contact test — while steering the body once a frame is plenty. Tennis calls `stepBody` in
+`run(_:dt:)` and `stepLimbs` in `driveHands(for:dt:)`.
+
+### `observe` — characters this client does not drive
+
+A remote player's position comes off the wire; an NPC's comes from a waypoint. Nothing in either
+path forms a velocity, so `observe(x:y:z:facing:dt:)` differentiates the position and resolves the
+gait out of it. Call it **every frame, including frames where nothing moved** — that is what lets
+the stride finish its step and settle instead of creeping.
+
+Every character now has a motor: `CharacterVisual.motor`, one per id, a `let` on a struct so a
+copy of the struct is a copy of the reference.
+
+### The limb hand-over
+
+`LimbState.blend` eases 0→1 over `engageTime` and back over `releaseTime`. At 0 the rig's own
+animation owns the limb; at 1 the motor does; in between it crossfades. **And while it is 0 the
+motor reads the rig's pose back in** (`observeRigPose`), so `moveHandTo` always starts from where
+the hand visibly is rather than from wherever it was left. That read-back is why
+`poseOverride()` returns a closure even when nothing is being driven — the cost when idle is four
+vector reads, and without it the first frame of every swing whips the arm across the body.
+
+### Jumping is real now
+
+The `jump` emote used to draw its own arc onto the body pivot — `progress × (1 − progress) × 4 ×
+30` — with the character never leaving the ground. `GameState.jumpSpeed` (150) and `jumpGravity`
+(375) reproduce that arc exactly as a projectile, so it looks the same and now:
+
+- it is integrated by the motor and lands in `player.z`;
+- it goes out on the wire (`z` joined the sync change-test);
+- the shadow blob stays on the floor (it used to hang off `meshGroup` and rose with the jumper).
+
+The vertical integrator uses `z += v·dt − ½g·dt²`, not plain Euler. Euler loses ½g·dt² *every
+frame* — 1.25 units off a 30-unit jump at 60 Hz and a **different** number at 120 Hz. Deterministic
+animation means the same jump whatever the display is doing, and the self-test pins it.
+
+---
+
+## Part B — Frames and signs (get these wrong and everything mirrors)
+
+Unchanged from session 2, and still the source of every "the animation is mirrored" bug:
 
 - **World space is Y-down.** Render space negates Y.
 - Rotation is degrees, `0° = +X`, increasing clockwise.
-- The rig's local frame is **+X forward, +Y the character's left, +Z up**. The mesh group applies
-  `rotationZ(-rotation)` and render space negates Y, so local `(0, 1)` lands on world
-  `(sin θ, −cos θ)` — the negation of the world right vector.
-- The rig's *names* run the other way: `leftHip` is at local `y = −6`, which by that mapping is
-  on the character's right. Nothing downstream cares (the body is symmetric) and
-  `Gait.lateral` is defined against the **axis**, not against either limb's name.
+- The rig's local frame is **+X forward, +Y the character's left, +Z up**, origin at the body
+  pivot, which stands `CharacterRig.bodyPivotHeight` = 15.5 off the ground.
+- Local `(0, 1)` lands on world `(sin θ, −cos θ)` — the negation of the world right vector.
+- The rig's *names* run the other way: `leftHip` is at local `y = −6`, which by that mapping is on
+  the character's right. Nothing downstream cares and `Gait.lateral` is defined against the
+  **axis**, not either limb's name.
+- `CharacterMotor.localToWorld` / `localOffsetInWorld` are the converters. Use them rather than
+  writing the rotation out again.
 
-`LocomotionSelfTest` pins every one of these signs. If you are about to reason about them from
-first principles, read the tests instead — `strafing world +Y reads as lateral −1` is the one
-that settles most arguments.
-
-### The lateral stride
-
-In `CharacterRig.pose`, the walk cycle reads:
-
-```swift
-leftFoot.x += legSwing * legStrideX * forward
-leftFoot.y += legSwing * legStrideY * lateral
-...
-leftFoot.y  += lateral * 2.5          // both feet lead the shuffle
-rightFoot.y += lateral * 2.5
-```
-
-`legStrideY` is 5.5, comfortably inside the hips' 12-unit separation, so the legs never cross.
-**Running dead ahead reproduces the old animation exactly** — `forward` is 1 and `lateral` is 0,
-so every added term falls away. That is the compatibility guarantee worth preserving if you
-touch this, and `LocomotionSelfTest` asserts it.
-
-### The lean
-
-`gait.leanForward` / `leanLateral` are smoothed accelerations. In `pose`:
-
-- `bodyPivotRotation.y += leanForward × 0.22` — positive tips "up" toward +X, i.e. forward.
-- `bodyPivotRotation.x = −leanLateral × 0.22` — banks into a change of direction.
-
-An emote sets `bodyPivotRotation.y = 0` before posing, so a lean does not survive into a wave.
-That is deliberate.
-
-### `RigOverride`
-
-```swift
-typealias RigOverride = (inout RigMutation) -> Void
-```
-
-Applied after the walk cycle *and* after any emote, so it composes rather than fights. It exists
-because a minigame needs to aim a limb at a moving object and the pose tables cannot describe
-that. See the tennis swing in `Tennis3DGame+Players.swift` for the worked example.
+`LocomotionSelfTest` pins every one of these. If you are about to reason about them from first
+principles, read the tests instead.
 
 ---
 
-## Part B — The character model
+## Part C — The rig
 
-### The problem
+### Session 2's model (still current)
 
-The head GLBs are modelled down to individual strands of hair. The body under them was eleven
-primitives: one capsule squashed in two axes for the torso, six capsules for the limbs, and a
-sphere for each hand. No neck, no shoulders, no waist, no hips, no hands. That mismatch, not the
-lighting or the textures, was what gave the characters away.
+Nineteen parts, up from eleven: hand-authored lathed torso and pelvis (so there is a shoulder
+line and a waist), a neck, deltoids, elbow/knee joint spheres at *exactly* the limb's radius, and
+tapered limbs whose capsule cylinder is the **length of the bone** so each hemisphere is centred
+on a joint. `RigPart.isJointFiller` marks the seven that only smooth a joint over; the shadow
+pass skips them.
 
-### What it is now
+Three things that took the longest and are worth not re-learning:
 
-Nineteen parts. The additions are all **joints** — the places where two capsules met at an angle
-and, before this, simply crossed through one another.
+1. **A capsule's cylinder must be the length of its bone**, or the limb pinches before the joint.
+2. **A joint sphere must be exactly the limb's radius**, not wider — wider reads as a balloon
+   animal, not an elbow.
+3. **`applyTaper` narrowed a cap without shortening it**, which at the wrist meant the forearm
+   wore the hand like a bracelet. `MeshFactory.limb(domeEnd:)` replaced it.
 
-| Part | What it is |
-|---|---|
-| `torso` | A hand-authored lathed silhouette (`CharacterRig.torsoProfile`): hem, waist, chest, shoulder yoke, trapezius slope into the neck. In shirt colour. |
-| `pelvis` | Its own lathe, in trouser colour. Splitting it off the torso is what gives a character a waistline instead of one shirt-coloured tube from neck to knee. |
-| `neck` | A short taper from the shoulders up into the head model, hinged at its base and taking 45% of the head's rotation. |
-| `leftShoulder` / `rightShoulder` | Deltoids: spheres stretched along the humerus and turned to follow it. |
-| `leftElbow` / `rightElbow` / `leftKnee` / `rightKnee` | Spheres at **exactly** the limb's radius there. |
-| `leftHand` / `rightHand` | Mitts revolved about the forearm (`CharacterRig.handProfile`). |
-| the eight limb segments | Tapered, with matching radii at every shared joint. |
+### Session 3's additions
 
-### The three things that took the longest to get right
+**Hands with thumbs.** `CharacterRig.Hand` — a wrist, a palm, a finger block and a thumb, four
+ellipsoids merged into **one** mesh (`MeshFactory.merge`), because the rig is drawn twice per
+character. The left is the right mirrored through YZ, winding reversed
+(`MeshFactory.mirroredInX`) or it renders inside-out.
 
-Every one of these produced a visibly wrong character before it produced a correct one. They are
-worth knowing before touching any number in `CharacterRig`'s anatomy block.
+This was impossible until the forearm had a **basis** rather than a direction.
+`IKSolver.quaternionFromUnitY` pins where a limb points and leaves the roll about it undefined —
+fine for a capsule, useless for anything with a front and a back, which is why the hand was a
+revolved mitt for a whole session. `IKSolver.basis(alongY:rolledTowards:)` fixes the roll against
+the arm's own bending normal, so the palm faces the way the elbow bends.
 
-**1. A capsule's cylinder must be the length of its bone.** A capsule is a cylinder of `length`
-with a hemisphere of `radius` on each end. Make the cylinder the length of the bone and each
-hemisphere is centred precisely on a joint, so the limb's cross-section at the joint is a full
-`radius`. Make it shorter and the cap is centred short of the joint, the limb pinches in before
-it gets there, and anything you put at the joint sits proud of it. `armBone`, `thighBone` and
-`shinBone` are now the single source for both `IKSolver.solve` and `MeshFactory.limb`.
-
-**2. A joint sphere must be exactly the limb's radius, not wider.** The first attempt made them
-deliberately wider, on the theory that a bulge reads as a joint. It does not: it reads as a
-balloon animal, three separate blobs stacked up an arm. Matched to the limb they are invisible on
-a straight limb — which is the point — and on a bent one they fill the notch the two capsule caps
-would otherwise leave on the inside of the bend.
-
-**3. `applyTaper` narrowed a cap without shortening it.** That is fine at a shoulder, elbow, hip
-or knee, where the overshoot buries itself in the neighbouring segment and the surfaces blend.
-At the **wrist** — the one end of one limb that nothing else covers — it meant the forearm
-reached a full 3.3 units past the hand and wore it like a bracelet, with an orange thumb poking
-out the end. `MeshFactory.limb` replaces `applyTaper` and takes a `domeEnd:` flag: `true`
-overshoots the joint, `false` closes flush on it. The forearm is the only limb built with
-`false`.
-
-### Also fixed: the calf was on upside down
-
-`applyTaper(topScale: 1.0, bottomScale: 0.6)` on the calf tapered it to 60% at the **knee** and
-left it full width at the **ankle**. `+Y` runs from a limb's start joint to its end joint, and
-for a calf that is knee → ankle, so `bottomScale` was the knee. This is the one place the rig
-deliberately departs from `characters.js`.
-
-### Cost
-
-Each character is drawn twice — once into the shadow map, once into the scene. Nineteen parts
-would have made that 38 body draws where it used to be 22. `RigPart.isJointFiller` marks the
-seven parts that only smooth a joint over; they sit inside the silhouette the limbs and body
-already cast, so `CharacterRenderer.draw` skips them in the shadow pass. The shadow map is
-identical either way. Net cost is **+8 scene draws and +1 shadow draw** per character.
+**A waist that twists.** `RigMutation.chestTwist`, radians about the body's up axis. The chest,
+neck, head, shoulders and both arms take it; the pelvis, legs and feet do not. Arms are solved in
+the chest frame (`intoChest`), while **hand targets stay in the body frame** — so a caller aiming
+a hand at a point in space never has to know the chest has moved, which is what lets
+`CharacterMotor` stay ignorant of tennis. The tennis coil used to be `bodyPivotRotation.z`, which
+turns the feet with the shoulders: a chess piece twisted on its base.
 
 ### Envelope
 
-The old torso was a capsule spanning z 7…33 with a half-width of 10.35 and a half-depth of 5.85.
-The new torso and pelvis profiles are built to sit inside that same envelope, so a character
-still fits the doorways, nameplates and clip mask it always did. **Widen them and you will find
-the walls first.**
+The old torso was a capsule spanning z 7…33, half-width 10.35, half-depth 5.85. The torso and
+pelvis profiles are built to sit inside that same envelope so a character still fits the doorways,
+nameplates and clip mask. **Widen them and you will find the walls first.**
+
+---
+
+## Traps
+
+**1. `xcrun simctl install` can silently install nothing.** There are three `JoelsWorld-*`
+DerivedData directories on this machine, and `find … | head -1` does not reliably pick the one
+`xcodebuild` just wrote. An hour of session 3 went into chasing a tennis "regression" that was
+the simulator running an app built at 11:41. **Always verify the install:**
+
+```bash
+APP=/Users/ben/Library/Developer/Xcode/DerivedData/JoelsWorld-aexzipcdechfbeancoxhayadjudo/Build/Products/Debug-iphonesimulator/JoelsWorld.app
+xcrun simctl install booted "$APP"
+C=$(xcrun simctl get_app_container booted com.allr.joelsworld)
+[ "$(md5 -q "$C/JoelsWorld")" = "$(md5 -q "$APP/JoelsWorld")" ] && echo VERIFIED || echo STALE
+```
+
+**2. `IKSolver.solve` clamps an out-of-reach target silently.** It moves the target in place and
+says nothing, so a caller gets *something* back and no way to know it was refused. That is how the
+tennis choreography came to be written 21.7 units from a shoulder on an arm 16.6 long: the swing
+**drew** the arm at full stretch with the hand and the racket at the clamped position, while every
+calculation in the game — where the toss goes, where the feet stand, where the strings are for the
+contact test — used the position that had been asked for. *The strings you could see were never
+the strings that hit the ball.* `Tennis3DGame+Players.reachable(_:from:)` clamps at the one place
+the poses are written down, and `motor.strain(of:)` is how you find out.
+
+**3. A limb chase has a time constant, and a moving target is trailed by `speed / approachGain`.**
+The default `LimbProfile.arm.approachGain` of 14 trails a 230-units-per-second swing by 16 units
+— 0.6 m, four times the sweet spot. Tennis sets it to 120 (≈7 cm). Any minigame whose limb has to
+*meet* something moving needs a gain chosen the same way, not the default.
+
+**4. `moveCharacterTo` / `driveCharacter` also set the facing intent** (nil = face the direction
+of travel). Call `faceTowards` **after** them, not before. Tennis's `run(_:dt:)` gets this right.
 
 ---
 
@@ -200,46 +228,43 @@ the walls first.**
 
 | File | What it holds |
 |---|---|
-| `Engine/Core/Locomotion.swift` | `Gait`, `LocomotionProfile`, `LocomotionState`, `ObservedMotion`, `enum Locomotion`. Pure maths, no world knowledge — `step` produces a *demanded* delta and the caller decides what the world does with it; `observe` reads a gait back out of movement that already happened. |
-| `Engine/Core/Deterministic.swift` | `DeterministicRandom` — SplitMix64. Replaces `Double.random` wherever a result should be reproducible. |
-| `Engine/Core/LocomotionSelfTest.swift` | The 39 assertions behind `-selftest`. |
-| `Engine/Core/WalkTest.swift` | Reads every launch argument. `-pitch` and `-selftest` are the new ones. |
-| `Engine/Entity/CharacterRig.swift` | The anatomy block (bone lengths, joint radii, the three lathed profiles) and `pose(...)`, which emits every part transform. |
-| `Engine/Render/MeshFactory.swift` | `revolved(profile:)` for the body silhouettes and `limb(...)` for the limb segments, alongside the three.js primitive ports. |
-| `Engine/Render/CharacterRenderer.swift` | Builds one GPU mesh per part and maps each part to a colour and a material. Skips `isJointFiller` parts in the shadow pass. |
-| `Engine/World/Physics.swift` | `processInterpolation` (now emits a gait) and `CharacterVisual` (now carries `motion` and `roamNoise`). |
-| `Engine/World/NPCBehaviour.swift` | Roam and patrol, on the per-NPC deterministic stream. |
-| `Engine/World/GameState.swift` | The player's movement block, on `Locomotion`. |
-| `Engine/World/GameState+Rendering.swift` | `drawableCharacters` — character + gait + pose override, for everyone. |
+| `Engine/Core/CharacterMotor.swift` | **The movement manager.** Body, height, velocity, heading, gait and all four limbs. `moveCharacterTo`, `moveHandTo`, `jump`, `step`, `observe`, `poseOverride`, `localToWorld`. |
+| `Engine/Core/LimbMotor.swift` | `Limb`, `LimbProfile` (speed, acceleration, approach gain, reach), `LimbState` (position, velocity, target, blend, strain). |
+| `Engine/Core/Locomotion.swift` | `Gait`, `LocomotionProfile`, `LocomotionState`, `ObservedMotion`, `enum Locomotion`. Pure maths, no world knowledge. The motor is built on it. |
+| `Engine/Core/Deterministic.swift` | `DeterministicRandom` — SplitMix64. |
+| `Engine/Core/LocomotionSelfTest.swift` | The 67 assertions behind `-selftest`. |
+| `Engine/Core/WalkTest.swift` | Every launch argument. |
+| `Engine/Entity/CharacterRig.swift` | Anatomy (bones, joint radii, the lathed profiles, `Hand`), the neutral limb targets the motor starts from, and `pose(...)`. |
+| `Engine/Entity/IKSolver.swift` | Two-bone IK, `segmentTransform`, and `basis(alongY:rolledTowards:)`. |
+| `Engine/Entity/Emotes.swift` | `RigMutation`, including `chestTwist`. |
+| `Engine/Render/MeshFactory.swift` | `revolved`, `limb`, and the new `merge` / `translated` / `mirroredInX`. |
+| `Engine/Render/CharacterRenderer.swift` | One GPU mesh per part; `buildHand()` assembles the composite hand. |
+| `Engine/World/Physics.swift` | `processInterpolation` (drives `visual.motor.observe`) and `CharacterVisual` (owns the motor). |
+| `Engine/World/GameState.swift` | `playerMotor`, the input → motor block, the jump. |
+| `Engine/World/Minigames/Tennis3D/**` | `Side.motor`; the swing drives `moveHandTo` and adds only `chestTwist` and the racket roll. |
 
 ## Looking at any of this
 
-There is no test target — adding one means editing `project.pbxproj`, which is red. Everything
-below is a launch argument instead, which is the pattern the rest of the tree already uses.
-`WalkTest` reads them; `GameDebugHarness` acts on them.
+No test target — adding one means editing `project.pbxproj`, which is red. Launch arguments
+instead, which is the pattern the rest of the tree uses.
 
 ```bash
-# 39 assertions over Locomotion, Gait and DeterministicRandom. Needs no world.
+# 67 assertions over Locomotion, Gait, CharacterMotor, limbs and DeterministicRandom. No world.
 xcrun simctl launch booted com.allr.joelsworld -selftest
 
-# The overworld camera is near-overhead: from above you can see a hat and a pair of shoes and
-# nothing about whether the body has a neck. -pitch tips it over. 0 is straight down, π/2.1 is
-# the flattest it goes, 1.25 is a good side-on view of the rig.
+# The overworld camera is near-overhead. -pitch tips it over; 1.25 is a good side-on rig view.
 xcrun simctl launch booted com.allr.joelsworld -autojoin Rig -map 0 -zoom 6 -pitch 1.25
 
-# Sweeps the joystick through a full circle, logging position and heading twice a second.
-xcrun simctl launch booted com.allr.joelsworld -autojoin Rig -map 0 -walktest -npctrace
+# The 3D tennis game, played by a bot, with one line per event.
+xcrun simctl launch booted com.allr.joelsworld -autojoin Rig -map 4 -tennis3ddemo -tennis3dtrace
 ```
 
-`Log.world` goes to os_log at **info** level, and `print` to stdout is block-buffered, so
-`--console` shows nothing useful. Read it with:
+`Log.world` goes to os_log at **info**, which the simulator does *not* persist — `log show` after
+the fact returns nothing. It has to be streamed live:
 
 ```bash
 xcrun simctl spawn booted log stream --level info --predicate 'subsystem == "com.allr.joelsworld"' --style compact
 ```
-
-The tennis court (`-map 4`) is the best place to judge the model: the camera sits at pitch 0.52,
-which is a three-quarter view, and both players bend their arms hard through a swing.
 
 ---
 
@@ -248,56 +273,65 @@ which is a three-quarter view, and both players bend their arms hard through a s
 ### Done
 
 - `Locomotion` / `Gait` / the lateral stride / the lean (session 1).
-- **Remote players and NPCs have a real gait.** `Locomotion.observe` differentiates the positions
-  the interpolator walks them through. `CharacterVisual.motion` replaces `legAnimationTime`.
-- **`legAnimationTime` is retired** from both `Player` and `CharacterVisual`.
-- **NPC roaming is deterministic.** Each NPC has its own `DeterministicRandom` seeded from its id
-  (`CharacterVisual.roamNoise`), so it wanders the same way on every client and in every run.
-  Verified end to end: two runs pick the same roam destinations in the same order.
-- **`updateCamera` takes `dt`.** The tennis camera's follow was easing a fixed fraction per
-  frame, so it ran at half speed on a 120 Hz display. (`Tennis3DView.fade` was already correct.)
-- **`-selftest`**, 39 assertions, all passing.
-- **The overworld play-test session 1 asked for.** A full-circle heading sweep holds 107.3 px per
-  half-second — 214.6 units a second, which is `playerRunning.maxSpeed` of 216 — constant to
-  0.1 px across the whole sweep. The run-profile switch at 2.5 s does not jolt.
-- **The character model**, as above.
+- Remote players and NPCs have a real gait; `legAnimationTime` is retired; NPC roaming is
+  deterministic per id (session 2).
+- The nineteen-part character model (session 2).
+- **`CharacterMotor`**, and every character in the game moved onto it: the overworld player
+  (`GameState.playerMotor`), remote players and NPCs (`CharacterVisual.motor`), and both tennis
+  players (`Side.motor`).
+- **No file outside `CharacterRig` writes a limb target or tracks a velocity any more.** The
+  tennis swing drives `moveHandTo` and contributes only `chestTwist` and the racket roll.
+- **The racket is where the hand is.** `racketHead` reads `motor.limbPosition(.rightHand)`, so
+  the contact test and the drawing agree — see trap 2 for how far apart they used to be.
+- **Jumping is real**, integrated exactly, frame-rate independent, on the wire, with the shadow
+  left on the floor.
+- **Hands with thumbs**, on a forearm with a defined roll.
+- **A waist that twists** independently of the hips.
+- `-selftest`: **67 assertions, all passing.** Both targets build.
 
 ### Open
 
-1. **The neck is currently invisible on every head that has been looked at.** The head GLBs
-   reach far enough down to swallow it. It is kept for two reasons, neither yet verified:
-   `female_hair_ponytail` is placed at scale 32 where every other head is 85 or 90 (which may
-   just mean the model was exported in different units, or may mean it sits differently), and an
-   emote that turns the head far enough could open a gap at the collar. Render the ponytail head
-   and run `-emotedemo` past `no` and `yes` before deciding whether the neck earns its draw call.
+1. **Tennis has not been A/B'd against `main`.** Session 3 ran the bot on the new build and saw
+   serves connect, rallies of three and four shots, and points decided both ways — it plays. But
+   the baseline comparison was never completed (the run was cut short), so *how often* a
+   groundstroke is missed now versus before is unmeasured. Misses of 0.65–0.80 m against a 0.45 m
+   sweet spot showed up in the new build's log; whether `main` shows the same is the open
+   question. `grep -c STRIKE` / `grep -c MISS` over a 100-second `-tennis3ddemo` run on each is
+   the measurement. **Do this before trusting the tennis tuning.**
 
-2. **The hand has no roll.** `IKSolver.quaternionFromUnitY` pins the direction a limb points and
-   nothing else, so anything with a front and a back would spin freely about the wrist. That is
-   why the hand is a revolved mitt. Giving it a thumb means building a full basis for the
-   forearm — the bend normal is already there and would serve — but the racket rides on
-   `rightHandAnchor` and uses the same rotation, so it would move too. Check the tennis swing
-   before and after if you try it.
+2. **The hand has not been looked at up close in the tennis camera.** It reads correctly in the
+   overworld at `-pitch 1.25` — wrist, palm, fingers, thumb, mirrored the right way. The thumbs
+   splay outward rather than forward, which is not quite what a hanging arm does; the fix would
+   be the roll reference in `CharacterRig.bendNormalArmL/R`, not the mesh.
 
-3. **The legacy 2D tennis game still eases per frame.** `TennisGame+Movement.swift` is reachable
-   with `-tennis2d` and is a deliberate faithful port of the JS, kept for comparison. Left alone
-   on purpose. Do not "fix" it without deciding the old game is no longer a reference.
+3. **The racket's roll changed.** It rides on `rightHandAnchor`, whose rotation went from
+   `quaternionFromUnitY` (arbitrary roll) to `basis` (roll fixed to the bend normal). It has not
+   been inspected close up. If the strings look edge-on, this is why, and `holdingRotation` is
+   the knob.
 
-4. **`Gait.walking(phase:)` has no callers.** Kept because it names the compatibility guarantee
+4. **The neck is still invisible on every head that has been looked at.** The head GLBs swallow
+   it. Kept because `female_hair_ponytail` is placed at scale 32 where every other head is 85 or
+   90, and because an emote that turns the head far enough could open a gap at the collar.
+   Neither has been verified.
+
+5. **The emote poses have had a spot check, not a full one.** Eight of twenty were watched on the
+   session-2 mesh. None have been watched since `chestTwist` and the new hands landed. They move
+   limb targets into positions the walk cycle never reaches, so they are the likeliest place for a
+   joint to come apart. Note: the server remembers which map a name was last on, so always pass
+   `-map 0` with `-emotedemo`.
+
+6. **Nobody has profiled the part count on a real device.** The hand is still one draw (merged),
+   so the count is unchanged from session 2's +8 scene draws per character. A playground with
+   twenty characters on an old iPad is the case to check.
+
+7. **The legacy 2D tennis game still eases per frame.** `TennisGame+Movement.swift`, reachable
+   with `-tennis2d`, is a deliberate faithful port kept for comparison. Left alone on purpose.
+
+8. **`Gait.walking(phase:)` has no callers.** Kept because it names the compatibility guarantee
    and the self-test uses it. Do not delete it without moving that assertion somewhere.
 
-5. **Nobody has profiled the new part count on a real device.** Everything above was run in the
-   simulator. The arithmetic says +8 scene draws per character and the frame looked smooth, but
-   a playground with twenty characters on an old iPad is the case to check.
-
-6. **The emote poses have had a spot check, not a full one.** `-emotedemo 5` was watched through
-   `bounce`, `cry`, `dance`, `dead`, `eat`, `fart`, `gritty` and `wave` on the new mesh and none
-   of them broke a joint. The other twelve have not been looked at. They move limb targets into
-   positions the walk cycle never reaches, so they are the most likely place for a joint to come
-   apart.
-
-   Note when you run it: the server remembers which map a player name was last on, so
-   `-autojoin <name>` without `-map 0` can drop you straight into the tennis court, where a
-   minigame owns the screen and no emote will ever be posed. Always pass `-map 0` for this.
+9. **`moveFootTo` has no callers.** The machinery is identical to a hand and it is there so a
+   minigame can plant a foot; nothing does yet.
 
 ---
 
@@ -313,6 +347,6 @@ The macOS editor target shares `GameState`, so build it too:
 cd native && xcodebuild -project JoelsWorld.xcodeproj -scheme JoelsWorldAdmin -destination 'platform=macOS' build
 ```
 
-Both were passing at the time of writing. New files are picked up automatically — the target
-uses `PBXFileSystemSynchronizedRootGroup`, so **no `project.pbxproj` edit is needed** for a file
+Both were passing at the time of writing. New files are picked up automatically — the target uses
+`PBXFileSystemSynchronizedRootGroup`, so **no `project.pbxproj` edit is needed** for a file
 dropped into an existing source directory.

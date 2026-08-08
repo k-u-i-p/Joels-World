@@ -167,8 +167,8 @@ extension Tennis3DGame {
         npc.swing = SwingState()
         // Both anchors reset to the marks: the receiver measures the return from where they are
         // standing to take it, and the server from where they serve.
-        player.anchor = (x: player.locomotion.x, y: player.locomotion.y)
-        npc.anchor = (x: npc.locomotion.x, y: npc.locomotion.y)
+        player.anchor = (x: player.motor.x, y: player.motor.y)
+        npc.anchor = (x: npc.motor.x, y: npc.motor.y)
 
         phase = .ready
         phaseTimer = 0.85
@@ -404,7 +404,7 @@ extension Tennis3DGame {
         // reachability from where they are now. Costing from the live position instead is the
         // feedback loop described on `Side.anchor`, and it walked both players into the net.
         let anchor = SIMD2(side.anchor.x, side.anchor.y)
-        let here = SIMD2(side.locomotion.x, side.locomotion.y)
+        let here = SIMD2(side.motor.x, side.motor.y)
         let reach = Tuning.racketLength + Tuning.sweetRadius
         let topSpeed = side.isPlayer ? Tuning.playerTopSpeed : Tuning.npcTopSpeed
         var best: (point: SIMD3<Double>, cost: Double)?
