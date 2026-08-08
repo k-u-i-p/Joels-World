@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 import simd
 
@@ -283,4 +282,3 @@ enum CharacterLabReport {
         hypot(b.x - a.x, b.y - a.y)
     }
 }
-#endif

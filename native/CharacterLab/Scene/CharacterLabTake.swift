@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 
 /// Where the camera stands. Yaw is measured so that **0 looks at a character facing +X from
@@ -266,4 +265,3 @@ struct CharacterLabTake {
         all.first { $0.id == id }
     }
 }
-#endif

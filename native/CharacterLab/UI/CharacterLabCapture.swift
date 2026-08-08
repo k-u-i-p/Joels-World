@@ -1,4 +1,3 @@
-#if DEBUG
 import AppKit
 
 /// **Turning frames into something worth looking at once.**
@@ -261,4 +260,3 @@ enum CharacterLabCapture {
         ]).draw(with: rect, options: [.usesLineFragmentOrigin])
     }
 }
-#endif

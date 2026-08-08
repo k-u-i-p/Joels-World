@@ -38,57 +38,6 @@ enum AdminScreenshot {
         return arguments[index + 1]
     }
 
-    /// Blits the drawable into a shared texture and reads it back once the GPU is done.
-    static func capture(texture: MTLTexture,
-                        commandBuffer: MTLCommandBuffer,
-                        device: MTLDevice,
-                        completion: @escaping (CGImage?) -> Void) {
-        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: texture.pixelFormat,
-            width: texture.width,
-            height: texture.height,
-            mipmapped: false)
-        descriptor.usage = [.shaderRead]
-        descriptor.storageMode = .shared
-
-        guard let readable = device.makeTexture(descriptor: descriptor),
-              let blit = commandBuffer.makeBlitCommandEncoder()
-        else { return completion(nil) }
-
-        blit.copy(from: texture, to: readable)
-        blit.endEncoding()
-
-        commandBuffer.addCompletedHandler { _ in
-            let image = makeImage(from: readable)
-            DispatchQueue.main.async { completion(image) }
-        }
-    }
-
-    private static func makeImage(from texture: MTLTexture) -> CGImage? {
-        let bytesPerRow = texture.width * 4
-        var bytes = [UInt8](repeating: 0, count: bytesPerRow * texture.height)
-        texture.getBytes(&bytes,
-                         bytesPerRow: bytesPerRow,
-                         from: MTLRegionMake2D(0, 0, texture.width, texture.height),
-                         mipmapLevel: 0)
-
-        // The drawable is BGRA; Core Graphics wants that spelled out rather than swizzled.
-        let info = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue
-                                | CGBitmapInfo.byteOrder32Little.rawValue)
-        guard let provider = CGDataProvider(data: Data(bytes) as CFData) else { return nil }
-        return CGImage(width: texture.width,
-                       height: texture.height,
-                       bitsPerComponent: 8,
-                       bitsPerPixel: 32,
-                       bytesPerRow: bytesPerRow,
-                       space: CGColorSpaceCreateDeviceRGB(),
-                       bitmapInfo: info,
-                       provider: provider,
-                       decode: nil,
-                       shouldInterpolate: false,
-                       intent: .defaultIntent)
-    }
-
     /// Composites the whole window: the AppKit chrome and sidebar from `cacheDisplay`, the
     /// captured Metal frame in the map's rectangle, then everything that sits over the map —
     /// the editor's overlay, and the portrait and door prompt the world itself raises.

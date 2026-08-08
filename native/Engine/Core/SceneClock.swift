@@ -13,18 +13,17 @@ import Foundation
 /// thing that pins it is the character lab, which drives it off its own scrubbable timeline.
 /// Frame *n* of a take is then the same picture on every run, which is what makes a filmstrip
 /// worth diffing.
+///
+/// Not `#if DEBUG`: the lab is its own target, and gating this would leave the lab unbuildable
+/// in Release. The cost in the game is a nil check per frame against a variable nothing there
+/// ever writes.
 enum SceneClock {
-    #if DEBUG
     /// Seconds since 1970, or nil for the wall clock. Set only by `CharacterLabScene`.
     static var pinned: Double?
-    #endif
 
     /// Seconds since 1970.
     static var now: Double {
-        #if DEBUG
-        if let pinned { return pinned }
-        #endif
-        return Date().timeIntervalSince1970
+        pinned ?? Date().timeIntervalSince1970
     }
 
     /// Milliseconds since 1970, rounded — the units `EmoteState.startTime` is in.

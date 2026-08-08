@@ -1,4 +1,3 @@
-#if DEBUG
 import AppKit
 
 /// A slider that calls a closure. `AdminUI` has buttons, checkboxes and pop-ups but no slider,
@@ -237,4 +236,3 @@ final class CharacterLabControlsView: NSView {
         """
     }
 }
-#endif

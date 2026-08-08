@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 import simd
 
@@ -398,4 +397,3 @@ final class CharacterLabScene: WorldRenderedMinigame {
         }
     }
 }
-#endif

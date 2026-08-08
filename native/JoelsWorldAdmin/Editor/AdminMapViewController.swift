@@ -160,9 +160,9 @@ final class AdminMapViewController: NSViewController {
             self.renderer?.captureHandler = { [weak self] texture, commandBuffer in
                 guard !captured else { return }
                 captured = true
-                AdminScreenshot.capture(texture: texture,
-                                        commandBuffer: commandBuffer,
-                                        device: device) { image in
+                MetalCapture.capture(texture: texture,
+                                     commandBuffer: commandBuffer,
+                                     device: device) { image in
                     guard let self else { return }
                     self.renderer?.captureHandler = nil
                     if let image, AdminScreenshot.write(world: image,

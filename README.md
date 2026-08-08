@@ -14,13 +14,18 @@ Welcome to **Joel's World**, a persistent, multiplayer top-down RPG map experien
 | `server/` | The Node WebSocket server, plus its Cloud Run scripts (`deploy.sh`, `stream_logs.sh`). Two dependencies: `ws`, and `@anthropic-ai/sdk` for the NPC agents |
 | `data/` | The authored world — `maps.json`, and each map's `objects.json` and `npc.json`. Read by the server, bundled into the apps, edited by the macOS editor |
 | `assets/` | Art and audio. A working tree: the full-size map layers are slicer input, and the apps ship only what `tools/assets/stage.sh` selects |
-| `native/` | Swift. `Engine/` is the shared game engine, `JoelsWorld/` the iOS game, `JoelsWorldAdmin/` the macOS map editor |
+| `native/` | Swift. `Engine/` is the shared game engine, `JoelsWorld/` the iOS game, `JoelsWorldAdmin/` the macOS map editor, `CharacterLab/` the macOS character lab, `MacShared/` the AppKit bits the two Mac apps share |
 | `tools/assets/` | The offline asset pipeline — slicing, overlays, minimaps — and the staging script the Xcode builds run |
 
 Inside `native/`, each target is grouped by role: `Engine/` splits into `Core` `Net` `Entity`
-`Render` `World` `UI`, the iOS app into `App` `UI` `Input` `Audio`, and the editor into `App`
-`Data` `Editor` `Inspector`. All three are file-system-synchronised Xcode groups, so a new
-file in one of those directories is in the build with no project edit.
+`Render` `World` `UI`, the iOS app into `App` `UI` `Input` `Audio`, the editor into `App`
+`Data` `Editor` `Inspector`, and the lab into `App` `Scene` `UI`. Every one of those is a
+file-system-synchronised Xcode group, so a new file in any of those directories is in the build
+with no project edit.
+
+Three targets share them: `JoelsWorld` takes `Engine` + `JoelsWorld`, `JoelsWorldAdmin` takes
+`Engine` + `JoelsWorldAdmin` + `MacShared`, and `CharacterLab` takes `Engine` + `CharacterLab` +
+`MacShared`.
 
 `Engine/UI` holds no views — UIKit and AppKit share no view type, so the two apps' chrome
 cannot be one file. What it holds is the *rules* the two copies must agree on
@@ -85,13 +90,17 @@ is an ordinary one, and exists only to show live players on the map being edited
 
 ### The character lab
 
-The same app, launched with `-lab`, opens a character lab instead: one pupil on a metre grid, no
-server, every gait and every emote as a named take, and a scrubbable clock. It is where character,
-clothing, animation and movement work gets looked at, because the game's own cameras are too far
-away and too near-overhead to show a knee or a collar.
+The third app in the project — its own target and scheme — is a character lab: one pupil on a metre
+grid, no server, every gait and every emote as a named take, and a scrubbable clock. It is where
+character, clothing, animation and movement work gets looked at, because the game's own cameras are
+too far away and too near-overhead to show a knee or a collar.
 
 ```bash
-"Joels World Map Editor.app/Contents/MacOS/Joels World Map Editor" -lab
+cd native && xcodebuild -project JoelsWorld.xcodeproj -scheme CharacterLab -destination 'platform=macOS' build
+```
+
+```bash
+"Joels World Character Lab.app/Contents/MacOS/Joels World Character Lab"
 ```
 
 It also writes what it shows, which is how a change gets checked without a person at the keyboard —
@@ -99,7 +108,7 @@ a captioned filmstrip spanning one stride, a contact sheet of every take, the cl
 into its channels, or a JSON table of foot contact and hip bounce:
 
 ```bash
-"Joels World Map Editor.app/Contents/MacOS/Joels World Map Editor" -lab -labtake run -labsheet /tmp/run.png
+"Joels World Character Lab.app/Contents/MacOS/Joels World Character Lab" -labtake run -labsheet /tmp/run.png
 ```
 
 The clock is pinned while the lab is up, so the same frame comes out the same every run.

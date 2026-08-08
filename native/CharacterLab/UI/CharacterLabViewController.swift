@@ -1,4 +1,3 @@
-#if DEBUG
 import AppKit
 import MetalKit
 import simd
@@ -22,6 +21,17 @@ final class CharacterLabViewController: NSViewController {
     var onFrame: (() -> Void)?
 
     private var capture: CaptureRun?
+    /// Drives frames by hand while a capture is running; see `viewDidLoad`.
+    private var captureTimer: Timer?
+    /// Drives them while the window is occluded; see `chooseFrameSource`.
+    private var occlusionTimer: Timer?
+    private var occlusionObserver: NSObjectProtocol?
+
+    deinit {
+        occlusionTimer?.invalidate()
+        captureTimer?.invalidate()
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+    }
 
     init() {
         scene = CharacterLabScene(take: CharacterLabArguments.takeId,
@@ -50,6 +60,12 @@ final class CharacterLabViewController: NSViewController {
         metalView.enableSetNeedsDisplay = false
         // A capture blits the drawable, and a blit source has to be readable.
         metalView.framebufferOnly = false
+        // **A capture drives its own frames.** `MTKView` runs off a display link, and a display
+        // link stops when the window is fully occluded — which, for an app launched from a
+        // terminal that then fails to come to the front, is immediately and permanently. The
+        // scripted modes are exactly the ones nobody is watching, so they cannot depend on being
+        // visible: they pause the view's own loop and call `draw()` by hand.
+        metalView.isPaused = CharacterLabArguments.quitsAfterCapture
         view.addSubview(metalView)
 
         readout.frame = view.bounds
@@ -79,6 +95,13 @@ final class CharacterLabViewController: NSViewController {
                   + "· view \(scene.view.rawValue) · t \(format(scene.clock)) of \(format(scene.take.seconds)) s "
                   + "· \(scene.isPaused ? "paused" : "playing")")
             for line in scene.readout() { print("  \(line)") }
+            // A clock that has not moved means no frames were drawn, which is a window problem
+            // and not a lab one — so the smoke test says enough to tell the two apart.
+            let window = view.window
+            print("  frames \(framesRendered) · drawable \(Int(metalView.drawableSize.width))×\(Int(metalView.drawableSize.height))"
+                  + " · window \(window?.isVisible == true ? "visible" : "hidden")"
+                  + " · \(window?.occlusionState.contains(.visible) == true ? "on screen" : "occluded")"
+                  + " · app \(NSApp.isActive ? "active" : "inactive")")
             NSApp.terminate(nil)
         }
     }
@@ -86,6 +109,40 @@ final class CharacterLabViewController: NSViewController {
     override func viewDidAppear() {
         super.viewDidAppear()
         view.window?.makeFirstResponder(view)
+
+        guard let window = view.window else { return }
+        occlusionObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification,
+            object: window,
+            queue: .main) { [weak self] _ in self?.chooseFrameSource() }
+        chooseFrameSource()
+    }
+
+    /// **Keeps the clock running when the window is behind something.**
+    ///
+    /// `MTKView` draws off a display link, and AppKit stops the display link the moment a window
+    /// is fully occluded. That is right for a game — nobody is looking — and wrong for a tool
+    /// whose numbers are being read in a terminal next to it, and wrong again for an app
+    /// launched from a shell that is never allowed to come to the front, where it means the lab
+    /// renders precisely nothing.
+    ///
+    /// So: display link while visible, a 30 Hz hand-crank while not.
+    private func chooseFrameSource() {
+        // A capture already drives its own frames and must not be second-guessed.
+        guard !CharacterLabArguments.quitsAfterCapture else { return }
+
+        let visible = view.window?.occlusionState.contains(.visible) ?? false
+        if visible {
+            occlusionTimer?.invalidate()
+            occlusionTimer = nil
+            metalView.isPaused = false
+        } else {
+            metalView.isPaused = true
+            guard occlusionTimer == nil else { return }
+            occlusionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+                self?.metalView.draw()
+            }
+        }
     }
 
     /// The launch arguments that describe *what* to look at, applied before the first frame so
@@ -104,7 +161,10 @@ final class CharacterLabViewController: NSViewController {
         }
     }
 
+    private var framesRendered = 0
+
     private func frameDidRender() {
+        framesRendered += 1
         readout.update(scene: scene)
         onFrame?()
     }
@@ -247,6 +307,13 @@ final class CharacterLabViewController: NSViewController {
         capture = run
         scene.isPaused = true
 
+        // The hand-cranked frame loop the paused view needs. It runs for the whole capture,
+        // including the warm-up — models are loaded on demand *while drawing*, so a warm-up
+        // with no frames in it warms nothing up.
+        captureTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            self?.metalView.draw()
+        }
+
         // Heads and shoes are read off disk on a background queue; grabbing before they land
         // photographs a headless character, which looks exactly like a bug in the rig.
         DispatchQueue.main.asyncAfter(deadline: .now() + CharacterLabArguments.warmUpSeconds) {
@@ -266,7 +333,7 @@ final class CharacterLabViewController: NSViewController {
         renderer?.captureHandler = { [weak self] texture, commandBuffer in
             guard !grabbed else { return }
             grabbed = true
-            AdminScreenshot.capture(texture: texture, commandBuffer: commandBuffer, device: device) { image in
+            MetalCapture.capture(texture: texture, commandBuffer: commandBuffer, device: device) { image in
                 guard let self, let run = self.capture else { return }
                 self.renderer?.captureHandler = nil
                 if let image {
@@ -283,6 +350,8 @@ final class CharacterLabViewController: NSViewController {
     private func finishCapture() {
         guard let run = capture else { return }
         capture = nil
+        captureTimer?.invalidate()
+        captureTimer = nil
 
         let wrote: Bool
         if run.isSingleShot, let frame = run.frames.first {
@@ -380,4 +449,3 @@ private final class CharacterLabReadoutView: NSView {
         layoutFields()
     }
 }
-#endif

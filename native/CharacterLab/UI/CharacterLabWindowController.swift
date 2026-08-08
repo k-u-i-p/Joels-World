@@ -1,4 +1,3 @@
-#if DEBUG
 import AppKit
 
 /// The lab's window: the scene on the left, the controls on the right — the same split the map
@@ -31,6 +30,17 @@ final class CharacterLabWindowController: NSWindowController {
             window.setFrame(frame, display: false)
         }
         self.init(window: window)
+    }
+
+    /// `orderFrontRegardless` as well as the usual show.
+    ///
+    /// An app launched from a terminal is not always allowed to take focus, and a window that
+    /// stays behind the terminal is *fully occluded* — at which point `MTKView` stops its
+    /// display link and the lab renders nothing at all, which reads as a broken tool rather
+    /// than as a window-ordering nicety.
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        window?.orderFrontRegardless()
     }
 }
 
@@ -75,4 +85,3 @@ private final class CharacterLabRootViewController: NSSplitViewController {
         lab.onFrame = { [weak self] in self?.controls?.refresh() }
     }
 }
-#endif

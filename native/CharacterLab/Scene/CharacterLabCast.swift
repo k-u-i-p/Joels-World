@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 
 /// **Who stands in the lab.**
@@ -156,4 +155,3 @@ enum CharacterLabCast {
     /// never collide with a real character's if both are ever on screen at once.
     private static func labId(_ index: Int) -> Int { 900_000 + index }
 }
-#endif

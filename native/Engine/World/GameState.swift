@@ -239,7 +239,6 @@ final class GameState {
         }
     }
 
-    #if DEBUG
     /// **The character lab's way in.** Puts a `WorldRenderedMinigame` on screen with no map,
     /// no server and no player behind it.
     ///
@@ -266,7 +265,6 @@ final class GameState {
         // asked for a grey studio wall.
         mapDidChange = true
     }
-    #endif
 
     /// A badge the server says the player has earned.
     func addBadge(_ badge: String) {

@@ -1,53 +1,15 @@
 import AppKit
 
 final class AdminAppDelegate: NSObject, NSApplicationDelegate {
-    private var windowController: NSWindowController?
+    private var windowController: AdminWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
-
-        #if DEBUG
-        // `-lab` opens the character lab instead of the map editor: the same engine, no server,
-        // and one character on a metre grid. See `CharacterLabArguments` for the whole flag set.
-        if CharacterLabArguments.isEnabled {
-            if CharacterLabArguments.isHeadlessOnly { return runHeadlessLab() }
-            let controller = CharacterLabWindowController()
-            controller.showWindow(nil)
-            windowController = controller
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        #endif
-
         let controller = AdminWindowController()
         controller.showWindow(nil)
         windowController = controller
         NSApp.activate(ignoringOtherApps: true)
     }
-
-    #if DEBUG
-    /// The lab's two GPU-free modes — the clothing atlas and the measurement report — done and
-    /// dusted before a window is ever put on screen.
-    private func runHeadlessLab() {
-        if let path = CharacterLabArguments.atlasPath {
-            let wrote = CharacterLabCapture.writeAtlas(to: path)
-            print(wrote ? "Clothing atlas written to \(path)" : "Failed to write \(path)")
-        }
-        if let path = CharacterLabArguments.reportPath {
-            let reports = CharacterLabReport.measureAll(cast: CharacterLabArguments.cast,
-                                                        speedScale: CharacterLabArguments.speedScale ?? 1,
-                                                        samples: CharacterLabArguments.reportSamples)
-            print(CharacterLabReport.digest(reports))
-            if let data = CharacterLabReport.json(reports),
-               (try? data.write(to: URL(fileURLWithPath: path))) != nil {
-                print("Report written to \(path)")
-            } else {
-                print("Failed to write \(path)")
-            }
-        }
-        NSApp.terminate(nil)
-    }
-    #endif
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true

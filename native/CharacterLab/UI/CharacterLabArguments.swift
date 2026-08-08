@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 
 /// **How the lab is asked for things from a script.**
@@ -10,27 +9,28 @@ import Foundation
 ///
 /// ```bash
 /// # Look at it
-/// "Joels World Map Editor.app/Contents/MacOS/Joels World Map Editor" -lab
+/// "Joels World Character Lab.app/Contents/MacOS/Joels World Character Lab"
 ///
 /// # One picture of the walk cycle, side on, half way through
-/// … -lab -labtake walk -labtime 3 -labshot /tmp/walk.png
+/// … -labtake walk -labtime 3 -labshot /tmp/walk.png
 ///
 /// # Eight frames across the sprint, captioned, in one image
-/// … -lab -labtake run -labsheet /tmp/run.png -labframes 8
+/// … -labtake run -labsheet /tmp/run.png -labframes 8
 ///
 /// # One frame of every take, to see the whole rig at a glance
-/// … -lab -labtake all -labsheet /tmp/all.png
+/// … -labtake all -labsheet /tmp/all.png
 ///
 /// # The clothing atlas, and its three channels split out
-/// … -lab -labatlas /tmp/atlas.png
+/// … -labatlas /tmp/atlas.png
 ///
 /// # The numbers: foot contact, hip bounce, lean, per take
-/// … -lab -labreport /tmp/lab.json
+/// … -labreport /tmp/lab.json
 /// ```
+///
+/// The `lab` prefix is kept on every flag even though the app is now nothing but the lab: they
+/// read the same in a script whichever binary grows them, and the map editor's own `-shot`
+/// family sits next to them in a shell history.
 enum CharacterLabArguments {
-
-    /// `-lab` — open the character lab instead of the map editor.
-    static var isEnabled: Bool { flag("-lab") }
 
     /// `-labtake <id>`, or `all` for one frame of every take in a sheet.
     static var takeId: String? { value("-labtake") }
@@ -66,12 +66,6 @@ enum CharacterLabArguments {
     static var reportPath: String? { value("-labreport") }
     /// How many instants each take is sampled at in a report.
     static var reportSamples: Int { number("-labsamples").map { Int($0) } ?? 48 }
-
-    /// True for the modes that need neither a window nor a Metal device, so the app can do the
-    /// work in `applicationDidFinishLaunching` and exit.
-    static var isHeadlessOnly: Bool {
-        (atlasPath != nil || reportPath != nil) && shotPath == nil && sheetPath == nil
-    }
 
     static var quitsAfterCapture: Bool { shotPath != nil || sheetPath != nil }
 
@@ -113,4 +107,3 @@ enum CharacterLabArguments {
         value(name).flatMap(Double.init)
     }
 }
-#endif

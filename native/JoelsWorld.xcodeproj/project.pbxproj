@@ -9,6 +9,7 @@
 /* Begin PBXFileReference section */
 		A1000000000000000000001 /* JoelsWorld.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JoelsWorld.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000000000000000000002 /* JoelsWorldAdmin.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = JoelsWorldAdmin.app; path = "Joels World Map Editor.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1000000000000000000003 /* CharacterLab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = CharacterLab.app; path = "Joels World Character Lab.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -25,6 +26,16 @@
 		A1000000000000000000012 /* JoelsWorldAdmin */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = JoelsWorldAdmin;
+			sourceTree = "<group>";
+		};
+		A1000000000000000000013 /* CharacterLab */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CharacterLab;
+			sourceTree = "<group>";
+		};
+		A1000000000000000000014 /* MacShared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MacShared;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -44,6 +55,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A1000000000000000000022 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -53,6 +71,8 @@
 				A1000000000000000000011 /* Engine */,
 				A1000000000000000000010 /* JoelsWorld */,
 				A1000000000000000000012 /* JoelsWorldAdmin */,
+				A1000000000000000000013 /* CharacterLab */,
+				A1000000000000000000014 /* MacShared */,
 				A1000000000000000000031 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -62,6 +82,7 @@
 			children = (
 				A1000000000000000000001 /* JoelsWorld.app */,
 				A1000000000000000000002 /* JoelsWorldAdmin.app */,
+				A1000000000000000000003 /* CharacterLab.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -107,10 +128,34 @@
 			fileSystemSynchronizedGroups = (
 				A1000000000000000000011 /* Engine */,
 				A1000000000000000000012 /* JoelsWorldAdmin */,
+				A1000000000000000000014 /* MacShared */,
 			);
 			name = JoelsWorldAdmin;
 			productName = JoelsWorldAdmin;
 			productReference = A1000000000000000000002 /* JoelsWorldAdmin.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A1000000000000000000052 /* CharacterLab */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000000000000000000053 /* Build configuration list for PBXNativeTarget "CharacterLab" */;
+			buildPhases = (
+				A1000000000000000000048 /* Sources */,
+				A1000000000000000000022 /* Frameworks */,
+				A1000000000000000000049 /* Resources */,
+				A1000000000000000000072 /* Stage assets */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A1000000000000000000011 /* Engine */,
+				A1000000000000000000013 /* CharacterLab */,
+				A1000000000000000000014 /* MacShared */,
+			);
+			name = CharacterLab;
+			productName = CharacterLab;
+			productReference = A1000000000000000000003 /* CharacterLab.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -127,6 +172,9 @@
 						CreatedOnToolsVersion = 27.0;
 					};
 					A1000000000000000000044 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					A1000000000000000000052 = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
@@ -147,6 +195,7 @@
 			targets = (
 				A1000000000000000000040 /* JoelsWorld */,
 				A1000000000000000000044 /* JoelsWorldAdmin */,
+				A1000000000000000000052 /* CharacterLab */,
 			);
 		};
 /* End PBXProject section */
@@ -160,6 +209,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1000000000000000000047 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1000000000000000000049 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -199,6 +255,21 @@
 			shellPath = /bin/sh;
 			shellScript = "\"$SRCROOT/../tools/assets/stage.sh\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GameAssets\"\n# The editor writes to the checkout it was built from. Recording where that is here is\n# what saves the operator passing -data on every launch.\nPLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\nDATA=\"$SRCROOT/../data\"\n/usr/libexec/PlistBuddy -c \"Set :JWCheckoutDataDirectory $DATA\" \"$PLIST\" 2>/dev/null \\\n  || /usr/libexec/PlistBuddy -c \"Add :JWCheckoutDataDirectory string $DATA\" \"$PLIST\"\n";
 		};
+		A1000000000000000000072 /* Stage assets */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Stage assets";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/../tools/assets/stage.sh\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GameAssets\"\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -210,6 +281,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1000000000000000000046 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1000000000000000000048 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -390,6 +468,60 @@
 			};
 			name = Release;
 		};
+		A1000000000000000000066 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CR2F6D8AF7;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Joels World Character Lab";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.allr.joelsworld.characterlab;
+				PRODUCT_NAME = "Joels World Character Lab";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A1000000000000000000067 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CR2F6D8AF7;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Joels World Character Lab";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.allr.joelsworld.characterlab;
+				PRODUCT_NAME = "Joels World Character Lab";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -407,6 +539,15 @@
 			buildConfigurations = (
 				A1000000000000000000064 /* Debug */,
 				A1000000000000000000065 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1000000000000000000053 /* Build configuration list for PBXNativeTarget "CharacterLab" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000000000000000000066 /* Debug */,
+				A1000000000000000000067 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
