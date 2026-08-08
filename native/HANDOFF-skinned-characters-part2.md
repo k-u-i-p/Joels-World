@@ -1,5 +1,10 @@
 # Handoff — clothes on the skinned body
 
+> **Continued in [HANDOFF-skinned-characters-part3.md](HANDOFF-skinned-characters-part3.md)**,
+> which bakes the missing occlusion into the same texture, gives the shorts a shirt to hide under,
+> and makes the material follow the texture rather than the vertex (item 4 below). Read that one
+> too before changing anything here — three of the items in "What is left" are done or superseded.
+
 **Session 2.** Continues [HANDOFF-skinned-characters.md](HANDOFF-skinned-characters.md), which built
 the body as one skinned mesh. That gave the characters continuous limbs and real joints and left
 them wearing four flat fields of colour. This session gives them **clothes**: a collar, a button

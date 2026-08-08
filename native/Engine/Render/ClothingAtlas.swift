@@ -208,16 +208,25 @@ enum ClothingAtlas {
     private static func shirt(u: Float, v: Float) -> Detail {
         var detail = Detail()
 
-        // The collar, with a V at the front. `dip` is 1 on the centre line and 0 by a fifth of
+        // The collar, with a V at the front. `dip` is 1 on the centre line and 0 by a quarter of
         // the way round, and squaring it makes the V pointed rather than round-bottomed.
         //
-        // 0.775 rather than the neck root at 0.98, and the V down to 0.63, because of what the
-        // *silhouette* does up there: from 0.83 upwards the profile is the trapezius sloping in
-        // to the neck, which faces almost straight up and is hidden by the head from every camera
-        // this game has. A collar painted where a collar sits is a collar nobody sees. This one
-        // sits on the shoulders and opens onto the chest, which is where it reads.
-        let dip = max(0, 1 - u / 0.21)
-        let collarBottom = 0.775 - 0.145 * dip * dip
+        // 0.755 rather than the neck root at 0.98, because from 0.83 upwards the profile is the
+        // trapezius sloping into the neck, which faces almost straight up and is hidden by the
+        // head from every camera this game has. **The shoulders are the whole collar.** The V at
+        // the front is very nearly decoration: these characters carry a big stylised head on a
+        // short neck, and it overhangs the chest so far that the highest shirt texel visible at
+        // the centre line — measured off a render, not reasoned about — is around v 0.52, well
+        // below the point of any V that is still a V. It was drawn at 0.63, then at 0.56 chasing
+        // it, and neither put one white pixel on the front of anybody.
+        //
+        // 0.60 is where it stopped. It is a collar when a camera gets low or a head tips back
+        // (the tennis chase camera does both), and going deeper to catch the overworld camera
+        // means painting white down the middle of the chest, which stops being a collar and
+        // starts being a bib. If the front of a collar is ever really wanted, the fix is at the
+        // head — a longer neck or a smaller skull — not here.
+        let dip = max(0, 1 - u / 0.24)
+        let collarBottom = 0.755 - 0.155 * dip * dip
         detail.trim = rise(v, at: collarBottom, over: 0.018)
 
         // **The shadow under the collar**, which is what makes it a collar rather than a white
@@ -238,8 +247,11 @@ enum ClothingAtlas {
         let strip = 1 - rise(u, at: 0.075, over: 0.014)
         detail.shade += 0.05 * strip * along
         detail.shade -= 0.16 * line(u, at: 0.084, halfWidth: 0.012) * along
-        for button in [Float(0.28), 0.42, 0.56, 0.70] {
-            detail.shade -= 0.28 * blob(u: u, v: v, atU: 0, atV: button, radiusU: 0.046, radiusV: 0.040)
+        // Buttons are on the placket, so they are cut off by the same `along` the placket is —
+        // without it the top one is painted onto the collar, which is a dark spot on a white
+        // point rather than a button on a shirt.
+        for button in [Float(0.24), 0.34, 0.44] {
+            detail.shade -= 0.28 * blob(u: u, v: v, atU: 0, atV: button, radiusU: 0.046, radiusV: 0.040) * along
         }
 
         // The shirt is loose over the shorts, so the crease at the hem is in its own shadow.
@@ -276,6 +288,8 @@ enum ClothingAtlas {
         let hangs = between(v, 0.04, 0.60, soft: 0.22)
         detail.shade -= 0.045 * line(u, at: 0.33, halfWidth: 0.11) * hangs
         detail.shade -= 0.035 * line(u, at: 0.68, halfWidth: 0.10) * hangs
+
+        detail.shade += cloth(u: u, v: v, seed: 1)
         return detail
     }
 
@@ -310,6 +324,8 @@ enum ClothingAtlas {
         detail.shade -= 0.09 * line(u, at: 0, halfWidth: 0.045) * between(v, 0.05, 0.44, soft: 0.05)
         // The same drape the shirt has, on the part of the shorts that hangs free of the hip.
         detail.shade -= 0.045 * line(u, at: 0.27, halfWidth: 0.10) * between(v, 0.02, 0.38, soft: 0.14)
+
+        detail.shade += cloth(u: u, v: v, seed: 2)
         return detail
     }
 
@@ -393,6 +409,54 @@ enum ClothingAtlas {
         let dv = (v - atV) / radiusV
         return 1 - smoothstep(min((du * du + dv * dv).squareRoot(), 1))
     }
+
+    /// **Cloth.** A shallow, slow wobble in the shade, so a shirt is not one unbroken field of
+    /// one colour.
+    ///
+    /// The characters read as plastic close up and it is not the silhouette's fault — it is that
+    /// every texel of a shirt returns exactly the same number, which nothing woven has ever done.
+    /// Two octaves of value noise on top of each other, worth about ±4% of brightness all told:
+    /// far too little to see as a pattern, enough to see as a material.
+    ///
+    /// **The frequency is the part to be careful with.** The atlas has no mipmaps — it cannot
+    /// have them, because the regions are stacked two guard rows apart and a mip would fold the
+    /// collar into the waistband — so anything approaching one cycle per texel crawls as a
+    /// character walks away from the camera. The coarse octave is about 26 texels across and the
+    /// fine one 13, which at the width of a chest is a hand's breadth and half of one.
+    ///
+    /// Only the two cloth regions call it. Skin gets none: a forearm has no weave, and noise on
+    /// bare skin at this amplitude reads as dirt.
+    private static func cloth(u: Float, v: Float, seed: Int) -> Float {
+        0.028 * valueNoise(u: u, v: v, cells: 10, seed: seed)
+            + 0.014 * valueNoise(u: u, v: v, cells: 20, seed: seed + 64)
+    }
+
+    /// Smooth value noise on a `cells` × `cells` grid over the region, in −1…1.
+    ///
+    /// No wrap handling, and none needed: `u` is folded, so 0 and 1 are the chest and the spine
+    /// rather than two names for the same place, and the two halves of the body meet at a mirror
+    /// of the same values.
+    private static func valueNoise(u: Float, v: Float, cells: Float, seed: Int) -> Float {
+        let x = u * cells, y = v * cells
+        let cellX = Int(x.rounded(.down)), cellY = Int(y.rounded(.down))
+        let fx = smoothstep(x - Float(cellX)), fy = smoothstep(y - Float(cellY))
+        let top = mix(corner(cellX, cellY, seed), corner(cellX + 1, cellY, seed), fx)
+        let bottom = mix(corner(cellX, cellY + 1, seed), corner(cellX + 1, cellY + 1, seed), fx)
+        return mix(top, bottom, fy)
+    }
+
+    /// One grid corner's value, in −1…1. An integer hash rather than a random number generator,
+    /// so the atlas is the same texture on every machine and in every run — it is compiled into
+    /// the game's look, and a shirt that mottles differently each launch is a bug.
+    private static func corner(_ x: Int, _ y: Int, _ seed: Int) -> Float {
+        var h = UInt32(truncatingIfNeeded: x &* 374_761_393 &+ y &* 668_265_263 &+ seed &* 1_274_126_177)
+        h ^= h >> 13
+        h = h &* 1_274_126_177
+        h ^= h >> 16
+        return Float(h % 2048) / 1023.5 - 1
+    }
+
+    private static func mix(_ a: Float, _ b: Float, _ t: Float) -> Float { a + (b - a) * t }
 
     private static func smoothstep(_ x: Float) -> Float {
         let t = min(max(x, 0), 1)
