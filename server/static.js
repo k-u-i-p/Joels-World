@@ -2,25 +2,14 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { VALID_EMOTES } from './emotes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function setupStatic(app, server, port) {
-  let cachedEmotes = [];
-
-  // Parse emotes once on boot
-  try {
-    const emotesPath = path.resolve(__dirname, '../client/public/src/emotes.js');
-    const emotesCode = fs.readFileSync(emotesPath, 'utf8');
-    const regex = /^  ([a-zA-Z0-9_]+): \{/gm;
-    let m;
-    while ((m = regex.exec(emotesCode)) !== null) {
-      cachedEmotes.push(m[1]);
-    }
-    cachedEmotes.sort();
-  } catch (e) {
-    console.error("Failed to parse emotes during boot cache:", e);
-  }
+  // The list used to be scraped out of the web client's `emotes.js`; it now lives in
+  // `server/emotes.js` so the server does not depend on `client/` (PLAN.md §8).
+  const cachedEmotes = [...VALID_EMOTES].sort();
 
   // Allow CORS specifically for media/assets so the iOS client can fetch audio without Access Control checks failing.
   app.use((req, res, next) => {

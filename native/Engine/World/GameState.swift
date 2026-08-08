@@ -315,6 +315,37 @@ final class GameState {
         }
     }
 
+    // MARK: - Editing (macOS admin app)
+
+    /// The editor mutates the local record first and tells the server afterwards, exactly as
+    /// `admin.js` does — a dragged object has to follow the cursor before the round trip.
+    /// The server's `objects_update` / `npcs_update` broadcast then replaces the whole array.
+    @discardableResult
+    func editObject(id: Int, _ mutate: (inout WorldObject) -> Void) -> WorldObject? {
+        guard let index = objects.firstIndex(where: { $0.id == id }) else { return nil }
+        mutate(&objects[index])
+        return objects[index]
+    }
+
+    @discardableResult
+    func editNPC(id: Int, _ mutate: (inout GameCharacter) -> Void) -> GameCharacter? {
+        guard let index = npcs.firstIndex(where: { $0.id == id }) else { return nil }
+        mutate(&npcs[index])
+        // Roaming and patrol origins are seeded from the authored position, so a moved NPC
+        // has to re-seed or it walks back to where it used to live.
+        visuals[npcs[index].id]?.waitTimer = nil
+        setTarget(for: npcs[index])
+        return npcs[index]
+    }
+
+    /// Where the editor camera looks. The web admin drags `player.x/y` around because the
+    /// camera follows the player; the editor has no player to walk, so it moves the focus
+    /// directly through the same field.
+    func setCameraFocus(x: Double, y: Double) {
+        player.x = x
+        player.y = y
+    }
+
     // MARK: - Rendering feed
 
     /// Everything that should be drawn as a character this frame: the local player first,

@@ -8,6 +8,25 @@ enum SessionStore {
     private static let service = "com.allr.joelsworld"
     private static let account = "player_token"
 
+#if os(macOS)
+    /// The admin editor keeps its token in `UserDefaults` instead. It is a developer tool
+    /// running on the operator's own Mac, and the file-based macOS keychain prompts for
+    /// access every time the app's signature changes — which is every rebuild here.
+    private static let defaultsKey = "admin_session_token"
+
+    static func loadToken() -> String? {
+        let token = UserDefaults.standard.string(forKey: defaultsKey)
+        return (token?.isEmpty ?? true) ? nil : token
+    }
+
+    static func saveToken(_ token: String) {
+        UserDefaults.standard.set(token, forKey: defaultsKey)
+    }
+
+    static func clearToken() {
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
+    }
+#else
     static func loadToken() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -51,4 +70,5 @@ enum SessionStore {
         ]
         SecItemDelete(query as CFDictionary)
     }
+#endif
 }

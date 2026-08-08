@@ -1,12 +1,5 @@
 import UIKit
 
-/// Snapshot of movement intent for one simulation step.
-struct InputState {
-    var isMoving = false
-    /// Heading in degrees, 0° = +X, clockwise (world convention).
-    var angleDegrees: Double = 0
-}
-
 /// On-screen thumbstick. Port of `initJoystick` in `input.js:114-223`.
 ///
 /// The knob follows the touch out to `maxRadius`; anything past a small dead zone counts as

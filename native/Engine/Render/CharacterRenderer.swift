@@ -1,8 +1,11 @@
 import CoreGraphics
+import CoreText
 import Metal
 import MetalKit
 import simd
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Uniform block for the character pipeline. Layout must match `CharacterUniforms` in
 /// `Shaders.metal`; every member is 16-byte aligned so both sides agree without padding.
@@ -192,8 +195,14 @@ final class CharacterRenderer {
 
     /// `emotes.js:675-682` paints ❤️ at 100 px into a 128² canvas and uses it as a sprite map.
     private static func makeHeartTexture(device: MTLDevice) -> MTLTexture? {
-        let size = CGSize(width: 128, height: 128)
+        guard let cgImage = makeHeartImage(size: CGSize(width: 128, height: 128)) else { return nil }
+        return try? MTKTextureLoader(device: device).newTexture(
+            cgImage: cgImage,
+            options: [.SRGB: true, .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue)])
+    }
 
+#if canImport(UIKit)
+    private static func makeHeartImage(size: CGSize) -> CGImage? {
         // On a simulator runtime with no usable emoji font the glyph comes out as a black box,
         // which makes `love` spawn four black squares. Fall back to the bundled artwork.
         if !EmojiImage.systemCanRenderEmoji,
@@ -201,12 +210,7 @@ final class CharacterRenderer {
             let composed = UIGraphicsImageRenderer(size: size).image { _ in
                 fallback.draw(in: CGRect(x: 14, y: 14, width: 100, height: 100))
             }
-            if let cgImage = composed.cgImage {
-                return try? MTKTextureLoader(device: device).newTexture(
-                    cgImage: cgImage,
-                    options: [.SRGB: true,
-                              .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue)])
-            }
+            if let cgImage = composed.cgImage { return cgImage }
         }
 
         let image = UIGraphicsImageRenderer(size: size).image { _ in
@@ -226,12 +230,35 @@ final class CharacterRenderer {
                                  width: size.width, height: bounds.height),
                       withAttributes: attributes)
         }
-
-        guard let cgImage = image.cgImage else { return nil }
-        return try? MTKTextureLoader(device: device).newTexture(
-            cgImage: cgImage,
-            options: [.SRGB: true, .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue)])
+        return image.cgImage
     }
+#else
+    /// macOS has no `UIGraphicsImageRenderer` and no missing-emoji problem, so the glyph goes
+    /// straight through Core Text. Same 100 pt ❤️ centred in the same 128² canvas.
+    private static func makeHeartImage(size: CGSize) -> CGImage? {
+        guard let ctx = CGContext(data: nil,
+                                  width: Int(size.width),
+                                  height: Int(size.height),
+                                  bitsPerComponent: 8,
+                                  bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return nil
+        }
+
+        let font = CTFontCreateUIFontForLanguage(.system, 100, nil)
+            ?? CTFontCreateWithName("AppleColorEmoji" as CFString, 100, nil)
+        let attributed = NSAttributedString(string: "❤️",
+                                            attributes: [kCTFontAttributeName as NSAttributedString.Key: font])
+        let line = CTLineCreateWithAttributedString(attributed)
+        let bounds = CTLineGetBoundsWithOptions(line, [])
+
+        ctx.textPosition = CGPoint(x: (size.width - bounds.width) / 2 - bounds.minX,
+                                   y: (size.height - bounds.height) / 2 - bounds.minY)
+        CTLineDraw(line, ctx)
+        return ctx.makeImage()
+    }
+#endif
 
     /// The soft ground blob: a flat 25%-black disc, exactly as `buildShadowBlob` paints it.
     private static func makeShadowTexture(device: MTLDevice) -> MTLTexture? {

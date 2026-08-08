@@ -4,8 +4,9 @@
 decisions), then this file (what is actually built). The JS client in `client/public/src/`
 is the reference spec for every port — **keep it until Phase 8.**
 
-Last updated: 2026-08-08 · Phases 1–6 complete and verified on simulator; Phase 7 is Tennis
-only — Tag is deferred at the user's request.
+Last updated: 2026-08-08 · Phases 1–7 complete and verified; Tag is deferred at the user's
+request. **Phase 9 (the macOS admin editor) is complete** — `admin.js` is now a native Mac
+app on the shared engine, which clears the last reason to keep the web client alive.
 
 ---
 
@@ -24,8 +25,11 @@ only — Tag is deferred at the user's request.
 - **Coordinate system preserved exactly** from the JS (X right, Y **down**; render space
   negates Y; Z up; rotations in degrees). `PLAN.md` §3.
 - **Map chunk tiles stay server-fetched** (137 MB); models/audio get bundled. `PLAN.md` §5.
-- **`admin.js` is not being ported and stays a web page** — decided by the user on
-  2026-08-07. No native editor, no move; it keeps being served by the Node server.
+- **`admin.js` becomes a native macOS app** — decided by the user on 2026-08-08, replacing
+  the 2026-08-07 decision that it would stay a web page. *"The admin editor becomes a Mac
+  Desktop app, then the Three.js renderer can be removed entirely."* Built as
+  `JoelsWorldAdmin`, a second target in the same Xcode project sharing `native/Engine/`.
+  AppKit rather than Mac Catalyst — rationale in `PLAN.md` §7.
 - **`physics.js` lives in `server/`** (moved 2026-08-07), served to the browser at its old
   `/src/physics.js` URL. The Phase 8 blocker is cleared.
 - **Tag is not being ported yet** — decided by the user on 2026-08-08: *"Tag was rubbish and
@@ -45,7 +49,11 @@ only — Tag is deferred at the user's request.
 | 6 | Emotes (20, each poses the rig) | **done, verified** |
 | 7 | Minigames: tennis (2160 ln) | **done, verified** |
 | 7b | Minigames: tag (591 ln) | **deferred** — the user is reworking the game first |
-| 8 | Retire web client | not started |
+| 9 | macOS admin editor (`admin.js`, 1464 ln) on the shared engine | **done, verified** |
+| 8 | Retire web client | emote coupling resolved; asset move + deletion outstanding |
+
+Phase 9 is numbered after 8 because it was decided later; it runs *before* Phase 8, since
+retiring the web client was blocked on the editor having somewhere else to live.
 
 ## What Phase 1 actually delivers
 
@@ -622,11 +630,172 @@ Zero errors over the run. The exit path was driven end to end: button → dialog
 `change_map 0` → Junior Campus reloads, and the 3D world, joystick, chat HUD and map button
 all come back.
 
+## What Phase 9 actually delivers
+
+3,009 lines of Swift in `native/JoelsWorldAdmin/`, plus a restructure of the existing code
+into `native/Engine/` — taking the whole tree to 17,654 lines. `admin.js` is now a native Mac
+app: the map renders through the same Metal renderer the game uses, objects and NPCs are
+dragged, resized and rotated on it, and the object, NPC and event-tree inspectors write to
+the same `server/admin.js` endpoints the web panel did.
+
+**The engine moved, and nothing else had to.** `Core`, `Net`, `World`, `Render` and `Entity`
+are now `native/Engine/`, a filesystem-synchronized group belonging to *both* targets;
+`JoelsWorld/` keeps `App`, `UI`, `Input`, `Audio`, `Resources`. That split was almost free —
+the whole engine compiled for macOS after **four** changes:
+
+| Change | Why |
+|---|---|
+| `World/ClipMask.swift` | `UIImage(data:)?.cgImage` → `CGImageSourceCreateWithData`. Cross-platform, and no branch |
+| `Render/CharacterRenderer.swift` | The ❤️ sprite painted a glyph through `UIGraphicsImageRenderer`. The iOS path is untouched under `#if canImport(UIKit)`, with a Core Text equivalent for macOS |
+| `Core/InputState.swift` | Lifted out of `Input/Joystick.swift`. `GameState.update` takes one; the editor passes a standing "not moving" value |
+| `Core/WalkTest.swift` | Moved out of `App/`. `GameState` reads `-zoom` and `-at` from it, so it was never really iOS-only |
+
+`Net`, `World` and `Entity` needed **nothing** — the Phase 1 rule about keeping them free of
+renderer and UI types paid for itself here.
+
+| File | Ported from | Notes |
+|---|---|---|
+| `Editor/AdminMapViewController.swift` | `admin.js:1023-1238` | The `mousedown`/`mousemove`/`mouseup` handlers: hit-test order, click-then-drag, shift multi-select, corner resize, panning, paste-at-cursor |
+| `Editor/AdminOverlayView.swift` | `adminDraw` (`admin.js:1311-1464`) | The object quads and circles projected through the live camera, the colour rules, the resize handle, and the selected NPC's three rings |
+| `Editor/EditorSelection.swift` | `window.selectedObject` / `selectedNpc` (`admin.js:144-237`) | Selection by id resolved against the live world, plus `findObjectAtXY`, `checkResizeHandleHit` and the top-left resize anchor |
+| `Editor/AdminEditorView.swift` | the window-level listeners | Mouse, scroll, magnify, ⌘C/⌘V, delete, and the PNG/JPEG drop target |
+| `Inspector/ObjectInspectorView.swift` | `#edit-obj-section` (`admin.js:305-443`, `630-676`) | Name, rotate, width/length with the 2 % step, clip, and the 3D-only scale/Z/model rows |
+| `Inspector/NPCInspectorView.swift` | `#edit-npc-section` (`admin.js:445-583`, `678-717`) | Name, rotate, size, Z, both radii, three colour wells, hair/gender/head/default-emote pickers |
+| `Inspector/EventEditorView.swift` | `renderEventUI` (`admin.js:741-1021`) | All eight action types, the starter payload each one installs, and Save Events |
+| `Inspector/AdminControls.swift` | `bindHoldAction` (`admin.js:110-142`) | The 50 ms repeat-while-held button that syncs once on release |
+| `App/AdminSession.swift`, `App/AdminMessage.swift` | `networkClient.send(...)` calls | The twelve editor verbs `server/admin.js` understands, `cloneData` included |
+| `Engine/Net/NetworkClient.swift` | *(new)* | `sendAdmin(_:)` — the payloads are heterogeneous, so they go as loose JSON rather than a struct per verb |
+| `Engine/World/GameState.swift` | *(new)* | `editObject` / `editNPC` / `setCameraFocus`: the editor mutates locally first and tells the server after, which is what makes a dragged shape follow the cursor |
+
+### The editor has no player, so the camera focus *is* the player
+
+`admin.js` pans by writing to `player.x/y`, because the game camera follows the player. The
+Mac editor keeps that exactly — `setCameraFocus` writes the same two fields — so the camera
+clamping, the `camera_permitted_offset` handling and the map-bounds behaviour are all the
+shipped code rather than a second implementation. The joystick is simply never consulted:
+`inputProvider` returns a standing `InputState()`.
+
+One consequence worth knowing: the editor's avatar is a real character on the server, so
+walking the camera across a trigger zone fires its events. The `GameStateDelegate` methods
+for `say`, `avatar`, sounds and door dialogs all have no-op defaults and the editor
+implements none of them, so nothing is presented — but the server does see an "Admin" player
+moving around, exactly as it did with the web page.
+
+### Authenticating as admin
+
+`ws.isAdmin` came from an Express session flag that `/admin.html?admin=true` set in a
+browser. A native app has no such session, so `grantsAdmin` in `server/websocket.js` accepts
+an `?adminKey=` on the handshake:
+
+- with `ADMIN_KEY` set on the server, the key must match (compared with `timingSafeEqual`);
+- with no `ADMIN_KEY` set, only **loopback** connections are granted.
+
+So `npm run dev` needs no configuration and production has to opt in. A key is always
+required — a blank field means no admin, on any host. The editor's host and key live in the
+sidebar and persist in `UserDefaults`.
+
+### Three deliberate deviations from `admin.js`
+
+Each one is a case where copying the JS faithfully would have produced something worse:
+
+- **The dropped tracing image is anchored in world space.** The JS drags it by a *world*
+  delta but draws it at those numbers in *screen* space, so it is pinned to the window and
+  slides out of alignment the moment the map is panned or zoomed — it only lines up at
+  zoom 1, having never been moved. Here the origin is a world position projected like
+  everything else.
+- **Every object in a multi-selection is highlighted.** The JS colours only
+  `selectedObject.get()`, the first id, so a shift-click selection is invisible even though
+  dragging moves all of it.
+- **Plain two-finger scroll pans.** `admin.js` zooms on ⌃-scroll and has no scroll gesture
+  otherwise. Both of its behaviours are kept (drag to pan, ⌃/⌘-scroll to zoom, and pinch);
+  plain scroll panning is added because a trackpad Mac app that ignores two-finger scroll
+  reads as broken.
+
+The floating draggable panels are also gone, replaced by a docked sidebar in an
+`NSSplitViewController`. That removes the panel-drag bookkeeping and the "was this click on a
+panel?" test every mouse handler in the JS has to run.
+
+### Verified behaviour (local server, `-selftest`)
+
+`simctl` cannot inject a touch, and neither can anything drive a Mac app's mouse from a
+script — so, following the pattern of `-walktest` and `-tennisdemo`, `-selftest` calls the
+*real* handlers a click would have called and logs each result. Run against
+`PORT=8099 node server.js`:
+
+```
+selftest  1: world objects=24 npcs=24 selectedObject=[] selectedNpc=nil
+selftest  2: clicked object 12 at world (-2095, -1254) → selection [12]
+selftest  3: dragged object 12 by dx=60 (expected 60) → (-2035, -1254)
+selftest  4: restored object 12 to (-2095, -1254)
+selftest  5: resized object 12 from 759×202 to 799×162
+selftest  6: restored object 12 to 759×202
+selftest  7: clicked NPC 1 'Mr Hardy' → selection Optional(1)
+selftest  8: dragged NPC 1 by dx=30 (expected 30)
+selftest  9: restored NPC 1 to (-936, -376)
+selftest 10: NPC 1 'Mr Hardy' on_enter=1 actions ["avatar"], on_exit=1
+selftest 11: created object 80 → count 24 → 25
+selftest 12: selected created object → [80], inspector sees id Optional(80)
+selftest 13: event tree round-tripped: 2 actions ["say", "log"], say=["selftest line one", …]
+selftest 14: deleted object 80 → present=false count=24
+selftest 15: left object 12 selected for inspection
+```
+
+`objects.json` comes out **byte-identical** afterwards — create, edit and delete round-trip
+cleanly. `npc.json` does not, because dragging rounds Mr Hardy's authored float position to
+an integer; the web admin does exactly the same (`Math.round` in its `mousemove` handler).
+
+Step 5 is worth reading twice: pulling the handle out by (+40, +40) in world space grows the
+width by 40 and *shrinks* the length by 40, because object 12 is rotated 90°. That is the
+local-frame resize maths behaving correctly, not a sign error.
+
+### Screenshots without a Screen Recording grant
+
+`-shot <path> [-shotdelay <s>]` writes a PNG of the whole window and quits. It exists because
+`screencapture` needs a TCC grant this machine's terminal does not have, and neither
+`cacheDisplay` nor `CGWindowListCreateImage` captures Metal content anyway. The frame is
+composited from three layers: the AppKit chrome and sidebar via `cacheDisplay`, the Metal
+drawable blitted to a shared texture and read back, then the editor overlay on top — in that
+order, because the overlay is an ordinary `NSView` that the world image would otherwise
+cover. `Renderer.captureHandler` is the one engine hook this needed; the view has to be
+created with `framebufferOnly = false` for the drawable to be a legal blit source.
+
+Photographed and confirmed: the Junior Campus map with its walk-through zones in green,
+unnamed collision volumes in purple and 3D-model objects in sky blue; the selected NPC's
+cyan hitbox and dashed interaction radius; the NPC inspector fully populated for Mr Hardy
+(head `male_hair_messy`, interact 150, roam none); and the object inspector for object 12
+"Pool" showing its `on_enter` `show_dialog` card — description "Enter the Pool building?",
+type `change_map`, map ID 3 — read straight out of the authored JSON.
+
+### Phase 8 progress
+
+The **emote-list coupling is resolved**: `server/emotes.js` now holds the 20 names, and
+`static.js` and `AIAgentManager.js` import it instead of parsing
+`client/public/src/emotes.js` with a regular expression. Verified on a booted server —
+`/api/config` returns all 20, and the AI agent logs `Loaded 20 valid emotes`.
+
+**No code-level coupling to `client/` is left.** What remains is the asset tree: 264 MB under
+`client/public` (104 MB of models, 86 MB Junior Campus, 37 MB Main Building, 11 MB media,
+11 MB minigames, 10 MB Pool, 4 MB Detention) that three generator scripts and three
+`express.static` mounts point at, and which the iOS app streams over HTTP. Moving it under
+`server/` and deleting `client/` is one step, and it is the step left.
+
 ## Build / run
+
+The iOS game:
 
 ```bash
 cd native && xcodebuild -project JoelsWorld.xcodeproj -scheme JoelsWorld -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' build
 ```
+
+The macOS admin editor:
+
+```bash
+cd native && xcodebuild -project JoelsWorld.xcodeproj -scheme JoelsWorldAdmin -destination 'platform=macOS' build
+```
+
+**Both targets must keep building.** They share `native/Engine/`, so an engine change that
+compiles for one can fail on the other — the platform-conditional spots are listed under
+Phase 9 above.
 
 Install and launch on a booted simulator:
 
@@ -667,6 +836,22 @@ available to inject touches):
 - `-uidemo` — walks the Phase 5 UI through every surface on a timer (chat feed, bubble, each
   dialog, minimap, rejection flash, an emote command, the door prompt), logging each step so
   screenshots line up with the log. Also the only way to open a dialog without touch input.
+
+**macOS admin launch arguments** (`-map`, `-zoom` and `-at` are shared with the iOS build,
+since they live in `Engine/Core/WalkTest.swift`):
+- `-selftest` — drives selection, dragging, resizing, creation, an event-tree round trip and
+  deletion through the real mouse handlers, logging each step. Leaves the map as it found it.
+- `-shot <path>` — writes a PNG of the whole window and quits.
+- `-shotdelay <seconds>` — how long to wait first, so tiles and models have loaded. Default 6.
+- `-map <id>` — open straight onto a map. The server remembers the last map a session was on,
+  so this is the only way to make a scripted run deterministic.
+- `-zoom <n>` — pin the camera zoom; `0.3` frames most of Junior Campus at once.
+
+Reading the editor's log — it goes to stdout when launched from a terminal:
+
+```bash
+/path/to/JoelsWorldAdmin.app/Contents/MacOS/JoelsWorldAdmin -selftest -map 0 -zoom 0.3
+```
 
 **Reproducing the Phase 6 parity check.** `emotes.js` only needs three.js for its props, so it
 can be driven under Node rather than in a browser: read the file, strip its four `import`
@@ -715,7 +900,20 @@ The app targets `wss://joels-world.com`. Set `Config.useLocalServer = true` in
   string parsing in the module. The model is `GameCharacter` for this reason.
 - **BSD `sed` has no `\b`.** Use `[[:<:]]` / `[[:>:]]` for word boundaries.
 - The Xcode project uses `objectVersion 77` **filesystem-synchronized groups** — new files
-  under `native/JoelsWorld/` join the target automatically, no pbxproj editing needed.
+  under `native/Engine/`, `native/JoelsWorld/` or `native/JoelsWorldAdmin/` join the right
+  target automatically, no pbxproj editing needed. `Engine` is listed in *both* targets'
+  `fileSystemSynchronizedGroups`, which is why the split is by folder and not by a list of
+  membership exceptions: a new engine file is shared without anyone remembering to say so.
+- **`window.contentViewController = …` resizes the window to that view's fitting size.** Set
+  the frame *after* assigning it, or the editor opens at whatever the sidebar's stack asks
+  for. `setFrameAutosaveName` then restores a frame the operator saved, which is why
+  `AdminWindowController` calls `setFrameUsingName` and only falls back to the default.
+- **Timers do not fire during AppKit button tracking.** `NSButton.mouseDown` runs the run
+  loop in `.eventTracking`, so `HoldButton` adds its repeat timer to that mode as well as
+  `.default`. Without it, holding − or + fires exactly once.
+- **Restarting the local server is the only way to reload `server/data`.** The maps are read
+  into memory at boot and written back from memory, so `git checkout -- server/data` while a
+  server is running desynchronises the two and the next write puts the stale copy back.
 - No `xcodegen`/`tuist` installed; the pbxproj is hand-written.
 - The iOS-simulator MCP panel crashed repeatedly and became unusable — still true in Phase 7,
   including its headless `tap`. Screenshots via `xcrun simctl io <udid> screenshot out.png`
@@ -731,8 +929,30 @@ The app targets `wss://joels-world.com`. Set `Config.useLocalServer = true` in
 
 ## Known gaps / next steps
 
-**Phase 8 is the natural next chunk** — retiring the web client. The remaining `server/` →
-`client/` couplings are listed under "Phase 8 decoupling" below and none of them is a blocker.
+**Phase 8 is the whole remaining job** — retiring the web client. With the editor native and
+the emote list moved, nothing in `server/` reads `client/` code any more; what is left is the
+264 MB asset tree, which needs to move under `server/` in the same step that deletes
+`client/`. See "Phase 8 decoupling" below.
+
+Phase 9 leaves these open:
+
+- **NPCs roam while you edit.** They walk their `roam_radius` and waypoint routes in the
+  editor exactly as they do in the game, so an NPC can wander out from under the cursor
+  mid-drag. The web admin has the same behaviour; a "freeze NPCs" toggle would be a genuine
+  improvement over it rather than a port.
+- **There is no undo.** Every edit writes the map JSON on the server immediately, as
+  `admin.js` does — the delete confirmation is the only safety net. A local undo stack would
+  have to model the server's file writes to be honest about what it can take back.
+- **The event editor discards unsaved edits on selection change**, because it reloads its
+  working copy from whatever is now selected. Faithful to the web panel, and a place where a
+  "you have unsaved changes" prompt would be worth adding.
+- **`AdminOverlayView` redraws on every frame.** Twenty-odd projected quads through Core
+  Graphics at 60 Hz is nothing today, but it is the obvious first thing to throttle if a map
+  ever carries hundreds of objects.
+- **Rotation has no numeric field**, only the ↺ / ↻ hold buttons — same as the web panel.
+  Typing an angle would be a one-line addition to `ObjectInspectorView`.
+- **The editor does not draw waypoint routes.** Neither does the web admin; it visualises the
+  roam circle but not the patrol path, which is the harder thing to author blind.
 
 **Tag is the outstanding gameplay work**, and it is waiting on a design decision, not on
 engineering: the user is reworking the game. `minigames/tag.js` (591 lines) is a much smaller
@@ -857,17 +1077,28 @@ Caveat: the legacy Capacitor shell (`client/ios`) bundles `client/public` as its
 so a fresh `npx cap sync` would produce a bundle without `physics.js`. That shell is retired
 by this rewrite and was not patched.
 
-Still coupling `server/` to `client/` (Phase 8 work, not blockers today): `static.js:13` and
-`AIAgentManager.js:46` parse `client/public/src/emotes.js` for the valid-emote list, and the
-three `scripts/*.js` asset generators use `client/public` as the asset root.
+**The emote list is moved — second blocker cleared (2026-08-08).** `server/emotes.js` holds
+the 20 names; `static.js` and `AIAgentManager.js` import it instead of running a regular
+expression over `client/public/src/emotes.js`. The web client still has its own copy in
+`emotes.js` until it is deleted, and **the two must not drift**; the poses themselves live in
+`Engine/Entity/Emotes.swift`, which is what a new emote has to be added to.
 
-The emote-list coupling is **unblocked but not resolved**: `Entity/Emotes.swift` is now the
-native source of truth, so Phase 8 can move the list into `server/` when `client/` goes. It
-was left alone because the web client still imports `emotes.js` until then, and the two must
-not drift while both exist.
+**No code-level coupling to `client/` remains.** What is left is the asset tree:
 
-**`admin.js` decision made (user, 2026-08-07): it stays a web page.** Not ported, not moved.
-Phase 8 deletes the game client only — the admin editor and its serving path survive.
+| Reference | Needs |
+|---|---|
+| `static.js:34` (`/src`) | serves the web client's JavaScript — **deleted with the client** |
+| `static.js:35, 43` (`/public`, `/`) | serves the asset tree, which the **iOS app streams over HTTP** — repoint at the new location |
+| `scripts/slice_maps.js`, `create_overlays.js`, `generate_minimaps.js` | `client/public` as the asset root — repoint |
+| `views/index.ejs`, the `admin.html` route | the game page and admin panel markup — **deleted**; the macOS editor replaces it |
+
+264 MB has to move: 104 MB `models/`, 86 MB `junior_school/`, 37 MB `main_building/`,
+11 MB `media/`, 11 MB `minigames/`, 10 MB `pool/`, 4 MB `detention/`, and ~1.4 MB of
+`avatars/`, `minimaps/`, `icons/` and `fonts/`.
+
+**`admin.js` decision superseded (user, 2026-08-08): it became a macOS app.** The 2026-08-07
+decision that it would stay a web page no longer holds, and with it goes the last reason to
+keep any of `client/` alive — Phase 8 can now delete the directory outright.
 
 ## Work log
 
@@ -983,3 +1214,33 @@ Phase 8 deletes the game client only — the admin editor and its serving path s
 - Added `-map`, `-tennistrace`, `-tennisdemo` and `-exitafter`. Without touch injection —
   the simulator MCP panel is still unusable — a demo argument is the only way to reach any
   interactive path.
+- **Recorded the user's change of plan on `admin.js`:** it becomes a Mac desktop app, which
+  then allows the three.js renderer to be removed entirely. This reverses the previous day's
+  decision that it would stay a web page.
+- **Phase 9 complete.** Split the tree into `native/Engine/` (shared), `native/JoelsWorld/`
+  (iOS) and `native/JoelsWorldAdmin/` (macOS), and added a second app target to the
+  hand-written pbxproj with `Engine` listed in both targets' synchronized groups.
+- The whole engine — renderer, glTF loader, physics, event interpreter, emotes, tennis
+  simulation, SVG rasteriser — compiled for macOS after four small changes. `Net`, `World`
+  and `Entity` needed none, which is what the Phase 1 "no renderer or UI types in those
+  layers" rule was for.
+- Ported `admin.js` in full: the overlay, the mouse handlers with their exact hit-test order
+  and click-then-drag rule, the object and NPC inspectors, and the generic event-tree editor
+  with all eight action types. Floating panels became a docked `NSSplitViewController`
+  sidebar.
+- Added `grantsAdmin` to `server/websocket.js` so a native client can present an `?adminKey=`
+  on the handshake: it must match `ADMIN_KEY`, or come from loopback when the server has none
+  set. The browser's session-flag path is untouched.
+- Verified with `-selftest`, which drives the real handlers: hit testing, a 60-unit drag, a
+  rotated-object resize, NPC select-then-drag, and a create → set-event-tree → delete round
+  trip. `objects.json` comes back byte-identical.
+- Built `-shot` on a new `Renderer.captureHandler`, because `screencapture` needs a Screen
+  Recording grant this machine does not have and no view-snapshot API captures Metal. It
+  composites AppKit chrome, the blitted drawable, and the overlay, in that order.
+- **Phase 8 partly done:** moved the valid-emote list to `server/emotes.js` and repointed
+  `static.js` and `AIAgentManager.js` at it. No code in `server/` reads `client/` any more.
+- Corrected a wrong diagnosis along the way: a self-test run that "failed to create an
+  object" was actually the local server holding stale in-memory map data after a
+  `git checkout -- server/data` mid-session. The server reads the maps once at boot and
+  writes them back from memory; restarting it fixed the run, and the self-test now matches
+  the created object by unseen id rather than by name.

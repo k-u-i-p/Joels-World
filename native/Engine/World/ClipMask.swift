@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-import UIKit
+import ImageIO
 
 /// Pixel-perfect walkability mask. Port of the `clip_mask` handling in `physics.js:147-243`.
 ///
@@ -114,7 +114,8 @@ final class ClipMask {
 
             if isSVG {
                 return SVGRasterizer.draw(svgData: data, into: ctx, rect: rect)
-            } else if let image = UIImage(data: data)?.cgImage {
+            } else if let source = CGImageSourceCreateWithData(data as CFData, nil),
+                      let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
                 ctx.draw(image, in: rect)
                 return true
             }

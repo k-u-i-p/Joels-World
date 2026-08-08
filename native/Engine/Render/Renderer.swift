@@ -367,9 +367,20 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         encodeCompositePass(view: view, commandBuffer: commandBuffer, color: sceneColor)
 
+        captureHandler?(drawable.texture, commandBuffer)
+
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }
+
+    /// Called with the finished drawable just before it is presented, so a caller can blit it
+    /// somewhere readable. Exists because there is no screenshot tool available to the macOS
+    /// admin app the way `simctl io screenshot` serves the iOS one; the view hierarchy
+    /// snapshot APIs do not capture Metal content.
+    ///
+    /// The view must be created with `framebufferOnly = false` for the texture to be a valid
+    /// blit source.
+    var captureHandler: ((MTLTexture, MTLCommandBuffer) -> Void)?
 
     private func presentBlank(view: MTKView, drawable: CAMetalDrawable, commandBuffer: MTLCommandBuffer) {
         if let descriptor = view.currentRenderPassDescriptor {

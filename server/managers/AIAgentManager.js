@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { PhysicsEngine } from '../physics.js';
+import { VALID_EMOTES } from '../emotes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -42,19 +43,10 @@ export class AIAgentManager {
         }
         console.log("[AI] Starting background agent system...");
 
-        try {
-            const srcPath = path.resolve(__dirname, '../../client/public/src/emotes.js');
-            const code = fs.readFileSync(srcPath, 'utf8');
-            const regex = /^  ([a-zA-Z0-9_]+): \{/gm;
-            let m;
-            while ((m = regex.exec(code)) !== null) {
-                this.validEmotes.push(m[1]);
-            }
-            console.log(`[AI] Loaded ${this.validEmotes.length} valid emotes for AI configuration.`);
-        } catch (e) {
-            console.warn("[AI] Failed to parse src/emotes.js:", e);
-        }
-
+        // Was scraped out of the web client's `emotes.js`; now read from `server/emotes.js`
+        // so the server does not depend on `client/` (PLAN.md §8).
+        this.validEmotes = [...VALID_EMOTES];
+        console.log(`[AI] Loaded ${this.validEmotes.length} valid emotes for AI configuration.`);
     }
 
     appendEvent(mapId, npcId, message) {

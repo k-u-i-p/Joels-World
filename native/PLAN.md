@@ -14,7 +14,7 @@ The existing client is ~10k lines of JavaScript:
 |---|---|---|---|
 | Bootstrap, camera, main loop | `client/public/src/main.js` | 845 | three.js scene, SSAO composer, camera orbit, spring |
 | Character rendering | `client/public/src/characters.js` | 1406 | Procedural rig, 2-bone IK, GLB heads/shoes, clip-mask shader |
-| Admin tooling | `client/public/src/admin.js` | 1464 | Object/NPC editor — **out of scope**, see §7 |
+| Admin tooling | `client/public/src/admin.js` | 1464 | Object/NPC editor — **ported to a macOS app in Phase 9**, see §7 |
 | Tennis minigame | `client/public/src/minigames/tennis.js` | 2160 | 2D canvas game |
 | Emotes | `client/public/src/emotes.js` | 914 | 20 emotes, each poses the 3D rig |
 | Tag minigame | `client/public/src/minigames/tag.js` | 591 | |
@@ -91,24 +91,49 @@ without adjustment:
 
 ## 4. Module map
 
+Two apps share one engine. `Engine/` is platform-neutral — it imports Foundation, Metal and
+Core Graphics but never UIKit or AppKit — and is a filesystem-synchronized group belonging to
+**both** targets. Each app folder belongs to its own target only, so the platform boundary is
+structural rather than a list of per-file exceptions.
+
 ```
-native/JoelsWorld/
-  App/        AppDelegate, GameViewController (MTKView host), GameLoop
-  Core/       Math (float4x4 helpers), Color, Log
-  Net/        NetworkClient (URLSessionWebSocketTask), Protocol (Codable), SessionStore
-  World/      GameState, MapManager, Physics, ClipMask, EventInterpreter, NPCBehaviour
-  Render/     Renderer, Camera, TextureCache, ChunkLayer, Shaders.metal, GLTFLoader
-  Entity/     CharacterRig, IKSolver, Emotes, EmoteProps
-  World/Minigames/  Minigame (the map-`import` handover), TennisGame
-  Input/      Joystick, KeyboardInput
-  UI/         Lobby, Chat, Nameplates, Dialogs (UIKit over the Metal layer),
-              Canvas2D + Character2D + Minigames/TennisView (the 2D surface tennis draws on),
-              EmojiImage (bundled-SVG fallback where the platform cannot draw emoji)
-  Audio/      SoundManager (AVAudioEngine)
+native/
+  Engine/                       ← shared by both targets
+    Core/       Math (float4x4 helpers), Color, Log, Config, InputState, WalkTest
+    Net/        NetworkClient (URLSessionWebSocketTask), Protocol (Codable), SessionStore
+    World/      GameState, MapManager, Physics, ClipMask, EventInterpreter, NPCBehaviour,
+                SVGRasterizer, Minigames/ (the map-`import` handover, TennisGame)
+    Render/     Renderer, Camera, TextureCache, Lighting, PropRenderer, Shaders.metal,
+                GLTFLoader, MeshFactory, ModelStore, CharacterRenderer
+    Entity/     CharacterRig, IKSolver, Emotes, EmoteProps
+
+  JoelsWorld/                   ← the iOS game target
+    App/        AppDelegate, SceneDelegate, GameViewController (MTKView host)
+    Input/      Joystick
+    UI/         Lobby, Chat, Nameplates, Dialogs (UIKit over the Metal layer),
+                Canvas2D + Character2D + Minigames/TennisView (tennis's 2D surface),
+                EmojiImage (bundled-SVG fallback where the platform cannot draw emoji)
+    Audio/      SoundManager (AVAudioEngine)
+    Resources/  pricedown.otf, emoji/
+
+  JoelsWorldAdmin/              ← the macOS editor target
+    App/        main.swift, AdminAppDelegate, AdminWindowController,
+                AdminRootViewController (split view), AdminSession, AdminMessage
+    Editor/     AdminMapViewController (the ported mouse handlers), AdminEditorView,
+                AdminOverlayView (the ported `adminDraw`), EditorSelection,
+                AdminSelfTest, AdminScreenshot
+    Inspector/  AdminSidebarView, ObjectInspectorView, NPCInspectorView, EventEditorView,
+                AdminControls
 ```
 
-Renderer-agnostic layers (`Net`, `World`, `Entity` logic, `Input`) hold no Metal types,
-so they stay testable and portable if the renderer choice is revisited.
+Renderer-agnostic layers (`Net`, `World`, `Entity` logic) hold no Metal types, so they stay
+testable and portable if the renderer choice is revisited.
+
+**Only four places in `Engine/` are platform-conditional**, all of them small:
+`CharacterRenderer`'s ❤️ sprite (UIKit image renderer on iOS, Core Text on macOS),
+`SessionStore` (Keychain on iOS, `UserDefaults` on macOS — the file-based macOS keychain
+prompts on every rebuild), and nothing else. `ClipMask` moved from `UIImage(data:)` to
+`CGImageSourceCreateWithData`, which is cross-platform and needed no branch.
 
 ## 5. Asset pipeline
 
@@ -154,13 +179,24 @@ The session token moves from Capacitor `Preferences` to the **Keychain**.
 | **6. Emotes** | 20 emotes posing the rig, their props, sounds and chat lines | **done** (limb targets and prop transforms match `emotes.js` to 4 dp) |
 | **7. Minigames** | Tennis (2160 lines) | **done** (a 2D canvas game, so it brought a `CanvasRenderingContext2D` work-alike and an extended SVG rasteriser rather than renderer work) |
 | **7b. Tag** | Tag (591 lines) | **deferred** — decided by the user on 2026-08-08: the game is being reworked first. See `PROGRESS.md` for what a future port needs |
-| **8. Retire web** | Delete `client/`, move `physics.js` server-side (see below), strip static hosting | |
+| **9. macOS admin app** | `admin.js` ported to a native Mac editor on the shared engine | **done** — see `PROGRESS.md` |
+| **8. Retire web** | Delete `client/`, move the asset tree under `server/`, strip static hosting | emote-list coupling resolved; asset move and deletion outstanding |
 
-**Not being ported:** `admin.js` (1464 lines). It is a desktop authoring tool driven by
-mouse and keyboard, not gameplay. **Decided (2026-08-07): it stays a web page** served by
-the Node server, which keeps the object/NPC editor working without an iPad-sized native
-editor. Phase 8 deletes the *game* client only — the admin page and whatever it needs
-survive.
+### `admin.js`: superseded decision
+
+**2026-08-07 (superseded):** admin stays a web page, served by the Node server.
+
+**2026-08-08 (current, user's decision):** *"The admin editor becomes a Mac Desktop app, then
+the Three.js renderer can be removed entirely."* `admin.js` is ported to `JoelsWorldAdmin`, a
+native AppKit target in the same Xcode project, reusing the Swift/Metal engine for the map
+view. This is what unblocks Phase 8 completely: with no web surface left, `client/` can go in
+its entirety rather than being kept alive for the editor.
+
+**Why AppKit rather than Mac Catalyst.** The engine was already free of UIKit outside the
+`UI/` folder, so the shared code cost nothing to bring across; the editor's UI is new code
+either way, since none of the game's touch HUD belongs in it; and the editor is a
+mouse-and-keyboard tool — drag, shift-click, ⌘C/⌘V, scroll-to-zoom, drag-and-drop — which
+Catalyst renders in an iPad idiom.
 
 ## 8. Phase 8 decoupling (physics.js — done)
 
@@ -176,13 +212,17 @@ lives at `server/physics.js`** and is the single source of truth for both runtim
 The module keeps no imports and touches no DOM at module scope; `loadClipMask` is
 browser-only and no-ops under Node.
 
-`native/JoelsWorld/World/Physics.swift` is a port of this file — the two must be kept
+`native/Engine/World/Physics.swift` is a port of this file — the two must be kept
 behaviourally identical while both exist.
 
 ### Remaining `server/` → `client/` couplings (for Phase 8)
 
-| Reference | What it needs | Resolution |
+| Reference | What it needs | Status |
 |---|---|---|
-| `static.js:13`, `AIAgentManager.js:46` | parses `client/public/src/emotes.js` for the valid-emote list | **unblocked** — `Entity/Emotes.swift` is now the native source of truth. Move the list into `server/` when `client/` is deleted; until then the two must not drift |
-| `scripts/slice_maps.js`, `create_overlays.js`, `generate_minimaps.js` | `client/public` as the asset root | move the asset tree under `server/` |
-| `static.js:45-54` | serves the web client | deleted with the client, except what `admin.html` needs |
+| `static.js`, `AIAgentManager.js` | the valid-emote list | **done (2026-08-08)** — `server/emotes.js` holds the 20 names; neither file reads `client/` any more. Keep it in step with `Entity/Emotes.swift`, which owns the poses |
+| `scripts/slice_maps.js`, `create_overlays.js`, `generate_minimaps.js` | `client/public` as the asset root | outstanding — move the 264 MB asset tree under `server/` |
+| `static.js:34-43` | serves the web client and the asset tree from `client/public` | outstanding — the asset mounts stay (the iOS app streams tiles, models and audio over them), the `/src` mount and the `admin.html` route go |
+| `views/index.ejs` | the game page and the admin panel markup | outstanding — deleted with the client; the macOS editor replaces `admin.html` |
+
+No *code-level* coupling is left: everything above is "point at wherever the assets live",
+which the asset move resolves in one step.
