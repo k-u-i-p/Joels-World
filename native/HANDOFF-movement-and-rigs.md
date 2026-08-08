@@ -11,19 +11,79 @@ to be modelled properly, joints and all, and then for **one shared set of classe
 character movement in every minigame, with nothing else anywhere manipulating limbs or tracking
 velocity**). `server/**` and `JoelsWorld.xcodeproj/**` are untouched.
 
-**Four sessions so far.**
+**Five sessions so far.**
 - Session 1 built `Locomotion` and the lateral stride.
 - Session 2 pushed the gait out to every character, made NPCs deterministic, added `-selftest`,
   and rebuilt the character mesh.
 - Session 3 built **`CharacterMotor`**, moved every character in the game onto it, gave the rig
   hands with thumbs and a waist that twists, and made the jump real.
-- Session 4 — this one — made the **stick analogue** so speed is variable from a walk to a
-  sprint, taught the rig to **counteract its own inertia** (a bracing step, a counterweight, a
-  waist that trails a turn), and **re-authored the arms as joint angles** so the elbow works.
+- Session 4 made the **stick analogue** so speed is variable from a walk to a sprint, taught the
+  rig to **counteract its own inertia** (a bracing step, a counterweight, a waist that trails a
+  turn), and **re-authored the arms as joint angles** so the elbow works.
+- Session 5 — this one — did the same to the **legs**, which was open item 10. The knee is a
+  control, the walk's bounce is derived from the geometry instead of tuned, and the stride is a
+  pure function the self-test can walk through a whole cycle.
 
 Read "Where it stands" before picking anything up. **Read "Traps" before running anything.**
 
 ---
+
+## Part 0a — Session 5: the legs, and where a foot actually goes
+
+### `legTarget`, and why the knee was never a control
+
+Exactly the argument `armTarget` made a session earlier, and the legs were in worse shape than
+the arms were. `neutralLeftFoot` puts its ankle **20.80 from the hip against a 21.70 reach** — a
+standing leg is at 96% of full extension — and a full-throttle stride asked for 26, which
+`IKSolver.solve` pulled silently back onto the reach sphere (trap 2). That clamp is why the foot
+*rose* as the stride lengthened. It read as a high-kneed sprint and the handoff called it luck
+rather than control; it was.
+
+`CharacterRig.legTarget(hip:swing:sideways:flex:)` is `armTarget` with one difference: the leg's
+two bones are **not** equal — a 12-unit thigh and a 9.7-unit shin — so the span is the law of
+cosines, `√(t² + s² + 2ts·cos flex)`, rather than the arms' `2·b·cos(flex/2)`. Both reduce to the
+same thing when the bones match. It returns a **foot** target (the ankle less `ankleLift`, which
+used to be a bare 2.3 down in the IK block and now has a name), so emotes and `CharacterMotor`
+are untouched.
+
+The knee is now what lifts the foot: `flex` peaks mid-swing, where a heel really does come up
+under the hip, and unfolds at both ends of the stride. A walk peaks at about 60° and a sprint at
+118°. The old `foot.z += 11` put a walk at 99° and had no way at all to tell the two apart,
+because the number it moved was a *height* and the knee was whatever fell out of it.
+
+### The compass problem, and the two terms that solve it
+
+**A leg swung about a fixed-length hip sweeps its foot round an arc, so the foot climbs at both
+extremes.** This is the thing that makes an angle-driven leg harder than an angle-driven arm — an
+arm has nowhere to be, a foot has the floor. Left alone, the feet ride up to four units off the
+ground at a sprint. Two terms:
+
+1. **The stance knee straightens into the extremes** (`straighten`, in `strideLegs`). A person's
+   standing leg is not at full extension mid-stride and *is* at the ends; the knee pays for the
+   arc. This is most of the fix, and it is also why `strideSwing` came down from a first guess of
+   0.45 to 0.40 — past about 0.5 rad no amount of knee can keep the foot down, because the leg is
+   not long enough.
+2. **The pelvis drops by whatever is left** (`groundContactSink`). The lower foot lands on the
+   floor and the body follows it down.
+
+That second one **replaced the walk's hand-tuned bounce**, which was `cos(2·phase) × 0.5` in the
+walk cycle. The derived version has the same shape and the same phase — it just isn't a guess:
+about 0.6 of a unit at a walk, 1.5 at a sprint, nothing at mid-stance. The bob term that is left
+in `pose` is only `run × 1.8`, which is the part a run does that a walk does not: leave the
+ground. The sink is scaled back by `run` for the same reason — pinning the lower foot to the
+floor at a sprint would take the flight phase away.
+
+### `strideLegs` is a function now
+
+The walk cycle's legs came out of `pose` into `CharacterRig.strideLegs(phase:forward:lateral:run:effort:)`,
+returning both legs' `LegAngles`. Not for tidiness: **the contact promise is a claim about a whole
+stride, and nothing inside a function that draws one frame can check it.** The self-test now walks
+the stride through 48 phases × 12 throttles × 5 run levels and measures what the feet do — and it
+caught the four-unit float above on the first run, which no screenshot of any single frame would
+have. If you touch the stride, that sweep is the thing that tells you whether you broke it.
+
+Anything that is not the stride — the brace step, the braking check, the knee bend that absorbs a
+stop — is still applied on top in `pose`, as angles.
 
 ## Part 0 — Session 4: analogue speed, and limbs that fight the inertia
 
@@ -332,7 +392,7 @@ of travel). Call `faceTowards` **after** them, not before. Tennis's `run(_:dt:)`
 | `Engine/Core/Deterministic.swift` | `DeterministicRandom` — SplitMix64. |
 | `Engine/Core/LocomotionSelfTest.swift` | The 67 assertions behind `-selftest`. |
 | `Engine/Core/WalkTest.swift` | Every launch argument. |
-| `Engine/Entity/CharacterRig.swift` | Anatomy (bones, joint radii, the lathed profiles, `Hand`), the neutral limb targets the motor starts from, **`armTarget` and the neutral arm angles**, and `pose(...)` — which is where the walk cycle, the run shaping and the whole counteract-the-inertia block live. |
+| `Engine/Entity/CharacterRig.swift` | Anatomy (bones, joint radii, the lathed profiles, `Hand`), the neutral limb targets the motor starts from, **`armTarget` / `legTarget` and the neutral joint angles**, **`strideLegs`** and **`groundContactSink`**, and `pose(...)` — which is where the walk cycle, the run shaping and the whole counteract-the-inertia block live. |
 | `Engine/Entity/IKSolver.swift` | Two-bone IK, `segmentTransform`, and `basis(alongY:rolledTowards:)`. |
 | `Engine/Entity/Emotes.swift` | `RigMutation`, including `chestTwist`. |
 | `Engine/Render/MeshFactory.swift` | `revolved`, `limb`, and the new `merge` / `translated` / `mirroredInX`. |
@@ -394,7 +454,12 @@ xcrun simctl spawn booted log stream --level info --predicate 'subsystem == "com
 - **The rig counteracts its own inertia**: a bracing step, a hand counterweight, feet planted
   ahead to brake, a waist that trails a turn and a head that leads it (session 4).
 - **The arms are posed by joint angle and the elbow works** (session 4).
-- `-selftest`: **100 assertions, all passing.** Both targets build.
+- **The legs are posed by joint angle and the knee works** (session 5). Nothing in the walk cycle
+  moves a limb by displacement any more — `pose` writes hand and foot targets exactly twice, both
+  out of angles.
+- **The walk's bounce is derived rather than tuned** (session 5): the pelvis drops by however far
+  the planted foot would otherwise float.
+- `-selftest`: **118 assertions, all passing.** Both targets build.
 - `-walktest` now sweeps the throttle as well as the heading, and logs the gait each half
   second: `speed`, `intensity`, `run`, `fwd`, `lat`, `brace`, `turn`. A 30-second run over the
   new build showed speed tracking the throttle from 55 to 215, `run` ramping 0→0.99, and
@@ -406,13 +471,21 @@ xcrun simctl spawn booted log stream --level info --predicate 'subsystem == "com
 
 ### Open
 
-1. **Tennis has not been A/B'd against `main`.** Session 3 ran the bot on the new build and saw
-   serves connect, rallies of three and four shots, and points decided both ways — it plays. But
-   the baseline comparison was never completed (the run was cut short), so *how often* a
-   groundstroke is missed now versus before is unmeasured. Misses of 0.65–0.80 m against a 0.45 m
-   sweet spot showed up in the new build's log; whether `main` shows the same is the open
-   question. `grep -c STRIKE` / `grep -c MISS` over a 100-second `-tennis3ddemo` run on each is
-   the measurement. **Do this before trusting the tennis tuning.**
+1. **The tennis A/B has no baseline left to run against.** This was written as "A/B it against
+   `main`", but the `CharacterMotor` work it wanted compared has been on `main` for two sessions,
+   so there is no pre-motor build to be the control any more. What there is instead is a run of
+   the same measurement on each session's build:
+
+   | Session | 100 s `-tennis3ddemo` |
+   |---|---|
+   | 4 | 34 STRIKE / 1 MISS |
+   | 5 | **36 STRIKE / 1 MISS** |
+
+   `grep -c STRIKE` / `grep -c MISS` over a 100-second run is the measurement, and it is worth
+   taking on every session that touches the rig — it is the only end-to-end number in the tree
+   that notices if a limb quietly stops arriving where it was asked to. **Note that session 5's
+   run also carried uncommitted tennis changes that were already in the working tree**, so it is
+   not a clean measurement of the leg work alone.
 
 2. **The hand has not been looked at up close in the tennis camera.** It reads correctly in the
    overworld at `-pitch 1.25` — wrist, palm, fingers, thumb, mirrored the right way. The thumbs
@@ -448,12 +521,12 @@ xcrun simctl spawn booted log stream --level info --predicate 'subsystem == "com
 9. **`moveFootTo` has no callers.** The machinery is identical to a hand and it is there so a
    minigame can plant a foot; nothing does yet.
 
-10. **The legs have not had the arms' treatment.** They are still swung by displacement, so they
-    are still clamped: `neutralLeftFoot` is 20.8 from its hip against a 21.3 reach, and at a
-    full sprint stride the ask is 26 — the IK pulls it back onto the reach sphere, which is why
-    the foot rises as the stride extends. It happens to read as a high-kneed sprint and is not
-    obviously wrong, but it is luck rather than control. A `legTarget(hip:swing:sideways:flex:)`
-    alongside `armTarget` is the same twenty lines, and would make the knee a control.
+10. ~~The legs have not had the arms' treatment.~~ **Done in session 5** — see Part 0a. What is
+    left of it: the stride's numbers (`strideSwing` 0.40, `straighten` 0.53, `liftFlex`
+    0.88 + run·0.60) were chosen against the self-test's contact sweep and then eyeballed at
+    `-pitch 1.3`, but nobody has watched a **sprint side-on at close range**, which is where a
+    stride angle either reads or doesn't. The self-test says the feet stay on the floor; whether
+    a 20-unit step *looks* like a sprint is a different question and Joel is the one to ask.
 
 11. **The gait's waist twist composes with the tennis coil.** `Tennis3DGame+Players` does
     `mutation.chestTwist += signedCoil` in its override, so a running tennis player now gets the
@@ -470,6 +543,17 @@ xcrun simctl spawn booted log stream --level info --predicate 'subsystem == "com
 13. **The run band is untuned by anybody but me.** `runThreshold` 0.55, the joystick's
     `minThrottle` 0.28 and the `0.28…1` mapping are first guesses at what feels right under a
     thumb. Joel is the person to ask whether pushing the stick two-thirds over should be a run.
+
+14. **The emote foot poses have not been re-checked since the legs changed.** Emotes write foot
+    *positions* straight into `RigMutation`, which still works and is still unclamped-by-nobody —
+    the same silent-clamp exposure trap 2 describes, now the only place in the walk path left
+    with it. A pose that reaches further than 21.7 from a hip will be moved and say nothing. This
+    is the leg version of open item 5 and it is worth doing them in one pass.
+
+15. **The `-walktest` log says nothing about the legs.** It carries `speed`, `intensity`, `run`,
+    `fwd`, `lat`, `brace` and `turn`, all of which are `Gait` — nothing about what the rig did
+    with them. A knee angle and the ground-contact sink in that line would have made session 5's
+    float visible from a log instead of from a self-test sweep, and would catch the next one.
 
 ---
 

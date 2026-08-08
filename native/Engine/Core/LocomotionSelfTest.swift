@@ -785,6 +785,202 @@ enum LocomotionSelfTest {
         check("and a hanging arm hangs down",
               CharacterRig.armTarget(shoulder: .zero, swing: 0, sideways: 0, flex: 0.5).z < 0)
 
+        // MARK: Legs, by angle
+
+        // The same contract as the arms, one session later, with one extra wrinkle: the leg's
+        // two bones are different lengths, so the span is the law of cosines rather than the
+        // arms' `2·b·cos(flex/2)`.
+        let neutralLegByAngle = CharacterRig.legTarget(hip: CharacterRig.leftHip,
+                                                       swing: CharacterRig.neutralLegSwing,
+                                                       sideways: -CharacterRig.neutralLegSideways,
+                                                       flex: CharacterRig.neutralLegFlex)
+        check("the neutral leg angles rebuild the neutral foot",
+              simd_length(neutralLegByAngle - CharacterRig.neutralLeftFoot) < 0.01,
+              "got \(neutralLegByAngle), wanted \(CharacterRig.neutralLeftFoot)")
+        check("and the mirrored ones rebuild the other foot",
+              {
+                  let other = CharacterRig.legTarget(hip: CharacterRig.rightHip,
+                                                     swing: CharacterRig.neutralLegSwing,
+                                                     sideways: CharacterRig.neutralLegSideways,
+                                                     flex: CharacterRig.neutralLegFlex)
+                  return simd_length(other - CharacterRig.neutralRightFoot) < 0.01
+              }())
+
+        // The whole range, swept, measured **at the ankle** — which is what `IKSolver.solve`
+        // actually gets handed, and what it would silently move somewhere else.
+        let legReachMax = CharacterRig.thighBone + CharacterRig.shinBone
+        func legReach(swing: Float, sideways: Float, flex: Float) -> Float {
+            var ankle = CharacterRig.legTarget(hip: CharacterRig.leftHip,
+                                               swing: swing, sideways: sideways, flex: flex)
+            ankle.z += CharacterRig.ankleLift
+            return simd_length(ankle - CharacterRig.leftHip)
+        }
+        check("no leg angle can put a foot out of reach",
+              {
+                  var worst: Float = 0
+                  for swingStep in -11...11 {
+                      for sideStep in -6...6 {
+                          for flexStep in 0...24 {
+                              worst = max(worst, legReach(swing: Float(swingStep) * 0.1,
+                                                          sideways: Float(sideStep) * 0.1,
+                                                          flex: Float(flexStep) * 0.1))
+                          }
+                      }
+                  }
+                  return worst <= legReachMax + 0.001
+              }(),
+              "a swept leg reached past \(legReachMax)")
+
+        // And never so folded that the IK's *minimum* separation kicks in either — that clamp is
+        // just as silent as the far one, and a knee is the joint most likely to hit it.
+        check("nor so folded that the knee collapses",
+              legReach(swing: 0, sideways: 0, flex: 2.4)
+                > abs(CharacterRig.thighBone - CharacterRig.shinBone) + 0.02,
+              "reach \(legReach(swing: 0, sideways: 0, flex: 2.4))")
+
+        check("a locked knee spans both bones",
+              abs(legReach(swing: 0, sideways: 0, flex: 0) - legReachMax) < 0.001,
+              "reach \(legReach(swing: 0, sideways: 0, flex: 0))")
+        check("the neutral leg is very nearly straight — which is why it used to clamp",
+              legReach(swing: 0, sideways: 0, flex: CharacterRig.neutralLegFlex) > legReachMax * 0.95,
+              "reach \(legReach(swing: 0, sideways: 0, flex: CharacterRig.neutralLegFlex))")
+        check("and a walk's mid-swing knee brings the foot up off the floor",
+              {
+                  let planted = CharacterRig.legTarget(hip: CharacterRig.leftHip, swing: 0,
+                                                       sideways: 0,
+                                                       flex: CharacterRig.neutralLegFlex)
+                  let lifted = CharacterRig.legTarget(hip: CharacterRig.leftHip, swing: 0,
+                                                      sideways: 0,
+                                                      flex: CharacterRig.neutralLegFlex + 0.88)
+                  return lifted.z - planted.z > 3 && lifted.z - planted.z < 9
+              }(),
+              "lift of \(CharacterRig.legTarget(hip: CharacterRig.leftHip, swing: 0, sideways: 0, flex: CharacterRig.neutralLegFlex + 0.88).z - CharacterRig.neutralLeftFoot.z)")
+
+        // Same frame as everything else. A knee that bends the wrong way is the leg version of
+        // the mirrored-animation bug this whole file exists to catch.
+        check("positive swing puts the foot in front of the hip",
+              CharacterRig.legTarget(hip: .zero, swing: 0.6, sideways: 0, flex: 0.5).x > 0)
+        check("positive sideways puts it on the character's left",
+              CharacterRig.legTarget(hip: .zero, swing: 0, sideways: 0.6, flex: 0.5).y > 0)
+        check("and a standing leg stands under its hip",
+              {
+                  let foot = CharacterRig.legTarget(hip: .zero, swing: 0, sideways: 0, flex: 0.5)
+                  return foot.z < 0 && abs(foot.x) < 0.001 && abs(foot.y) < 0.001
+              }())
+
+        // MARK: The stride, over a whole cycle
+
+        // These are claims about the *whole* stride, which is why `strideLegs` is a function
+        // rather than twenty lines inside `pose`. Walking one cycle at a time is the only way to
+        // catch a foot that floats, a foot that sinks, or a knee that only misbehaves at one
+        // phase — none of which shows up in a screenshot of one frame.
+        func posed(phase: Float, forward: Float, lateral: Float = 0, run: Float, effort: Float)
+            -> (left: SIMD3<Float>, right: SIMD3<Float>, angles: (right: CharacterRig.LegAngles,
+                                                                  left: CharacterRig.LegAngles)) {
+            let legs = CharacterRig.strideLegs(phase: phase, forward: forward, lateral: lateral,
+                                               run: run, effort: effort)
+            return (CharacterRig.legTarget(hip: CharacterRig.leftHip, swing: legs.right.swing,
+                                           sideways: legs.right.sideways, flex: legs.right.flex),
+                    CharacterRig.legTarget(hip: CharacterRig.rightHip, swing: legs.left.swing,
+                                           sideways: legs.left.sideways, flex: legs.left.flex),
+                    legs)
+        }
+
+        // **The contact promise.** `pose` sinks the body by `groundContactSink` so the lower foot
+        // lands on the floor instead of riding up the arc a swinging leg sweeps. That correction
+        // is capped at 3 units, and a cap that bites is a character floating or sinking — so the
+        // real assertion is that it never gets close to biting anywhere in the range.
+        check("the ground-contact sink never reaches its cap",
+              {
+                  var worst: Float = 0
+                  for throttleStep in 1...12 {
+                      let throttle = Float(throttleStep) * 0.1
+                      for runStep in 0...4 {
+                          for phaseStep in 0..<48 {
+                              let legs = posed(phase: Float(phaseStep) * .pi / 24,
+                                               forward: throttle,
+                                               run: Float(runStep) * 0.25,
+                                               effort: min(1.2, throttle))
+                              let sink = CharacterRig.groundContactSink(leftFoot: legs.left,
+                                                                       rightFoot: legs.right)
+                              worst = max(worst, abs(sink))
+                          }
+                      }
+                  }
+                  return worst < 2.6
+              }(),
+              "the sink came within 0.4 of its 3-unit cap")
+
+        // And in the range a character actually spends its time, the correction is a **bob**, not
+        // a lurch: under a unit at a walk. That number is not tuned, it falls out of the leg's
+        // geometry — which is the whole argument for deriving it rather than authoring it.
+        check("a walk's pelvic drop is under a unit",
+              {
+                  var worst: Float = 0
+                  for phaseStep in 0..<48 {
+                      let legs = posed(phase: Float(phaseStep) * .pi / 24, forward: 0.5,
+                                       run: 0, effort: 0.5)
+                      worst = max(worst, abs(CharacterRig.groundContactSink(leftFoot: legs.left,
+                                                                           rightFoot: legs.right)))
+                  }
+                  return worst < 1
+              }())
+
+        // A walk's knee and a sprint's knee are different knees. This is the whole point of the
+        // rewrite: the old formulation moved a *height* and the knee was whatever fell out of it,
+        // so there was no number in the game that could tell the two apart.
+        func peakKnee(forward: Float, run: Float) -> Float {
+            var peak: Float = 0
+            for phaseStep in 0..<48 {
+                let legs = posed(phase: Float(phaseStep) * .pi / 24, forward: forward,
+                                 run: run, effort: min(1.2, forward))
+                peak = max(peak, max(legs.angles.right.flex, legs.angles.left.flex))
+            }
+            return peak
+        }
+        let walkKnee = peakKnee(forward: 0.5, run: 0)
+        let sprintKnee = peakKnee(forward: 1, run: 1)
+        check("a walk's knee peaks around 60°",
+              walkKnee > 0.85 && walkKnee < 1.25, "\(walkKnee) rad")
+        check("a sprint's is nearly twice that",
+              sprintKnee > 1.9 && sprintKnee < 2.4, "\(sprintKnee) rad")
+        check("and standing still bends neither",
+              peakKnee(forward: 0, run: 0) == CharacterRig.neutralLegFlex)
+
+        // Left and right have to be the same stride half a cycle apart, or the character limps.
+        check("the two legs are one stride, half a cycle apart",
+              {
+                  for phaseStep in 0..<24 {
+                      let phase = Float(phaseStep) * .pi / 12
+                      let here = CharacterRig.strideLegs(phase: phase, forward: 0.8, lateral: 0,
+                                                         run: 0.4, effort: 0.8)
+                      let opposite = CharacterRig.strideLegs(phase: phase + .pi, forward: 0.8,
+                                                             lateral: 0, run: 0.4, effort: 0.8)
+                      if abs(here.right.flex - opposite.left.flex) > 1e-5 { return false }
+                      if abs(here.right.swing - opposite.left.swing) > 1e-5 { return false }
+                  }
+                  return true
+              }())
+
+        // The stride grows with the throttle. It could not before: `forward` was pinned at ~1
+        // whatever speed the character was doing, so a walk was a sprint played slowly.
+        func strideSpan(forward: Float, run: Float) -> Float {
+            var lowest: Float = .greatestFiniteMagnitude, highest: Float = -.greatestFiniteMagnitude
+            for phaseStep in 0..<48 {
+                let legs = posed(phase: Float(phaseStep) * .pi / 24, forward: forward,
+                                 run: run, effort: min(1.2, forward))
+                lowest = min(lowest, legs.left.x)
+                highest = max(highest, legs.left.x)
+            }
+            return highest - lowest
+        }
+        check("a full-throttle stride is longer than a dawdle's",
+              strideSpan(forward: 1, run: 1) > strideSpan(forward: 0.3, run: 0) * 2.5,
+              "\(strideSpan(forward: 1, run: 1)) against \(strideSpan(forward: 0.3, run: 0))")
+        check("and a sprint's step is about twenty units",
+              strideSpan(forward: 1, run: 1) > 17 && strideSpan(forward: 1, run: 1) < 26,
+              "\(strideSpan(forward: 1, run: 1))")
+
         // MARK: Frames, once more with the motor
 
         // The same sign convention the rig uses, now going through the motor's own converter.

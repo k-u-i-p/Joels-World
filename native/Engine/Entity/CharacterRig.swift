@@ -375,6 +375,155 @@ enum CharacterRig {
     static let neutralArmSideways: Float = 0.37533
     static let neutralArmFlex: Float = 0.54558
 
+    // MARK: - Legs, by angle rather than by displacement
+
+    /// How far the ankle rides above the foot target, so the calf does not punch through the
+    /// shoe. It used to be a bare 2.3 down in the IK block; `legTarget` needs the same number to
+    /// know what it is aiming at, so it has a name now.
+    static let ankleLift: Float = 2.3
+
+    /// **Where a leg points and how bent its knee is**, turned into a foot target.
+    ///
+    /// The same argument as `armTarget`, one session later. The walk cycle swung a leg by pushing
+    /// its foot through space — `foot.x += legSwing * 23` — and the legs were in exactly the
+    /// state the arms were: `neutralLeftFoot` puts its ankle **20.80 from the hip against a
+    /// 21.70 reach**, so a standing leg is at 96% of full extension, and a full-throttle stride
+    /// asked for 26. `IKSolver.solve` pulled that back onto the reach sphere without saying so
+    /// (trap 2 in the handoff), which is why the foot *rose* as the stride lengthened. It read as
+    /// a high-kneed sprint and it was luck, not control: nothing in the tables could ask for a
+    /// knee angle, so nothing could tell a walk's knee from a sprint's.
+    ///
+    /// The legs' two bones are **not** equal — a 12-unit thigh and a 9.7-unit shin — so the span
+    /// is the law of cosines rather than the arms' `2·b·cos(flex/2)`. Both reduce to the same
+    /// thing when the bones match.
+    ///
+    /// Returns a **foot** target, i.e. `ankleLift` below the ankle the angles describe, because
+    /// that is what the rest of `pose` and every emote already work in.
+    ///
+    /// - Parameters:
+    ///   - swing: sagittal, radians. 0 hangs straight down, positive swings the foot forward.
+    ///   - sideways: radians from straight down towards the character's **left** (local +Y).
+    ///     Signed absolutely, exactly as `armTarget`'s is.
+    ///   - flex: how far the knee is from straight, radians. 0 is locked out. A knee only bends
+    ///     one way, and this is that way.
+    static func legTarget(hip: SIMD3<Float>,
+                          swing: Float,
+                          sideways: Float,
+                          flex: Float) -> SIMD3<Float> {
+        let bend = min(max(flex, 0), 2.4)
+        let reach = (thighBone * thighBone + shinBone * shinBone
+                     + 2 * thighBone * shinBone * cos(bend)).squareRoot()
+        let sideCos = cos(sideways), sideSin = sin(sideways)
+        let swingCos = cos(swing), swingSin = sin(swing)
+        let direction = SIMD3<Float>(sideCos * swingSin, sideSin, -sideCos * swingCos)
+        return hip + direction * reach - SIMD3<Float>(0, 0, ankleLift)
+    }
+
+    /// The neutral leg in those angles — the decomposition of the ankle under `neutralLeftFoot`,
+    /// which sits 20.80 from the hip, 0.0963 rad forward of vertical, square to the body, on a
+    /// 0.5826 rad knee. `LocomotionSelfTest` pins the round trip, both legs.
+    static let neutralLegSwing: Float = 0.09632
+    static let neutralLegSideways: Float = 0
+    static let neutralLegFlex: Float = 0.58257
+
+    /// One leg's three angles. Named for the character's own sides, not the rig's.
+    struct LegAngles {
+        var swing: Float
+        var sideways: Float
+        var flex: Float
+
+        static let neutral = LegAngles(swing: neutralLegSwing,
+                                       sideways: neutralLegSideways,
+                                       flex: neutralLegFlex)
+    }
+
+    /// **The walk cycle's legs**, as a pure function of the gait.
+    ///
+    /// It is lifted out of `pose` rather than left inline for one reason: the contact promise
+    /// below it — that the lower foot lands on the floor rather than floating up the arc a
+    /// swinging leg sweeps — is a claim about the whole stride, and there is no way to check a
+    /// claim about a whole stride from inside a function that draws one frame of it. This one
+    /// takes numbers and returns numbers, so `LocomotionSelfTest` can walk it through a full
+    /// cycle at every throttle and measure what the feet do.
+    ///
+    /// `right` is the leg whose foot target is `neutralLeftFoot` — the rig's names run the other
+    /// way round, see the note in `Gait`.
+    static func strideLegs(phase: Float,
+                           forward: Float,
+                           lateral: Float,
+                           run: Float,
+                           effort: Float) -> (right: LegAngles, left: LegAngles) {
+        var right = LegAngles.neutral
+        var left = LegAngles.neutral
+        left.sideways = -left.sideways
+
+        let legSwing = sin(phase)
+        let legVelocity = cos(phase)
+        // The stride's amplitude, not the character's speed: `Gait.forward` runs to 1.4 on an
+        // overspeed frame and a leg swung that far leaves the floor no matter what the knee does.
+        let drive = min(max(forward, -1), 1)
+
+        // 0.40 rad either side of the hang puts about 11 units of foot in front of the hip and 9
+        // behind at full throttle — a 20-unit stride, which is what the old 23-unit ask *drew*
+        // once the IK had clamped it back onto the reach sphere.
+        let strideSwing: Float = 0.40 + run * 0.10
+        // Feet stay inside the hips' 12-unit separation, so a side-step shuffles rather than
+        // crossing its own legs over. 0.26 rad on a 20.8-unit leg is the old 5.5 units.
+        let strideSideways: Float = 0.26
+
+        right.swing += legSwing * strideSwing * drive
+        left.swing -= legSwing * strideSwing * drive
+
+        right.sideways += legSwing * strideSideways * lateral
+        left.sideways -= legSwing * strideSideways * lateral
+
+        // **The stance knee straightens as the leg reaches the ends of its stride**, and this is
+        // the term that makes an angle-driven leg work at all. A leg swung about a fixed-length
+        // hip sweeps its foot round an arc, so the foot climbs at both extremes — the compass
+        // problem. A person's does not, because the standing leg is not at full extension in the
+        // middle of a stride and it *is* at the ends: the knee pays for the arc.
+        //
+        // Without it the feet ride up to four units off the floor at a sprint and the body has to
+        // sink that far to follow, which is a character bobbing like a buoy.
+        let straighten = abs(legSwing) * 0.53 * abs(drive)
+        right.flex = max(0.05, right.flex - straighten)
+        left.flex = max(0.05, left.flex - straighten)
+
+        // **The knee is the tell, and this is the first time it has been one.** A foot does not
+        // leave the ground because something lifted it: the knee folds and the heel comes up
+        // under the hip. The fold peaks mid-swing — `legVelocity` is largest exactly when the leg
+        // is passing under the body — and unfolds to nearly straight at both ends of the stride,
+        // which is what a leg taking weight does.
+        //
+        // A walk peaks at about 63° of knee and a sprint at 115°, which is roughly where people
+        // actually are. The old `foot.z += 11` put a walk at 99° and had no way to tell the two
+        // apart, because the number it moved was a height and the knee was whatever fell out.
+        let liftFlex: Float = 0.88 + run * 0.60
+        right.flex += max(0, legVelocity) * liftFlex * effort
+        left.flex += max(0, -legVelocity) * liftFlex * effort
+
+        // Both legs drift towards the direction of travel, so the whole stance leads the shuffle
+        // rather than the legs scissoring around a stationary centre.
+        right.sideways += lateral * 0.12
+        left.sideways += lateral * 0.12
+
+        return (right, left)
+    }
+
+    /// How far the body has to sink for the lower foot to reach the floor.
+    ///
+    /// A leg posed by angle sweeps its foot round an arc, so the foot **rises at both ends of the
+    /// stride** — the same reason a compass draws a curve and not a line. A person does not float
+    /// up at mid-stride; their pelvis drops instead, and by exactly this much.
+    ///
+    /// This is where the walk's bounce comes from now. It used to be a hand-tuned
+    /// `cos(2·phase) × 0.5` in the walk cycle, which is the same shape and the same phase by
+    /// coincidence rather than by derivation: the geometry produces about a unit of drop at a
+    /// full-throttle stride and nothing at mid-stance, on its own.
+    static func groundContactSink(leftFoot: SIMD3<Float>, rightFoot: SIMD3<Float>) -> Float {
+        min(max(min(leftFoot.z, rightFoot.z) - neutralLeftFoot.z, -3), 3)
+    }
+
     // MARK: - Appearance
 
     /// Deterministic string hash from `getConsistentRandom` (`characters.js:69-77`).
@@ -505,6 +654,13 @@ enum CharacterRig {
         var rightArmSideways = -neutralArmSideways, leftArmSideways = neutralArmSideways
         var rightArmFlex = neutralArmFlex, leftArmFlex = neutralArmFlex
 
+        // **And the legs, the same way**, for the same reasons — see `legTarget`. Named for the
+        // character's sides too, so `rightLeg` is the leg whose foot is `leftFoot`. The stride
+        // itself lives in `strideLegs` so the self-test can walk it through a whole cycle.
+        var rightLeg = LegAngles.neutral
+        var leftLeg = LegAngles.neutral
+        leftLeg.sideways = -leftLeg.sideways
+
         let isWalking = gait.isMoving || gait.phase > 0
 
         // How far into a run this is, 0 walking and 1 flat out. It is the only thing separating
@@ -522,32 +678,34 @@ enum CharacterRig {
         if isWalking {
             let legTimer = Float(gait.phase)
             let effort = Float(min(1.2, max(abs(gait.forward), abs(gait.lateral))))
-            // The bounce deepens into a run: a jog leaves the ground and a walk does not.
+            // The bounce is a **run's** now, not a walk's. A walk's pelvic drop used to be the
+            // 0.5 term here, hand-tuned; it is derived from the legs instead — see the contact
+            // correction below, which lands the same shape and the same phase out of the
+            // geometry. What is left is the part a run does that a walk does not: leave the
+            // ground.
             runtime.bodyPivotPosition.z = bodyPivotHeight
-                + cos(legTimer * 2) * (0.5 + run * 1.8) * effort
+                + cos(legTimer * 2) * run * 1.8 * effort
             runtime.bodyPivotPosition.x = cos(legTimer * 2) * 1.0 * effort
 
-            // applyWalkCycle (`characters.js:981-1001`), split into a forward stride and a
-            // lateral one.
+            // applyWalkCycle (`characters.js:981-1001`), rewritten **as joint angles**: a hip
+            // that swings, a hip that abducts, and — the part that did not exist before — a
+            // knee that bends. See `strideLegs`.
             //
-            // **These amplitudes are a sprint's, not a walk's.** They used to be a walk's,
-            // because a walk was the only thing a character could be doing: `forward` was
-            // pinned at ~1 whatever speed the profile was set to, so the stride could not
-            // scale. Now the stick's throttle decides the speed and `forward` is a real
-            // fraction of top speed, so a stick half over gets half the step — which is where
-            // the walk lives. 23 at `forward` 1 comes back to the old 14 at the ~0.6 a
-            // comfortable walking pace sits at.
+            // The amplitudes are a sprint's, not a walk's, and `forward` scales them. They used
+            // to be a walk's, because a walk was the only thing a character could be doing:
+            // `forward` was pinned at ~1 whatever speed the profile was set to. Now the stick's
+            // throttle decides the speed and `forward` is a real fraction of top speed, so a
+            // stick half over gets half the step — which is where the walk lives.
             let legSwing = sin(legTimer)
-            let legVelocity = cos(legTimer)
-            let legStrideX: Float = 23
-            // Knees come up in a run and barely leave the floor in a walk.
-            let stepLiftZ: Float = 11 + run * 3
-            // Feet stay inside the hips' 12-unit separation, so a side-step shuffles rather
-            // than crossing its own legs over.
-            let legStrideY: Float = 5.5
 
             let forward = Float(gait.forward)
             let lateral = Float(gait.lateral)
+
+            (rightLeg, leftLeg) = strideLegs(phase: legTimer,
+                                             forward: forward,
+                                             lateral: lateral,
+                                             run: run,
+                                             effort: effort)
 
             // The arms swing **about the shoulder**, and the elbow does something.
             //
@@ -584,19 +742,6 @@ enum CharacterRig {
             let heldOut = abs(lateral) * 0.26 - run * 0.10
             rightArmSideways -= heldOut
             leftArmSideways += heldOut
-
-            leftFoot.x += legSwing * legStrideX * forward
-            leftFoot.y += legSwing * legStrideY * lateral
-            leftFoot.z += max(0, legVelocity) * stepLiftZ * effort
-
-            rightFoot.x += -legSwing * legStrideX * forward
-            rightFoot.y += -legSwing * legStrideY * lateral
-            rightFoot.z += max(0, -legVelocity) * stepLiftZ * effort
-
-            // Both feet drift towards the direction of travel, so the whole stance leads the
-            // shuffle rather than the legs scissoring around a stationary centre.
-            leftFoot.y += lateral * 2.5
-            rightFoot.y += lateral * 2.5
 
             // The shoulders counter-rotate against the hips once per step, opposite to the arm
             // swing — the arm going forward belongs to the shoulder coming forward. Without it
@@ -644,25 +789,33 @@ enum CharacterRig {
         let braking = max(0, -Float(gait.leanForward))
         let driving = max(0, Float(gait.leanForward))
 
-        // How far the pushing foot goes out, and how far the other one gets out of its way.
-        let stepOut: Float = 6.5, tuckIn: Float = 2.5
+        // How far the pushing leg abducts, and how far the other one gets out of its way. 0.31
+        // and 0.12 rad are the 6.5 and 2.5 units these used to be, on a 20.8-unit leg.
+        let stepOut: Float = 0.31, tuckIn: Float = 0.12
         if brace > 0 {
-            // Pushed towards the character's left: their right foot plants out to the right.
-            leftFoot.y -= brace * stepOut
-            rightFoot.y -= brace * tuckIn
+            // Pushed towards the character's left: their right leg plants out to the right,
+            // which is towards local −Y, which is a negative `sideways`.
+            rightLeg.sideways -= brace * stepOut
+            leftLeg.sideways -= brace * tuckIn
         } else {
-            let push = -brace
-            rightFoot.y += push * stepOut
-            leftFoot.y += push * tuckIn
+            leftLeg.sideways -= brace * stepOut
+            rightLeg.sideways -= brace * tuckIn
         }
-        // And the hips sink over the braced leg. A change of direction taken with straight legs
-        // is a mannequin being slid sideways.
+        // And the braced knee bends to take the load — the thing a leg posed by displacement
+        // could not be asked for. A cut taken on two locked legs is a mannequin being slid
+        // sideways, and the hips sink with it.
+        rightLeg.flex += abs(brace) * 0.20
+        leftLeg.flex += abs(brace) * 0.20
         runtime.bodyPivotPosition.z -= abs(brace) * 1.5
 
         // Stopping means getting a foot in front of your own weight; starting means leaving both
-        // behind it.
-        leftFoot.x += braking * 5 - driving * 3
-        rightFoot.x += braking * 5 - driving * 3
+        // behind it. Braking also **bends both knees**, because that is what absorbs it: a stop
+        // is taken in the legs, not by sliding to a halt on two straight ones.
+        let checkStep = braking * 0.24 - driving * 0.15
+        rightLeg.swing += checkStep
+        leftLeg.swing += checkStep
+        rightLeg.flex += braking * 0.35
+        leftLeg.flex += braking * 0.35
 
         // The counterweight. Both arms sweep towards the acceleration, which puts the trailing
         // one across the chest and throws the leading one wide — the shape someone cutting
@@ -690,6 +843,29 @@ enum CharacterRig {
                               swing: leftArmSwing,
                               sideways: sideways(leftArmSideways),
                               flex: leftArmFlex)
+
+        // --- The legs become foot targets ---
+        // A hip has far less range than a shoulder: it swings freely fore and aft and hardly
+        // abducts at all, which is why the two caps are so different.
+        func hipSideways(_ angle: Float) -> Float { min(max(angle, -0.6), 0.6) }
+        func hipSwing(_ angle: Float) -> Float { min(max(angle, -1.1), 1.1) }
+        leftFoot = legTarget(hip: leftHip,
+                             swing: hipSwing(rightLeg.swing),
+                             sideways: hipSideways(rightLeg.sideways),
+                             flex: rightLeg.flex)
+        rightFoot = legTarget(hip: rightHip,
+                              swing: hipSwing(leftLeg.swing),
+                              sideways: hipSideways(leftLeg.sideways),
+                              flex: leftLeg.flex)
+
+        // --- Keeping the planted foot on the floor ---
+        //
+        // See `groundContactSink`: a leg posed by angle sweeps its foot round an arc, and what
+        // stops the character floating up it is the pelvis dropping, exactly as a person's does.
+        // Scaled back as the run comes in, because a sprint genuinely does leave the ground and
+        // pinning the lower foot to the floor would take the flight phase away.
+        runtime.bodyPivotPosition.z -= groundContactSink(leftFoot: leftFoot, rightFoot: rightFoot)
+            * (1 - run * 0.35)
 
         // A turn is led from the pelvis and the chest catches up, so the waist twists *against*
         // the turn while it is happening — while the head goes the other way and looks where the
@@ -829,9 +1005,10 @@ enum CharacterRig {
             * Float4x4.scale(SIMD3(repeating: head.scale))
 
         // --- Inverse kinematics (`resolveInverseKinematics:1028-1079`) ---
-        // Ankles ride 2.3 above the foot target so calves do not punch through the shoes.
-        var leftAnkle = leftFoot;  leftAnkle.z += 2.3
-        var rightAnkle = rightFoot; rightAnkle.z += 2.3
+        // Ankles ride `ankleLift` above the foot target so calves do not punch through the shoes.
+        // `legTarget` aims at the ankle and subtracts it back off, so the two agree.
+        var leftAnkle = leftFoot;  leftAnkle.z += ankleLift
+        var rightAnkle = rightFoot; rightAnkle.z += ankleLift
 
         // The arms are solved in the **chest** frame, so a turn at the waist carries the whole
         // shoulder girdle with it and the arms stay attached to it. `IKSolver.solve` clamps an
