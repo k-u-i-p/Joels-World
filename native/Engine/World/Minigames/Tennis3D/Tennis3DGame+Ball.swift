@@ -124,6 +124,7 @@ extension Tennis3DGame {
         ball.vz = abs(ball.vz) * 0.30
         ball.topspin = 0
         ball.clippedNet = true
+        timeSinceBallEvent = 0
 
         host.minigamePlayEffect(path: "/media/hit_tennis_ball2.mp3", volume: 0.35, rate: 0.7)
     }
@@ -140,6 +141,7 @@ extension Tennis3DGame {
         ball.topspin *= 0.45
 
         ball.bounces += 1
+        timeSinceBallEvent = 0
         onBounce()
     }
 
@@ -204,6 +206,7 @@ extension Tennis3DGame {
 
         tossElapsed = 0
         serveStrikeTime = hang
+        timeSinceBallEvent = 0
         phase = .toss
         server.swing = SwingState()
     }

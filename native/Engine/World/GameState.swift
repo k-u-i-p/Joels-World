@@ -448,8 +448,6 @@ final class GameState {
         player.velocityX = locomotion.vx
         player.velocityY = locomotion.vy
         player.gait = locomotion.gait
-        // Kept in step for anything still reading the old single-number walk phase.
-        player.legAnimationTime = locomotion.gait.phase
 
         if isMoving {
             // A jump zeroes the demand above, so `isMoving` is already false while one is in
@@ -462,7 +460,7 @@ final class GameState {
             delegate?.gameStateSetWalkingAudio(active: false, isRunning: false)
         }
 
-        interpolateRemotes(timeScale: timeScale)
+        interpolateRemotes(timeScale: timeScale, dt: dt)
         updateEmoteLifecycles()
         updateProximityInteractions()
 
@@ -685,12 +683,13 @@ final class GameState {
 
     /// Eases every remote player and NPC towards its server target.
     /// Port of the interpolation sweep at `main.js:500-506`, which skips the local player.
-    private func interpolateRemotes(timeScale: Double) {
+    private func interpolateRemotes(timeScale: Double, dt: Double) {
         for index in characters.indices where characters[index].id != player.id {
             guard var visual = visuals[characters[index].id] else { continue }
             physics.processInterpolation(character: &characters[index],
                                          visual: &visual,
-                                         timeScale: timeScale)
+                                         timeScale: timeScale,
+                                         dt: dt)
             visuals[characters[index].id] = visual
         }
 
@@ -698,7 +697,8 @@ final class GameState {
             guard var visual = visuals[npcs[index].id] else { continue }
             physics.processInterpolation(character: &npcs[index],
                                          visual: &visual,
-                                         timeScale: timeScale)
+                                         timeScale: timeScale,
+                                         dt: dt)
             visuals[npcs[index].id] = visual
         }
     }

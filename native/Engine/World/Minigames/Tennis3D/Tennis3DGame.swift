@@ -80,6 +80,13 @@ final class Tennis3DGame: WorldRenderedMinigame {
         /// The soonest a player can start another swing after finishing one.
         static let swingCooldown: Double = 0.12
 
+        /// How long the ball may do nothing at all — no bounce, no bat, no net — before the
+        /// point is abandoned and replayed. A ball in play bounces every second or so, so this
+        /// only ever fires on a bug: a toss that strayed off court, or a shot that somehow left
+        /// the world without `resolveDeadBall` catching it. Without it the game simply hangs,
+        /// with no timer running and nothing to press.
+        static let ballEventTimeout: Double = 8
+
         /// How long the opponent takes to react to a shot before it starts moving.
         static let npcReaction: Double = 0.20
         /// How far off perfect the opponent positions itself, at most.
@@ -196,6 +203,16 @@ final class Tennis3DGame: WorldRenderedMinigame {
     /// The banner text the HUD shows. Set by the rules, cleared on its own timer.
     var announcement: Announcement?
 
+    /// Seconds since the player last told anyone where to stand. Starts at infinity — nobody has
+    /// touched the screen yet — which is what puts the controls hint up in the first place and
+    /// brings it back if they stop playing.
+    private(set) var secondsSinceSteer: Double = .infinity
+
+    /// Seconds since anything happened to the ball: a toss, a bounce, a net cord, a strike.
+    /// The watchdog in `advancePhase` reads it. Not the length of the point — a twenty-shot
+    /// rally resets it on every shot — so a legitimately long point never trips it.
+    var timeSinceBallEvent: Double = 0
+
     /// Deterministic randomness. Re-seeded from the score at the start of every point, so the
     /// same scoreline always produces the same rally — which is what makes a bug reproducible.
     var random = DeterministicRandom(seed: 1)
@@ -293,6 +310,8 @@ final class Tennis3DGame: WorldRenderedMinigame {
     func update(dt: Double) {
         guard active else { return }
 
+        secondsSinceSteer += dt
+
         if var current = announcement {
             current.remaining -= dt
             if current.remaining <= 0 {
@@ -345,7 +364,15 @@ final class Tennis3DGame: WorldRenderedMinigame {
             if phaseTimer <= 0 { tossBall() }
 
         case .toss, .rally:
-            break
+            // The watchdog. Every phase but these two has a timer counting down to the next
+            // thing; a live ball has nothing, so a ball that stops mattering — off the map, or
+            // stuck — used to leave the game with no way forward at all.
+            timeSinceBallEvent += dt
+            if timeSinceBallEvent > Tuning.ballEventTimeout {
+                Log.world("[Tennis3D] Nothing has happened to the ball for "
+                          + "\(Int(Tuning.ballEventTimeout))s — abandoning the point")
+                abandonPoint()
+            }
 
         case .pointOver:
             phaseTimer -= dt
@@ -392,6 +419,7 @@ final class Tennis3DGame: WorldRenderedMinigame {
     /// difference between the two is entirely in `Tennis3DView`.
     func steer(toWorldX x: Double, y: Double) {
         guard active, phase != .matchOver else { return }
+        secondsSinceSteer = 0
         player.moveTarget = (
             x: min(max(x, -Tennis3DCourt.playableHalfWidth), Tennis3DCourt.playableHalfWidth),
             // The player may not cross the net, and may not stand on the grass behind it.

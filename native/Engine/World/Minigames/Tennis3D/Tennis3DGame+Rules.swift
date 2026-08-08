@@ -136,6 +136,19 @@ extension Tennis3DGame {
         endPoint(banner: "LET", subtitle: "Play it again", pause: 1.4)
     }
 
+    /// The watchdog's escape hatch: the ball has stopped meaning anything and nobody has won
+    /// the point. Replayed rather than awarded, because a watchdog firing is a bug in the
+    /// simulation and a bug should never quietly hand somebody a point.
+    func abandonPoint() {
+        guard phase == .rally || phase == .toss else { return }
+        ball.inFlight = false
+        ball.heldByServer = false
+        // Not a fault: the serve that started this is not the thing that went wrong.
+        serveIsReplay = true
+        isServeInFlight = false
+        endPoint(banner: "LET", subtitle: "Play it again", pause: 1.4)
+    }
+
     /// The only place a point is ever scored.
     func awardPoint(toPlayer: Bool, reason: String) {
         guard phase == .rally || phase == .toss else { return }

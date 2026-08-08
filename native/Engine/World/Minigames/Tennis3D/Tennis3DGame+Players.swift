@@ -383,6 +383,7 @@ extension Tennis3DGame {
         ball.lastHitByPlayer = side.isPlayer
         ball.bounces = 0
         ball.clippedNet = false
+        timeSinceBallEvent = 0
 
         // How cleanly it was struck: dead centre of the sweet spot at the middle of the forward
         // swing is a clean hit; anything else bleeds pace and skews the aim. This is where

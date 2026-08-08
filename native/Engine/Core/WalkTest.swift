@@ -101,6 +101,26 @@ final class WalkTest {
         ProcessInfo.processInfo.arguments.contains("-tennisdemo")
     }
 
+    /// `-tennis3dtrace` logs the 3D rebuild once a second: phase, ball, both players and the
+    /// score. The `-tennistrace` above only understands the superseded canvas game.
+    static var traces3DTennis: Bool {
+        ProcessInfo.processInfo.arguments.contains("-tennis3dtrace")
+    }
+
+    /// `-tennis3ddemo` plays the human's side of the 3D game on its own, by steering at the
+    /// intercept the game itself predicts. It goes through `steer(toWorldX:y:)`, the same call
+    /// a finger ends up in, so a whole match — including the match-over panel, which no run had
+    /// ever reached — can be played out from `simctl` with no touches at all.
+    static var plays3DTennis: Bool {
+        ProcessInfo.processInfo.arguments.contains("-tennis3ddemo")
+    }
+
+    /// `-tennisdifficulty <0…1>` overrides how good the opponent is, for balancing runs.
+    /// See `Tennis3DGame.Tuning.difficulty`.
+    static var tennisDifficulty: Double? {
+        argument("-tennisdifficulty").flatMap(Double.init)
+    }
+
     /// `-exitafter <seconds>` presses the minigame's exit button on a timer, so the dialog and
     /// the map change back out of a minigame can be driven end to end with `-autoconfirm`.
     static var exitAfterSeconds: Double? {

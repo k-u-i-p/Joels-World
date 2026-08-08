@@ -348,17 +348,34 @@ final class PhysicsEngine {
     /// Eases a remote character towards the position the server last reported.
     /// Port of `processInterpolation` (`physics.js:479-540`).
     ///
-    /// The visual's `legAnimationTime` is advanced here, which is what drives the walk cycle
-    /// for everyone but the local player.
+    /// The visual's `motion` is advanced here, which is what drives the walk cycle for everyone
+    /// but the local player. It used to be a single walk phase, and so could only ever describe
+    /// a forward walk; now the frame's actual displacement is differentiated back into a
+    /// velocity and `Locomotion.observe` resolves it into the body's own frame. A patrolling NPC
+    /// whose waypoint rotation faces down the corridor side-steps across it, which is what it is
+    /// really doing.
     func processInterpolation(character: inout GameCharacter,
                               visual: inout CharacterVisual,
-                              timeScale: Double) {
-        guard let targetX = visual.targetX, let targetY = visual.targetY else { return }
+                              timeScale: Double,
+                              dt: Double) {
+        // Where the character stood before anything below moved it. The gait is read back off
+        // the difference, so it stays honest even when the mover is a waypoint walker, a
+        // catch-up sprint or a character standing perfectly still.
+        let previousX = character.x
+        let previousY = character.y
+
+        guard let targetX = visual.targetX, let targetY = visual.targetY else {
+            // Nothing is driving this one. Let the stride finish its step and settle.
+            Locomotion.observe(&visual.motion, dx: 0, dy: 0,
+                               facing: character.rotation ?? 0, dt: dt)
+            return
+        }
 
         let cdx = targetX - character.x
         let cdy = targetY - character.y
         let cdz = (visual.targetZ ?? 0) - (character.z ?? 0)
         let distSq = cdx * cdx + cdy * cdy + cdz * cdz
+        var teleported = false
 
         if distSq > 25_000_000 {
             // Teleported — snap rather than sprinting across the map.
@@ -366,6 +383,7 @@ final class PhysicsEngine {
             character.y = targetY
             if let targetZ = visual.targetZ { character.z = targetZ }
             character.rotation = visual.targetRotation
+            teleported = true
         } else if distSq > 0.1 {
             let distance = sqrt(distSq)
             let baseSpeed = character.moveSpeed ?? 3
@@ -379,13 +397,10 @@ final class PhysicsEngine {
             character.x += cdx * ratio
             character.y += cdy * ratio
             if visual.targetZ != nil { character.z = (character.z ?? 0) + cdz * ratio }
-
-            visual.legAnimationTime += 0.2 * timeScale
         } else {
             character.x = targetX
             character.y = targetY
             if let targetZ = visual.targetZ { character.z = targetZ }
-            visual.legAnimationTime = 0   // stop the legs once caught up
         }
 
         // Shortest-angle rotation, applied even when standing still.
@@ -402,6 +417,21 @@ final class PhysicsEngine {
                 character.rotation = targetRotation
             }
         }
+
+        if teleported {
+            // A jump across the map is not a stride. Feeding it in would read as a sprint at a
+            // few thousand units a second and throw the torso flat on its face.
+            visual.motion.reset()
+            return
+        }
+
+        // Resolve against the heading the character has *now* — the interpolator has just turned
+        // it, and the walk this frame belongs to where the body ended up pointing.
+        Locomotion.observe(&visual.motion,
+                           dx: character.x - previousX,
+                           dy: character.y - previousY,
+                           facing: character.rotation ?? 0,
+                           dt: dt)
     }
 }
 
@@ -412,7 +442,10 @@ struct CharacterVisual {
     var targetY: Double?
     var targetZ: Double?
     var targetRotation: Double?
-    var legAnimationTime: Double = 0
+
+    /// Velocity carried between frames, read back out of the positions the interpolator walks
+    /// through. `motion.gait` is what poses this character's rig.
+    var motion = ObservedMotion()
 
     /// The most recent thing this character said, and when — drawn as a chat bubble in
     /// Phase 5. `chatMessage` / `chatTime` on the JS character record.

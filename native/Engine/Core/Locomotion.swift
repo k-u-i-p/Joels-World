@@ -29,8 +29,11 @@ struct Gait {
     /// A character standing still.
     static let still = Gait()
 
-    /// The pre-`Gait` behaviour: a plain forward walk at a given phase, which is what every
-    /// caller that still passes `legAnimationTime` gets.
+    /// The pre-`Gait` behaviour: a plain forward walk at a given phase. Nothing in the game
+    /// produces one any more — every mover now has its gait resolved, the local player through
+    /// `Locomotion.step` and everyone else through `Locomotion.observe`. It is kept because it
+    /// names the compatibility guarantee: posing the rig with this must reproduce the original
+    /// walk cycle exactly, and `LocomotionSelfTest` checks that it does.
     static func walking(phase: Double) -> Gait {
         guard phase > 0 else { return .still }
         return Gait(phase: phase, forward: 1, lateral: 0, intensity: 1)
@@ -71,6 +74,40 @@ struct LocomotionProfile {
                                                  braking: 1400,
                                                  turnRate: 480,
                                                  strideLength: 72)
+
+    /// A mover this client does not drive — a remote player being eased towards the server's
+    /// last word, an NPC walking a patrol route. `Locomotion.observe` uses it to read a gait
+    /// back out of movement that has already happened.
+    ///
+    /// `maxSpeed` is deliberately the *player's* 180 rather than the mover's own top speed, so
+    /// `intensity` comes out as a fraction of a normal walk: a slow NPC ambles instead of
+    /// sprinting in slow motion, and a fast one leans on the same 1.4 clamp everyone else does.
+    /// `turnRate` is unused here — nothing turns an observed mover but the world.
+    static let observed = LocomotionProfile(maxSpeed: 180,
+                                            acceleration: 900,
+                                            braking: 1400,
+                                            turnRate: 540,
+                                            strideLength: 62)
+}
+
+/// Velocity carried between frames for a mover the simulation does not drive.
+///
+/// `LocomotionState` is for a character with a controller: it owns its position and decides
+/// where to go. A remote player owns neither — the server says where it is and
+/// `PhysicsEngine.processInterpolation` eases it there — so all that is needed is enough memory
+/// to turn a sequence of positions back into a velocity, and from there into a `Gait`.
+struct ObservedMotion {
+    var vx: Double = 0
+    var vy: Double = 0
+    var gait = Gait()
+
+    /// Throws away the carried velocity. Call it on a teleport, where the displacement between
+    /// two frames is a jump rather than a stride and would otherwise read as a 4000-unit sprint.
+    mutating func reset() {
+        vx = 0
+        vy = 0
+        gait = .still
+    }
 }
 
 /// Position, velocity and heading for one mover.
@@ -162,9 +199,58 @@ enum Locomotion {
         state.facing = turn(state.facing, towards: targetFacing, limit: profile.turnRate * dt)
 
         // --- Resolve into the body's own frame ---
-        resolve(&state, accelX: accelX / dt, accelY: accelY / dt, profile: profile, dt: dt)
+        resolve(&state.gait,
+                vx: state.vx, vy: state.vy,
+                accelX: accelX / dt, accelY: accelY / dt,
+                facing: state.facing,
+                profile: profile, dt: dt)
 
         return (dx: state.vx * dt, dy: state.vy * dt)
+    }
+
+    /// Reads a gait back out of movement that has *already happened*.
+    ///
+    /// Remote players and NPCs have no controller: the server names a position and
+    /// `processInterpolation` eases towards it, or `NPCBehaviour` names a waypoint and the same
+    /// easing walks there. Nothing in that path ever forms a velocity, which is why every
+    /// character but the local player used to be stuck with a forward-only walk no matter which
+    /// way they were actually travelling. Differentiating the position gives the velocity back,
+    /// and `resolve` turns it into the same `Gait` the player gets — so a patrolling NPC whose
+    /// waypoint rotation faces down the corridor genuinely side-steps across it.
+    ///
+    /// - Parameters:
+    ///   - dx/dy: world-space displacement over this frame. Pass `(0, 0)` on a frame where the
+    ///     mover did not move, so its stride finishes its step and settles.
+    ///   - facing: the character's heading in degrees. It is turned by the interpolator, not by
+    ///     this call — an observed mover's facing is an input, never an output.
+    static func observe(_ motion: inout ObservedMotion,
+                        dx: Double, dy: Double,
+                        facing: Double,
+                        profile: LocomotionProfile = .observed,
+                        dt: Double) {
+        guard dt > 0 else { return }
+
+        // A remote position arrives as a stream of eased steps whose length jumps about with
+        // every packet, and the raw frame-to-frame velocity off the back of that is jittery
+        // enough to make a torso twitch. One low-pass, at roughly the same time constant the
+        // lean already uses.
+        let previousVx = motion.vx
+        let previousVy = motion.vy
+        let smoothing = min(1, dt * 12)
+        motion.vx += (dx / dt - previousVx) * smoothing
+        motion.vy += (dy / dt - previousVy) * smoothing
+
+        // Below a twelfth of a unit a second the smoothing tail is all that is left; park it so
+        // the stride settles instead of creeping.
+        if abs(motion.vx) < 0.08 { motion.vx = 0 }
+        if abs(motion.vy) < 0.08 { motion.vy = 0 }
+
+        resolve(&motion.gait,
+                vx: motion.vx, vy: motion.vy,
+                accelX: (motion.vx - previousVx) / dt,
+                accelY: (motion.vy - previousVy) / dt,
+                facing: facing,
+                profile: profile, dt: dt)
     }
 
     /// Writes back what the world actually allowed. A delta the caller clipped — a wall, the
@@ -203,38 +289,40 @@ enum Locomotion {
     /// y = −6, which by that mapping is on the character's *right*. Nothing downstream cares —
     /// the body is symmetric — but `Gait.lateral` is defined against the **axis**, not against
     /// either limb's name, so it stays unambiguous.
-    private static func resolve(_ state: inout LocomotionState,
+    private static func resolve(_ gait: inout Gait,
+                                vx: Double, vy: Double,
                                 accelX: Double, accelY: Double,
+                                facing: Double,
                                 profile: LocomotionProfile,
                                 dt: Double) {
-        let radians = state.facing * .pi / 180
+        let radians = facing * .pi / 180
         let cosine = cos(radians)
         let sine = sin(radians)
 
-        let forward = state.vx * cosine + state.vy * sine
-        let lateral = state.vx * sine - state.vy * cosine
+        let forward = vx * cosine + vy * sine
+        let lateral = vx * sine - vy * cosine
 
-        let speed = state.speed
+        let speed = (vx * vx + vy * vy).squareRoot()
         let top = max(profile.maxSpeed, 1)
 
-        state.gait.forward = clamp(forward / top, -1.4, 1.4)
-        state.gait.lateral = clamp(lateral / top, -1.4, 1.4)
-        state.gait.intensity = clamp(speed / top, 0, 1.4)
+        gait.forward = clamp(forward / top, -1.4, 1.4)
+        gait.lateral = clamp(lateral / top, -1.4, 1.4)
+        gait.intensity = clamp(speed / top, 0, 1.4)
 
         // Stride advances with ground covered, not with time, so a character easing to a halt
         // takes shorter and shorter steps instead of moonwalking.
         if speed > 1 {
             let distance = speed * dt
-            state.gait.phase += distance / max(profile.strideLength, 1) * 2 * .pi
-            if state.gait.phase > .pi * 4 { state.gait.phase -= .pi * 4 }
-        } else if state.gait.phase != 0 {
+            gait.phase += distance / max(profile.strideLength, 1) * 2 * .pi
+            if gait.phase > .pi * 4 { gait.phase -= .pi * 4 }
+        } else if gait.phase != 0 {
             // Finish the step rather than snapping mid-stride, which is the one thing the old
             // `convergePhysics` got right and worth keeping.
-            let remainder = state.gait.phase.truncatingRemainder(dividingBy: .pi)
+            let remainder = gait.phase.truncatingRemainder(dividingBy: .pi)
             if remainder > 0.15 && remainder < .pi - 0.15 {
-                state.gait.phase += (.pi * 6) * dt
+                gait.phase += (.pi * 6) * dt
             } else {
-                state.gait.phase = 0
+                gait.phase = 0
             }
         }
 
@@ -244,10 +332,10 @@ enum Locomotion {
         let accelLateral = accelX * sine - accelY * cosine
         let reference = max(profile.acceleration, 1)
         let smoothing = min(1, dt * 8)
-        state.gait.leanForward += (clamp(accelForward / reference, -1, 1) * profile.lean
-                                   - state.gait.leanForward) * smoothing
-        state.gait.leanLateral += (clamp(accelLateral / reference, -1, 1) * profile.lean
-                                   - state.gait.leanLateral) * smoothing
+        gait.leanForward += (clamp(accelForward / reference, -1, 1) * profile.lean
+                             - gait.leanForward) * smoothing
+        gait.leanLateral += (clamp(accelLateral / reference, -1, 1) * profile.lean
+                             - gait.leanLateral) * smoothing
     }
 
     private static func clamp(_ value: Double, _ lower: Double, _ upper: Double) -> Double {

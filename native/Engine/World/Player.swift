@@ -3,8 +3,8 @@ import Foundation
 /// The locally-controlled player. Mirrors the `player` object in `main.js:252`.
 ///
 /// Unlike every other character on the map this one is not a `GameCharacter`: it carries the
-/// input-driven fields the simulation owns — the run timer, the leg phase, the trigger zone it
-/// is standing in — alongside the appearance record the server sent. `GameState.syncPlayerNow`
+/// input-driven fields the simulation owns — the run timer, the carried velocity and gait, the
+/// trigger zone it is standing in — alongside the appearance record the server sent. `GameState.syncPlayerNow`
 /// is where the two are folded back together into something the wire accepts.
 struct Player {
     var id: Int = 0
@@ -20,7 +20,6 @@ struct Player {
 
     var isRunning = false
     var runDirectionStart: TimeInterval?
-    var legAnimationTime: Double = 0
 
     /// Carried-over velocity, in world units per second. The player used to be teleported by
     /// `speed × dt` every frame with no memory between them, which is why letting go of the

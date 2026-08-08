@@ -49,18 +49,20 @@ extension GameState {
             out.append(DrawableCharacter(character: mine, gait: player.gait))
         }
 
-        // Remote players and NPCs are interpolated towards server or waypoint targets rather
-        // than driven by a controller, so all `Locomotion` can tell about them is the walk
-        // phase — which is exactly what they had before.
+        // Remote players and NPCs have no controller — the server names a position, or
+        // `NPCBehaviour` names a waypoint, and the interpolator eases them there. Their gait is
+        // read back off the positions they actually walked through
+        // (`Locomotion.observe`), so they side-step and back-pedal on the same terms the local
+        // player does rather than being stuck facing wherever they happen to be walking.
         for character in characters where character.id != player.id {
             out.append(DrawableCharacter(
                 character: character,
-                gait: .walking(phase: visuals[character.id]?.legAnimationTime ?? 0)))
+                gait: visuals[character.id]?.motion.gait ?? .still))
         }
         for npc in npcs {
             out.append(DrawableCharacter(
                 character: npc,
-                gait: .walking(phase: visuals[npc.id]?.legAnimationTime ?? 0)))
+                gait: visuals[npc.id]?.motion.gait ?? .still))
         }
 
         return out
