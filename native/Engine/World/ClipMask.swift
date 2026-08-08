@@ -117,6 +117,12 @@ final class ClipMask {
                 // `draw` already lands a bitmap upright — row 0 of the buffer is the image's
                 // top row. Flipping here as well would mirror the mask, which is what made
                 // characters on the PNG-mask maps vanish wherever the mirrored mask was black.
+                //
+                // Nearest-neighbour, not the default smoothing: walkability is an exact colour
+                // test, so any blended pixel reads as wall. Detention's mask is 1024² shrunk to
+                // 205², where a smoothed resample left both doorways of the admin room too
+                // blended to be pure green — sealing the spawn point inside it.
+                ctx.interpolationQuality = .none
                 ctx.draw(image, in: rect)
                 return true
             }
