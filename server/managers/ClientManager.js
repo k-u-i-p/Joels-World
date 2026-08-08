@@ -92,7 +92,7 @@ export class ClientManager {
           this.mapManager.addCharacter(mapData.id, session.player);
 
           console.log(`Resuming session character ${session.player.name} (${ws.clientId})`);
-          ws.send(this.mapManager.getInitPayload(mapData.id, session.player));
+          ws.send(this.mapManager.getInitPayload(mapData.id, session.player, ws.isAdmin));
 
           ws.send(JSON.stringify({ type: 'session_token', token: sessionID }));
         }
@@ -127,7 +127,7 @@ export class ClientManager {
 
               this.mapManager.addCharacter(mapData.id, newChar);
 
-              ws.send(this.mapManager.getInitPayload(mapData.id, newChar));
+              ws.send(this.mapManager.getInitPayload(mapData.id, newChar, ws.isAdmin));
 
               this.npcManager.logEventToNearbyNPCs(mapData, `${newChar.name || 'Student'} (${newPlayerId}) entered the map`, this.aiAgentManager);
 
@@ -251,7 +251,7 @@ export class ClientManager {
       this.npcManager.logEventToNearbyNPCs(newMapData, `${oldChar.name || 'Student'} (${ws.clientId}) entered ${newMapData.name}`, this.aiAgentManager);
 
       // Send init to immediately reset the client seamlessly
-      ws.send(this.mapManager.getInitPayload(newMapData.id, oldChar));
+      ws.send(this.mapManager.getInitPayload(newMapData.id, oldChar, ws.isAdmin));
       return newMapData;
     }
     return mapData;

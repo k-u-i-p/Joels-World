@@ -46,6 +46,12 @@ final class AdminSidebarView: NSView {
     }
 
     private func build() {
+        // The status line carries a multi-line warning when the server refused the admin key.
+        statusLabel.usesSingleLineMode = false
+        statusLabel.lineBreakMode = .byWordWrapping
+        statusLabel.maximumNumberOfLines = 0
+        statusLabel.preferredMaxLayoutWidth = 260
+
         hostField = ValueField(placeholder: "joels-world.com", width: 190)
         // A key is always required. On a loopback server without `ADMIN_KEY` set, any
         // non-empty value is accepted — see `grantsAdmin` in `server/websocket.js`.
@@ -134,6 +140,7 @@ final class AdminSidebarView: NSView {
 
     func setStatus(_ status: String) {
         statusLabel.stringValue = status
+        statusLabel.textColor = status.hasPrefix("⚠︎") ? .systemRed : .secondaryLabelColor
     }
 
     func setCursor(x: Double, y: Double) {

@@ -257,6 +257,9 @@ struct InitPayload: Codable {
     var myCharacter: GameCharacter?
     var mapData: MapData?
     var mapsList: [MapListEntry]?
+    /// Whether the server will accept edits from this connection. Only the macOS editor
+    /// cares; the game ignores it.
+    var isAdmin: Bool?
 }
 
 /// Decoded form of every server frame the client acts on.

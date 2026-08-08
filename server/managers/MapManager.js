@@ -212,12 +212,16 @@ export class MapManager {
     mapData.dirtyCharacters[character.id] = character;
   }
 
-  getInitPayload(mapId, myChar) {
+  /// `isAdmin` tells the client whether its edits will be accepted. The web page knew from
+  /// the session that rendered it; the native macOS editor has no such signal, and without
+  /// this it would silently drop every edit on a connection the server did not promote.
+  getInitPayload(mapId, myChar, isAdmin = false) {
     const mapData = this.mapState[mapId];
     if (!mapData) return null;
 
     return JSON.stringify({
       type: 'init',
+      isAdmin: isAdmin === true,
       characters: Object.values(mapData.characters),
       npcs: mapData.npcs,
       objects: mapData.objects,

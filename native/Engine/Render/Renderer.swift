@@ -388,6 +388,9 @@ final class Renderer: NSObject, MTKViewDelegate {
             descriptor.colorAttachments[0].clearColor = clearColor
             commandBuffer.makeRenderCommandEncoder(descriptor: descriptor)?.endEncoding()
         }
+        // A capture has to fire here too. Otherwise a screenshot of a session that never got
+        // a world — which is exactly the failure worth photographing — waits forever.
+        captureHandler?(drawable.texture, commandBuffer)
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }

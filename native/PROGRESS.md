@@ -694,6 +694,19 @@ So `npm run dev` needs no configuration and production has to opt in. A key is a
 required — a blank field means no admin, on any host. The editor's host and key live in the
 sidebar and persist in `UserDefaults`.
 
+**The `init` payload now carries `isAdmin`**, and the sidebar turns red with an explanation
+when it is false. Without it a refused key is invisible: the editor connects, renders the
+map, accepts every drag, and the server silently discards all of it.
+
+Testing the refused path caught a bug that would have shipped. The editor asked for a
+character with a *blank* name, relying on the server's `if (!playerName && ws.isAdmin)
+playerName = 'Admin'`. On a connection the server had **not** promoted, that fell through to
+the letters-only name check, which rejected it and closed the socket — so the editor
+reconnected, was rejected again, and looped forever with no world and no way to say why. It
+now sends `"Admin"` explicitly. `Renderer.presentBlank` also fires `captureHandler` for the
+same reason: a `-shot` of a session that never got a world is exactly the frame worth having,
+and it used to wait forever.
+
 ### Three deliberate deviations from `admin.js`
 
 Each one is a case where copying the JS faithfully would have produced something worse:
@@ -1233,7 +1246,13 @@ keep any of `client/` alive — Phase 8 can now delete the directory outright.
   set. The browser's session-flag path is untouched.
 - Verified with `-selftest`, which drives the real handlers: hit testing, a 60-unit drag, a
   rotated-object resize, NPC select-then-drag, and a create → set-event-tree → delete round
-  trip. `objects.json` comes back byte-identical.
+  trip. `objects.json` comes back byte-identical. Run against a server with `ADMIN_KEY` both
+  matching and deliberately wrong.
+- Added `isAdmin` to the `init` payload and a red read-only banner in the sidebar, because a
+  refused key is otherwise invisible — the editor renders and accepts edits that the server
+  throws away. Testing that path found a real bug: the blank name the editor asked for is
+  only substituted for a *promoted* connection, so a refused key failed name validation and
+  the app reconnect-looped forever with no world.
 - Built `-shot` on a new `Renderer.captureHandler`, because `screencapture` needs a Screen
   Recording grant this machine does not have and no view-snapshot API captures Metal. It
   composites AppKit chrome, the blitted drawable, and the overlay, in that order.

@@ -49,6 +49,10 @@ final class AdminSession {
 
     private(set) var maps: [MapListEntry] = []
     private(set) var isConnected = false
+    /// False means the server will silently drop every edit — the wrong key, or a remote
+    /// server with no `ADMIN_KEY` set. Worth saying out loud rather than letting the operator
+    /// discover it by watching nothing save.
+    private(set) var isAdmin = false
 
     private var settings = AdminServerSettings.load()
 
@@ -79,10 +83,15 @@ final class AdminSession {
             self.isConnected = true
             self.delegate?.adminSession(didChangeStatus: "Connected — waiting for world")
             // A resumed session delivers `init` unprompted; only ask for a character if it
-            // does not. The server names an admin connection "Admin" when the name is blank.
+            // does not.
+            //
+            // The name is sent explicitly rather than left blank: the server only substitutes
+            // "Admin" for a blank name on a connection it has already promoted, so a refused
+            // key would fail name validation, get disconnected, and reconnect forever — with
+            // no world, and so no way to show the operator why.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 guard !self.state.hasWorld else { return }
-                self.network.sendCreateCharacter("")
+                self.network.sendCreateCharacter("Admin")
             }
         }
 
@@ -101,6 +110,7 @@ final class AdminSession {
         case .initWorld(let payload):
             state.apply(initPayload: payload)
             maps = payload.mapsList ?? maps
+            isAdmin = payload.isAdmin ?? false
             delegate?.adminSessionDidLoadWorld()
             delegate?.adminSession(didChangeStatus: statusLine())
             requestInitialMapIfNeeded()
@@ -148,7 +158,12 @@ final class AdminSession {
 
     private func statusLine() -> String {
         let name = state.mapData?.name ?? "map \(state.mapData?.id ?? -1)"
-        return "\(name) — \(state.objects.count) objects, \(state.npcs.count) NPCs"
+        let world = "\(name) — \(state.objects.count) objects, \(state.npcs.count) NPCs"
+        guard isAdmin else {
+            return "⚠︎ Read-only: the server did not accept this admin key, so edits will be "
+                 + "discarded. Set ADMIN_KEY on the server, or connect to localhost.\n\(world)"
+        }
+        return world
     }
 
     // MARK: - Admin traffic
