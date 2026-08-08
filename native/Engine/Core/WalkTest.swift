@@ -125,11 +125,36 @@ final class WalkTest {
     }
 
     /// `-tennis3ddemo` plays the human's side of the 3D game on its own, by steering at the
-    /// intercept the game itself predicts. It goes through `steer(toWorldX:y:)`, the same call
-    /// a finger ends up in, so a whole match — including the match-over panel, which no run had
-    /// ever reached — can be played out from `simctl` with no touches at all.
+    /// intercept the game itself predicts. It goes through `steer(racketToWorldX:y:)`, the same
+    /// call a finger ends up in, so a whole match — including the match-over panel, which no run
+    /// had ever reached — can be played out from `simctl` with no touches at all.
     static var plays3DTennis: Bool {
         ProcessInfo.processInfo.arguments.contains("-tennis3ddemo")
+    }
+
+    /// `-tennis3dtaps` plays the same side, but **through the screen**: the marker is projected
+    /// back to a point on the glass and pushed into `Tennis3DView` where UIKit would have put it.
+    ///
+    /// The difference matters. `-tennis3ddemo` hands the game world coordinates it computed
+    /// itself, so it cannot catch anything wrong with turning a touch into a place on the court —
+    /// which is the half of the control scheme that has never been exercised by anything, because
+    /// neither `simctl` nor the simulator panel can inject a touch. This one round-trips
+    /// project → unproject → racket offset, and a metre of error anywhere in it shows up as a
+    /// player who misses every ball.
+    static var tapPlays3DTennis: Bool {
+        ProcessInfo.processInfo.arguments.contains("-tennis3dtaps")
+    }
+
+    /// `-tennispitch <radians>` and `-tenniswidth <metres>` override the 3D game's camera, so the
+    /// framing can be swept without a rebuild between each try. 0 is straight down; 0.9 is about
+    /// where a television camera sits behind the baseline.
+    static var tennisCameraPitch: Double? {
+        argument("-tennispitch").flatMap(Double.init)
+    }
+
+    /// How many metres of court the screen is wide, at the focus point.
+    static var tennisCameraWidth: Double? {
+        argument("-tenniswidth").flatMap(Double.init)
     }
 
     /// `-tennisdifficulty <0…1>` overrides how good the opponent is, for balancing runs.

@@ -26,6 +26,7 @@ final class GameDebugHarness {
     private var tennisExitTimer: Timer?
     private var tennis3DTraceTimer: Timer?
     private var tennis3DDemoTimer: Timer?
+    private var tennis3DTapTimer: Timer?
     /// The demo restarts the match once after it ends, to prove `restartMatch()` is clean and
     /// that the badge does not fire a second time. Only once — otherwise it plays for ever.
     private var tennis3DHasRestarted = false
@@ -89,18 +90,21 @@ final class GameDebugHarness {
         }
         if let game = minigame as? Tennis3DGame {
             start3DTennisDemo(game)
+            start3DTennisTapDemo(game)
             start3DTennisTrace(game)
             startExitTimer { [weak game] in game?.requestExit() }
         }
     }
 
     func minigameDidEnd() {
-        for timer in [tennisDemoTimer, tennisExitTimer, tennis3DDemoTimer, tennis3DTraceTimer] {
+        for timer in [tennisDemoTimer, tennisExitTimer, tennis3DDemoTimer, tennis3DTapTimer,
+                      tennis3DTraceTimer] {
             timer?.invalidate()
         }
         tennisDemoTimer = nil
         tennisExitTimer = nil
         tennis3DDemoTimer = nil
+        tennis3DTapTimer = nil
         tennis3DTraceTimer = nil
         tennis3DHasRestarted = false
     }
@@ -128,9 +132,9 @@ final class GameDebugHarness {
     /// `-tennis3ddemo`: plays the human's side without a human.
     ///
     /// It steers at the intercept the game itself predicts, through the same
-    /// `steer(toWorldX:y:)` a finger ends up in — so it exercises the real control path, not a
-    /// back door. Between shots it recovers to the middle of the baseline, which is what the
-    /// hint tells a person to do.
+    /// `steer(racketToWorldX:y:)` a finger ends up in — so it exercises the real control path,
+    /// not a back door. Between shots it recovers to the middle of the baseline, which is what
+    /// the hint tells a person to do.
     ///
     /// This exists because balance cannot be judged from a screenshot. A whole match played out
     /// against the trace below is the only way to see whether the opponent is any good, and it
@@ -158,13 +162,45 @@ final class GameDebugHarness {
                 return
             }
 
-            // `idealStance`, not `idealIntercept`: where the feet go, not where the ball is.
-            if let stance = game.idealStance() {
-                game.steer(toWorldX: stance.x, y: stance.y)
+            // The intercept, through the racket-aimed entry point — because that is now what a
+            // finger does. It used to compute the stance itself and steer the feet, which meant
+            // the bot was quietly exercising a path no player could reach.
+            if let intercept = game.idealIntercept() {
+                game.steer(racketToWorldX: intercept.x, y: intercept.y)
             } else {
+                // Recovering between shots is about where to *stand*, so it stays on the feet
+                // entry point.
                 game.steer(toWorldX: 0,
                            y: Tennis3DCourt.halfLength + Tennis3DCourt.metres(0.5))
             }
+        }
+    }
+
+    /// `-tennis3dtaps`: plays the human's side **by tapping the screen**.
+    ///
+    /// `-tennis3ddemo` above hands the game a point it worked out in world coordinates, which is
+    /// a fine test of the tennis and no test at all of the controls. This one takes the same
+    /// point, projects it back through the live camera to a pixel on the glass, and pushes that
+    /// pixel into `Tennis3DView` at the line the tap recogniser enters — so the ray cast, the
+    /// height plane it is cut on, and the racket offset all have to be right or the player misses
+    /// everything. It is the closest thing to a thumb that exists without a person holding one.
+    ///
+    /// Three or four taps a second, because that is roughly what a ten-year-old chasing a ball
+    /// manages, and because a tap that lands sixty times a second is a drag rather than a tap.
+    private func start3DTennisTapDemo(_ game: Tennis3DGame) {
+        guard WalkTest.tapPlays3DTennis, tennis3DTapTimer == nil else { return }
+        Log.world("-tennis3dtaps: playing the player's side through the screen")
+
+        tennis3DTapTimer = Timer.scheduledTimer(withTimeInterval: 0.28, repeats: true) { [weak self, weak game] _ in
+            guard let self, let game, let view = self.host.tennis3d as Tennis3DView? else { return }
+            guard game.phase == .rally || (game.phase == .toss && !game.serverIsPlayer) else {
+                return
+            }
+            guard let intercept = game.idealIntercept(),
+                  let point = view.debugScreenPoint(worldX: intercept.x, worldY: intercept.y,
+                                                    z: intercept.z)
+            else { return }
+            view.debugTouch(at: point)
         }
     }
 

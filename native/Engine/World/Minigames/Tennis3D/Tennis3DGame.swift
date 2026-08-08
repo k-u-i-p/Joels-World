@@ -413,11 +413,14 @@ final class Tennis3DGame: WorldRenderedMinigame {
 
         // Walk on from behind the baselines, as the 2D game did — it is the one bit of
         // stagecraft that version had and it is worth keeping.
+        // Measured from the *playable* edge, not the painted one: the apron is now barely wider
+        // than the frame, and a walk-on that starts outside the fence spends its first second
+        // being shoved back in by the clamp in `run`.
         player.motor.teleport(x: -Tennis3DCourt.metres(2),
-                                   y: Tennis3DCourt.surfaceHalfLength - 4,
+                                   y: Tennis3DCourt.playableHalfLength,
                                    facing: 270)
         npc.motor.teleport(x: Tennis3DCourt.metres(2),
-                                y: -Tennis3DCourt.surfaceHalfLength + 4,
+                                y: -Tennis3DCourt.playableHalfLength,
                                 facing: 90)
         player.moveTarget = (x: 0, y: Tennis3DCourt.halfLength - Tennis3DCourt.metres(1.2))
         npc.moveTarget = (x: 0, y: -Tennis3DCourt.halfLength + Tennis3DCourt.metres(1.2))
@@ -567,7 +570,36 @@ final class Tennis3DGame: WorldRenderedMinigame {
 
     // MARK: - Input
 
-    /// A tap or a drag on the court, already converted to a point on the ground plane.
+    /// **Where the player wants their strings**, which is what a finger on this game is
+    /// actually pointing at.
+    ///
+    /// Everything on the court worth aiming at is a *contact* point — the green X is where the
+    /// ball has to meet the racket — and the racket head hangs more than a metre in front of and
+    /// to the side of the body. So steering the **feet** to the tapped point put the chest where
+    /// the strings needed to be and let the ball go past inside the reach, which is the exact
+    /// mistake the marker exists to prevent. Tapping the X used to be the wrong move.
+    ///
+    /// The offset is `contactHeadWorldOffset`, the same one `stance(toMeet:for:)` derives from
+    /// the swing choreography, so "tap the X" and "stand on the faint ground mark" are now one
+    /// instruction rather than two that disagree by a metre.
+    func steer(racketToWorldX x: Double, y: Double) {
+        let offset = contactHeadWorldOffset(for: player)
+        steer(toWorldX: x - offset.x, y: y - offset.y)
+    }
+
+    /// Where the player's strings will pass if they stand exactly where they are. The point a
+    /// grab-drag holds its offset from, so both gestures are spoken in the same units.
+    var playerRacketAnchor: (x: Double, y: Double) {
+        let offset = contactHeadWorldOffset(for: player)
+        return (x: player.motor.x + offset.x, y: player.motor.y + offset.y)
+    }
+
+    /// How high off the court a tap should be read at: the height the strings pass through.
+    /// A finger aiming at a marker floating a metre up is not aiming at the ground under it —
+    /// from this camera those are more than half a metre apart.
+    var playerContactHeight: Double { contactHeadHeight }
+
+    /// A tap or a drag, already converted to a point on the court — **where the feet go**.
     ///
     /// Both gestures land here and mean the same thing — "be there". A tap sets it once; a drag
     /// keeps setting it as the finger moves, which is what turns it into steering. The
@@ -613,7 +645,7 @@ final class Tennis3DGame: WorldRenderedMinigame {
         #endif
     }
 
-    var backgroundColor: String? { Tennis3DCourt.grassHex }
+    var backgroundColor: String? { Tennis3DCourt.skyHex }
 
     // MARK: - Scene
 
@@ -656,28 +688,53 @@ final class Tennis3DGame: WorldRenderedMinigame {
 
         // Zoom is set by width: the doubles court plus a stride of run-off either side has to
         // fit, whatever the device.
-        // Wide enough that the grass shows outside the apron on both sides, which is what keeps
-        // the court reading as a court rather than as the whole world being hard standing.
-        let desiredWidth = Tennis3DCourt.doublesWidth + Tennis3DCourt.metres(5.6)
+        //
+        // It was `doublesWidth + 5.6 m`, and half the frame was ground nobody could stand on —
+        // grey apron, then grass, then more grass, with the players reduced to two hats on a
+        // diagram. 3.8 m is a stride past each tramline plus a little air.
+        //
+        // It cannot go much tighter, and the reason is the tilt rather than the width. The camera
+        // sits behind the baseline, so the **near** end of the court is the magnified end: the
+        // visible half-width down at the near baseline works out at 7.1 m against a
+        // `playableHalfWidth` of 7.085 m. A player pinned against the side fence at their own
+        // baseline is exactly on the edge of the frame, and one more notch of zoom puts them
+        // outside it.
+        var desiredWidth = Tennis3DCourt.doublesWidth + Tennis3DCourt.metres(3.8)
+        var pitch = 0.80
+        #if DEBUG
+        if let override = WalkTest.tennisCameraWidth { desiredWidth = Tennis3DCourt.metres(override) }
+        if let override = WalkTest.tennisCameraPitch { pitch = override }
+        #endif
         camera.zoom = max(0.35, viewportWidth / desiredWidth)
-        camera.pitch = 0.52
+        // **Behind the player's shoulder, not overhead.** 0.80 rad is about where a television
+        // camera sits behind the baseline, and it is the single biggest change to how the game
+        // reads: at 0.34 both players were legible but tiny, two hats on a diagram of a court.
+        // Tipped over, the near player is a person with a racket in their hand, the far one is
+        // recognisably a person too, and the net has a front and a back.
+        //
+        // The cost is that a tap in the far half is worth much more court than a tap in the near
+        // half, and that a marker floating a metre up sits well over a metre up-screen of the
+        // ground beneath it. The second one would have been fatal to "tap the green X"; it is why
+        // `Tennis3DView.worldPoint` cuts its ray at racket height rather than on the floor.
+        // `-tennispitch` sweeps this without a rebuild.
+        camera.pitch = pitch
         camera.yaw = 0
         camera.springX = 0
         camera.springY = 0
 
-        // Follow the midpoint of the two things worth watching, damped hard and clamped so the
-        // court never slides off the bottom of the screen.
+        // **Y does not follow anything.** It used to drift up to 1.8 m with the player, which was
+        // worth it when a third of the frame was spare grass; now that the playable rectangle
+        // only just fits the screen, every centimetre the court slides costs a player at one end
+        // or the other. Parked 0.4 m towards the far baseline, which is the offset that keeps the
+        // far player clear of the notch without standing the near one on the button bar.
+        //
+        // X still follows, gently, because the court is only a stride wider than the frame and a
+        // player chasing a ball into the tramlines needs that stride to exist.
         let ballWeight = ball.inFlight ? 0.35 : 0.0
-        let target = SIMD2(
-            (player.motor.x * 0.5 + ball.x * ballWeight) / (0.5 + ballWeight),
-            (player.motor.y * 0.5 + ball.y * ballWeight) / (0.5 + ballWeight)
-        )
-        // Barely follows at all, and never far: the whole court has to stay on screen, with
-        // both players inside it. Drifting with the action past that point loses the far
-        // baseline off the top, which is the one edge that matters.
+        let targetX = (player.motor.x * 0.5 + ball.x * ballWeight) / (0.5 + ballWeight)
         let clamped = SIMD2(
-            min(max(target.x * 0.35, -Tennis3DCourt.metres(1.6)), Tennis3DCourt.metres(1.6)),
-            min(max(target.y * 0.18, -Tennis3DCourt.metres(0.8)), Tennis3DCourt.metres(1.8))
+            min(max(targetX * 0.35, -Tennis3DCourt.metres(1.2)), Tennis3DCourt.metres(1.2)),
+            Tennis3DCourt.metres(-0.4)
         )
 
         if cameraSettled {

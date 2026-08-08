@@ -295,14 +295,17 @@ final class Tennis3DView: UIView {
         style(hint, size: 13, color: UIColor(white: 1, alpha: 0.85), weight: .semibold,
               display: false)
         hint.translatesAutoresizingMaskIntoConstraints = false
-        hint.text = "Grab yourself and drag — or tap where to run. Stand on the green X"
+        hint.text = "Tap the green X — that is where your racket has to be. Or grab yourself and drag"
         hint.textAlignment = .center
         hint.numberOfLines = 0
         addSubview(hint)
 
         NSLayoutConstraint.activate([
             hint.centerXAnchor.constraint(equalTo: centerXAnchor),
-            hint.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -96),
+            // Clear of the near baseline. The court now fills the frame, so the bottom of the
+            // screen is where the player stands rather than spare apron — two lines of text at
+            // 96 points up sat on their head.
+            hint.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -190),
             hint.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, multiplier: 0.7),
         ])
     }
@@ -486,14 +489,18 @@ final class Tennis3DView: UIView {
         case .began:
             isDragging = true
             grabOffset = nil
-            guard let game, let world = worldPoint(for: recognizer.location(in: self)) else {
-                return
+            let finger = recognizer.location(in: self)
+            // The grab test asks about the **body**, which stands on the ground, so it reads the
+            // ground plane. The steering below asks about the **strings**, which do not.
+            if let game,
+               let feet = worldPoint(for: finger),
+               hypot(feet.x - game.player.motor.x, feet.y - game.player.motor.y)
+                   < Tennis3DCourt.metres(1.8),
+               let strings = worldPoint(for: finger, height: game.playerContactHeight) {
+                let anchor = game.playerRacketAnchor
+                grabOffset = (x: anchor.x - strings.x, y: anchor.y - strings.y)
             }
-            let toPlayer = hypot(world.x - game.player.motor.x, world.y - game.player.motor.y)
-            if toPlayer < Tennis3DCourt.metres(1.8) {
-                grabOffset = (x: game.player.motor.x - world.x, y: game.player.motor.y - world.y)
-            }
-            steer(to: recognizer.location(in: self))
+            steer(to: finger)
         case .changed:
             isDragging = true
             steer(to: recognizer.location(in: self))
@@ -508,27 +515,80 @@ final class Tennis3DView: UIView {
         steer(to: recognizer.location(in: self))
     }
 
+    /// **A finger points at a racket, not at a pair of feet.**
+    ///
+    /// The thing on screen worth aiming at is the green X, and the green X is where the ball has
+    /// to meet the strings. So the point under the finger is handed to the game as a target for
+    /// the *racket head*, and the game works backwards to where the feet have to go — the same
+    /// sum `stance(toMeet:for:)` does for the opponent. Aiming the feet at it instead, which is
+    /// what this did, planted the chest where the strings needed to be and the ball sailed past
+    /// a metre inside the reach.
     private func steer(to point: CGPoint) {
-        guard let game, let world = worldPoint(for: point) else { return }
+        guard let game,
+              let world = worldPoint(for: point, height: game.playerContactHeight) else { return }
         let offset = grabOffset ?? (x: 0, y: 0)
-        game.steer(toWorldX: world.x + offset.x, y: world.y + offset.y)
+        game.steer(racketToWorldX: world.x + offset.x, y: world.y + offset.y)
     }
 
-    /// Turns a point on the screen into a point on the court.
+    /// Turns a point on the screen into a point on the court, at a given height above it.
     ///
     /// The 2D game inverted its own court transform to do this. Here the court is a real plane
     /// in a real perspective projection, so the honest answer is a ray cast — which the camera
     /// already knows how to do, because the map layer needs the same thing to work out which
     /// ground tiles are on screen.
-    private func worldPoint(for point: CGPoint) -> (x: Double, y: Double)? {
+    ///
+    /// `height` matters more than it sounds. The camera is tipped 0.80 rad — 46° — over behind
+    /// the baseline, so a marker floating at racket height sits well over a metre up-screen of
+    /// the patch of court beneath it; reading every touch off the floor meant a tap that looked
+    /// dead on the X asked for a point a couple of sweet spots behind it. The camera only
+    /// unprojects to the floor, so the ray is re-cut here: it runs from the eye through the floor
+    /// hit, and is stopped at `height` on the way.
+    private func worldPoint(for point: CGPoint, height: Double = 0) -> (x: Double, y: Double)? {
         guard let game, bounds.width > 0, bounds.height > 0 else { return nil }
 
         let ndc = SIMD2<Float>(Float(point.x / bounds.width) * 2 - 1,
                                1 - Float(point.y / bounds.height) * 2)
         guard let hit = game.lastCamera.unprojectToGroundPlane(ndc: ndc) else { return nil }
+
+        var render = SIMD2(Double(hit.x), Double(hit.y))
+        let eye = game.lastCamera.eye
+        if height > 0, Double(eye.z) > height + 1 {
+            let eyePlane = SIMD2(Double(eye.x), Double(eye.y))
+            render = eyePlane + (render - eyePlane) * ((Double(eye.z) - height) / Double(eye.z))
+        }
         // Render space negates Y.
-        return (x: Double(hit.x), y: Double(-hit.y))
+        return (x: render.x, y: -render.y)
     }
+
+#if DEBUG
+    // MARK: - Driving it without a finger
+    //
+    // `simctl` cannot inject a touch, and "nobody has played it with a thumb" has been the oldest
+    // item on the handoff list for three sessions running. The gesture recognisers themselves are
+    // UIKit's and are not the risk; the risk is everything between a point on the glass and a
+    // target on the court — the ray cast, the height plane the ray is cut on, and the racket
+    // offset. `-tennis3dtaps` drives exactly that, by projecting the green X back to a screen
+    // point and pushing it in where UIKit would have. If the round trip is wrong by a metre, the
+    // player misses every ball and the trace says so.
+
+    /// Where a point in the world lands on this view.
+    func debugScreenPoint(worldX: Double, worldY: Double, z: Double) -> CGPoint? {
+        guard let game, bounds.width > 0, bounds.height > 0 else { return nil }
+        let viewport = SIMD2<Float>(Float(bounds.width), Float(bounds.height))
+        let projected = game.lastCamera.project(worldX: worldX, worldY: worldY, z: z,
+                                                viewport: viewport)
+        guard projected.ndc.z <= 1, abs(projected.ndc.x) <= 1.3, abs(projected.ndc.y) <= 1.3 else {
+            return nil
+        }
+        return CGPoint(x: CGFloat(projected.screen.x), y: CGFloat(projected.screen.y))
+    }
+
+    /// Enters at the same line `tapped(_:)` does, with the CGPoint UIKit would have handed it.
+    func debugTouch(at point: CGPoint) {
+        grabOffset = nil
+        steer(to: point)
+    }
+#endif
 
     /// Lets touches through to the panels, but never swallows one meant for the court.
     ///

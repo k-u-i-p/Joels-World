@@ -106,8 +106,12 @@ extension Tennis3DGame {
 
         // --- Gone ---
         // Far enough past the fence that nothing is going to bring it back.
-        let strayed = abs(ball.x) > Tennis3DCourt.surfaceHalfWidth * 1.6
-            || abs(ball.y) > Tennis3DCourt.surfaceHalfLength * 1.6
+        // Measured off the **playable** rectangle, not the drawn apron: the apron is deliberately
+        // eleven metres bigger than anyone can walk so its edge stays out of frame, and hanging
+        // the dead-ball test off it would let a shot fly for another second and a half before
+        // anybody called it.
+        let strayed = abs(ball.x) > Tennis3DCourt.playableHalfWidth + Tennis3DCourt.metres(5)
+            || abs(ball.y) > Tennis3DCourt.playableHalfLength + Tennis3DCourt.metres(10)
         if strayed && phase == .rally {
             resolveDeadBall()
         }

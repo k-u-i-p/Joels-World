@@ -65,20 +65,46 @@ enum Tennis3DCourt {
     static let lineWidth = metres(0.05)
     static let baselineWidth = metres(0.10)
 
-    /// The apron of hard court outside the lines, and the grass beyond that. The run-back is
-    /// what makes a deep ball retrievable, so it cannot be trimmed much — but the apron is kept
-    /// tight so the `#7bed9f` grass frames the court the way it did in the 2D game, rather than
-    /// the whole screen going hard-court grey.
-    static let runBack = metres(4.2)
-    static let sideRun = metres(2.2)
+    /// **How far outside the lines anyone may go.** The run-back is what makes a deep ball
+    /// retrievable; the side run is a stride past the tramlines for a wide one.
+    ///
+    /// It was 4.2 m and 2.2 m, and it was the reason the camera had to sit so far back: the
+    /// playable rectangle was 32 m long against a 23.77 m court, so framing the court meant
+    /// letting a player walk off the bottom of the screen. Trimmed to a stride and a half, the
+    /// whole playable area fits the frame and the court can fill it.
+    ///
+    /// 2.8 m rather than the 2.2 m it was first trimmed to. At 2.2 m a measured match produced
+    /// two misses and **both** were the player standing on the back fence at 14.0 m with the ball
+    /// still climbing through 1.6 m over their head — a topspin reply that carries past the
+    /// baseline needs a step and a half behind it before it drops to racket height, and pinning
+    /// the player is not the same thing as beating them.
+    static let runBack = metres(2.8)
+    static let sideRun = metres(1.6)
 
-    static let surfaceHalfWidth = halfDoubles + sideRun
-    static let surfaceHalfLength = halfLength + runBack
+    static let playableHalfWidth = halfDoubles + sideRun
+    static let playableHalfLength = halfLength + runBack
 
-    /// How far outside the surface a character may stray before being clamped. Slightly inside
-    /// the apron edge, so nobody stands on the grass.
-    static let playableHalfWidth = surfaceHalfWidth - metres(0.5)
-    static let playableHalfLength = surfaceHalfLength - metres(0.5)
+    /// **The drawn apron is deliberately far bigger than the playable one**, so that its edge is
+    /// never in shot where it would be read as the edge of the world.
+    ///
+    /// These used to be the same rectangle, which meant the hard court visibly stopped a metre
+    /// or two outside the tramlines with flat empty grass beyond it — a hard line drawn across
+    /// the top and bottom of the screen. A court is a court because it goes on past the frame.
+    ///
+    /// It is **not symmetric**, because the camera is not. `apronCentreY` pushes it towards the
+    /// near baseline: the bottom of the frame is a stride and a half behind the player and has to
+    /// be hard court, while the top of the frame is a long way up the other end.
+    ///
+    /// How far up the other end is decided by something that cannot be changed from here.
+    /// `Camera.far` is 2000 units and the camera orbits at 1631, so the ground simply **stops**
+    /// about 18 m past the far baseline, whatever is drawn there — that pale green band across
+    /// the top of the frame was never the lawn, it was the clear colour showing through the far
+    /// clip plane. Making the apron bigger did nothing at all. So the apron stops a few metres
+    /// short of the clip instead and the lawn fills the gap, and the clear colour is a sky rather
+    /// than a green — see `skyHex`.
+    static let surfaceHalfWidth = halfDoubles + metres(6)
+    static let surfaceHalfLength = halfLength + metres(4.5)
+    static let apronCentreY = metres(1.5)
 
     /// The ball. A real one is 33 mm across, which at this scale is under a unit and invisible
     /// from a camera 25 m up — so it is drawn at three times life size, the same lie every
@@ -99,7 +125,19 @@ enum Tennis3DCourt {
     static let postColor = parseHexColor("#22303c")
     static let ballColor = parseHexColor("#d7f205")
 
-    static let grassHex = "#7bed9f"
+    /// What is left when the ground runs out — which, from a camera tipped over behind the
+    /// baseline, is the top eighth of the frame.
+    ///
+    /// It used to be the grass colour, on the assumption that nothing would ever show through.
+    /// Something does: `Camera.far` is 2000 units against an orbit of 1631, so the ground stops
+    /// dead about 18 m past the far baseline and the clear colour shows above it. No amount of
+    /// extra apron reaches past a clip plane, and matching the clear colour to the grass does not
+    /// work either — the clear colour is written straight to a linear target and the same hex
+    /// comes back a good deal paler than the shaded plane next to it.
+    ///
+    /// So it is a **sky**. A hard straight line between pale blue and a green field is a horizon,
+    /// which is the one thing that line is allowed to be.
+    static let skyHex = "#a9d9ef"
 
     // MARK: - Bounds tests
 
@@ -175,19 +213,21 @@ enum Tennis3DCourt {
                 castsShadow: false))
         }
 
-        // Grass, then the hard-court apron, then the darker playing area inside the lines.
+        // The lawn, then the hard-court apron on top of it, then the darker playing area inside
+        // the lines. The lawn shows as a band behind the far baseline and runs out of frame
+        // everywhere else — see the note on `surfaceHalfLength` for why the apron is that shape.
         //
-        // The gaps between them used to be 0.4 units — a centimetre and a half — and the grass
-        // was six times the size of the surface, which is nearly three hundred metres long. A
-        // depth buffer asked to separate three planes a centimetre apart across three hundred
+        // The gaps between the three used to be 0.4 units — a centimetre and a half — and the
+        // grass was six times the size of the surface, which is nearly three hundred metres long.
+        // A depth buffer asked to separate three planes a centimetre apart across three hundred
         // metres cannot, and the result was ragged slabs of the wrong colour appearing off the
-        // corners of the court and vanishing again as the camera drifted. Two units of
-        // separation and a grass plane only big enough to fill the frame is plenty of room; from
-        // a camera twenty-five metres up, seven centimetres of lift is invisible.
-        slab(x: 0, y: 0, width: surfaceHalfWidth * 5, length: surfaceHalfLength * 3, z: 0,
-             color: grassColor, unlit: false)
-        slab(x: 0, y: 0, width: surfaceHalfWidth * 2, length: surfaceHalfLength * 2, z: 2,
-             color: surfaceColor, unlit: false)
+        // corners of the court and vanishing again as the camera drifted. Two units of separation
+        // and a lawn only big enough to fill the frame is plenty of room; from this camera, seven
+        // centimetres of lift is invisible.
+        slab(x: 0, y: apronCentreY, width: surfaceHalfWidth * 4, length: surfaceHalfLength * 4,
+             z: 0, color: grassColor, unlit: false)
+        slab(x: 0, y: apronCentreY, width: surfaceHalfWidth * 2, length: surfaceHalfLength * 2,
+             z: 2, color: surfaceColor, unlit: false)
         slab(x: 0, y: 0, width: doublesWidth, length: length, z: 4,
              color: insideColor, unlit: false)
 
