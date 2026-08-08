@@ -5,13 +5,17 @@ import simd
 ///
 /// The body used to be twenty draw calls, one per part, and the colour came from the draw. It
 /// is one draw now, so the colour has to travel *with the vertex*: this is an index into a
-/// four-entry palette the shader is handed alongside the joint matrices. Hair and shoe are
-/// absent because the head and shoe GLBs are still drawn the old way.
+/// palette the shader is handed alongside the joint matrices. Hair and shoe are absent because
+/// the head and shoe GLBs are still drawn the old way.
 enum ColorSlot: Float {
     case skin = 0
     case shirt = 1
     case arm = 2
     case pants = 3
+    /// Collars, cuffs and socks. **No vertex ever carries this one** — it is in the palette
+    /// because the *texture* chooses it, per texel, and the shader needs somewhere to read it
+    /// from. See `ClothingAtlas`.
+    case trim = 4
 }
 
 /// A vertex of the skinned body. Layout must match `SkinVertex` in `Shaders.metal`.
@@ -102,7 +106,7 @@ enum SkinnedBody {
     static let boneCount = 16
     /// `ColorSlot` count. The palette is uploaded as this many colours then this many
     /// roughness/metalness pairs.
-    static let paletteCount = 4
+    static let paletteCount = 5
 
     static let boneIndex: [RigPart: Int] = {
         var map: [RigPart: Int] = [:]
@@ -141,7 +145,12 @@ enum SkinnedBody {
         var torso = MeshFactory.revolved(profile: CharacterRig.torsoProfile, radialSegments: 24)
         MeshFactory.applyScale(&torso, CharacterRig.torsoSquash)
         append(torso, into: &out, bind: bind.bones[.torso] ?? matrix_identity_float4x4,
-               slot: .shirt) { local, _ in
+               slot: .shirt, region: .torso,
+               uv: { local, world in
+                   // Bottom of the profile to the top: the hem of the shirt to the neck root.
+                   SIMD2(facing(world), (local.y - profileFloor(CharacterRig.torsoProfile))
+                                        / profileHeight(CharacterRig.torsoProfile))
+               }) { local, _ in
             // Read on the lathe's own axis, which stands on +Y before the transform turns it
             // upright: −6.4 is the hem of the shirt and 13.6 is where the neck leaves it.
             var weights = SkinWeights()
@@ -154,7 +163,11 @@ enum SkinnedBody {
         var pelvis = MeshFactory.revolved(profile: CharacterRig.pelvisProfile, radialSegments: 24)
         MeshFactory.applyScale(&pelvis, CharacterRig.pelvisSquash)
         append(pelvis, into: &out, bind: bind.bones[.pelvis] ?? matrix_identity_float4x4,
-               slot: .pants) { local, world in
+               slot: .pants, region: .pelvis,
+               uv: { local, world in
+                   SIMD2(facing(world), (local.y - profileFloor(CharacterRig.pelvisProfile))
+                                        / profileHeight(CharacterRig.pelvisProfile))
+               }) { local, world in
             var weights = SkinWeights()
             weights.add(.torso, 0.45 * smoothstep((local.y - 2.4) / 2.6))
             // The bottom of the shorts goes with whichever thigh is leaving through it, so a
@@ -171,7 +184,7 @@ enum SkinnedBody {
                                         height: CharacterRig.neckLength,
                                         radialSegments: 16)
         append(neck, into: &out, bind: bind.bones[.neck] ?? matrix_identity_float4x4,
-               slot: .skin) { local, _ in
+               slot: .skin, region: .blank) { local, _ in
             var weights = SkinWeights()
             let half = CharacterRig.neckLength / 2
             weights.add(.torso, 0.5 * (1 - smoothstep((local.y + half) / half)))
@@ -187,13 +200,36 @@ enum SkinnedBody {
         let rightHand = CharacterRenderer.buildHand()
         let leftHand = MeshFactory.mirroredInX(rightHand)
         append(rightHand, into: &out, bind: bind.bones[.rightHand] ?? matrix_identity_float4x4,
-               slot: .skin) { _, _ in
+               slot: .skin, region: .blank) { _, _ in
             var weights = SkinWeights(); weights.fill(.rightHand); return weights
         }
         append(leftHand, into: &out, bind: bind.bones[.leftHand] ?? matrix_identity_float4x4,
-               slot: .skin) { _, _ in
+               slot: .skin, region: .blank) { _, _ in
             var weights = SkinWeights(); weights.fill(.leftHand); return weights
         }
+    }
+
+    /// Where a point on the torso or the shorts is round the body, as the clothing atlas's `u`:
+    /// **0 at the middle of the chest, 0.5 at the side, 1 down the spine**, and the same coming
+    /// round the other way.
+    ///
+    /// Measured in **bind space**, where +X is the character's front, rather than from the
+    /// lathe's own revolve angle — so the middle of the chest is the middle of the chest whatever
+    /// `MeshFactory` and the bind rotation do between them. Both lathes stand on the rig's own Z
+    /// axis, so there is no centre to subtract.
+    ///
+    /// Taking the *magnitude* of the angle is what folds it, and folding is what stops the last
+    /// quad round the body carrying u from 0.96 back to 0 — see `ClothingAtlas.uv`.
+    private static func facing(_ world: SIMD3<Float>) -> Float {
+        abs(atan2(-world.y, world.x)) / .pi
+    }
+
+    private static func profileFloor(_ profile: [(y: Float, radius: Float)]) -> Float {
+        profile.first?.y ?? 0
+    }
+
+    private static func profileHeight(_ profile: [(y: Float, radius: Float)]) -> Float {
+        max((profile.last?.y ?? 1) - (profile.first?.y ?? 0), 1e-4)
     }
 
     // MARK: - Arms and legs
@@ -220,7 +256,7 @@ enum SkinnedBody {
                                   segments: (8, 8),
                                   blend: 0.42,
                                   capSteps: 5)
-            appendTube(rings, into: &out, slot: .arm, radial: 16)
+            appendTube(rings, into: &out, slot: .arm, region: .arm, radial: 16)
         }
     }
 
@@ -243,7 +279,7 @@ enum SkinnedBody {
                                   segments: (9, 8),
                                   blend: 0.40,
                                   capSteps: 5)
-            appendTube(rings, into: &out, slot: .pants, radial: 16)
+            appendTube(rings, into: &out, slot: .pants, region: .leg, radial: 16)
         }
     }
 
@@ -368,12 +404,26 @@ enum SkinnedBody {
     /// A ring of zero radius becomes a single vertex and the strip a fan, which is what closes
     /// each end. Winding and vertex order match `MeshFactory.lathe` exactly, so the normals
     /// this mesh accumulates agree with every other mesh in the game.
+    ///
+    /// The clothing atlas's `v` is **arc length along the centre line**, not the ring index:
+    /// the caps are five rings over a couple of units and the shaft is eight rings over ten, so
+    /// an index would put the cuff of a sleeve somewhere near the shoulder. Arc length also means
+    /// `ClothingAtlas.sleeveEnd` can be read as "this far down the arm" and stay true if the ring
+    /// counts ever change.
     private static func appendTube(_ rings: [SweptRing],
                                    into out: inout SkinMeshData,
                                    slot: ColorSlot,
+                                   region: ClothingRegion,
                                    radial: Int) {
         guard rings.count >= 2 else { return }
         let segments = max(3, radial)
+
+        var travelled: [Float] = [0]
+        for index in 1..<rings.count {
+            travelled.append(travelled[index - 1]
+                             + simd_distance(rings[index].centre, rings[index - 1].centre))
+        }
+        let total = max(travelled[rings.count - 1], 1e-4)
 
         // Seed the frame with any axis not parallel to the first tangent.
         var cross = SIMD3<Float>(0, 0, 1)
@@ -382,7 +432,8 @@ enum SkinnedBody {
         var rowStart: [Int] = []
         var rowCount: [Int] = []
 
-        for ring in rings {
+        for (index, ring) in rings.enumerated() {
+            let along = travelled[index] / total
             let tangent = simd_normalize(ring.tangent)
             // Square the carried axis against this ring's tangent — parallel transport, near
             // enough, and stable for the small turns a limb makes.
@@ -404,7 +455,8 @@ enum SkinnedBody {
             if ring.radius < 1e-4 {
                 out.vertices.append(SkinVertex(position: ring.centre, normal: tangent,
                                                weights: weights, joints: joints,
-                                               uv: SIMD2(0.5, 0), colorSlot: slot.rawValue))
+                                               uv: ClothingAtlas.uv(region, u: 0.5, v: along),
+                                               colorSlot: slot.rawValue))
                 rowCount.append(1)
                 continue
             }
@@ -415,7 +467,11 @@ enum SkinnedBody {
                 out.vertices.append(SkinVertex(position: ring.centre + outward * ring.radius,
                                                normal: outward,
                                                weights: weights, joints: joints,
-                                               uv: SIMD2(Float(segment) / Float(segments), 0),
+                                               // Folded the same way `facing` folds the torso's,
+                                               // so the ring closes without a jump.
+                                               uv: ClothingAtlas.uv(region,
+                                                                    u: abs(2 * Float(segment) / Float(segments) - 1),
+                                                                    v: along),
                                                colorSlot: slot.rawValue))
             }
             rowCount.append(segments)
@@ -445,15 +501,24 @@ enum SkinnedBody {
 
     // MARK: - Reusing an existing mesh
 
-    /// Transforms an unskinned `MeshData` into bind space and weights it.
+    /// Transforms an unskinned `MeshData` into bind space, weights it and gives it a place in the
+    /// clothing atlas.
     ///
-    /// The closure is handed the vertex twice — once in the mesh's own space, which is where a
+    /// Both closures are handed the vertex twice — once in the mesh's own space, which is where a
     /// profile height like "the hem of the shirt" is legible, and once in bind space, which is
-    /// where "nearer the left hip than the right" is.
+    /// where "nearer the left hip than the right" and "round the front" are.
+    ///
+    /// The mesh's **own** UVs are thrown away. `MeshFactory.lathe` writes a plain revolve
+    /// parameterisation and says in as many words that the rig's flat-coloured materials never
+    /// read it; what the atlas needs is anatomical, so `uv` supplies it. `region: .blank` with the
+    /// default closure is the honest answer for anything that is skin.
     private static func append(_ mesh: MeshData,
                                into out: inout SkinMeshData,
                                bind: Float4x4,
                                slot: ColorSlot,
+                               region: ClothingRegion,
+                               uv: (_ local: SIMD3<Float>, _ world: SIMD3<Float>) -> SIMD2<Float>
+                                   = { _, _ in SIMD2(0.5, 0.5) },
                                weights: (_ local: SIMD3<Float>, _ world: SIMD3<Float>) -> SkinWeights) {
         let offset = UInt32(out.vertices.count)
         // Every bind matrix for these parts is a translation and a rotation, so the same matrix
@@ -466,10 +531,12 @@ enum SkinnedBody {
             let placed = bind * SIMD4(vertex.position, 1)
             let world = SIMD3(placed.x, placed.y, placed.z)
             let (joints, packed) = weights(vertex.position, world).packed()
+            let placement = uv(vertex.position, world)
             out.vertices.append(SkinVertex(position: world,
                                            normal: rotation * vertex.normal,
                                            weights: packed, joints: joints,
-                                           uv: vertex.uv, colorSlot: slot.rawValue))
+                                           uv: ClothingAtlas.uv(region, u: placement.x, v: placement.y),
+                                           colorSlot: slot.rawValue))
         }
         out.indices.append(contentsOf: mesh.indices.map { $0 + offset })
     }

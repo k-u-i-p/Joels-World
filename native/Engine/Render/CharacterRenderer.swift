@@ -18,7 +18,8 @@ struct CharacterUniforms {
     /// xyz = dielectric F0, w = specular intensity (three.js's `specularF90` before the
     /// metalness mix). The defaults (0.04, 1) are what `MeshStandardMaterial` hard-codes.
     var specular: SIMD4<Float>
-    /// x = transmission, yzw unused.
+    /// x = transmission, y = the clothing atlas is bound at texture 0 and `uv` addresses it
+    /// (the skinned body, and nothing else), zw unused.
     var surface: SIMD4<Float>
 }
 
@@ -59,7 +60,8 @@ extension CharacterUniforms {
          textured: Bool,
          unlit: Bool,
          material: SurfaceMaterial,
-         emissiveTextured: Bool = false) {
+         emissiveTextured: Bool = false,
+         clothed: Bool = false) {
         let extensions = material.extensions
         self.init(modelViewProjection: modelViewProjection,
                   model: model,
@@ -69,7 +71,7 @@ extension CharacterUniforms {
                                material.roughness, material.metalness),
                   emissive: SIMD4(extensions.emissive, emissiveTextured ? 1 : 0),
                   specular: SIMD4(extensions.specularF0, extensions.specularIntensity),
-                  surface: SIMD4(extensions.transmission, 0, 0, 0))
+                  surface: SIMD4(extensions.transmission, clothed ? 1 : 0, 0, 0))
     }
 }
 
@@ -116,6 +118,9 @@ final class CharacterRenderer {
     /// above are only used for the emote props and the shoe stand-in; when it is `nil` the rig
     /// falls back to drawing them one at a time, which is what the game did before.
     private var skinnedBody: GPUSkinMesh?
+    /// The collars, buttons, cuffs and socks — see `ClothingAtlas`. One texture for every
+    /// character, because it says what to *do* to a colour rather than what colour to be.
+    private var clothingTexture: MTLTexture?
     /// Pipelines for the skinned body. Owned by `Renderer`, which builds them, and handed over
     /// here because the body has to be drawn with a different vertex function from the head,
     /// the shoes and the props it is drawn among.
@@ -260,6 +265,11 @@ final class CharacterRenderer {
             Log.render("Failed to build the skinned body — falling back to the rigid rig")
         } else {
             Log.render("Skinned body: \(skin.vertices.count) vertices, \(skin.indices.count / 3) triangles")
+        }
+
+        clothingTexture = ClothingAtlas.make(device: device)
+        if clothingTexture == nil {
+            Log.render("Failed to build the clothing atlas — the body falls back to flat colours")
         }
 
         shadowTexture = ProceduralTextures.makeShadowTexture(device: device)
@@ -471,7 +481,9 @@ final class CharacterRenderer {
         palette[1] = SIMD4(pose.colors.shirt, 1)
         palette[2] = SIMD4(pose.colors.arm, 1)
         palette[3] = SIMD4(pose.colors.pants, 1)
-        for (offset, material) in [SurfaceMaterial.skin, .shirt, .arm, .pants].enumerated() {
+        // No vertex carries the trim slot; the clothing atlas picks it per texel.
+        palette[4] = SIMD4(ClothingAtlas.trimColor, 1)
+        for (offset, material) in [SurfaceMaterial.skin, .shirt, .arm, .pants, .shirt].enumerated() {
             palette[SkinnedBody.paletteCount + offset] = SIMD4(material.roughness, material.metalness, 0, 0)
         }
 
@@ -484,7 +496,8 @@ final class CharacterRenderer {
             clipParams: SIMD4(pose.worldPivot.x, pose.worldPivot.y, clipMapSize.x, clipMapSize.y),
             textured: false,
             unlit: false,
-            material: .shirt
+            material: .shirt,
+            clothed: clothingTexture != nil
         )
 
         encoder.setRenderPipelineState(shadowPass ? pipelines.shadowSkinned : pipelines.skinned)
@@ -498,7 +511,7 @@ final class CharacterRenderer {
                                    length: MemoryLayout<SIMD4<Float>>.stride * SkinnedBody.paletteCount * 2,
                                    index: 3)
             encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
-            encoder.setFragmentTexture(whiteTexture, index: 0)
+            encoder.setFragmentTexture(clothingTexture ?? whiteTexture, index: 0)
             encoder.setFragmentTexture(whiteTexture, index: 3)
         }
         encoder.drawIndexedPrimitives(type: .triangle,

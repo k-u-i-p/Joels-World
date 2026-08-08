@@ -83,9 +83,98 @@ It plays. `DRAG grabbed, offset (0.00, -0.00)m`, then strikes with no misses.
 
 ---
 
+## The ball does not carry too far, and never did
+
+Part 5's item 2 said a topspin ball "kicks on five or six metres past its bounce" and pointed at
+`bounceRestitution` and the topspin `kick`. Measured across 130 shots before anything was changed
+this session:
+
+| | |
+|---|---|
+| Carry, bounce to contact | median **2.85 m**, max 6.4 m |
+| Contact height | median **1.20 m** — a waist-high groundstroke |
+| Contact distance from the net | median **11.0 m**, against an 11.9 m baseline |
+
+That is a player standing just inside their own baseline taking a waist-high ball a bit under
+three metres after it pitches, which is what tennis looks like. The five-or-six-metre figure is
+the tail, not the norm, and part 5's own behind-the-baseline cost in `intercept` is what fixed it.
+**No change made. Do not go tuning `bounceRestitution` on the strength of the old note.**
+
+## Why nobody ever hit the ball out — it was not the physics
+
+The finding every session since part 4 has recorded and none has acted on: across twenty points,
+not one `OUT`, `INTO THE NET`, `LONG` or `DOUBLE FAULT`. Every single point ended with somebody
+failing to *reach* a ball.
+
+The obvious culprit is `launchBall`, which solves the launch by simulation until the ball lands on
+the target — so whatever the swing was like, the ball lands in. `quality` could only ever take
+pace off and drag the aim towards the middle. A bad shot was a weak shot, never a miss.
+
+So the first attempt was to put the error **after** the solver: a real mishit is not "I aimed
+somewhere safer", it is "I meant to hit it there and I did not". `launchBall(…, mishit:)` now
+perturbs pace and launch angle once the solve is done.
+
+**It changed nothing — still 0% of points ended in an error.** Two measurements explain why, and
+the second is the one that matters:
+
+1. `random.spread(x)` averages three signed samples, so it is triangular about zero and its useful
+   width is about `x/3`. The first pass at `mishitPace = 0.10` was really a ±1% pace error.
+2. Far more important — **the aim was never near the lines**. Measured over 228 shots:
+
+   | | |
+   |---|---|
+   | Landing error from the target | median 0.10 m, p90 0.40 m, **max 1.53 m** |
+   | Aim depth from the net | median 7.6 m |
+   | Margin from the aim to the baseline | **median 4.29 m** |
+
+   `planShot`'s depth was `random.range(0.58, 0.82)` of a half-court, so the deepest ball in the
+   game landed two metres inside the line and the typical one over four. Nothing could go out
+   because nothing was ever aimed near enough to the line to go out. Scaling the mishit up cannot
+   fix that: a shot aimed at the service line does not go out, it lands short.
+
+### So depth is the risk, and only bad shots miss
+
+Two changes, and they are a pair:
+
+- **Depth** is now `random.range(0.60, 0.84) + 0.06 * attack`. `attack` is already "how far inside
+  your own baseline you are standing", so the reward for good position and the risk that comes
+  with it are the same number — stand in, hit through the ball, aim nearer the line, and a mishit
+  now costs a point.
+- **The mishit is shaped**, so only a genuinely bad shot goes astray:
+  `sloppy = max(0, (1 - quality) - 0.25) / 0.75`. A flat `1 - quality` puts an error on every ball
+  in the game — median quality is 0.70, so the typical rally shot would carry a third of the
+  maximum error and the game would read as random rather than as demanding. Clean contact is
+  exact; a full-stretch scramble is not.
+
+⏳ **Being measured now.** `Tuning.mishitPace` 0.46, `mishitLoft` 0.56, `mishitThreshold` 0.25, and
+the two difficulty scales `playerMishitScale` / `npcMishitScale`. The target is somewhere around a
+quarter to a third of points ending in an actual error; the rest should still end by somebody not
+getting there.
+
+## Measuring three difficulties at once
+
+`scratchpad/run3.sh` boots the app on **three simulators** — iPhone 17, 17 Pro, 17 Pro Max — and
+plays Easy, Normal and Hard simultaneously, one per device, with `-tennis3ddrag -tennis3dtrace`.
+Four minutes of wall clock instead of twelve. `scratchpad/analyse.py` reads the logs and reports
+who won, how the points ended, rally lengths, and the quality/mishit distribution.
+
+Four things that cost time and are worth knowing:
+
+- A point that ends in one stroke logs "after 1 **shot**", singular. A regex expecting `shots`
+  silently reports "no completed points yet" on a log full of them.
+- The app stages 256 MB of assets on install, so a run takes about a minute to reach the court.
+  Do not read the log until it has some `POINT to` lines in it.
+- **Three simulators at once starve each other.** Running Easy, Normal and Hard in parallel looked
+  like a three-times speed-up and delivered about two points in eight minutes per device. One
+  device on its own runs at real time — check it with `wc -l` twice thirty seconds apart, and
+  expect about **93 lines per 30 s** (two trace lines a second plus events). Anything much less
+  and the run is not worth waiting for. Measure one difficulty at a time.
+- A rally now runs 15 shots at Normal against the drag bot, so a point takes the best part of a
+  minute and twenty-four points is twenty minutes of wall clock. Budget for it.
+
 ## ⏳ Still to do this session
 
-1. The ball carries too far — `bounceRestitution` (0.73) and the topspin `kick` in `bounce()`.
+1. Land the mishit numbers on measured evidence.
 2. Rally length is skewed, not long.
 3. No volley; Alex never comes to the net.
 

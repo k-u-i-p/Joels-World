@@ -236,7 +236,10 @@ extension Tennis3DGame {
     /// *consistent* direction would mean every shot from the baseline lands short. Three
     /// refinement passes get it inside a few centimetres, which is well under the error the
     /// aiming deliberately adds on top.
-    func launchBall(to target: (x: Double, y: Double), speed: Double, topspin: Double) {
+    /// `mishit` is how badly the ball was struck, 0 for a clean one. It is applied **after** the
+    /// solver, so it is a genuine error rather than a different target — see `Tuning.mishitPace`.
+    func launchBall(to target: (x: Double, y: Double), speed: Double, topspin: Double,
+                    mishit: Double = 0) {
         let start = ball.position
         var dx = target.x - start.x
         var dy = target.y - start.y
@@ -291,6 +294,14 @@ extension Tennis3DGame {
             let scale = Tuning.maxBallSpeed / launchSpeed
             horizontalSpeed *= scale
             verticalSpeed *= scale
+        }
+
+        // The mishit. Pace decides whether it lands short or long; loft decides whether it clips
+        // the cord or floats past the baseline. Both are signed and deterministic, so a given
+        // point still plays out the same way every time it is replayed.
+        if mishit > 0 {
+            horizontalSpeed *= 1 + random.spread(Tuning.mishitPace * mishit)
+            verticalSpeed *= 1 + random.spread(Tuning.mishitLoft * mishit)
         }
 
         ball.vx = directionX * horizontalSpeed

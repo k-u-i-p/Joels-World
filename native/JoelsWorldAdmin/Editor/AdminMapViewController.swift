@@ -102,6 +102,10 @@ final class AdminMapViewController: NSViewController {
         }
         metalView.delegate = renderer
 
+        if let pitch = AdminScreenshot.cameraPitch { session.state.camera.setPitch(delta: pitch) }
+        if let yaw = AdminScreenshot.cameraYaw { session.state.camera.yaw = yaw }
+        if let zoom = AdminScreenshot.cameraZoom { session.state.camera.zoom = min(max(0.1, zoom), 5) }
+
         if AdminScreenshot.quitsAfterShot {
             // A blit source has to be readable; the default drawable is write-only.
             metalView.framebufferOnly = false

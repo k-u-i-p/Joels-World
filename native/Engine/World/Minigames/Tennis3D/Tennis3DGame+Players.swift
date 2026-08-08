@@ -711,7 +711,22 @@ extension Tennis3DGame {
             : Tuning.rallySpeed * pace
         let speed = baseSpeed * side.swing.power * (0.72 + 0.28 * quality)
 
-        launchBall(to: aim, speed: speed, topspin: side.swing.topspin)
+        // **A shot struck badly enough now actually misses.** The serve is exempt: the server is
+        // standing still and chose where the ball goes, so a mishit there is a double fault the
+        // player did nothing to earn, and part 1 settled that the interesting decisions in this
+        // game are on the return rather than the ball toss.
+        //
+        // Shaped so that **only a genuinely bad shot misses**. A flat `1 - quality` puts an error
+        // on every ball in the game — the median quality is 0.70, so the typical rally shot would
+        // carry a third of the maximum error and the game would read as random rather than as
+        // demanding. Clean contact is exact; everything from a comfortable shot down to a
+        // full-stretch scramble slides into it.
+        let sloppy = max(0, (1 - quality) - Tuning.mishitThreshold) / (1 - Tuning.mishitThreshold)
+        let mishit = side.swing.isServe
+            ? 0
+            : sloppy * (side.isPlayer ? Tuning.playerMishitScale : Tuning.npcMishitScale)
+
+        launchBall(to: aim, speed: speed, topspin: side.swing.topspin, mishit: mishit)
 
         if side.swing.isServe {
             phase = .rally
@@ -733,11 +748,11 @@ extension Tennis3DGame {
                                 rate: 0.86 + quality * 0.26)
 
         let metre = Tennis3DCourt.unitsPerMetre
-        trace(String(format: "STRIKE %@%@ at (%.1f, %.1f, %.1f)m quality=%.2f aim=(%.1f, %.1f)m",
+        trace(String(format: "STRIKE %@%@ at (%.1f, %.1f, %.1f)m quality=%.2f mishit=%.2f aim=(%.1f, %.1f)m",
                      side.isPlayer ? "you" : opponentName,
                      side.swing.isServe ? " serve" : (side.swing.isBackhand ? " backhand" : ""),
                      contact.x / metre, contact.y / metre, contact.z / metre,
-                     quality, aim.x / metre, aim.y / metre))
+                     quality, mishit, aim.x / metre, aim.y / metre))
     }
 
     // MARK: - Aiming
@@ -853,7 +868,29 @@ extension Tennis3DGame {
         // 1.6 m and carries ten metres past the bounce, which is well past the back fence, so
         // the point ended with somebody pinned against it watching the ball go over their head.
         // Being properly stretched is a metre and a half further back than that.
-        let depth = stretched ? random.range(0.46, 0.64) : random.range(0.58, 0.82)
+        // **And how near the baseline a confident shot is allowed to go.**
+        //
+        // 0.58–0.82 of a half-court is 6.9 to 9.7 m from the net against an 11.9 m baseline, so
+        // even the deepest ball in the game landed with two metres to spare. Measured across 228
+        // shots: the median ball landed 4.3 m inside the line and the worst-struck one in the
+        // whole sample missed its target by 1.5 m. **Nothing could go out because nothing was
+        // ever aimed near enough to the line to.** That is the real reason five sessions of
+        // measurement never saw a single ball land long, and no amount of scaling up the mishit
+        // fixes it — a shot aimed at the service line does not go out, it just lands short.
+        //
+        // So depth is the other half of the risk: standing in and hitting through the ball aims
+        // it nearer the line, where a mishit costs a point. `attack` is already "how far inside
+        // your own baseline you are", so the reward for good position and the risk that comes
+        // with it are the same number.
+        // Measured at 0.60–0.84: the sloppiest shots were landing a metre off target and up to
+        // 3.2 m off, against a median margin to the baseline of 3.8 m — so still nothing went
+        // out. The margin has to be the same size as the error for the error to mean anything.
+        // 0.68–0.88 puts a normal ball 8.1–10.5 m out, and an attacking one within half a metre
+        // of the line, where a clean shot (0.4 m of error at worst) still lands in and a scramble
+        // does not.
+        let depth = stretched
+            ? random.range(0.46, 0.64)
+            : random.range(0.68, 0.88) + 0.06 * attack
         let aimY = targetHalf * Tennis3DCourt.halfLength * depth
 
         return (aim: (x: aimX, y: aimY),

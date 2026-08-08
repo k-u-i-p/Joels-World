@@ -181,6 +181,36 @@ final class Tennis3DGame: WorldRenderedMinigame {
             (0.34 + 0.15 * clampedDifficulty, 0.70 + 0.28 * clampedDifficulty)
         }
 
+        /// **How far a badly struck ball misses by** — the pace error and the launch-angle error
+        /// applied to a shot of the worst possible quality, as fractions.
+        ///
+        /// Every previous session measured the same thing and none of them acted on it: across
+        /// twenty points, *not one ball went out or into the net*. Every single point ended with
+        /// somebody failing to reach one. That is because `launchBall` solves the launch to land
+        /// on the target whatever the swing was like, so `quality` could only ever take pace off
+        /// and drag the aim towards the middle — a bad shot was a weak shot, never a miss.
+        ///
+        /// A real mishit is not "I aimed somewhere safer", it is "I meant to hit it there and I
+        /// did not". So the error goes on **after** the solver has done its work, which is also
+        /// what makes it interesting: aiming deep is now genuinely risky, because the margin
+        /// between the target and the baseline is what a mishit eats. Position and timing decide
+        /// how much you can get away with.
+        /// `random.spread` averages three signed samples, so it is triangular about zero and its
+        /// useful width is about a third of the number given to it. These are the full width, and
+        /// a first pass at 0.10/0.13 produced a measured error rate of exactly zero — a 1% pace
+        /// error cannot miss a target with two metres of margin behind it.
+        static let mishitPace = 0.46
+        static let mishitLoft = 0.56
+
+        /// How badly a ball has to be struck before it starts to go astray at all. Below this,
+        /// contact is exact — see the note in `strike`.
+        static let mishitThreshold = 0.25
+
+        /// A clean shot is never a mishit, so this scales with how badly it was struck — and with
+        /// difficulty, on both sides of the net. Easy forgives the player and punishes Alex.
+        static var playerMishitScale: Double { 0.45 + 0.92 * clampedDifficulty }
+        static var npcMishitScale: Double { 1.30 - 0.95 * clampedDifficulty }
+
         private static var clampedDifficulty: Double { min(max(difficulty, 0), 1) }
 
         /// Games needed to win the match, and so the badge. Two or four, chosen by the buttons

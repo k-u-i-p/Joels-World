@@ -22,6 +22,16 @@ enum AdminScreenshot {
         ProcessInfo.processInfo.arguments.contains("-shot")
     }
 
+    /// `-campitch <radians>` `-camyaw <radians>` `-camzoom <n>` — where the camera stands.
+    ///
+    /// R/F/Q/E do this interactively, and a held key is no use to a script. Without these a
+    /// headless shot is taken from straight overhead, which is the one angle that cannot show
+    /// whether a character has a collar, a knee or an elbow. Applied once at launch, so they
+    /// compose with the keys rather than replacing them.
+    static var cameraPitch: Double? { argument("-campitch").flatMap(Double.init) }
+    static var cameraYaw: Double? { argument("-camyaw").flatMap(Double.init) }
+    static var cameraZoom: Double? { argument("-camzoom").flatMap(Double.init) }
+
     private static func argument(_ name: String) -> String? {
         let arguments = ProcessInfo.processInfo.arguments
         guard let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
