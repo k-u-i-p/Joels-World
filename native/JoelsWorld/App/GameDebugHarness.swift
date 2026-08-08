@@ -30,6 +30,8 @@ final class GameDebugHarness {
     /// The demo restarts the match once after it ends, to prove `restartMatch()` is clean and
     /// that the badge does not fire a second time. Only once — otherwise it plays for ever.
     private var tennis3DHasRestarted = false
+    /// Which corner `-tennis3daim` picks next.
+    private var tennis3DAimFlip = false
     private var uiDemoStarted = false
     private var requestedInitialMap = false
 
@@ -196,6 +198,19 @@ final class GameDebugHarness {
             guard game.phase == .rally || (game.phase == .toss && !game.serverIsPlayer) else {
                 return
             }
+            // `-tennis3daim`: before running for the ball, tap a corner of Alex's court. It
+            // alternates corners so a whole run is not one repeated shot, and it goes in through
+            // the same `debugTouch` a steering tap does — the near/far decision, the ground-plane
+            // unprojection and the clamp are all part of what is being tested.
+            if WalkTest.aims3DTennis, game.playerAim == nil, game.ball.lastHitByPlayer == false {
+                self.tennis3DAimFlip.toggle()
+                let corner = Tennis3DCourt.halfSingles * (self.tennis3DAimFlip ? 0.8 : -0.8)
+                let depth = -Tennis3DCourt.halfLength * 0.72
+                if let point = view.debugScreenPoint(worldX: corner, worldY: depth, z: 0) {
+                    view.debugTouch(at: point)
+                }
+            }
+
             guard let intercept = game.idealIntercept(),
                   let point = view.debugScreenPoint(worldX: intercept.x, worldY: intercept.y,
                                                     z: intercept.z)

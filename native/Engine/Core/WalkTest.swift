@@ -163,6 +163,19 @@ final class WalkTest {
         argument("-tennisdifficulty").flatMap(Double.init)
     }
 
+    /// `-tennis3daim` makes the tap bot pick a corner of Alex's court before each of its shots,
+    /// by tapping it — which is the only way the aiming gesture gets exercised end to end, since
+    /// the bot's ordinary taps are all on its own half. See `Tennis3DGame.aimShot`.
+    static var aims3DTennis: Bool {
+        ProcessInfo.processInfo.arguments.contains("-tennis3daim")
+    }
+
+    /// `-tennisgames <n>` overrides how many games win the match, for a run that has to reach the
+    /// match-over panel and the badge without playing a full one. See `Tennis3DMatchLength`.
+    static var tennisGamesToWin: Int? {
+        argument("-tennisgames").flatMap(Int.init)
+    }
+
     /// `-exitafter <seconds>` presses the minigame's exit button on a timer, so the dialog and
     /// the map change back out of a minigame can be driven end to end with `-autoconfirm`.
     static var exitAfterSeconds: Double? {

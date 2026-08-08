@@ -243,6 +243,8 @@ extension Tennis3DGame {
         npc.swing = SwingState()
         player.moveTarget = nil
         npc.moveTarget = nil
+        // A target chosen for a shot that never came does not carry into the next point.
+        clearAim()
         announce(banner, subtitle: subtitle, duration: pause)
         onPresentationChanged?()
     }

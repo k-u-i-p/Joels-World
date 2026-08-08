@@ -15,6 +15,8 @@ final class ButtonBarView: UIView {
     private let stack = UIStackView()
     private var mapButton: UIButton!
     private var exitButton: UIButton!
+    private var badgesButton: UIButton!
+    private var emotesButton: UIButton!
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -44,9 +46,11 @@ final class ButtonBarView: UIView {
 
         let badges = circleButton(title: "🏅")
         badges.addTarget(self, action: #selector(badgesTapped), for: .touchUpInside)
+        badgesButton = badges
 
         let emotes = circleButton(title: "☺️")
         emotes.addTarget(self, action: #selector(emotesTapped), for: .touchUpInside)
+        emotesButton = emotes
 
         let help = circleButton(title: "?")
         help.titleLabel?.font = .systemFont(ofSize: 24, weight: .bold)
@@ -92,11 +96,22 @@ final class ButtonBarView: UIView {
         return button
     }
 
-    /// A minigame swaps the map button for the exit button and leaves the rest in place, which
-    /// is what `tennis.js:679-683` does to the same row.
+    /// A minigame swaps the map button for the exit button, and puts the badges and emotes
+    /// buttons away until it is over.
+    ///
+    /// The swap is what `tennis.js:679-683` does to the same row. Hiding the other two is not,
+    /// and it is here because of where this row sits: five 44-point circles across the
+    /// bottom-right corner, which in the 3D tennis game is **exactly where the near player stands
+    /// when a deep ball has pushed them back onto the fence**. They are on top of the character
+    /// and they eat the first centimetre of any drag that starts there — which is the drag you
+    /// most need, because you are in trouble. Neither button does anything a minigame can use:
+    /// the character on court is the game's, not the world's, so an emote goes nowhere, and the
+    /// badge you are playing for is one tap away the moment you leave.
     func setMinigameMode(_ active: Bool) {
         mapButton.isHidden = active
         exitButton.isHidden = !active
+        badgesButton.isHidden = active
+        emotesButton.isHidden = active
     }
 
     @objc private func mapTapped() { onMap?() }

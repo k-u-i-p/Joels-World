@@ -29,11 +29,13 @@ final class Tennis3DView: UIView {
     /// "RALLY 6", once a point is long enough to be worth counting.
     private let rallyLabel = UILabel()
 
-    /// The three difficulty buttons and the panel they sit in. Between points only — see
-    /// `updateDifficultyRow()`.
+    /// The three difficulty buttons, the two match-length buttons, and the panel they share.
+    /// Between points only — see `step()`.
     private let difficultyPanel = Theme.glassPanel(cornerRadius: 12)
     private let difficultyCaption = UILabel()
     private var difficultyButtons: [UIButton] = []
+    private let matchLengthCaption = UILabel()
+    private var matchLengthButtons: [UIButton] = []
 
     private let matchPanel = Theme.glassPanel(cornerRadius: 18)
     private let matchTitle = UILabel()
@@ -234,39 +236,67 @@ final class Tennis3DView: UIView {
         difficultyCaption.text = "ALEX"
         difficultyCaption.textAlignment = .center
 
+        style(matchLengthCaption, size: 10, color: UIColor(white: 1, alpha: 0.75), weight: .semibold,
+              display: false)
+        matchLengthCaption.text = "MATCH"
+        matchLengthCaption.textAlignment = .center
+
         difficultyButtons = Tennis3DDifficulty.allCases.map { level in
-            let button = Theme.makePlainButton()
-            button.setTitle(level.title, for: .normal)
-            button.titleLabel?.font = Theme.body(12, weight: .bold)
-            button.setTitleColor(.white, for: .normal)
-            button.layer.cornerRadius = 7
-            button.layer.cornerCurve = .continuous
-            // Sized rather than inset: `contentEdgeInsets` is deprecated, and a fixed pill is
-            // easier for a thumb to land on than one that hugs its own text.
-            button.translatesAutoresizingMaskIntoConstraints = false
-            button.heightAnchor.constraint(equalToConstant: 26).isActive = true
-            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 62).isActive = true
-            button.tag = level.rawValue
-            button.addTarget(self, action: #selector(difficultyTapped(_:)), for: .touchUpInside)
-            return button
+            pill(title: level.title, tag: level.rawValue,
+                 action: #selector(difficultyTapped(_:)))
+        }
+        matchLengthButtons = Tennis3DMatchLength.allCases.map { length in
+            pill(title: length.title, tag: length.rawValue,
+                 action: #selector(matchLengthTapped(_:)))
         }
 
-        let row = UIStackView(arrangedSubviews: [difficultyCaption] + difficultyButtons)
-        row.translatesAutoresizingMaskIntoConstraints = false
-        row.axis = .horizontal
-        row.alignment = .center
-        row.spacing = 6
-        difficultyPanel.contentView.addSubview(row)
+        let alexRow = UIStackView(arrangedSubviews: [difficultyCaption] + difficultyButtons)
+        alexRow.axis = .horizontal
+        alexRow.alignment = .center
+        alexRow.spacing = 6
+
+        let lengthRow = UIStackView(arrangedSubviews: [matchLengthCaption] + matchLengthButtons)
+        lengthRow.axis = .horizontal
+        lengthRow.alignment = .center
+        lengthRow.spacing = 6
+
+        // The captions are different widths, so the two rows would sit ragged; centring each row
+        // in the panel and letting them find their own width is fine at this size and saves a
+        // second set of constraints tying the captions together.
+        let column = UIStackView(arrangedSubviews: [alexRow, lengthRow])
+        column.translatesAutoresizingMaskIntoConstraints = false
+        column.axis = .vertical
+        column.alignment = .center
+        column.spacing = 4
+        difficultyPanel.contentView.addSubview(column)
 
         NSLayoutConstraint.activate([
             difficultyPanel.centerXAnchor.constraint(equalTo: centerXAnchor),
             difficultyPanel.topAnchor.constraint(equalTo: scoreboard.bottomAnchor, constant: 6),
 
-            row.topAnchor.constraint(equalTo: difficultyPanel.contentView.topAnchor, constant: 5),
-            row.bottomAnchor.constraint(equalTo: difficultyPanel.contentView.bottomAnchor, constant: -5),
-            row.leadingAnchor.constraint(equalTo: difficultyPanel.contentView.leadingAnchor, constant: 10),
-            row.trailingAnchor.constraint(equalTo: difficultyPanel.contentView.trailingAnchor, constant: -10),
+            column.topAnchor.constraint(equalTo: difficultyPanel.contentView.topAnchor, constant: 5),
+            column.bottomAnchor.constraint(equalTo: difficultyPanel.contentView.bottomAnchor, constant: -5),
+            column.leadingAnchor.constraint(equalTo: difficultyPanel.contentView.leadingAnchor, constant: 10),
+            column.trailingAnchor.constraint(equalTo: difficultyPanel.contentView.trailingAnchor, constant: -10),
         ])
+    }
+
+    /// One of the little chooser pills in the settings panel.
+    private func pill(title: String, tag: Int, action: Selector) -> UIButton {
+        let button = Theme.makePlainButton()
+        button.setTitle(title, for: .normal)
+        button.titleLabel?.font = Theme.body(12, weight: .bold)
+        button.setTitleColor(.white, for: .normal)
+        button.layer.cornerRadius = 7
+        button.layer.cornerCurve = .continuous
+        // Sized rather than inset: `contentEdgeInsets` is deprecated, and a fixed pill is
+        // easier for a thumb to land on than one that hugs its own text.
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.heightAnchor.constraint(equalToConstant: 26).isActive = true
+        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 62).isActive = true
+        button.tag = tag
+        button.addTarget(self, action: action, for: .touchUpInside)
+        return button
     }
 
     /// The rally counter. Nothing in the rules turns on it — it is there because counting your
@@ -295,7 +325,8 @@ final class Tennis3DView: UIView {
         style(hint, size: 13, color: UIColor(white: 1, alpha: 0.85), weight: .semibold,
               display: false)
         hint.translatesAutoresizingMaskIntoConstraints = false
-        hint.text = "Tap the green X — that is where your racket has to be. Or grab yourself and drag"
+        hint.text = "Tap the green X — that is where your racket has to be. "
+            + "Or grab yourself and drag.\nTap Alex's side of the court to hit it there"
         hint.textAlignment = .center
         hint.numberOfLines = 0
         addSubview(hint)
@@ -415,13 +446,8 @@ final class Tennis3DView: UIView {
         serveIndicator.text = board.serverIsPlayer ? "· your serve" : "· \(board.opponentName) serving"
 
         difficultyCaption.text = board.opponentName.uppercased()
-        for button in difficultyButtons {
-            let selected = button.tag == game.difficulty.rawValue
-            button.backgroundColor = selected
-                ? Theme.primary
-                : UIColor(white: 1, alpha: 0.12)
-            button.setTitleColor(selected ? .white : UIColor(white: 1, alpha: 0.7), for: .normal)
-        }
+        highlight(difficultyButtons, selectedTag: game.difficulty.rawValue)
+        highlight(matchLengthButtons, selectedTag: game.matchLength.rawValue)
 
         if let announcement = game.announcement {
             bannerTitle.text = announcement.text
@@ -452,10 +478,26 @@ final class Tennis3DView: UIView {
         }
     }
 
+    private func highlight(_ buttons: [UIButton], selectedTag: Int) {
+        for button in buttons {
+            let selected = button.tag == selectedTag
+            button.backgroundColor = selected ? Theme.primary : UIColor(white: 1, alpha: 0.12)
+            button.setTitleColor(selected ? .white : UIColor(white: 1, alpha: 0.7), for: .normal)
+        }
+    }
+
     @objc private func difficultyTapped(_ sender: UIButton) {
         guard let game, let level = Tennis3DDifficulty(rawValue: sender.tag) else { return }
         game.difficulty = level
-        game.announce("ALEX: \(level.title.uppercased())", subtitle: level.blurb, duration: 1.6)
+        game.announce("\(game.scoreboard.opponentName.uppercased()): \(level.title.uppercased())",
+                      subtitle: level.blurb, duration: 1.6)
+        refresh()
+    }
+
+    @objc private func matchLengthTapped(_ sender: UIButton) {
+        guard let game, let length = Tennis3DMatchLength(rawValue: sender.tag) else { return }
+        game.matchLength = length
+        game.announce("\(length.title.uppercased()) MATCH", subtitle: length.blurb, duration: 1.6)
         refresh()
     }
 
@@ -510,9 +552,29 @@ final class Tennis3DView: UIView {
         }
     }
 
+    /// **A tap on your own half moves you. A tap on Alex's half aims your next shot there.**
+    ///
+    /// The two cannot be confused, because you cannot stand on Alex's half — `steer` clamps the
+    /// feet to this side of the net, so a tap over there used to mean nothing more useful than
+    /// "run at the net". One tap, no second finger, and no gesture to learn.
+    ///
+    /// Read on the **floor**, not at racket height: an aim is a place on the court, whereas a
+    /// steer is a place for the strings. Those two planes are more than a metre apart on screen
+    /// from this camera, which is why they are two different unprojections rather than one.
     @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
         guard !isDragging else { return }
-        steer(to: recognizer.location(in: self))
+        handleTap(at: recognizer.location(in: self))
+    }
+
+    /// The line a tap actually does its work on, so `-tennis3dtaps` can enter here rather than
+    /// having to reimplement the near/far decision and then not be testing it.
+    private func handleTap(at finger: CGPoint) {
+        guard let game else { return }
+        if let ground = worldPoint(for: finger), ground.y < -Tennis3DCourt.metres(0.5) {
+            game.aimShot(atWorldX: ground.x, y: ground.y)
+            return
+        }
+        steer(to: finger)
     }
 
     /// **A finger points at a racket, not at a pair of feet.**
@@ -583,10 +645,12 @@ final class Tennis3DView: UIView {
         return CGPoint(x: CGFloat(projected.screen.x), y: CGFloat(projected.screen.y))
     }
 
-    /// Enters at the same line `tapped(_:)` does, with the CGPoint UIKit would have handed it.
+    /// Enters at the same line `tapped(_:)` does, with the CGPoint UIKit would have handed it —
+    /// including the near/far decision, so a tap aimed at Alex's court really does go through
+    /// the aiming path rather than a test-only shortcut into it.
     func debugTouch(at point: CGPoint) {
         grabOffset = nil
-        steer(to: point)
+        handleTap(at: point)
     }
 #endif
 

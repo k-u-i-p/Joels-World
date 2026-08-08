@@ -94,6 +94,23 @@ final class Tennis3DGame: WorldRenderedMinigame {
         static let racketLength = Tennis3DCourt.metres(0.62)
         static let sweetRadius = Tennis3DCourt.metres(0.42)
 
+        /// **How far the racket hand may be raised or dropped from the waist-high groundstroke**,
+        /// in rig units. The one thing that decides which balls exist as shots at all.
+        ///
+        /// The choreography used to hold the strings at 0.99 m and nothing moved them, which made
+        /// a ball at 1.5 m — an ordinary shoulder-high forehand — a ball you could only duck
+        /// under. Seven of the eleven player misses in a measured pair of matches were exactly
+        /// that, every one of them with the player already flat against the back fence with
+        /// nowhere left to retreat to. A deep topspin ball kicks on six metres past the baseline
+        /// and there are only 2.8 m of run-back, so retreating was never going to be the answer:
+        /// the racket had to go up.
+        ///
+        /// Twelve units of hand is about 2.1 m of strings, because the arm rotates as it rises
+        /// and the racket amplifies the rotation roughly two and a half times. Six units down is
+        /// 0.61 m, which is a ball at the ankles. See `lift(forBallHeight:)`.
+        static let strikeLiftUp: Double = 12
+        static let strikeLiftDown: Double = 6
+
         /// Swing timings, in seconds.
         static let backswingTime: Double = 0.22
         static let forwardSwingTime: Double = 0.13
@@ -138,10 +155,43 @@ final class Tennis3DGame: WorldRenderedMinigame {
             Tennis3DCourt.metres(0.62 - 0.47 * clampedDifficulty)
         }
 
+        /// **How much bigger the player's sweet spot is than Alex's**, which is the one lever
+        /// `difficulty` has on the player's own side of the net.
+        ///
+        /// Everything else the setting touches is Alex — her reactions, her legs, her positioning,
+        /// her aim — and a measured pair of matches said that was not enough. A bot that reads the
+        /// ball perfectly and has no reaction time came out *level* with her on Easy, which means
+        /// a ten-year-old loses every match on the setting whose whole job is to let him win. And
+        /// in twenty points not one ball went out or into the net: every single point ended with
+        /// somebody failing to reach a ball. So the strike zone is the only thing worth making
+        /// easier, because it is the only thing the game is made of.
+        ///
+        /// Anchored at 1.0 on Normal, so the balance measured across three previous sessions is
+        /// exactly the balance that ships. Easy is a 0.50 m sweet spot, Hard is 0.33 m.
+        static var playerReachScale: Double { 1 + (0.6 - clampedDifficulty) * 0.75 }
+
+        /// How hard Alex hits a groundstroke, relative to the player. More pace is less time to
+        /// get there, which is the difference a difficulty setting ought to make and did not.
+        static var npcPaceScale: Double { 0.80 + 0.34 * clampedDifficulty }
+
+        /// How far off centre Alex aims, as a fraction of her half-court. The player's is a fixed
+        /// 0.38–0.78 — see the table in `planShot`, where that range was measured. Hers is that
+        /// range on Normal, pulled in on Easy and pushed towards the lines on Hard.
+        static var npcAimRange: (Double, Double) {
+            (0.34 + 0.15 * clampedDifficulty, 0.70 + 0.28 * clampedDifficulty)
+        }
+
         private static var clampedDifficulty: Double { min(max(difficulty, 0), 1) }
 
-        /// Games needed to win the match, and so the badge.
-        static let gamesToWinMatch = 2
+        /// Games needed to win the match, and so the badge. Two or four, chosen by the buttons
+        /// under the scoreboard — see `Tennis3DMatchLength`. Read fresh every time a game ends,
+        /// so switching mid-match simply changes how many more are needed.
+        static var gamesToWinMatch: Int {
+            #if DEBUG
+            if let override = WalkTest.tennisGamesToWin { return override }
+            #endif
+            return Tennis3DMatchLength.current.games
+        }
 
         /// Physics sub-step. Fixed, so the simulation does not change with the frame rate —
         /// which determinism requires, and which also stops a fast ball tunnelling through the
@@ -245,6 +295,11 @@ final class Tennis3DGame: WorldRenderedMinigame {
         var isServe = false
         /// True when the ball is on the far side of the body and the arm has to cross it.
         var isBackhand = false
+        /// **How high this particular swing is played**, in rig units above the waist-high
+        /// default. Set once, at `beginSwing`, from the height the ball is predicted to be at
+        /// when the strings arrive; read by the choreography, so what is drawn and what the
+        /// contact test sees are the same racket. 0 is a waist-high forehand.
+        var lift: Double = 0
         /// Where the shot is aimed, in world XY.
         var aim: (x: Double, y: Double) = (0, 0)
         /// 0…1 — how hard, and how much topspin comes with it.
@@ -326,6 +381,15 @@ final class Tennis3DGame: WorldRenderedMinigame {
         }
     }
 
+    /// How long the match is. Same shape as `difficulty`: the buttons write it, it remembers
+    /// itself, and `Tuning.gamesToWinMatch` reads it back out rather than caching a copy.
+    var matchLength: Tennis3DMatchLength = .short {
+        didSet {
+            Tennis3DMatchLength.current = matchLength
+            onPresentationChanged?()
+        }
+    }
+
     /// Seconds since the player last told anyone where to stand. Starts at infinity — nobody has
     /// touched the screen yet — which is what puts the controls hint up in the first place and
     /// brings it back if they stop playing.
@@ -393,6 +457,7 @@ final class Tennis3DGame: WorldRenderedMinigame {
 
     func start() {
         difficulty = Tennis3DDifficulty.current
+        matchLength = Tennis3DMatchLength.current
         #if DEBUG
         // The launch argument wins, so a balancing run is not at the mercy of whatever was last
         // pressed on the device.
@@ -454,6 +519,13 @@ final class Tennis3DGame: WorldRenderedMinigame {
         guard active else { return }
 
         secondsSinceSteer += dt
+
+        // An aim the player never got to use goes away on its own, rather than being spent on
+        // some ball two rallies later that they have long forgotten choosing a target for.
+        if playerAim != nil {
+            playerAimAge += dt
+            if playerAimAge > 8 { clearAim() }
+        }
 
         if var current = announcement {
             current.remaining -= dt
@@ -583,21 +655,34 @@ final class Tennis3DGame: WorldRenderedMinigame {
     /// the swing choreography, so "tap the X" and "stand on the faint ground mark" are now one
     /// instruction rather than two that disagree by a metre.
     func steer(racketToWorldX x: Double, y: Double) {
-        let offset = contactHeadWorldOffset(for: player)
+        let offset = contactHeadWorldOffset(for: player, lift: playerStrikeLift)
         steer(toWorldX: x - offset.x, y: y - offset.y)
     }
 
     /// Where the player's strings will pass if they stand exactly where they are. The point a
     /// grab-drag holds its offset from, so both gestures are spoken in the same units.
     var playerRacketAnchor: (x: Double, y: Double) {
-        let offset = contactHeadWorldOffset(for: player)
+        let offset = contactHeadWorldOffset(for: player, lift: playerStrikeLift)
         return (x: player.motor.x + offset.x, y: player.motor.y + offset.y)
+    }
+
+    /// **How high the player's next shot is going to be played.** Read off whatever ball is
+    /// actually on the way; zero — the waist-high default — when there is nothing to play.
+    ///
+    /// The controls have to agree with the stroke about this. The green X floats at the height
+    /// the strings will meet the ball, and a tap on it is unprojected onto that same plane, so a
+    /// shot lifted to head height moves the marker, the plane the touch is read on and the racket
+    /// offset all together. Getting one of the three wrong is worth about a metre of court from
+    /// this camera angle.
+    var playerStrikeLift: Double {
+        guard let intercept = idealIntercept() else { return 0 }
+        return lift(forBallHeight: intercept.z)
     }
 
     /// How high off the court a tap should be read at: the height the strings pass through.
     /// A finger aiming at a marker floating a metre up is not aiming at the ground under it —
     /// from this camera those are more than half a metre apart.
-    var playerContactHeight: Double { contactHeadHeight }
+    var playerContactHeight: Double { headHeight(lift: playerStrikeLift) }
 
     /// A tap or a drag, already converted to a point on the court — **where the feet go**.
     ///
@@ -617,6 +702,42 @@ final class Tennis3DGame: WorldRenderedMinigame {
     /// Drops the move target, so the player coasts to a halt where they are.
     func releaseSteering() {
         player.moveTarget = nil
+    }
+
+    /// **Where the player has asked their next shot to go**, or nil for the automatic aim.
+    ///
+    /// The one thing the control scheme could not say. A shot goes away from wherever Alex is
+    /// standing, nudged by which way the player is sliding when they hit it, and that is a fine
+    /// default for one thumb — but it means the player never chooses anything, and choosing where
+    /// to put the ball is most of what tennis is.
+    ///
+    /// The gesture costs nothing to learn because it uses a part of the screen that could not
+    /// mean anything else: **the far half of the court**. You cannot walk there — `steer` clamps
+    /// the feet to your own side of the net — so a tap over there was previously just "run at the
+    /// net". Now it is "put it there", it is one tap, and it needs no second finger.
+    private(set) var playerAim: (x: Double, y: Double)?
+    /// Seconds since the aim was set. It expires, so a target picked during a long point does not
+    /// still be sitting there two rallies later.
+    private var playerAimAge: Double = 0
+
+    /// A tap on the opponent's half. Clamped inside the singles court with a margin, so choosing
+    /// a target is never itself the error — miss it by enough and the shot still lands in.
+    func aimShot(atWorldX x: Double, y: Double) {
+        guard active, phase != .matchOver else { return }
+        let margin = Tennis3DCourt.metres(0.6)
+        playerAim = (
+            x: min(max(x, -Tennis3DCourt.halfSingles + margin),
+                   Tennis3DCourt.halfSingles - margin),
+            y: min(max(y, -Tennis3DCourt.halfLength + margin), -Tennis3DCourt.metres(2.0))
+        )
+        playerAimAge = 0
+        secondsSinceSteer = 0
+    }
+
+    /// Forgets the target. Called when the shot is played, and between points.
+    func clearAim() {
+        playerAim = nil
+        playerAimAge = 0
     }
 
     // MARK: - Presentation

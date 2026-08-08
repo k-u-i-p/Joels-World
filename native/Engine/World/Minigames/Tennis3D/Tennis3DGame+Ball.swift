@@ -385,12 +385,11 @@ extension Tennis3DGame {
         var elapsed: Double = 0
 
         let step = Tuning.physicsStep * 4
-        // The band a stroke is comfortable in, centred on the height the strings actually pass
-        // through rather than on a guess about knees and shoulders. `verticalReach` is the same
-        // band `timeUntilInReach` swings in — see the note on it.
+        // Every height the swing can be lifted to, which is the same band `timeUntilInReach`
+        // fires in — see the note on `strikeBand`. `contactHeight` is still the *comfortable*
+        // height, and the cost below still prefers it; it is no longer the only one.
         let contactHeight = contactHeadHeight
-        let lowest = contactHeight - verticalReach
-        let highest = contactHeight + verticalReach
+        let band = strikeBand(for: side)
 
         // The first playable moment is usually not the useful one, and pointing at it was
         // quietly losing every service game. A serve bounces near the service line and kicks
@@ -412,7 +411,7 @@ extension Tennis3DGame {
         // feedback loop described on `Side.anchor`, and it walked both players into the net.
         let anchor = SIMD2(side.anchor.x, side.anchor.y)
         let here = SIMD2(side.motor.x, side.motor.y)
-        let reach = Tuning.racketLength + Tuning.sweetRadius
+        let reach = Tuning.racketLength + sweetRadius(for: side)
         let topSpeed = side.isPlayer ? Tuning.playerTopSpeed : Tuning.npcTopSpeed
         var best: (point: SIMD3<Double>, cost: Double)?
         var nearest: (point: SIMD3<Double>, shortfall: Double)?
@@ -445,15 +444,49 @@ extension Tennis3DGame {
             if isServeInFlight && side !== server && bounces == 0 { continue }
             // Prefer the ball on its way down, which is where a groundstroke is struck.
             guard velocity.z < 0 || bounces > 0 else { continue }
-            guard position.z >= lowest, position.z <= highest else { continue }
+            guard position.z >= band.low, position.z <= band.high else { continue }
 
             let ground = SIMD2(position.x, position.y)
             // Cost is "how far do I have to move", plus a penalty for a ball that is not at the
             // height the racket swings through — a shin-high ball two steps away is a worse
             // proposition than a waist-high one three steps away, and the ground distance alone
             // cannot say so.
+            //
+            // The penalty was there to break ties, back when a ball more than half a metre off
+            // height was not a shot at all. Now that the band runs from the ankles to over the
+            // head it is the whole of "would you rather take this early and high, or move your
+            // feet and meet it at the waist" — and since a stretched contact now costs real pace
+            // (see `strike`), the answer should usually be the second one. Hence 1.3 rather than
+            // the 1.5 it was: a metre off height is worth walking 1.3 m to avoid, and no further.
             let offHeight = abs(position.z - contactHeight)
-            let cost = max(0, simd_length(ground - anchor) - reach) + offHeight * 1.5
+            // **And a penalty for backing up behind your own baseline**, which is the difference
+            // between a rally and a metronome.
+            //
+            // A topspin ball kicks on five or six metres past its bounce, and its path crosses
+            // racket height twice: once on the way up, a couple of metres inside the baseline,
+            // and again on the way down, a couple of metres behind it. Measured purely on
+            // distance from the anchor, the second one is always the cheaper — so both players
+            // drifted back until they were standing on the fence and the game had no front half
+            // at all. Every ball was met at y = 13 to 14 m, which meant nobody was ever pulled
+            // forward, which meant `planShot`'s attack on a short ball could never once fire.
+            //
+            // Take the ball early: it is what a coach says, it is what makes a short ball short,
+            // and it is the cheapest possible way to give the court a front half back.
+            //
+            // 0.8 m of cost per metre behind the line. Measured: it moves the median contact
+            // point from 14.0 m — flat against the back fence, which is where the whole game was
+            // being played — to 8.5 m, a stride or two inside the baseline.
+            //
+            // 0.45 was tried, on the theory that 8.5 m is standing on the service line and a
+            // rally should be played from the baseline. It moved the median all of half a metre
+            // and doubled the mean rally to twenty shots, because the little that did change came
+            // straight off `planShot`'s attack bonus. The lesson is that this number is not
+            // really a positioning knob at all — it is the rally-length knob wearing a disguise,
+            // and the honest positioning knob is how far the ball carries.
+            let behindBaseline = max(0, abs(ground.y) - Tennis3DCourt.halfLength)
+            let cost = max(0, simd_length(ground - anchor) - reach)
+                + offHeight * 1.3
+                + behindBaseline * 0.8
             let needed = max(0, simd_length(ground - here) - reach)
             let possible = groundCovered(in: elapsed, topSpeed: topSpeed)
 
@@ -548,7 +581,58 @@ extension Tennis3DGame {
         }
 
         out.append(contentsOf: interceptMarker())
+        out.append(contentsOf: aimMarker())
         return out
+    }
+
+    /// **Where the player has asked the ball to go**, if they have asked. A yellow ring on
+    /// Alex's half of the court.
+    ///
+    /// Deliberately not a cross: the green X already means "put your racket here", and a second
+    /// cross meaning something completely different, on a screen a ten-year-old is reading at
+    /// speed, is how you teach somebody that the markers are noise. A ring is a target.
+    private func aimMarker() -> [ScenePrimitive] {
+        guard let aim = playerAim, phase == .rally || phase == .toss else { return [] }
+
+        let gold = parseHexColor("#f1c40f")
+        let half = Float(Tennis3DCourt.metres(0.7))
+
+        /// **Nothing may lie flat on Alex's half of the court.**
+        ///
+        /// The first two attempts at this marker were a flat gold square and then a square
+        /// outline made of thin bars, both a couple of units above the surface, and *neither
+        /// appeared on screen at all* — while a small post standing in the middle of them, from
+        /// the same array, in the same blended pass, drew perfectly every frame.
+        ///
+        /// It is the depth buffer. The camera orbits at 1631 units with `Camera.far` at 2000, and
+        /// the far baseline is right out at the end of that range, where a 32-bit depth value
+        /// cannot separate two surfaces two units apart. Near the player the same trick is fine —
+        /// the ball's shadow lies 1.6 units up and has never flickered — because precision at the
+        /// bottom of the screen is a different world from precision at the top. Part 1 recorded
+        /// "z-fighting between three ground planes 1.5 cm apart" as a solved mystery; this is the
+        /// same mystery, and the rule that falls out of it is the sentence above.
+        ///
+        /// So the target is five little posts, four corners and a bullseye, and it reads better
+        /// than the square would have: from a camera tipped 46° over, something standing up is
+        /// something you can see.
+        func post(_ dx: Float, _ dy: Float, height: Double, opacity: Float) -> ScenePrimitive {
+            let thickness = Float(Tennis3DCourt.metres(0.11))
+            let tall = Float(Tennis3DCourt.metres(height))
+            return ScenePrimitive(
+                shape: .box(width: thickness, height: thickness, depth: tall),
+                transform: Float4x4.translation(SIMD3(Float(aim.x) + dx,
+                                                      Float(-aim.y) + dy, tall / 2)),
+                color: gold,
+                opacity: opacity,
+                unlit: true,
+                castsShadow: false)
+        }
+
+        return [post(-half, -half, height: 0.5, opacity: 0.9),
+                post(half, -half, height: 0.5, opacity: 0.9),
+                post(-half, half, height: 0.5, opacity: 0.9),
+                post(half, half, height: 0.5, opacity: 0.9),
+                post(0, 0, height: 0.32, opacity: 0.7)]
     }
 
     /// The green X, straight out of the 2D game — where the racket should meet the ball.
@@ -566,7 +650,9 @@ extension Tennis3DGame {
         guard let intercept = idealIntercept() else { return [] }
         let feet = stance(toMeet: intercept, for: player)
 
-        let arm = Float(Tennis3DCourt.metres(0.42))
+        // The X is drawn the size of the sweet spot it stands for, so the Easy button visibly
+        // makes the target bigger rather than only making it bigger in the maths.
+        let arm = Float(sweetRadius(for: player))
         let thickness = Float(Tennis3DCourt.metres(0.07))
         let green = parseHexColor("#2ecc71")
         var out: [ScenePrimitive] = []
