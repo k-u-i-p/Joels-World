@@ -161,13 +161,16 @@ enum CharacterRig {
     static let thighBone: Float = 12
     static let shinBone: Float = 9.7
 
-    // Limb radii, from `buildSkeletonLimbs`.
+    // Limb radii, from `buildSkeletonLimbs`. The lengths are aliases kept so the renderer reads
+    // as "the upper arm is this long" rather than "the arm bone is this long, twice".
+    //
+    // `handRadius`, `torsoRadius` and `torsoLength` used to sit here too. Nothing takes a single
+    // radius for any of the three any more: the hand and the torso are authored silhouettes
+    // (`handProfile`, `torsoProfile`) and a capsule cannot describe either.
     static let upperArmRadius: Float = 3.3, upperArmLength: Float = armBone
     static let lowerArmRadius: Float = 3.3, lowerArmLength: Float = armBone
-    static let handRadius: Float = 3.8
     static let upperLegRadius: Float = 3.6, upperLegLength: Float = thighBone
     static let lowerLegRadius: Float = 3.6, lowerLegLength: Float = shinBone
-    static let torsoRadius: Float = 9, torsoLength: Float = 8
 
     // Joint anchors, from `buildSkeletonRig`.
     private static let leftShoulder = SIMD3<Float>(3, -10, 26)
