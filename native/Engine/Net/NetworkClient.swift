@@ -202,16 +202,6 @@ final class NetworkClient {
         send(AwardBadgeMessage(badge: badge))
     }
 
-    /// Editor traffic (`server/admin.js`): `move_object`, `update_npc`, `create_object` and
-    /// the rest. Sent as a loose dictionary rather than a struct per verb because the payloads
-    /// are heterogeneous and `cloneData` carries a whole entity through verbatim — which is
-    /// what `admin.js` puts on the wire.
-    ///
-    /// The server ignores these unless the session is flagged admin; see `grantsAdmin`.
-    func sendAdmin(_ payload: [String: JSONValue]) {
-        send(JSONValue.object(payload))
-    }
-
     /// Throttled player-state sync, mirroring `syncPlayerToJSON` in `network.js:369`.
     func syncPlayer(_ character: GameCharacter) {
         let now = Date.timeIntervalSinceReferenceDate

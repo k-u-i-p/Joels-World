@@ -1,33 +1,34 @@
 import Foundation
 
-/// Where the editor connects, and with what key. Persisted in `UserDefaults` so the app comes
-/// back up pointed at the same server.
+/// Where the editor connects. Persisted in `UserDefaults` so the app comes back up pointed at
+/// the same server.
+///
+/// There is no admin key any more. The editor's connection is an ordinary one — it exists to
+/// show live players moving over the map being edited, and nothing else. Edits go to `data/`
+/// on disk through `WorldFileStore`, so there is nothing for a server to authorise.
 struct AdminServerSettings {
     var host: String
-    var adminKey: String
 
     private static let hostKey = "admin_host"
-    private static let keyKey = "admin_key"
 
+    /// `-host <host[:port]>` wins, so a scripted run points itself at a local server the same
+    /// way `-data` points it at a checkout; otherwise the last host the operator connected to.
     static func load() -> AdminServerSettings {
-        let defaults = UserDefaults.standard
-        return AdminServerSettings(
-            host: defaults.string(forKey: hostKey) ?? "joels-world.com",
-            adminKey: defaults.string(forKey: keyKey) ?? "")
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "-host"), index + 1 < arguments.count {
+            return AdminServerSettings(host: arguments[index + 1])
+        }
+        return AdminServerSettings(host: UserDefaults.standard.string(forKey: hostKey) ?? "joels-world.com")
     }
 
     func save() {
-        let defaults = UserDefaults.standard
-        defaults.set(host, forKey: Self.hostKey)
-        defaults.set(adminKey, forKey: Self.keyKey)
+        UserDefaults.standard.set(host, forKey: Self.hostKey)
     }
 
     /// Pushes the settings into the engine's global config, which is where `NetworkClient`
-    /// and every asset fetch read the host from.
+    /// reads the host from.
     func apply() {
         Config.hostOverride = host.trimmingCharacters(in: .whitespaces)
-        let key = adminKey.trimmingCharacters(in: .whitespaces)
-        Config.adminKey = key.isEmpty ? nil : key
     }
 }
 
@@ -47,12 +48,16 @@ final class AdminSession {
 
     weak var delegate: AdminSessionDelegate?
 
-    private(set) var maps: [MapListEntry] = []
+    /// The map list comes out of the bundled `maps.json` now, not out of `init`.
+    let maps: [MapListEntry] = WorldData.mapsList
     private(set) var isConnected = false
-    /// False means the server will silently drop every edit — the wrong key, or a remote
-    /// server with no `ADMIN_KEY` set. Worth saying out loud rather than letting the operator
-    /// discover it by watching nothing save.
-    private(set) var isAdmin = false
+
+    /// Where edits land. Read-only when it could not find the checkout's `data/` — the editor
+    /// is still perfectly usable for looking around, but nothing can be saved.
+    let files = WorldFileStore()
+
+    /// The last thing a save said, shown in the status line. Nil when nothing has been saved.
+    private(set) var lastSaveMessage: String?
 
     private var settings = AdminServerSettings.load()
 
@@ -83,12 +88,8 @@ final class AdminSession {
             self.isConnected = true
             self.delegate?.adminSession(didChangeStatus: "Connected — waiting for world")
             // A resumed session delivers `init` unprompted; only ask for a character if it
-            // does not.
-            //
-            // The name is sent explicitly rather than left blank: the server only substitutes
-            // "Admin" for a blank name on a connection it has already promoted, so a refused
-            // key would fail name validation, get disconnected, and reconnect forever — with
-            // no world, and so no way to show the operator why.
+            // does not. The name is a plain one: the editor connects as an ordinary client
+            // and the server validates its name like anyone else's.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 guard !self.state.hasWorld else { return }
                 self.network.sendCreateCharacter("Admin")
@@ -109,8 +110,6 @@ final class AdminSession {
         switch message {
         case .initWorld(let payload):
             state.apply(initPayload: payload)
-            maps = payload.mapsList ?? maps
-            isAdmin = payload.isAdmin ?? false
             delegate?.adminSessionDidLoadWorld()
             delegate?.adminSession(didChangeStatus: statusLine())
             requestInitialMapIfNeeded()
@@ -158,22 +157,52 @@ final class AdminSession {
 
     private func statusLine() -> String {
         let name = state.mapData?.name ?? "map \(state.mapData?.id ?? -1)"
-        let world = "\(name) — \(state.objects.count) objects, \(state.npcs.count) NPCs"
-        guard isAdmin else {
-            return "⚠︎ Read-only: the server did not accept this admin key, so edits will be "
-                 + "discarded. Set ADMIN_KEY on the server, or connect to localhost.\n\(world)"
+        var line = "\(name) — \(state.objects.count) objects, \(state.npcs.count) NPCs"
+        if let lastSaveMessage { line += " · \(lastSaveMessage)" }
+        guard files.dataDirectory != nil else {
+            return "⚠︎ Read-only: no data/ directory found, so nothing can be saved. Launch "
+                 + "with -data <path to the checkout's data/>.\n\(line)"
         }
-        return world
+        return line
     }
 
-    // MARK: - Admin traffic
+    // MARK: - Editing
 
     func changeMap(_ mapId: Int) {
         network.sendChangeMap(mapId)
     }
 
-    func send(_ message: AdminMessage) {
-        network.sendAdmin(message.payload)
+    /// Applies an edit to the files on disk and to the view, in that order.
+    ///
+    /// The in-memory update is not an optimism — it is the only update the editor is
+    /// guaranteed to get. A locally-running server watching `data/` will send back an
+    /// `objects_update` a moment later and overwrite it with the same content; a remote server
+    /// reading a different checkout will not, and the editor should still show what it just
+    /// wrote.
+    @discardableResult
+    func send(_ message: AdminMessage) -> Bool {
+        guard let mapId = state.mapData?.id else {
+            lastSaveMessage = "no map loaded"
+            delegate?.adminSession(didChangeStatus: statusLine())
+            return false
+        }
+
+        do {
+            let kind = try files.apply(message, mapId: mapId)
+            switch kind {
+            case .objects: state.replaceObjects(try files.objects(mapId: mapId))
+            case .npcs: state.replaceNPCs(try files.npcs(mapId: mapId))
+            }
+            lastSaveMessage = "saved"
+            delegate?.adminSessionDidReplaceEntities()
+            delegate?.adminSession(didChangeStatus: statusLine())
+            return true
+        } catch {
+            lastSaveMessage = "save failed — \(error)"
+            Log.world("Edit failed: \(error)")
+            delegate?.adminSession(didChangeStatus: statusLine())
+            return false
+        }
     }
 }
 

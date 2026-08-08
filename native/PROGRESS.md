@@ -1393,3 +1393,116 @@ without `physics.js`. The shell was never patched, and was deleted with everythi
 - Read a Δ0° self-test result correctly on the second try rather than chasing it: the app had
   been launched behind the terminal, and a background window drops its held keys by design.
   The step now says so instead of reporting a silent zero.
+
+## What Phase 10 actually delivers
+
+**The server stops serving.** It hosted 264 MB of assets and put the whole authored world in
+every `init` frame. It now does neither: both ship inside the apps, and it is a WebSocket relay
+with two dependencies.
+
+### The three trees
+
+`server/` was holding content that was no longer its own. It is now code only:
+
+| Tree | What it is | Who reads it |
+|---|---|---|
+| `assets/` | Art and audio, plus the full-size map layers the slicer consumes | `tools/assets/` writes it, `stage.sh` ships a subset |
+| `data/` | `maps.json` and each map's `objects.json` / `npc.json` | The server reads and watches it; the apps bundle it; the editor writes it |
+| `server/` | The relay, the managers, `physics.js`, `emotes.js` | Node |
+
+`tools/assets/stage.sh` runs from a build phase in **both** targets and copies the shipped
+subset into `GameAssets/` inside the app — 155 MB out of a 247 MB working tree. A script phase
+rather than a folder reference: the ship-list is explicit and reviewable in one place, and
+nothing is duplicated on disk.
+
+### What each end lost
+
+Server: `express`, `cookie-parser`, `sharp`, `static.js`, `admin.js`, `/api/config`, the HTTP
+session middleware, `grantsAdmin`/`ADMIN_KEY`, and `isAdmin` in three places. `server.js` went
+from 55 lines of middleware to 35 lines that answer a health check and hand the socket to `ws`.
+
+Client: `DiskCache`, four `URLCache`s, `Config.assetBaseURL`, `Config.httpScheme`, and the
+"bundle first, then the network" fallback in all six loaders. `AssetLocator` replaced the lot —
+resolution is a path join, and a miss is a packaging bug rather than a network condition.
+
+### The session middleware was leaking
+
+`server.js` ran a session middleware on every HTTP request, and created a session for any
+request without a cookie. Native clients send no cookies, so **every asset fetch minted a
+session file**: 269 files containing `{}` were sitting in `server/sessions/`. Nothing read
+`req.session` — the socket handshake does its own token lookup. It went with Express.
+
+Sessions themselves are untouched, and are still how play state resumes.
+
+### `init` is 650 bytes
+
+It was the whole world. It is now `mapId`, `characters`, `myCharacter`; `WorldData` reads the
+map, the map list, the objects and the NPCs out of the bundled `data/`, selected by `mapId`.
+
+`objects_update` and `npcs_update` survive and now matter more. The server already watched
+`data/**/objects.json` and `npc.json` (`MapManager.js:50`, `NPCManager.js:101`) and broadcast
+on change — so the editor writing a file *is* the update path. That is the whole of "the server
+only sends updates".
+
+### The editor writes the files, and had to learn to write them properly
+
+`WorldFileStore` applies the same fourteen operations `server/admin.js` did, to `data/` on
+disk. It finds the checkout from `-data <path>`, then a remembered folder, then by walking up
+from the app bundle; with none of those it says so in the status line and saves nothing.
+
+The hard part was the serialiser, not the operations. These files are authored content under
+version control and Node wrote them with `JSON.stringify(value, replacer, 2)`.
+`JSONSerialization` would reorder every key — its objects are `Dictionary`s — turning a
+two-line edit into a whole-file diff. `OrderedJSON` is an order-preserving JSON model with its
+own parser and a writer that matches `JSON.stringify` byte for byte: two-space indent, `": "`,
+`[]`/`{}` for empties, no trailing newline, `40` rather than `40.0` for a whole number, and JS
+escaping rules. It is also lossless — records round-trip through it rather than through
+`WorldObject`/`GameCharacter`, so fields the game does not model (an NPC's `agent` block) are
+not quietly dropped by an edit, and a clone keeps them.
+
+## Environment gotchas (Phase 10)
+
+**A Mac app's `print` never reaches a pipe.** `-selftest` produced an empty log for four
+attempts. The app was running fine; Swift block-buffers stdout when it is not a TTY and the run
+was being `kill`ed before anything flushed. `os_log` did not help either — `Log` writes at
+`.info`, which `log stream` does not show without `--level info`. What works is letting the app
+*exit*: `-shot <path> -shotdelay <n>` quits after the shot, which flushes. Run it that way.
+
+**`log` is a zsh builtin.** `log stream …` gives "too many arguments"; `/usr/bin/log` works.
+
+### 2026-08-08 (continued)
+- **Phase 10 complete — the server serves nothing.** Moved `server/assets` to `assets/` and
+  `server/data` to `data/`, added `tools/assets/stage.sh` and a build phase in both targets,
+  and deleted `static.js`, `admin.js`, Express, `cookie-parser` and `sharp` from the server.
+- Wrote `AssetLocator` and made all six loaders bundle-only, which retired `DiskCache` and four
+  `URLCache`s along with them. `EmoteCatalog` reads `Emotes.table` instead of `/api/config`.
+- Found the session leak while reading `server.js` for the Express removal: the HTTP session
+  middleware created a session per cookie-less request, so every asset fetch left a file behind.
+  269 of them, all `{}`. Nothing read `req.session`.
+- Cut `npcs`, `objects`, `mapData`, `mapsList` and `isAdmin` out of `init` at the user's
+  direction; `WorldData` reads them from the bundle by `mapId`. The frame went from the whole
+  world to 650 bytes. Kept the `fs.watch` broadcasts, which are what makes a local edit reach
+  connected clients.
+- Ported the fourteen admin operations into `WorldFileStore` and wrote `OrderedJSON` to write
+  the files the way `JSON.stringify(x, null, 2)` does. Verified by diff against git rather than
+  by eye: after a full `-selftest` run — create, event-tree write, delete, and three
+  drag-and-restore cycles — all eight `objects.json`/`npc.json` files are byte-identical to
+  `HEAD`.
+- That check caught a pre-existing flaw in the self-test rather than in the serialiser: the NPC
+  step restored its subject by *dragging back*, which lands within a pixel but not on the same
+  `Double`, and had rewritten Mr Hardy's `-935.8839997696498` as `-936`. It restores by value
+  now, like the object steps always did.
+- **Deleted the Tag game outright** at the user's direction, having first flagged that the
+  earlier "delete its assets" decision was based on a wrong claim of mine — map 5 was reachable
+  from an NPC and `GameState` deliberately loaded it as a plain world. Removed the art, the
+  `maps.json` entry, the `MinigameKind` case, the `startMinigame` branch, and Archie, the NPC
+  whose only content was the door to it.
+- Deleted `junior_school/buildings_model/` (17 MB, 110 textures, referenced nowhere),
+  `server/database.sqlite` (tracked, 0 bytes), `server/migrate.js` and `assets/favicon.png`.
+- Added `-host <host[:port]>` to `Config` and to the editor's settings, so a scripted run can
+  point at a local server without editing `useLocalServer` and rebuilding. Needed immediately:
+  the deployed server still speaks the old protocol.
+- Verified end to end. The iOS app loads 5 maps, 23 NPCs and 24 objects from the bundle, with
+  zero asset misses in the log, the clip mask blocking on the first `-walktest` sample, and
+  every model and tile resolving locally. Both targets build; the editor's `-selftest` passes
+  all 21 steps.

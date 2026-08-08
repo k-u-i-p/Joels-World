@@ -50,21 +50,20 @@ final class ClipMask {
 
     // MARK: - Loading
 
-    /// Fetches and rasterises a mask. `path` is relative to the asset host, e.g.
+    /// Reads and rasterises a mask. `path` is a bundled asset path, e.g.
     /// `junior_school/clip_mask.svg`.
+    ///
+    /// Still asynchronous: rasterising the junior campus mask means parsing a 12 KB SVG into a
+    /// 460×340 buffer, and the caller is mid-`init`. The read itself is now local.
     static func load(path: String,
                      mapW: Double,
                      mapH: Double,
                      completion: @escaping (ClipMask?) -> Void) {
-        let trimmed = path.hasPrefix("/") ? String(path.dropFirst()) : path
-        guard let url = URL(string: trimmed, relativeTo: Config.assetBaseURL) else {
-            completion(nil)
-            return
-        }
+        let trimmed = AssetLocator.relative(path)
 
-        URLSession.shared.dataTask(with: url) { data, _, error in
-            guard let data, error == nil else {
-                Log.world("Failed to load clip mask at \(url): \(error?.localizedDescription ?? "no data")")
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let data = AssetLocator.data(for: path) else {
+                Log.world("Clip mask missing from bundle: \(trimmed)")
                 completion(nil)
                 return
             }
@@ -79,7 +78,7 @@ final class ClipMask {
                 Log.world("Clip mask failed to rasterise: \(trimmed)")
             }
             completion(mask)
-        }.resume()
+        }
     }
 
     private static func rasterize(data: Data, isSVG: Bool, mapW: Double, mapH: Double) -> ClipMask? {

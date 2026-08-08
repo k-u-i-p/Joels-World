@@ -10,7 +10,6 @@ final class AdminSidebarView: NSView {
     private let statusLabel = AdminUI.label("Not connected")
     private let cursorLabel = AdminUI.label("Cursor: —")
     private var hostField: ValueField!
-    private var keyField: ValueField!
     private var mapPopUp: ActionPopUpButton!
 
     private let objectInspector = ObjectInspectorView()
@@ -41,26 +40,23 @@ final class AdminSidebarView: NSView {
 
         let settings = session.serverSettings
         hostField.reload(settings.host)
-        keyField.reload(settings.adminKey)
         refreshAll()
     }
 
     private func build() {
-        // The status line carries a multi-line warning when the server refused the admin key.
+        // The status line carries a multi-line warning when there is nowhere to save to.
         statusLabel.usesSingleLineMode = false
         statusLabel.lineBreakMode = .byWordWrapping
         statusLabel.maximumNumberOfLines = 0
         statusLabel.preferredMaxLayoutWidth = 260
 
+        // The connection is an ordinary one: it shows live players on the map being
+        // edited. Edits go to `data/` on disk, so there is no key to present.
         hostField = ValueField(placeholder: "joels-world.com", width: 190)
-        // A key is always required. On a loopback server without `ADMIN_KEY` set, any
-        // non-empty value is accepted — see `grantsAdmin` in `server/websocket.js`.
-        keyField = ValueField(placeholder: "ADMIN_KEY (any value on localhost)", width: 190)
 
         let connectButton = AdminUI.button("Connect") { [weak self] in
             guard let self else { return }
-            self.session?.connect(using: AdminServerSettings(host: self.hostField.stringValue,
-                                                             adminKey: self.keyField.stringValue))
+            self.session?.connect(using: AdminServerSettings(host: self.hostField.stringValue))
         }
 
         mapPopUp = AdminUI.popUp([]) { [weak self] title in
@@ -98,7 +94,6 @@ final class AdminSidebarView: NSView {
 
         for view in [AdminUI.sectionTitle("Server"),
                      AdminUI.row("Host", [hostField]),
-                     AdminUI.row("Key", [keyField]),
                      connectButton,
                      statusLabel,
                      separator(),

@@ -1,0 +1,167 @@
+[
+  {
+    "id": 0,
+    "name": "Junior Campus",
+    "width": 4372,
+    "height": 3841,
+    "layers": [
+      {
+        "z": 0,
+        "alpha": 1,
+        "chunked": true,
+        "source_image": "/junior_school/background.jpg",
+        "chunk_size": 512,
+        "grid_w": 9,
+        "grid_h": 8,
+        "path_template": "/junior_school/chunks/background_{x}_{y}.jpg"
+      }
+    ],
+    "clip_mask": "junior_school/clip_mask.svg",
+    "npcs": "junior_school/npc.json",
+    "character_scale": 1,
+    "default_zoom": 1,
+    "objects": "junior_school/objects.json",
+    "spawn_area": 19,
+    "can_leave": true,
+    "on_enter": [
+      {
+        "play_sound": {
+          "sound": "media/the_wall.mp3",
+          "volume": 0.3
+        }
+      }
+    ]
+  },
+  {
+    "id": 1,
+    "name": "Detention",
+    "width": 2048,
+    "height": 2048,
+    "camera_permitted_offset": {
+      "y": -300
+    },
+    "background_color": "#000000",
+    "layers": [
+      {
+        "z": 0,
+        "alpha": 1,
+        "chunked": true,
+        "source_image": "/detention/map.svg",
+        "chunk_size": 512,
+        "grid_w": 4,
+        "grid_h": 4,
+        "path_template": "/detention/chunks/map_{x}_{y}.png"
+      },
+      {
+        "z": 300,
+        "alpha": 0.9,
+        "overlay": true,
+        "chunked": true,
+        "source_image": "/detention/background_overlay.png",
+        "chunk_size": 512,
+        "grid_w": 4,
+        "grid_h": 4,
+        "path_template": "/detention/chunks/background_overlay_{x}_{y}.png",
+        "spring": false
+      }
+    ],
+    "npcs": "detention/npc.json",
+    "clip_mask": "detention/clip_mask.png",
+    "character_scale": 4,
+    "default_zoom": 0.75,
+    "objects": "detention/objects.json",
+    "spawn_area": 18,
+    "can_leave": false,
+    "on_enter": [
+      {
+        "play_sound": {
+          "sound": "media/ticking_clock.mp3",
+          "volume": 0.5
+        }
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Main Building",
+    "width": 5584,
+    "height": 3072,
+    "can_leave": true,
+    "layers": [
+      {
+        "z": 0,
+        "alpha": 1,
+        "chunked": true,
+        "source_image": "/main_building/new_background.png",
+        "chunk_size": 512,
+        "grid_w": 11,
+        "grid_h": 6,
+        "path_template": "/main_building/chunks/new_background_{x}_{y}.png"
+      }
+    ],
+    "npcs": "main_building/npc.json",
+    "clip_mask": "main_building/clip_mask.png",
+    "character_scale": 2.5,
+    "default_zoom": 0.5,
+    "objects": "main_building/objects.json",
+    "spawn_area": 9,
+    "on_enter": [
+      {
+        "play_sound": {
+          "sound": "media/playground_sound_effect.mp3",
+          "volume": 0.2
+        }
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Pool",
+    "width": 2752,
+    "height": 1536,
+    "can_leave": true,
+    "layers": [
+      {
+        "z": 0,
+        "alpha": 1,
+        "chunked": true,
+        "source_image": "/pool/background.png",
+        "chunk_size": 512,
+        "grid_w": 6,
+        "grid_h": 3,
+        "path_template": "/pool/chunks/background_{x}_{y}.png"
+      },
+      {
+        "z": 1,
+        "alpha": 0.9,
+        "overlay": true,
+        "chunked": true,
+        "source_image": "/pool/background_overlay.png",
+        "chunk_size": 512,
+        "grid_w": 6,
+        "grid_h": 3,
+        "path_template": "/pool/chunks/background_overlay_{x}_{y}.png"
+      }
+    ],
+    "npcs": "pool/npc.json",
+    "clip_mask": "pool/clip_mask.png",
+    "character_scale": 2,
+    "default_zoom": 1,
+    "objects": "pool/objects.json",
+    "spawn_area": 1,
+    "on_enter": [
+      {
+        "play_sound": {
+          "sound": "media/pool_sound_effect.mp3",
+          "volume": 0.25
+        }
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Tennis",
+    "import": "/src/minigames/tennis.js",
+    "default_zoom": 1
+  }
+]

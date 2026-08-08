@@ -4,12 +4,16 @@ import MetalKit
 /// Async loader for map chunk tiles. Requests are deduplicated, and failures are remembered
 /// so a missing tile is not re-requested every frame.
 ///
-/// Tiles are fetched over HTTP rather than bundled — see PLAN.md §5. `URLCache` gives the
-/// on-disk caching the web build got from the browser for free.
+/// Tiles ship inside the app (PLAN.md §5), so a "load" is a file read and a decode. It stays
+/// asynchronous because decoding a 512×512 tile is not something to do on the frame the
+/// camera first sees it — but the work now runs on a queue instead of a `URLSession`, and a
+/// failure means a packaging mistake rather than a flaky network.
 final class TextureCache {
     private let device: MTLDevice
     private let loader: MTKTextureLoader
-    private let session: URLSession
+    private let queue = DispatchQueue(label: "com.allr.joelsworld.tiles",
+                                      qos: .userInitiated,
+                                      attributes: .concurrent)
 
     private var textures: [String: MTLTexture] = [:]
     private var inFlight: Set<String> = []
@@ -18,13 +22,6 @@ final class TextureCache {
     init(device: MTLDevice) {
         self.device = device
         self.loader = MTKTextureLoader(device: device)
-
-        let config = URLSessionConfiguration.default
-        config.urlCache = DiskCache.make(name: "joelsworld-tiles",
-                                         memoryCapacity: 32 * 1024 * 1024,
-                                         diskCapacity: 512 * 1024 * 1024)
-        config.requestCachePolicy = .returnCacheDataElseLoad
-        self.session = URLSession(configuration: config)
     }
 
     func texture(for path: String) -> MTLTexture? {
@@ -39,22 +36,22 @@ final class TextureCache {
     func requestTexture(path: String) {
         if textures[path] != nil || inFlight.contains(path) || failed.contains(path) { return }
 
-        let trimmed = path.hasPrefix("/") ? String(path.dropFirst()) : path
-        guard let url = URL(string: trimmed, relativeTo: Config.assetBaseURL) else {
+        let trimmed = AssetLocator.relative(path)
+        guard let url = AssetLocator.url(for: path) else {
             failed.insert(path)
             return
         }
 
         inFlight.insert(path)
 
-        session.dataTask(with: url) { [weak self] data, _, error in
+        queue.async { [weak self] in
             guard let self else { return }
 
-            guard let data, error == nil else {
+            guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
                 DispatchQueue.main.async {
                     self.inFlight.remove(path)
                     self.failed.insert(path)
-                    Log.render("Tile failed: \(trimmed) — \(error?.localizedDescription ?? "no data")")
+                    Log.render("Tile unreadable: \(trimmed)")
                 }
                 return
             }
@@ -86,11 +83,11 @@ final class TextureCache {
                     Log.render("Tile decode failed: \(trimmed) — \(data.count) bytes")
                 }
             }
-        }.resume()
+        }
     }
 
     /// Manual PNG decode for the formats `MTKTextureLoader` will not take — in practice the
-    /// palette PNGs the asset host serves. Core Graphics expands the palette to RGBA for us.
+    /// palette PNGs the slicer writes. Core Graphics expands the palette to RGBA for us.
     ///
     /// The vertical flip matches `MTKTextureLoader.Origin.flippedVertically` on the fast path,
     /// and `.rgba8Unorm_srgb` matches its `.SRGB: true`, so a tile looks identical whichever

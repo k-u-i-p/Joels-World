@@ -1,22 +1,18 @@
 FROM node:20-slim
 
-WORKDIR /app
-
-# Copy package configurations for server
-COPY server/package*.json ./server/
 WORKDIR /app/server
-RUN npm ci --only=production
 
-# Copy the rest of the application (the server and its asset tree)
-WORKDIR /app
-COPY . .
+# The image is the WebSocket server and nothing else — no asset tree, and so no sharp and no
+# pre-build step. `assets/` is packaged into the apps by `tools/assets/stage.sh` instead.
+COPY server/package*.json ./
+RUN npm ci --omit=dev
 
-# Pre-generate map chunks and overlays during the Docker build
-WORKDIR /app/server
-RUN npm run build
+COPY server/ ./
+# The authored world moved to the repository root when the apps started bundling it; the
+# server still reads and watches it. `server/paths.js` resolves it at ../data.
+COPY data/ ../data/
 
-# Expose the port Cloud Run uses
+# Cloud Run sets PORT; server.js honours it.
 EXPOSE 8080
 
-# Start the application
 CMD ["npm", "run", "server"]

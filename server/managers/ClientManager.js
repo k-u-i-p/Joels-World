@@ -1,4 +1,3 @@
-import { handleAdminMessage } from '../admin.js';
 
 export class ClientManager {
   constructor(mapManager, npcManager, aiAgentManager, chatManager) {
@@ -52,8 +51,6 @@ export class ClientManager {
           console.log(session.player.name + ' has resumed game with valid session token');
         }
 
-        ws.isAdmin = session ? session.isAdmin : false;
-
         const mapIdParam = urlParams.get('mapId');
         let requestedMapId = mapIdParam !== null ? parseInt(mapIdParam, 10) : 0;
         if (session && session.player && session.player.mapId !== undefined) {
@@ -92,7 +89,7 @@ export class ClientManager {
           this.mapManager.addCharacter(mapData.id, session.player);
 
           console.log(`Resuming session character ${session.player.name} (${ws.clientId})`);
-          ws.send(this.mapManager.getInitPayload(mapData.id, session.player, ws.isAdmin));
+          ws.send(this.mapManager.getInitPayload(mapData.id, session.player));
 
           ws.send(JSON.stringify({ type: 'session_token', token: sessionID }));
         }
@@ -105,10 +102,13 @@ export class ClientManager {
               // If they already have a session char, ignore
               if (session && session.player) return;
 
-              let playerName = data.name || '';
-              if (!playerName && ws.isAdmin) playerName = 'Admin';
+              // The macOS editor used to be exempt from this, on the strength of its admin
+              // promotion, and sent a blank name. It has no promotion now — it edits `data/`
+              // on disk directly — so it connects as an ordinary client and sends a name like
+              // anyone else.
+              const playerName = data.name || '';
 
-              if (!ws.isAdmin && (!playerName || !/^[a-zA-Z]+$/.test(playerName))) {
+              if (!playerName || !/^[a-zA-Z]+$/.test(playerName)) {
                 this.sendError(ws, 'Invalid Name. Please use only English letters with no spaces or symbols.');
                 return;
               }
@@ -127,7 +127,7 @@ export class ClientManager {
 
               this.mapManager.addCharacter(mapData.id, newChar);
 
-              ws.send(this.mapManager.getInitPayload(mapData.id, newChar, ws.isAdmin));
+              ws.send(this.mapManager.getInitPayload(mapData.id, newChar));
 
               this.npcManager.logEventToNearbyNPCs(mapData, `${newChar.name || 'Student'} (${newPlayerId}) entered the map`, this.aiAgentManager);
 
@@ -161,8 +161,6 @@ export class ClientManager {
                   ws.send(JSON.stringify({ type: 'badge_earned', badge: data.badge }));
                 }
               }
-            } else {
-              handleAdminMessage(ws, data, mapData);
             }
           } catch (err) {
             console.error('Error processing message:', err);
@@ -204,7 +202,7 @@ export class ClientManager {
     const requestedMapId = Number(data.mapId);
     const newMapData = this.mapManager.getMap(requestedMapId);
 
-    if (mapData.can_leave === false && data.force !== true && !ws.isAdmin) {
+    if (mapData.can_leave === false && data.force !== true) {
       const sender = this.mapManager.getCharacter(mapData.id, ws.clientId);
       const charName = (sender && sender.name) || 'Student';
       this.npcManager.logEventToNearbyNPCs(mapData, `${charName} (${ws.clientId}) tried to leave ${mapData.name}`, this.aiAgentManager);
@@ -251,7 +249,7 @@ export class ClientManager {
       this.npcManager.logEventToNearbyNPCs(newMapData, `${oldChar.name || 'Student'} (${ws.clientId}) entered ${newMapData.name}`, this.aiAgentManager);
 
       // Send init to immediately reset the client seamlessly
-      ws.send(this.mapManager.getInitPayload(newMapData.id, oldChar, ws.isAdmin));
+      ws.send(this.mapManager.getInitPayload(newMapData.id, oldChar));
       return newMapData;
     }
     return mapData;

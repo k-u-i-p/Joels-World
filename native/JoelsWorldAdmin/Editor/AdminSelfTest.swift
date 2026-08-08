@@ -23,6 +23,11 @@ final class AdminSelfTest {
         self.session = session
     }
 
+    /// The bytes of the two entity files before anything was edited. Every step that changes
+    /// something is expected to put them back, so the run leaves the checkout clean —
+    /// `testFilesRestored` is what checks it.
+    private var baselines: [String: Data] = [:]
+
     func run() {
         schedule(1.0) { self.reportInitialState() }
         schedule(1.5) { self.testObjectSelectAndDrag() }
@@ -32,6 +37,7 @@ final class AdminSelfTest {
         schedule(6.5) { self.testCreateEditDelete() }
         schedule(9.0) { self.testKeyboardTurn() }
         schedule(10.5) { self.testKeyboardWalk() }
+        schedule(12.0) { self.testFilesRestored() }
     }
 
     private func schedule(_ delay: Double, _ body: @escaping () -> Void) {
@@ -48,6 +54,63 @@ final class AdminSelfTest {
     private func reportInitialState() {
         log("world objects=\(session.state.objects.count) npcs=\(session.state.npcs.count) " +
             "selectedObject=\(map.selection.objectIds) selectedNpc=\(String(describing: map.selection.npcId))")
+
+        guard let directory = session.files.dataDirectory else {
+            return log("FAIL: no data/ directory — pass -data <path>; every edit step will fail")
+        }
+        log("editing \(directory.path)")
+
+        baselines = [:]
+        for path in entityFilePaths() {
+            if let data = try? Data(contentsOf: directory.appendingPathComponent(path)) {
+                baselines[path] = data
+            } else {
+                log("FAIL: could not read \(path) to take a baseline")
+            }
+        }
+        log("baselined \(baselines.count) files (\(baselines.values.map(\.count).reduce(0, +)) bytes)")
+    }
+
+    /// The current map's two entity files, as `maps.json` names them.
+    private func entityFilePaths() -> [String] {
+        guard let mapId = session.state.mapData?.id, let map = WorldData.map(id: mapId) else {
+            return []
+        }
+        return [map.objects, map.npcs].compactMap { $0 }
+    }
+
+    /// The run creates an object, rewrites its event tree, deletes it again, and drags three
+    /// things back to where it found them. If the serialiser is faithful, the files on disk
+    /// end up byte-for-byte as they started.
+    ///
+    /// This assertion used to be free: the server did the writing, in Node, with the same
+    /// `JSON.stringify` that produced the file in the first place. The editor writes them now,
+    /// so key order, number formatting and indentation are all `OrderedJSON`'s to get right —
+    /// which makes this the step that matters most in the run.
+    private func testFilesRestored() {
+        guard let directory = session.files.dataDirectory, !baselines.isEmpty else {
+            return log("files restored: skipped, no baseline")
+        }
+
+        for (path, baseline) in baselines.sorted(by: { $0.key < $1.key }) {
+            guard let now = try? Data(contentsOf: directory.appendingPathComponent(path)) else {
+                log("FAIL: \(path) could not be re-read")
+                continue
+            }
+            if now == baseline {
+                log("\(path) is byte-identical (\(now.count) bytes)")
+            } else {
+                log("FAIL: \(path) changed — \(baseline.count) → \(now.count) bytes; " +
+                    "first difference at \(Self.firstDifference(baseline, now).map(String.init) ?? "?")")
+            }
+        }
+    }
+
+    private static func firstDifference(_ lhs: Data, _ rhs: Data) -> Int? {
+        for index in 0..<min(lhs.count, rhs.count) where lhs[index] != rhs[index] {
+            return index
+        }
+        return lhs.count == rhs.count ? nil : min(lhs.count, rhs.count)
     }
 
     /// Click an object at its own centre, then click again and drag it 60 world units right.
@@ -137,11 +200,13 @@ final class AdminSelfTest {
         let moved = session.state.npcs.first { $0.id == npc.id }
         log("dragged NPC \(npc.id) by dx=\(Int(((moved?.x ?? 0) - npc.x).rounded())) (expected 30)")
 
-        map.editorMouseDown(at: destination, shiftHeld: false)
-        map.editorMouseDragged(to: screen)
-        map.editorMouseUp(at: screen)
-        log("restored NPC \(npc.id) to (\(Int(session.state.npcs.first { $0.id == npc.id }?.x ?? 0)), " +
-            "\(Int(session.state.npcs.first { $0.id == npc.id }?.y ?? 0)))")
+        // Restored by value, not by dragging back. A return drag lands wherever the inverse
+        // screen mapping puts it, which is within a pixel but not on the same Double — enough
+        // to rewrite an authored coordinate like -935.8839997696498 as -936 and leave the run
+        // with a diff. The object steps above already restore this way.
+        session.send(.moveNPC(id: npc.id, x: npc.x, y: npc.y))
+        let restored = session.state.npcs.first { $0.id == npc.id }
+        log("restored NPC \(npc.id) to (\(restored?.x ?? 0), \(restored?.y ?? 0))")
     }
 
     /// Create a rect at the camera focus, select it by clicking, give it an event tree, read

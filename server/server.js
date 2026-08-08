@@ -1,56 +1,35 @@
-import express from 'express';
 import http from 'http';
-import cookieParser from 'cookie-parser';
-import { SessionManager } from './managers/SessionManager.js';
-import { setupWebSocket } from './websocket.js';
-import { setupStatic } from './static.js';
-import { ensureMapChunks } from './scripts/slice_maps.js';
-import { processOverlays } from './scripts/create_overlays.js';
-import { ensureMinimaps } from './scripts/generate_minimaps.js';
-
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { SessionManager } from './managers/SessionManager.js';
+import { setupWebSocket } from './websocket.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const port = process.env.PORT || 80;
-const app = express();
-const server = http.createServer(app);
 
-app.use(cookieParser());
-
-const sessionManager = new SessionManager(path.resolve(__dirname, './sessions'));
-
-// Custom unified session middleware to manually load the session either via Authorization Bearer token OR cookie
-// Since iOS Safari CORS drops cookies, Capacitor explicit headers bypass it gracefully, while native browser users still lean on cookies.
-app.use(async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  let token = null;
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.slice(7);
-  } else if (req.cookies && req.cookies.sid) {
-    token = req.cookies.sid;
+// There is no HTTP surface left: the clients are native apps that ship their own assets, so
+// every asset URL, the `/api/config` emote list and the EJS game page all went with the web
+// client. What remains exists only so `ws` has a server to attach to and so Cloud Run's
+// health check gets an answer.
+const server = http.createServer((req, res) => {
+  if (req.method === 'GET' && (req.url === '/' || req.url === '/healthz')) {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Joel\'s World: WebSocket only.\n');
+    return;
   }
-
-  req.session = await sessionManager.get(token);
-
-  if (!req.session) {
-    req.session = await sessionManager.create();
-    // Re-issue cookie so web browsers keep it seamlessly
-    res.cookie('sid', req.session.id, { httpOnly: true, sameSite: 'lax' });
-  }
-
-  next();
+  res.writeHead(404, { 'Content-Type': 'text/plain' });
+  res.end('Not found\n');
 });
 
-const { wss, mapState } = setupWebSocket(server, sessionManager);
+// Sessions still carry play state between connections — the client presents its token on the
+// socket handshake and `setupWebSocket` resolves it. What went is the HTTP-side cookie
+// middleware, which no native client ever sent a cookie to and which minted an empty session
+// file for every asset request that reached it.
+const sessionManager = new SessionManager(path.resolve(__dirname, './sessions'));
 
-// Generate clip mask overlays locally FIRST
-await processOverlays();
+setupWebSocket(server, sessionManager);
 
-// Ensure ALL map layers (including new overlays) are sliced and generated before binding the port
-await ensureMapChunks();
-await ensureMinimaps();
-
-setupStatic(app, server, port);
+server.listen(port, '0.0.0.0', () => {
+  console.log(`Joel's World WebSocket server listening on 0.0.0.0:${port}`);
+});

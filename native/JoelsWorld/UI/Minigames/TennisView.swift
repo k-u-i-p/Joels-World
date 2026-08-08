@@ -231,8 +231,9 @@ private final class TennisCanvasView: UIView {
 
         // The admin-only layers — the bounce and NPC-intercept crosshairs, the racket hitbox
         // ellipses, the court bounds, the service box, and the whole side-profile diagnostics
-        // panel — are all gated on `window.isAdmin` in the JS. `admin.js` stays a web page
-        // (PLAN.md §7), so they have no native counterpart.
+        // panel — are all gated on `window.isAdmin` in the JS. Nothing carries that flag any
+        // more: the editor is a separate Mac app that never opens a minigame, so they have no
+        // native counterpart.
 
         canvas.restore()
     }

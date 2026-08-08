@@ -1,0 +1,13 @@
+{
+  "name": "joels-world-asset-tools",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Offline asset pipeline: slices the full-size map layers into chunks, derives the clip-mask overlays, and generates the minimaps. Used to run at server boot; the server no longer serves assets, so this is a packaging step the apps depend on.",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "sharp": "^0.34.5"
+  }
+}

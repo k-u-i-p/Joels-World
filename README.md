@@ -11,10 +11,22 @@ Welcome to **Joel's World**, a persistent, multiplayer top-down RPG map experien
 
 | Directory | What it is |
 |---|---|
-| `server/` | The Node WebSocket + Express backend, the world data under `server/data/`, and the asset tree under `server/assets/` |
+| `server/` | The Node WebSocket server. Two dependencies: `ws`, and `@google/genai` for the NPC agents |
+| `data/` | The authored world — `maps.json`, and each map's `objects.json` and `npc.json`. Read by the server, bundled into the apps, edited by the macOS editor |
+| `assets/` | Art and audio. A working tree: the full-size map layers are slicer input, and the apps ship only what `tools/assets/stage.sh` selects |
 | `native/` | Swift. `Engine/` is the shared game engine, `JoelsWorld/` the iOS game, `JoelsWorldAdmin/` the macOS map editor |
+| `tools/assets/` | The offline asset pipeline — slicing, overlays, minimaps — and the staging script the Xcode builds run |
 
 The browser client was retired in favour of the native apps — see `native/PROGRESS.md`.
+
+## What the server does, and does not
+
+It is a WebSocket relay and nothing else. It serves no assets and no world: both ship inside
+the apps. The only HTTP it answers is a health check on `/`.
+
+Over the socket it sends who else is on your map and what they are doing, plus
+`objects_update` / `npcs_update` when it notices a `data/` file change on disk. Sessions are
+unchanged — the token you present on the handshake is what resumes your character.
 
 ## Running the server
 
@@ -22,10 +34,20 @@ The browser client was retired in favour of the native apps — see `native/PROG
 cd server && npm install && npm run dev
 ```
 
-It binds port 80 unless `PORT` is set, serves the asset tree from the root (`/media/…`,
-`/models/…`, `/junior_school/chunks/…`), and slices map chunks, overlays and minimaps on
-first boot. Point a client at it by setting `Config.useLocalServer` in
-`native/Engine/Core/Config.swift`.
+It binds port 80 unless `PORT` is set. Point an app at it with `-host 127.0.0.1:80` on the
+launch arguments, or by setting `Config.useLocalServer` in `native/Engine/Core/Config.swift`.
+
+## Building the assets
+
+The apps bundle ~155 MB of art. The map tiles in it are generated, not committed, so a fresh
+checkout needs one pass before Xcode can stage them:
+
+```bash
+cd tools/assets && npm install && npm run build
+```
+
+That slices the full-size layers into chunks, derives the clip-mask overlays and generates the
+minimaps. It is only needed again when a source layer changes.
 
 ## Building the apps
 
@@ -37,8 +59,19 @@ cd native && xcodebuild -project JoelsWorld.xcodeproj -scheme JoelsWorld -sdk ip
 cd native && xcodebuild -project JoelsWorld.xcodeproj -scheme JoelsWorldAdmin -destination 'platform=macOS' build
 ```
 
-The map editor needs an admin grant: it presents `?adminKey=` on the socket handshake, which
-must match the server's `ADMIN_KEY`, or come from loopback when the server has none set.
+Each build runs `tools/assets/stage.sh`, which copies `assets/` and `data/` into the app.
+
+The map editor writes `data/**/objects.json` and `npc.json` directly. It finds them by walking
+up from the app bundle, from a folder you have picked before, or from `-data <path>` — which
+is what a scripted run should use:
+
+```bash
+JoelsWorldAdmin.app/Contents/MacOS/JoelsWorldAdmin -data "$PWD/data" -host 127.0.0.1:80
+```
+
+A server running against the same checkout notices the write and broadcasts the change to
+everyone connected, editor included. There is no admin key any more — the editor's connection
+is an ordinary one, and exists only to show live players on the map being edited.
 
 ---
 
@@ -53,11 +86,15 @@ Environments are split into layered depths (`background`, `trees+overlay`, `fore
 ### Stateless Server Synchronization
 The Node.js server acts strictly as a low-latency broadcaster. It does not tick an internal physics loop. It maintains a dictionary of connected `player_id`s and relays their calculated `x/y` coordinates, `rotation`, and active `emotes` across the WebSocket buffer to all clients concurrently.
 
+The `init` frame it sends is three fields — `mapId`, `characters`, `myCharacter`. The map, the
+map list, the objects and the NPCs used to ride along with it; they ship in the app now, and
+`mapId` is what selects them.
+
 ---
 
 ## JSON Data Formats
 
-The game world is governed by three primary descriptive JSON files for each map located in `server/data/[map_name]/`.
+The game world is governed by three primary descriptive JSON files for each map located in `data/[map_name]/`.
 
 ### 1. `maps.json`
 The master file dictating the available explorable spaces and their visual properties.

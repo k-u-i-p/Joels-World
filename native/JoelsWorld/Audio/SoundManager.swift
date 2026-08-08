@@ -76,17 +76,9 @@ final class SoundManager {
     private var background: Handle?
     private var currentBackgroundPath: String?
 
-    private let session: URLSession
     private let decodeQueue = DispatchQueue(label: "com.allr.joelsworld.audio", qos: .userInitiated)
 
     init() {
-        let config = URLSessionConfiguration.default
-        config.urlCache = URLCache(memoryCapacity: 8 * 1024 * 1024,
-                                   diskCapacity: 64 * 1024 * 1024,
-                                   diskPath: "joelsworld-audio")
-        config.requestCachePolicy = .returnCacheDataElseLoad
-        session = URLSession(configuration: config)
-
         // `.playback` matches what the Capacitor build got from `NativeAudio`: the game's own
         // music keeps playing with the ring switch on silent, which is what players expect
         // from a game rather than from a web page.
@@ -252,49 +244,10 @@ final class SoundManager {
         return buffer
     }
 
-    /// Resolves an asset path to a file on disk. Bundle first (PLAN.md §5 wants the audio
-    /// shipped inside the app), then the asset host with an on-disk copy in Caches —
-    /// `AVAudioFile` needs a real file, so the bytes are written out rather than kept in the
-    /// `URLCache` alone.
+    /// Resolves an asset path to a file in the bundle. All 11 MB of audio ships with the app
+    /// (PLAN.md §5), which suits `AVAudioFile` — it wants a real file, and the previous
+    /// network path had to spool downloads into Caches to give it one.
     private func fetchFile(path: String, completion: @escaping (URL?) -> Void) {
-        let trimmed = path.hasPrefix("/") ? String(path.dropFirst()) : path
-        let name = (trimmed as NSString).deletingPathExtension
-        let ext = (trimmed as NSString).pathExtension
-
-        if let bundled = Bundle.main.url(forResource: name, withExtension: ext)
-            ?? Bundle.main.url(forResource: (name as NSString).lastPathComponent, withExtension: ext) {
-            completion(bundled)
-            return
-        }
-
-        let cacheURL = Self.cacheDirectory.appendingPathComponent(
-            trimmed.replacingOccurrences(of: "/", with: "_"))
-        if FileManager.default.fileExists(atPath: cacheURL.path) {
-            completion(cacheURL)
-            return
-        }
-
-        guard let url = URL(string: trimmed, relativeTo: Config.assetBaseURL) else {
-            completion(nil)
-            return
-        }
-
-        session.dataTask(with: url) { data, _, error in
-            if let error {
-                Log.world("Audio fetch failed: \(trimmed) — \(error.localizedDescription)")
-            }
-            guard let data, (try? data.write(to: cacheURL)) != nil else {
-                completion(nil)
-                return
-            }
-            completion(cacheURL)
-        }.resume()
+        completion(AssetLocator.url(for: path))
     }
-
-    private static let cacheDirectory: URL = {
-        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("audio", isDirectory: true)
-        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        return base
-    }()
 }

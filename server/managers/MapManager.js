@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { dataPath } from '../paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -15,7 +16,7 @@ export class MapManager {
   }
 
   initializeMaps(npcManager) {
-    const mapsFile = path.resolve(__dirname, '..', 'data', 'maps.json');
+    const mapsFile = dataPath('maps.json');
     try {
       if (fs.existsSync(mapsFile)) {
         this.mapsData = JSON.parse(fs.readFileSync(mapsFile, 'utf-8'));
@@ -33,9 +34,9 @@ export class MapManager {
         dirtyCharacters: {},
         npcs: [],
         objects: [],
-        objectsFile: mapDef.objects ? path.resolve(__dirname, '..', 'data', mapDef.objects) : null,
-        npcsFile: mapDef.npcs ? path.resolve(__dirname, '..', 'data', mapDef.npcs) : null,
-        logFile: mapDef.logFile ? path.resolve(__dirname, '..', 'data', mapDef.logFile) : null
+        objectsFile: mapDef.objects ? dataPath(mapDef.objects) : null,
+        npcsFile: mapDef.npcs ? dataPath(mapDef.npcs) : null,
+        logFile: mapDef.logFile ? dataPath(mapDef.logFile) : null
       };
 
       if (npcManager) {
@@ -212,36 +213,25 @@ export class MapManager {
     mapData.dirtyCharacters[character.id] = character;
   }
 
-  /// `isAdmin` tells the client whether its edits will be accepted. The web page knew from
-  /// the session that rendered it; the native macOS editor has no such signal, and without
-  /// this it would silently drop every edit on a connection the server did not promote.
-  getInitPayload(mapId, myChar, isAdmin = false) {
+  /**
+   * The live half of a connection: which map the player is on, who else is standing in it,
+   * and the player's own character.
+   *
+   * The authored half — the map definition, the map list, the objects and the NPCs — used to
+   * ride along here. It ships inside the app now (`tools/assets/stage.sh` stages `data/` into
+   * the bundle), so the client looks it up by `mapId` and the socket carries only what
+   * changes. `objects_update` and `npcs_update` still arrive when the editor writes a file and
+   * the watch in `initializeMaps` picks it up.
+   */
+  getInitPayload(mapId, myChar) {
     const mapData = this.mapState[mapId];
     if (!mapData) return null;
 
     return JSON.stringify({
       type: 'init',
-      isAdmin: isAdmin === true,
+      mapId: mapData.id,
       characters: Object.values(mapData.characters),
-      npcs: mapData.npcs,
-      objects: mapData.objects,
-      myCharacter: myChar,
-      mapData: {
-        id: mapData.id,
-        name: mapData.name,
-        width: mapData.width,
-        height: mapData.height,
-        layers: mapData.layers,
-        clip_mask: mapData.clip_mask,
-        character_scale: mapData.character_scale || 1,
-        default_zoom: mapData.default_zoom || 1,
-        on_enter: mapData.on_enter,
-        import: mapData.import,
-        models: mapData.models,
-        background_color: mapData.background_color,
-        camera_permitted_offset: mapData.camera_permitted_offset
-      },
-      mapsList: this.mapsList
+      myCharacter: myChar
     });
   }
 }

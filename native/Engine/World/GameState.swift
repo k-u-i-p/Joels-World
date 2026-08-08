@@ -153,15 +153,23 @@ final class GameState {
         delegate?.gameStateHideDialog()
         delegate?.gameStateHideAvatar()
 
+        // The server names a map; the app already has it. `objects` and `npcs` come from the
+        // same bundled `data/` tree the server reads, so both ends agree without either
+        // sending the other a copy.
+        let incomingMap = initPayload.mapId.flatMap { WorldData.map(id: $0) }
+        if initPayload.mapId != nil, incomingMap == nil {
+            Log.world("Server put us on map \(initPayload.mapId!), which is not in the bundled maps.json")
+        }
+
         characters = initPayload.characters ?? []
-        npcs = initPayload.npcs ?? []
-        objects = initPayload.objects ?? []
+        npcs = incomingMap.map { WorldData.npcs(mapId: $0.id) } ?? []
+        objects = incomingMap.map { WorldData.objects(mapId: $0.id) } ?? []
 
         visuals.removeAll()
         for character in characters { setTarget(for: character) }
         for npc in npcs { setTarget(for: npc) }
 
-        if let newMap = initPayload.mapData {
+        if let newMap = incomingMap {
             mapData = newMap
             map.load(mapData: newMap)
             camera.zoom = newMap.default_zoom ?? 1
@@ -235,12 +243,6 @@ final class GameState {
             minigame = game
             game.start()
             delegate?.gameStateDidStartMinigame(game)
-
-        case .tag:
-            // Deliberately not ported: the user is reworking this game before it is rewritten.
-            // The map still loads as a plain world, which is what it is described as in
-            // `maps.json` — layers, clip mask and all — so it is walkable but has no rules.
-            Log.world("Map '\(mapName ?? "?")' is Tag, which is not ported yet")
         }
     }
 

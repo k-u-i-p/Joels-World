@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PhysicsEngine } from '../physics.js';
+import { dataPath } from '../paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,7 +35,7 @@ export class NPCManager {
 
     targetNpcs.forEach(npc => {
       if (npc.agent && npc.agent.log_file) {
-        const logPath = path.resolve(__dirname, '..', 'data', npc.agent.log_file);
+        const logPath = dataPath(npc.agent.log_file);
         let logArr = [];
         try {
           if (fs.existsSync(logPath)) {
@@ -67,7 +68,7 @@ export class NPCManager {
   initializeMapNPCs(mapDef, mapObj) {
     if (!mapDef.npcs) return;
 
-    const npcPath = path.resolve(__dirname, '..', 'data', mapDef.npcs);
+    const npcPath = dataPath(mapDef.npcs);
     try {
       if (fs.existsSync(npcPath)) {
         mapObj.npcs = JSON.parse(fs.readFileSync(npcPath, 'utf-8'));
@@ -82,7 +83,7 @@ export class NPCManager {
           npc._startRotation = npc.rotation;
 
           if (npc.agent && npc.agent.log_file) {
-            const logPath = path.resolve(__dirname, '..', 'data', npc.agent.log_file);
+            const logPath = dataPath(npc.agent.log_file);
             try {
               fs.writeFileSync(logPath, '', 'utf8');
             } catch (e) {

@@ -143,6 +143,12 @@ struct MapData: Codable {
     var `import`: String?
     var on_enter: JSONValue?
 
+    /// Paths, relative to `data/`, to this map's authored objects and NPCs — `maps.json`
+    /// fields the server keeps for itself and the client now reads too. `WorldData` resolves
+    /// them. Absent on minigame maps, which have no world.
+    var objects: String?
+    var npcs: String?
+
     /// A minigame map is a `import`ed script with no world of its own, so it carries no
     /// dimensions — `maps.json` id 4, Tennis. Decoding those as zero keeps the rest of the
     /// `init` frame usable; the synthesised initialiser would throw and take the whole world
@@ -162,6 +168,8 @@ struct MapData: Codable {
                                                                 forKey: .camera_permitted_offset)
         `import` = try container.decodeIfPresent(String.self, forKey: .import)
         on_enter = try container.decodeIfPresent(JSONValue.self, forKey: .on_enter)
+        objects = try container.decodeIfPresent(String.self, forKey: .objects)
+        npcs = try container.decodeIfPresent(String.self, forKey: .npcs)
     }
 
     /// True for the minigame maps, which Phase 7 implements.
@@ -250,16 +258,12 @@ struct MapListEntry: Codable {
 
 // MARK: - Server → client
 
+/// The live half of a connection. The authored half — the map, the map list, the objects and
+/// the NPCs — ships with the app; `mapId` is what selects it out of `WorldData`.
 struct InitPayload: Codable {
+    var mapId: Int?
     var characters: [GameCharacter]?
-    var npcs: [GameCharacter]?
-    var objects: [WorldObject]?
     var myCharacter: GameCharacter?
-    var mapData: MapData?
-    var mapsList: [MapListEntry]?
-    /// Whether the server will accept edits from this connection. Only the macOS editor
-    /// cares; the game ignores it.
-    var isAdmin: Bool?
 }
 
 /// Decoded form of every server frame the client acts on.

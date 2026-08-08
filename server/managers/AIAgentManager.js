@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { PhysicsEngine } from '../physics.js';
 import { VALID_EMOTES } from '../emotes.js';
+import { dataPath } from '../paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -99,7 +100,7 @@ export class AIAgentManager {
             const pending = this.agentPendingMessages[npcId];
             if (!pending || pending.length === 0) return;
 
-            const agentFilePath = path.resolve(__dirname, '..', 'data', npc.agent.prompt_file);
+            const agentFilePath = dataPath(npc.agent.prompt_file);
             if (!fs.existsSync(agentFilePath)) {
                 return;
             }

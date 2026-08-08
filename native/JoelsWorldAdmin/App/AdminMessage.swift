@@ -6,8 +6,8 @@ extension JSONValue {
     init(_ value: String) { self = .string(value) }
     init(_ value: Bool) { self = .bool(value) }
 
-    /// Round-trips any `Encodable` into loose JSON. Used for `cloneData`, which puts a whole
-    /// object or NPC record on the wire so the server can copy every authored field.
+    /// Round-trips any `Encodable` into loose JSON, for the inspectors that build an update
+    /// out of a whole record rather than field by field.
     init?<T: Encodable>(encoding value: T) {
         guard let data = try? JSONEncoder().encode(value),
               let decoded = try? JSONDecoder().decode(JSONValue.self, from: data)
@@ -16,8 +16,12 @@ extension JSONValue {
     }
 }
 
-/// The editor half of the wire protocol, mirroring `handleAdminMessage` in `server/admin.js`.
-/// Every case names the `type` the server switches on.
+/// One edit the editor can make to the authored world.
+///
+/// These were socket frames until the world moved into the app bundle — each case named a
+/// `type` that `server/admin.js` switched on, and the server did the writing. `WorldFileStore`
+/// applies them to `data/` on disk instead; the cases survived the move unchanged, so every
+/// inspector and the self-test still speak in them.
 enum AdminMessage {
     case moveObject(id: Int, x: Double, y: Double)
     case renameObject(id: Int, name: String?)
@@ -34,66 +38,19 @@ enum AdminMessage {
     case cloneNPC(x: Double, y: Double, source: GameCharacter)
     case deleteNPC(id: Int)
 
-    var payload: [String: JSONValue] {
+    /// Which file a given edit lands in.
+    enum Kind {
+        case objects
+        case npcs
+    }
+
+    var kind: Kind {
         switch self {
-        case .moveObject(let id, let x, let y):
-            return ["type": .string("move_object"), "id": JSONValue(id),
-                    "x": JSONValue(x), "y": JSONValue(y)]
-
-        case .renameObject(let id, let name):
-            // `admin.js` deletes the key when the name is blank; the server does that when
-            // `data.name` is falsy, so an empty string is the right thing to send.
-            return ["type": .string("rename_object"), "id": JSONValue(id),
-                    "name": .string(name ?? "")]
-
-        case .resizeObject(let id, let width, let length, let x, let y):
-            return ["type": .string("resize_object"), "id": JSONValue(id),
-                    "width": JSONValue(width), "length": JSONValue(length),
-                    "x": JSONValue(x), "y": JSONValue(y)]
-
-        case .rotateObject(let id, let rotation):
-            return ["type": .string("rotate_object"), "id": JSONValue(id),
-                    "rotation": JSONValue(rotation)]
-
-        case .deleteObject(let id):
-            return ["type": .string("delete_object"), "id": JSONValue(id)]
-
-        case .updateObject(let id, let updates):
-            return ["type": .string("update_object"), "id": JSONValue(id),
-                    "updates": .object(updates)]
-
-        case .createObject(let shape, let x, let y, let fields):
-            var payload: [String: JSONValue] = ["type": .string("create_object"),
-                                                "shape": .string(shape),
-                                                "x": JSONValue(x), "y": JSONValue(y)]
-            payload.merge(fields) { _, new in new }
-            return payload
-
-        case .cloneObject(let x, let y, let source):
-            var payload: [String: JSONValue] = ["type": .string("create_object"),
-                                                "x": JSONValue(x), "y": JSONValue(y)]
-            if let clone = JSONValue(encoding: source) { payload["cloneData"] = clone }
-            return payload
-
-        case .moveNPC(let id, let x, let y):
-            return ["type": .string("move_npc"), "id": JSONValue(id),
-                    "x": JSONValue(x), "y": JSONValue(y)]
-
-        case .updateNPC(let id, let updates):
-            return ["type": .string("update_npc"), "id": JSONValue(id),
-                    "updates": .object(updates)]
-
-        case .createNPC(let x, let y):
-            return ["type": .string("create_npc"), "x": JSONValue(x), "y": JSONValue(y)]
-
-        case .cloneNPC(let x, let y, let source):
-            var payload: [String: JSONValue] = ["type": .string("create_npc"),
-                                                "x": JSONValue(x), "y": JSONValue(y)]
-            if let clone = JSONValue(encoding: source) { payload["cloneData"] = clone }
-            return payload
-
-        case .deleteNPC(let id):
-            return ["type": .string("delete_npc"), "id": JSONValue(id)]
+        case .moveObject, .renameObject, .resizeObject, .rotateObject,
+             .deleteObject, .updateObject, .createObject, .cloneObject:
+            return .objects
+        case .moveNPC, .updateNPC, .createNPC, .cloneNPC, .deleteNPC:
+            return .npcs
         }
     }
 }

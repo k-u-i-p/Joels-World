@@ -10,7 +10,16 @@ enum Config {
 
     /// Set at runtime by the macOS admin editor, which chooses its server from the UI rather
     /// than from a compile-time flag. `host` may carry a `:port` suffix.
-    static var hostOverride: String?
+    ///
+    /// Seeded from `-host <host[:port]>`, so a scripted run — `-walktest` against a server
+    /// started for the occasion — can pick one without editing `useLocalServer` and rebuilding.
+    static var hostOverride: String? = {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-host"), index + 1 < arguments.count else {
+            return nil
+        }
+        return arguments[index + 1]
+    }()
 
     static var host: String { hostOverride ?? (useLocalServer ? localHost : productionHost) }
 
@@ -28,18 +37,7 @@ enum Config {
     static var ssaoEnabled: Bool {
         !ProcessInfo.processInfo.arguments.contains("-nossao")
     }
-    static var httpScheme: String { isLoopback ? "http" : "https" }
     static var wsScheme: String { isLoopback ? "ws" : "wss" }
-
-    /// Base URL for streamed assets (map chunk tiles, clip masks).
-    static var assetBaseURL: URL {
-        URL(string: "\(httpScheme)://\(host)")!
-    }
-
-    /// Presented on the socket handshake by the macOS admin editor, which has no browser
-    /// session to carry the server's `isAdmin` flag. See `grantsAdmin` in `server/websocket.js`:
-    /// the key must match `ADMIN_KEY`, or — when the server has none set — come from loopback.
-    static var adminKey: String?
 
     static func websocketURL(state: String, token: String?) -> URL {
         var components = URLComponents()
@@ -53,9 +51,6 @@ enum Config {
         var items = [URLQueryItem(name: "state", value: state)]
         if let token, !token.isEmpty {
             items.append(URLQueryItem(name: "token", value: token))
-        }
-        if let adminKey, !adminKey.isEmpty {
-            items.append(URLQueryItem(name: "adminKey", value: adminKey))
         }
         components.queryItems = items
         return components.url!

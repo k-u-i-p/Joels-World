@@ -2,9 +2,9 @@ import UIKit
 
 // MARK: - Emotes
 
-/// `#emotes-dialog`. The list comes from the server rather than being hard-coded — the same
-/// `/api/config` call the web build makes (`ui.js:145-205`), which reads the emote table out
-/// of `emotes.js` at boot (`static.js:9-23`).
+/// `#emotes-dialog`. The web build fetched the list from `/api/config` (`ui.js:145-205`);
+/// `EmoteCatalog` reads `Emotes.table` instead, so the picker offers exactly the emotes that
+/// can pose the rig.
 final class EmotesDialogView: PanelDialogView {
     /// The chat line the tapped row submits, e.g. `/dance`.
     var onEmote: ((String) -> Void)?

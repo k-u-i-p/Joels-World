@@ -76,14 +76,15 @@
 				A1000000000000000000042 /* Sources */,
 				A1000000000000000000020 /* Frameworks */,
 				A1000000000000000000043 /* Resources */,
+				A1000000000000000000070 /* Stage assets */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				A1000000000000000000011 /* Engine */,
 				A1000000000000000000010 /* JoelsWorld */,
+				A1000000000000000000011 /* Engine */,
 			);
 			name = JoelsWorld;
 			productName = JoelsWorld;
@@ -97,6 +98,7 @@
 				A1000000000000000000046 /* Sources */,
 				A1000000000000000000021 /* Frameworks */,
 				A1000000000000000000047 /* Resources */,
+				A1000000000000000000071 /* Stage assets */,
 			);
 			buildRules = (
 			);
@@ -165,6 +167,39 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A1000000000000000000070 /* Stage assets */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Stage assets";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/../tools/assets/stage.sh\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GameAssets\"\n";
+		};
+		A1000000000000000000071 /* Stage assets */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Stage assets";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/../tools/assets/stage.sh\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GameAssets\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A1000000000000000000042 /* Sources */ = {

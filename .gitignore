@@ -23,8 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
-# Map chunks (generated at boot from the full-size layers by scripts/slice_maps.js)
-server/assets/**/chunks/
+# Map chunks (generated from the full-size layers by tools/assets/slice_maps.js)
+assets/**/chunks/
 
 # Secrets
 gemini_key

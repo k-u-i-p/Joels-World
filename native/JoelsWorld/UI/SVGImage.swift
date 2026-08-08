@@ -50,27 +50,9 @@ enum SVGImage {
         }
     }
 
-    /// Bundle first, then the asset host — the same order `ModelStore` and `ImageLoader` use,
-    /// so bundling the court later is a packaging step with no code change.
+    /// The tennis court's 2.4 MB `map.svg` ships with the app like everything else; iOS has no
+    /// SVG decoder, so `SVGRasterizer` still does the work.
     private static func fetch(_ trimmed: String, completion: @escaping (Data?) -> Void) {
-        let name = (trimmed as NSString).deletingPathExtension
-        let ext = (trimmed as NSString).pathExtension
-        if let url = Bundle.main.url(forResource: name, withExtension: ext),
-           let data = try? Data(contentsOf: url) {
-            completion(data)
-            return
-        }
-
-        guard let url = URL(string: trimmed, relativeTo: Config.assetBaseURL) else {
-            completion(nil)
-            return
-        }
-
-        URLSession.shared.dataTask(with: url) { data, _, error in
-            if data == nil {
-                Log.render("SVG fetch failed: \(trimmed) — \(error?.localizedDescription ?? "no data")")
-            }
-            completion(data)
-        }.resume()
+        completion(AssetLocator.data(for: trimmed))
     }
 }

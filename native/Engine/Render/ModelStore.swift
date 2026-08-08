@@ -57,14 +57,12 @@ struct LoadedModel {
 /// Loads `.glb` models and turns them into per-slot GPU meshes, with in-flight deduplication
 /// so twenty characters wearing the same head cause one download and one parse.
 ///
-/// Resolution order is **bundle first, then network**. PLAN.md §5 calls for the 104 MB of
-/// models to ship inside the app; until that copy step exists they stream from the asset host
-/// with the same on-disk `URLCache` the map tiles use. Dropping the files into the app bundle
-/// is all that is needed to switch — no code change.
+/// All 104 MB of models ship inside the app (PLAN.md §5), so a load is a file read followed by
+/// a parse. The parse is the expensive half — heads arrive as up to 46 primitives — and still
+/// runs off the main queue.
 final class ModelStore {
     private let device: MTLDevice
     private let textureLoader: MTKTextureLoader
-    private let session: URLSession
     private let parseQueue = DispatchQueue(label: "com.allr.joelsworld.gltf", qos: .userInitiated)
 
     private var models: [String: LoadedModel] = [:]
@@ -74,13 +72,6 @@ final class ModelStore {
     init(device: MTLDevice) {
         self.device = device
         self.textureLoader = MTKTextureLoader(device: device)
-
-        let config = URLSessionConfiguration.default
-        config.urlCache = DiskCache.make(name: "joelsworld-models",
-                                         memoryCapacity: 16 * 1024 * 1024,
-                                         diskCapacity: 256 * 1024 * 1024)
-        config.requestCachePolicy = .returnCacheDataElseLoad
-        self.session = URLSession(configuration: config)
     }
 
     /// Already-parsed model, if it is resident.
@@ -180,30 +171,15 @@ final class ModelStore {
 
     // MARK: - Fetching
 
+    /// Every GLB ships with the app (PLAN.md §5), so this is a mapped file read. `mappedIfSafe`
+    /// matters here more than anywhere else: a head is up to 6 MB and several load at once the
+    /// moment a crowded map opens.
     private func fetch(path: String, completion: @escaping (Data?) -> Void) {
-        let trimmed = path.hasPrefix("/") ? String(path.dropFirst()) : path
-
-        // Bundled copy wins when present (PLAN.md §5).
-        let name = (trimmed as NSString).deletingPathExtension
-        let ext = (trimmed as NSString).pathExtension
-        if let bundled = Bundle.main.url(forResource: name, withExtension: ext)
-            ?? Bundle.main.url(forResource: (name as NSString).lastPathComponent, withExtension: ext),
-           let data = try? Data(contentsOf: bundled) {
-            completion(data)
-            return
-        }
-
-        guard let url = URL(string: trimmed, relativeTo: Config.assetBaseURL) else {
+        guard let url = AssetLocator.url(for: path) else {
             completion(nil)
             return
         }
-
-        session.dataTask(with: url) { data, _, error in
-            if let error {
-                Log.render("Model fetch failed: \(trimmed) — \(error.localizedDescription)")
-            }
-            completion(data)
-        }.resume()
+        completion(try? Data(contentsOf: url, options: .mappedIfSafe))
     }
 
     // MARK: - Merging

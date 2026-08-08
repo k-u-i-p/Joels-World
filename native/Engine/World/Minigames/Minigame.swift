@@ -34,7 +34,6 @@ extension MinigameHost {
 
 enum MinigameKind: String {
     case tennis
-    case tag
 
     /// `mapData.import` is a module URL — `/src/minigames/tennis.js`.
     init?(importPath: String) {
