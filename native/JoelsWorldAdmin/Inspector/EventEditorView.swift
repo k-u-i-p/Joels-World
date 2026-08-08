@@ -6,12 +6,27 @@ import AppKit
 /// It edits a working copy and commits on Save, exactly as the JS does: selecting an entity
 /// deep-clones its `on_enter` / `on_exit` into the editor, and nothing reaches the server
 /// until the button is pressed.
+///
+/// **One deliberate deviation.** The web panel throws the working copy away the moment the
+/// selection changes, silently — a tree you spent five minutes on is gone if you click the
+/// wrong shape. Here a pending edit asks first (see `refresh()`), and a background
+/// `objects_update` for the entity being edited no longer reloads over the top of it.
 final class EventEditorView: NSView {
     weak var map: AdminMapViewController?
 
     /// The eight action types the type dropdown offers (`admin.js:786`).
     private static let actionTypes = ["say", "emote", "play_sound", "log", "show_dialog",
                                       "avatar", "clear_emote", "player_emote"]
+
+    /// Which entity the working copy was loaded from, so it can still be committed after the
+    /// selection has moved elsewhere.
+    private enum Owner: Equatable {
+        case object(Int)
+        case npc(Int)
+    }
+
+    private var owner: Owner?
+    private var isDirty = false
 
     private var onEnter: [JSONValue] = []
     private var onExit: [JSONValue] = []
@@ -33,11 +48,11 @@ final class EventEditorView: NSView {
         (saveButton as? ActionButton)?.handler = { [weak self] in self?.save() }
 
         let addEnter = AdminUI.button("+ Add on_enter action") { [weak self] in
-            self?.onEnter.append(.object(["say": .array([.string("")])]))
+            self?.mutate(isEnter: true) { $0.append(.object(["say": .array([.string("")])])) }
             self?.render()
         }
         let addExit = AdminUI.button("+ Add on_exit action") { [weak self] in
-            self?.onExit.append(.object(["say": .array([.string("")])]))
+            self?.mutate(isEnter: false) { $0.append(.object(["say": .array([.string("")])])) }
             self?.render()
         }
 
@@ -59,26 +74,60 @@ final class EventEditorView: NSView {
 
     // MARK: - Loading
 
-    /// Re-reads the selected entity. Called on every selection change, which is what discards
-    /// unsaved edits — the same behaviour the web panel has.
+    /// Re-reads the selected entity.
+    ///
+    /// Called on every selection change *and* every world update, so it has two jobs beyond
+    /// loading: offer to save a pending edit before moving to a different entity, and leave a
+    /// pending edit alone when the reload is for the entity already being edited.
     func refresh() {
+        let newOwner: Owner?
         let entityEvents: (JSONValue?, JSONValue?)?
         if let object = map?.selectedObject {
+            newOwner = .object(object.id)
             entityEvents = (object.on_enter, object.on_exit)
         } else if let npc = map?.selectedNPC {
+            newOwner = .npc(npc.id)
             entityEvents = (npc.on_enter, npc.on_exit)
         } else {
+            newOwner = nil
             entityEvents = nil
         }
 
-        guard let entityEvents else {
+        if isDirty, newOwner != owner {
+            resolvePendingEdit()
+        }
+
+        guard let entityEvents, let newOwner else {
+            owner = nil
+            isDirty = false
             isHidden = true
             return
         }
+
+        // Reloading the entity that is being edited would throw the working copy away — which
+        // is what an unrelated `objects_update` broadcast would otherwise do mid-edit.
+        if isDirty, newOwner == owner { return }
+
+        owner = newOwner
+        isDirty = false
         isHidden = false
         onEnter = entityEvents.0?.arrayValue ?? []
         onExit = entityEvents.1?.arrayValue ?? []
         render()
+    }
+
+    /// Asks what to do with a working copy that is about to be replaced, and commits it to the
+    /// entity it came from rather than to whatever is selected now.
+    private func resolvePendingEdit() {
+        let alert = NSAlert()
+        alert.messageText = "Save changes to these events?"
+        alert.informativeText = "The event tree you were editing has unsaved changes. "
+            + "Selecting something else discards them."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Discard")
+        alert.alertStyle = .warning
+        if alert.runModal() == .alertFirstButtonReturn { commit() }
+        isDirty = false
     }
 
     private func render() {
@@ -265,8 +314,10 @@ final class EventEditorView: NSView {
         return list.indices.contains(index) ? list[index] : nil
     }
 
+    /// Every edit to the working copy goes through here, which is what makes `isDirty` honest.
     private func mutate(isEnter: Bool, _ body: (inout [JSONValue]) -> Void) {
         if isEnter { body(&onEnter) } else { body(&onExit) }
+        isDirty = true
     }
 
     private func setPayload(_ value: JSONValue, forKey key: String, at index: Int, isEnter: Bool) {
@@ -312,27 +363,39 @@ final class EventEditorView: NSView {
 
     // MARK: - Commit
 
+    /// Writes the working copy back to the entity it was loaded from — by id, not by whatever
+    /// is selected now, so the "save before switching" path lands on the right record.
+    ///
     /// `admin.js:985-1018`: an empty array is sent as `undefined` so the key is dropped from
     /// the JSON rather than persisted as `[]`.
-    private func save() {
+    @discardableResult
+    private func commit() -> Bool {
+        guard let owner else { return false }
+
         let enterValue: JSONValue = onEnter.isEmpty ? .null : .array(onEnter)
         let exitValue: JSONValue = onExit.isEmpty ? .null : .array(onExit)
         let updates: [String: JSONValue] = ["on_enter": enterValue, "on_exit": exitValue]
+        let enter = onEnter, exit = onExit
 
-        if map?.selectedObject != nil {
-            map?.mutateSelectedObject({ object in
-                object.on_enter = onEnter.isEmpty ? nil : .array(onEnter)
-                object.on_exit = onExit.isEmpty ? nil : .array(onExit)
+        switch owner {
+        case .object(let id):
+            map?.mutateObject(id: id, { object in
+                object.on_enter = enter.isEmpty ? nil : .array(enter)
+                object.on_exit = exit.isEmpty ? nil : .array(exit)
             }, message: { .updateObject(id: $0.id, updates: updates) })
-        } else if map?.selectedNPC != nil {
-            map?.mutateSelectedNPC({ npc in
-                npc.on_enter = onEnter.isEmpty ? nil : .array(onEnter)
-                npc.on_exit = onExit.isEmpty ? nil : .array(onExit)
+        case .npc(let id):
+            map?.mutateNPC(id: id, { npc in
+                npc.on_enter = enter.isEmpty ? nil : .array(enter)
+                npc.on_exit = exit.isEmpty ? nil : .array(exit)
             }, message: { .updateNPC(id: $0.id, updates: updates) })
-        } else {
-            return
         }
 
+        isDirty = false
+        return true
+    }
+
+    private func save() {
+        guard commit() else { return }
         saveButton.title = "Saved!"
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
             self?.saveButton.title = "Save Events"

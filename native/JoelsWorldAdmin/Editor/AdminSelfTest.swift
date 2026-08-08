@@ -37,7 +37,12 @@ final class AdminSelfTest {
         schedule(6.5) { self.testCreateEditDelete() }
         schedule(9.0) { self.testKeyboardTurn() }
         schedule(10.5) { self.testKeyboardWalk() }
-        schedule(12.0) { self.testFilesRestored() }
+        schedule(12.0) { self.testWaypointRoute() }
+        schedule(12.5) { self.testRotationField() }
+        schedule(13.5) { self.testEventResaveIsClean() }
+        schedule(14.0) { self.testEventCommitByID() }
+        schedule(17.5) { self.testFreezeNPCs() }
+        schedule(25.0) { self.testFilesRestored() }
     }
 
     private func schedule(_ delay: Double, _ body: @escaping () -> Void) {
@@ -283,6 +288,160 @@ final class AdminSelfTest {
         let exitCount = npc.on_exit?.arrayValue?.count ?? 0
         let types = (npc.on_enter?.arrayValue ?? []).compactMap { $0.objectValue?.keys.sorted().first }
         log("NPC \(npc.id) '\(npc.name ?? "?")' on_enter=\(enterCount) actions \(types), on_exit=\(exitCount)")
+    }
+
+    // MARK: - Editor additions (not ports — see PROGRESS.md)
+
+    /// The patrol route the overlay draws. Waypoints are cumulative offsets, so the check that
+    /// matters is that the resolved points walk away from the start and come back to it.
+    private func testWaypointRoute() {
+        // Prefer a route that actually goes somewhere: a rotation-only waypoint resolves to
+        // the same point as its predecessor, which is correct but proves nothing.
+        let patrols = session.state.npcs.filter { !($0.waypoints ?? []).isEmpty }
+        let walks = patrols.first { ($0.waypoints ?? []).contains { ($0.x ?? 0) != 0 || ($0.y ?? 0) != 0 } }
+        guard let npc = walks ?? patrols.first else {
+            return log("waypoint route: no NPC on this map patrols")
+        }
+
+        let visual = session.state.visuals[npc.id]
+        let start = (x: visual?.startX ?? npc.x, y: visual?.startY ?? npc.y)
+        let route = AdminMapViewController.waypointRoute(for: npc, start: start)
+        let points = route.map { "(\(Int($0.x.rounded())), \(Int($0.y.rounded())))" }.joined(separator: " → ")
+
+        let closes = route.count > 1 && route.first! == route.last!
+        log("waypoint route for NPC \(npc.id) '\(npc.name ?? "?")': " +
+            "\(npc.waypoints?.count ?? 0) authored steps → \(route.count) points \(points)" +
+            (closes ? "" : "  FAIL: route does not close back to the start"))
+    }
+
+    /// The typed rotation field, which the web panel does not have. Driven through the same
+    /// call the field's `onCommit` makes, and restored to the authored value so the file check
+    /// at the end of the run still passes.
+    private func testRotationField() {
+        guard let target = session.state.objects.first(where: {
+            $0.shape != "3d_model" && ($0.rotation ?? 0) != 0
+        }) else { return log("rotation field: no rotated object on this map") }
+
+        let original = target.rotation ?? 0
+        map.select(objectId: target.id)
+        map.mutateSelectedObject({ $0.rotation = 137 },
+                                 message: { .rotateObject(id: $0.id, rotation: $0.rotation ?? 0) })
+        let typed = session.state.objects.first { $0.id == target.id }?.rotation ?? 0
+        log("typed rotation on object \(target.id): \(Int(original))° → \(Int(typed))° (expected 137)")
+
+        map.mutateSelectedObject({ $0.rotation = original },
+                                 message: { .rotateObject(id: $0.id, rotation: $0.rotation ?? 0) })
+        let restored = session.state.objects.first { $0.id == target.id }?.rotation ?? 0
+        log("restored object \(target.id) rotation to \(restored)°")
+    }
+
+    /// The event editor now commits to the entity it *loaded* rather than to whatever is
+    /// selected, which is what makes "save before switching" land on the right record. The
+    /// prompt itself is modal and cannot be driven from a script; this drives the mechanism
+    /// underneath it — an edit addressed by id while something else is selected.
+    /// Pressing Save Events without changing anything must not change the file.
+    ///
+    /// It used to. The working copy travels through `JSONValue`, whose objects are unordered,
+    /// so the editor rebuilt every nested payload with its keys sorted — re-saving an
+    /// untouched tree rewrote `{type, map, description}` as `{description, map, type}`. The
+    /// file check at the end of this run is what asserts the repair; this step is what makes
+    /// it fire.
+    private func testEventResaveIsClean() {
+        let nested = session.state.objects.first { object in
+            (object.on_enter?.arrayValue ?? []).contains { action in
+                (action.objectValue?.values.first?.objectValue?.count ?? 0) > 1
+            }
+        }
+        guard let object = nested, let tree = object.on_enter else {
+            return log("event re-save: no object carries a multi-field action payload")
+        }
+
+        let keys = (tree.arrayValue ?? []).compactMap { $0.objectValue?.keys.sorted().first }
+        map.mutateObject(id: object.id, { _ in },
+                         message: { .updateObject(id: $0.id, updates: ["on_enter": tree]) })
+        log("re-saved object \(object.id)'s unchanged on_enter \(keys) — the file check below is the assertion")
+    }
+
+    /// It writes to a throwaway object rather than an authored one on purpose. Overwriting an
+    /// authored tree and putting it back cannot be byte-clean: the working copy travels
+    /// through `JSONValue`, whose objects are `Dictionary`s, so a restored `show_dialog`
+    /// payload comes back alphabetised. `OrderedJSON.reordered(like:)` repairs that against
+    /// the value being *replaced*, which covers a real edit — but not a round trip that
+    /// replaced the tree with something else first.
+    private func testEventCommitByID() {
+        let existingIds = Set(session.state.objects.map(\.id))
+        let point = map.creationPoint
+        session.send(.createObject(shape: "rect", x: point.x, y: point.y,
+                                   fields: ["name": .string("commit-by-id"),
+                                            "width": JSONValue(100), "length": JSONValue(100)]))
+
+        schedule(1.0) {
+            guard let subject = self.session.state.objects.first(where: { !existingIds.contains($0.id) }),
+                  let other = self.session.state.objects.first(where: {
+                      $0.id != subject.id && $0.shape != "3d_model"
+                  })
+            else { return self.log("commit-by-id: FAIL: no throwaway object to write to") }
+
+            self.map.select(objectId: other.id)
+            let tree = JSONValue.array([.object(["say": .array([.string("commit-by-id")])])])
+            self.map.mutateObject(id: subject.id, { $0.on_enter = tree },
+                                  message: { .updateObject(id: $0.id, updates: ["on_enter": tree]) })
+
+            self.schedule(1.0) {
+                let edited = self.session.state.objects
+                    .first { $0.id == subject.id }?.on_enter?.arrayValue?.count ?? 0
+                self.log("commit-by-id: wrote an event tree to object \(subject.id) while " +
+                         "\(other.id) was selected → \(subject.id) has \(edited) action(s)" +
+                         (edited == 1 ? "" : "  FAIL: the edit did not land"))
+
+                self.session.send(.deleteObject(id: subject.id))
+                self.schedule(1.0) {
+                    let gone = !self.session.state.objects.contains { $0.id == subject.id }
+                    self.log("commit-by-id: deleted the throwaway object \(subject.id) → gone=\(gone)")
+                }
+            }
+        }
+    }
+
+    /// Freeze NPCs, and check that nothing on the roster moves while it is on.
+    ///
+    /// This only touches local simulation state — nothing is written to `data/` — so it runs
+    /// after the edit steps without disturbing the byte-identity check.
+    private func testFreezeNPCs() {
+        let before = positions()
+        session.state.setSimulateNPCs(false)
+
+        schedule(2.0) {
+            let frozen = self.travelled(from: before)
+            self.log(String(format: "freeze on: %d NPC(s) moved %.2fpx over 2.0s%@",
+                            frozen.moved, frozen.total,
+                            frozen.total < 0.01 ? "" : "  FAIL: something is still simulating"))
+
+            let resumed = self.positions()
+            self.session.state.setSimulateNPCs(true)
+            self.schedule(3.0) {
+                let after = self.travelled(from: resumed)
+                self.log(String(format: "freeze off: %d NPC(s) moved %.0fpx over 3.0s%@",
+                                after.moved, after.total,
+                                after.moved > 0 ? "" : "  (none was due a step — routes wait 1–5s)"))
+            }
+        }
+    }
+
+    private func positions() -> [Int: (x: Double, y: Double)] {
+        Dictionary(uniqueKeysWithValues: session.state.npcs.map { ($0.id, ($0.x, $0.y)) })
+    }
+
+    private func travelled(from previous: [Int: (x: Double, y: Double)]) -> (moved: Int, total: Double) {
+        var moved = 0
+        var total = 0.0
+        for npc in session.state.npcs {
+            guard let was = previous[npc.id] else { continue }
+            let distance = ((npc.x - was.x) * (npc.x - was.x) + (npc.y - was.y) * (npc.y - was.y)).squareRoot()
+            if distance > 0.01 { moved += 1 }
+            total += distance
+        }
+        return (moved, total)
     }
 
     // MARK: - Keyboard movement

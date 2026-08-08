@@ -32,6 +32,26 @@ struct GLTFPrimitive {
     var imageIndex: Int?
     /// `KHR_texture_transform`, pre-resolved. `uv * scale + offset`, rotation in radians.
     var uvTransform: (offset: SIMD2<Float>, scale: SIMD2<Float>, rotation: Float)?
+
+    /// `emissiveFactor` × `KHR_materials_emissive_strength` — three.js's `emissive` colour
+    /// times its `emissiveIntensity`, which is what the extension sets. Already linear:
+    /// `emissiveFactor` is authored in linear space, unlike a base colour *texture*.
+    var emissive: SIMD3<Float>
+    /// Index into `GLTFAsset.images` for `emissiveTexture`, which is frequently a *different*
+    /// image from the base colour — `desk.glb` lights its texture 0 over its texture 2.
+    var emissiveImageIndex: Int?
+
+    /// Dielectric F0, pre-composed from `KHR_materials_ior` and `KHR_materials_specular` the
+    /// way three.js's `MeshPhysicalMaterial` does:
+    /// `min(pow2((ior − 1)/(ior + 1)) · specularColorFactor, 1) · specularFactor`.
+    /// The glTF defaults (ior 1.5, both specular factors 1) give exactly the 0.04 that
+    /// `MeshStandardMaterial` hard-codes, so a material using neither extension is unchanged.
+    var specularF0: SIMD3<Float>
+    /// `specularFactor`, which three.js mixes towards 1 by metalness to get `specularF90`.
+    var specularIntensity: Float
+    /// `KHR_materials_transmission`'s `transmissionFactor`. See `Shaders.metal` for what the
+    /// renderer can and cannot do with it without a backdrop pass.
+    var transmission: Float
 }
 
 struct GLTFAsset {
@@ -312,6 +332,21 @@ enum GLTFLoader {
         var metalness: Float = 1
         var imageIndex: Int?
         var uvTransform: (offset: SIMD2<Float>, scale: SIMD2<Float>, rotation: Float)?
+        var emissive = SIMD3<Float>(0, 0, 0)
+        var emissiveImageIndex: Int?
+        var specularColorFactor = SIMD3<Float>(1, 1, 1)
+        var specularIntensity: Float = 1
+        var ior: Float = 1.5
+        var transmission: Float = 0
+
+        /// A texture reference (`{ index, texCoord }`) resolved to the image it samples.
+        func imageSource(of reference: Any?) -> Int? {
+            guard let reference = reference as? [String: Any],
+                  let textureIndex = reference["index"] as? Int,
+                  textures.indices.contains(textureIndex)
+            else { return nil }
+            return textures[textureIndex]["source"] as? Int
+        }
 
         if let materialIndex = primitive["material"] as? Int, materials.indices.contains(materialIndex) {
             let material = materials[materialIndex]
@@ -323,11 +358,8 @@ enum GLTFLoader {
                 }
                 if let factor = pbr["roughnessFactor"] as? Double { roughness = Float(factor) }
                 if let factor = pbr["metallicFactor"] as? Double { metalness = Float(factor) }
-                if let texture = pbr["baseColorTexture"] as? [String: Any],
-                   let textureIndex = texture["index"] as? Int,
-                   textures.indices.contains(textureIndex),
-                   let source = textures[textureIndex]["source"] as? Int {
-                    imageIndex = source
+                if let texture = pbr["baseColorTexture"] as? [String: Any] {
+                    imageIndex = imageSource(of: texture)
                     if let extensions = texture["extensions"] as? [String: Any],
                        let ktt = extensions["KHR_texture_transform"] as? [String: Any] {
                         let offset = (ktt["offset"] as? [Double]).map { SIMD2(Float($0[0]), Float($0[1])) }
@@ -339,7 +371,52 @@ enum GLTFLoader {
                     }
                 }
             }
+
+            if let factor = material["emissiveFactor"] as? [Double], factor.count == 3 {
+                emissive = SIMD3(Float(factor[0]), Float(factor[1]), Float(factor[2]))
+            }
+            emissiveImageIndex = imageSource(of: material["emissiveTexture"])
+
+            // The UV transform is baked into the vertices, so a second texture with its *own*
+            // transform cannot be honoured. No shipping asset does it; say so if one starts.
+            if let emissiveTexture = material["emissiveTexture"] as? [String: Any],
+               let extensions = emissiveTexture["extensions"] as? [String: Any],
+               extensions["KHR_texture_transform"] != nil {
+                Log.render("glTF material '\(materialName)': KHR_texture_transform on emissiveTexture is ignored")
+            }
+
+            if let extensions = material["extensions"] as? [String: Any] {
+                // Scales `emissiveFactor`. three.js sets `emissiveIntensity`, which multiplies
+                // the emissive colour — so folding it in here is the same thing.
+                if let strength = (extensions["KHR_materials_emissive_strength"]
+                    as? [String: Any])?["emissiveStrength"] as? Double {
+                    emissive *= Float(strength)
+                }
+
+                if let specular = extensions["KHR_materials_specular"] as? [String: Any] {
+                    if let factor = specular["specularFactor"] as? Double {
+                        specularIntensity = Float(factor)
+                    }
+                    if let factor = specular["specularColorFactor"] as? [Double], factor.count == 3 {
+                        specularColorFactor = SIMD3(Float(factor[0]), Float(factor[1]), Float(factor[2]))
+                    }
+                }
+
+                if let value = (extensions["KHR_materials_ior"] as? [String: Any])?["ior"] as? Double {
+                    ior = Float(value)
+                }
+
+                if let factor = (extensions["KHR_materials_transmission"]
+                    as? [String: Any])?["transmissionFactor"] as? Double {
+                    transmission = Float(factor)
+                }
+            }
         }
+
+        // three.js: `specularColor = min(pow2((ior − 1)/(ior + 1)) · specularColorFactor, 1)
+        // · specularIntensity`, before the metalness mix the shader applies against albedo.
+        let iorTerm = pow((ior - 1) / (ior + 1), 2)
+        let specularF0 = simd_min(specularColorFactor * iorTerm, SIMD3(repeating: 1)) * specularIntensity
 
         return GLTFPrimitive(vertices: vertices,
                              indices: indices,
@@ -349,7 +426,12 @@ enum GLTFLoader {
                              roughness: roughness,
                              metalness: metalness,
                              imageIndex: imageIndex,
-                             uvTransform: uvTransform)
+                             uvTransform: uvTransform,
+                             emissive: emissive,
+                             emissiveImageIndex: emissiveImageIndex,
+                             specularF0: specularF0,
+                             specularIntensity: specularIntensity,
+                             transmission: transmission)
     }
 
     private static func recomputeNormals(vertices: inout [MeshVertex], indices: [UInt32]) {

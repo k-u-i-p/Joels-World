@@ -92,6 +92,12 @@ final class AdminSidebarView: NSView {
         createRow.orientation = .horizontal
         createRow.spacing = 4
 
+        // Not a port: the web admin lets NPCs roam while you edit, so one can wander out from
+        // under the cursor half way through a drag. The routes still run in the game.
+        let freezeNPCs = AdminUI.checkbox("Freeze NPCs") { [weak self] frozen in
+            self?.session?.state.setSimulateNPCs(!frozen)
+        }
+
         for view in [AdminUI.sectionTitle("Server"),
                      AdminUI.row("Host", [hostField]),
                      connectButton,
@@ -100,6 +106,7 @@ final class AdminSidebarView: NSView {
                      AdminUI.sectionTitle("Map"),
                      mapPopUp as NSView,
                      cursorLabel,
+                     freezeNPCs,
                      createRow,
                      separator(),
                      objectInspector,

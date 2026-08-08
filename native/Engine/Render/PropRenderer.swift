@@ -52,32 +52,46 @@ final class PropRenderer {
 
     var isEmpty: Bool { placements.isEmpty }
 
+    /// True once a loaded model turns out to carry a transmissive material, so the renderer
+    /// only encodes the extra blended sub-pass when there is something in it.
+    var hasTransmissive: Bool {
+        placements.contains { models.model($0.path)?.groups.contains { $0.surface.isTransmissive } == true }
+    }
+
     /// Draws every prop whose model has finished loading, requesting the rest.
     /// `encoder` must already have a pipeline bound that consumes `CharacterUniforms`.
+    ///
+    /// `transmissive` selects which half of the model to draw: opaque materials go through the
+    /// scene pass, and anything with `KHR_materials_transmission` is left for the blended
+    /// sub-pass that runs after the characters.
     func draw(viewProjection: Float4x4,
               encoder: MTLRenderCommandEncoder,
-              fallbackTexture: MTLTexture) {
+              fallbackTexture: MTLTexture,
+              transmissive: Bool = false) {
         for placement in placements {
             guard let model = models.model(placement.path) else {
                 models.request(path: placement.path, classifier: { _ in .authored })
                 continue
             }
 
-            for group in model.groups {
+            for group in model.groups where group.surface.isTransmissive == transmissive {
                 var uniforms = CharacterUniforms(
                     modelViewProjection: viewProjection * placement.transform,
                     model: placement.transform,
                     color: group.baseColor,
                     // Zero map size switches the clip-mask march off.
                     clipParams: SIMD4(0, 0, 0, 0),
-                    flags: SIMD4(group.texture != nil ? 1 : 0, 0,
-                                 group.roughness, group.metalness)
+                    textured: group.texture != nil,
+                    unlit: false,
+                    material: SurfaceMaterial(group: group),
+                    emissiveTextured: group.emissiveTexture != nil
                 )
 
                 encoder.setVertexBuffer(group.mesh.vertexBuffer, offset: 0, index: 0)
                 encoder.setVertexBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
                 encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
                 encoder.setFragmentTexture(group.texture ?? fallbackTexture, index: 0)
+                encoder.setFragmentTexture(group.emissiveTexture ?? fallbackTexture, index: 3)
                 encoder.drawIndexedPrimitives(type: .triangle,
                                               indexCount: group.mesh.indexCount,
                                               indexType: .uint32,

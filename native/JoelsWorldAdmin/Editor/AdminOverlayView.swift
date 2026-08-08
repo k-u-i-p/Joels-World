@@ -16,6 +16,9 @@ final class AdminOverlayView: NSView {
         /// Where each NPC's roam circle is centred — its authored origin, not where it has
         /// wandered to. `admin.js` reads `_startX` off the character proxy for this.
         var roamOrigins: [Int: (x: Double, y: Double)] = [:]
+        /// The selected NPC's patrol route, already resolved from cumulative offsets into
+        /// world positions, and closed back to where it starts.
+        var waypointRoute: [(x: Double, y: Double)] = []
         var backgroundImage: NSImage?
         var backgroundOrigin: (x: Double, y: Double) = (0, 0)
     }
@@ -44,6 +47,8 @@ final class AdminOverlayView: NSView {
         for object in snapshot.objects {
             draw(object: object, in: ctx, screenPoint: screenPoint)
         }
+
+        drawWaypointRoute(in: ctx, screenPoint: screenPoint)
 
         for npc in snapshot.npcs where snapshot.selection.npcId == npc.id {
             draw(npc: npc, in: ctx, screenPoint: screenPoint)
@@ -80,6 +85,59 @@ final class AdminOverlayView: NSView {
         ctx.scaleBy(x: 1, y: -1)
         ctx.draw(cgImage, in: CGRect(x: rect.minX, y: 0, width: rect.width, height: rect.height))
         ctx.restoreGState()
+    }
+
+    /// The selected NPC's patrol route.
+    ///
+    /// Not a port — neither `admin.js` nor anything else drew this. It visualises the roam
+    /// circle but not the route, which is the harder of the two to author blind: waypoints are
+    /// *cumulative offsets* from wherever the NPC starts, so reading a list of them tells you
+    /// very little about where the NPC actually ends up.
+    ///
+    /// The dashed leg back to the start is the implicit `waypoints.count + 1` step that
+    /// `NPCBehaviour.patrol` walks, which is not in the authored list either.
+    private func drawWaypointRoute(in ctx: CGContext,
+                                   screenPoint: (Double, Double, Double) -> CGPoint) {
+        let route = snapshot.waypointRoute
+        guard route.count > 1 else { return }
+
+        ctx.saveGState()
+        defer { ctx.restoreGState() }
+
+        let points = route.map { screenPoint($0.x, $0.y, 0) }
+        let amber = NSColor(red: 1, green: 0.72, blue: 0.2, alpha: 0.95).cgColor
+
+        ctx.setStrokeColor(amber)
+        ctx.setLineWidth(2)
+        ctx.setLineDash(phase: 0, lengths: [8, 6])
+        ctx.move(to: points[0])
+        for point in points.dropFirst() { ctx.addLine(to: point) }
+        ctx.strokePath()
+
+        // A step that only rotates lands on the previous point, so the markers stack up. That
+        // is honest — the NPC does stand still for that step.
+        ctx.setLineDash(phase: 0, lengths: [])
+        for (index, point) in points.enumerated() {
+            // The closing leg returns to the start marker; do not draw a second one over it.
+            if index == points.count - 1, index > 0 { break }
+
+            let radius: CGFloat = index == 0 ? 7 : 5
+            ctx.setFillColor(index == 0 ? amber : NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 0.9).cgColor)
+            ctx.setStrokeColor(amber)
+            ctx.setLineWidth(2)
+            ctx.addArc(center: point, radius: radius, startAngle: 0, endAngle: .pi * 2, clockwise: false)
+            ctx.drawPath(using: .fillStroke)
+
+            guard index > 0 else { continue }
+            let label = "\(index)" as NSString
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 10, weight: .bold),
+                .foregroundColor: NSColor.white,
+            ]
+            let size = label.size(withAttributes: attributes)
+            label.draw(at: CGPoint(x: point.x - size.width / 2, y: point.y - size.height / 2),
+                       withAttributes: attributes)
+        }
     }
 
     private func draw(object: WorldObject,

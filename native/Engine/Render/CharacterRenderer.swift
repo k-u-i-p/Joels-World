@@ -17,12 +17,21 @@ struct CharacterUniforms {
     var clipParams: SIMD4<Float>
     /// x = textured, y = unlit, z = roughness, w = metalness.
     var flags: SIMD4<Float>
+    /// xyz = emissive radiance, w = an emissive map is bound at texture 3.
+    var emissive: SIMD4<Float>
+    /// xyz = dielectric F0, w = specular intensity (three.js's `specularF90` before the
+    /// metalness mix). The defaults (0.04, 1) are what `MeshStandardMaterial` hard-codes.
+    var specular: SIMD4<Float>
+    /// x = transmission, yzw unused.
+    var surface: SIMD4<Float>
 }
 
-/// The `MeshStandardMaterial` parameters the rig is built from (`characters.js:771-778`).
+/// The `MeshStandardMaterial` parameters the rig is built from (`characters.js:771-778`),
+/// plus the `MeshPhysicalMaterial` extras an imported glTF material can carry.
 struct SurfaceMaterial {
     var roughness: Float
     var metalness: Float
+    var extensions: SurfaceExtensions = .standard
 
     static let skin = SurfaceMaterial(roughness: 0.6, metalness: 0.1)
     static let shirt = SurfaceMaterial(roughness: 0.8, metalness: 0.0)
@@ -30,6 +39,42 @@ struct SurfaceMaterial {
     static let pants = SurfaceMaterial(roughness: 0.9, metalness: 0.0)
     static let shoe = SurfaceMaterial(roughness: 0.7, metalness: 0.2)
     static let hair = SurfaceMaterial(roughness: 0.5, metalness: 0.1)
+
+    /// The material of an imported model's draw group, extensions included.
+    init(group: ModelGroup) {
+        self.init(roughness: group.roughness,
+                  metalness: group.metalness,
+                  extensions: group.surface)
+    }
+
+    init(roughness: Float, metalness: Float, extensions: SurfaceExtensions = .standard) {
+        self.roughness = roughness
+        self.metalness = metalness
+        self.extensions = extensions
+    }
+}
+
+extension CharacterUniforms {
+    /// Packs a material into the three uniform slots the fragment shader reads.
+    init(modelViewProjection: Float4x4,
+         model: Float4x4,
+         color: SIMD4<Float>,
+         clipParams: SIMD4<Float>,
+         textured: Bool,
+         unlit: Bool,
+         material: SurfaceMaterial,
+         emissiveTextured: Bool = false) {
+        let extensions = material.extensions
+        self.init(modelViewProjection: modelViewProjection,
+                  model: model,
+                  color: color,
+                  clipParams: clipParams,
+                  flags: SIMD4(textured ? 1 : 0, unlit ? 1 : 0,
+                               material.roughness, material.metalness),
+                  emissive: SIMD4(extensions.emissive, emissiveTextured ? 1 : 0),
+                  specular: SIMD4(extensions.specularF0, extensions.specularIntensity),
+                  surface: SIMD4(extensions.transmission, 0, 0, 0))
+    }
 }
 
 /// Draws the procedural character rig: the shared primitive meshes, the glTF head and shoe
@@ -408,10 +453,10 @@ final class CharacterRenderer {
         for group in model.groups {
             drawMesh(group.mesh, transform: pose.holdingTransform,
                      color: group.baseColor, texture: group.texture, unlit: false,
-                     material: SurfaceMaterial(roughness: group.roughness, metalness: group.metalness),
+                     material: SurfaceMaterial(group: group),
                      pivot: pose.worldPivot,
                      viewProjection: viewProjection, encoder: encoder,
-                     masked: false)
+                     masked: false, emissiveTexture: group.emissiveTexture)
         }
     }
 
@@ -441,12 +486,13 @@ final class CharacterRenderer {
             case .shoe: color = SIMD4(pose.colors.shoe, 1); material = .shoe
             case .authored:
                 color = group.baseColor
-                material = SurfaceMaterial(roughness: group.roughness, metalness: group.metalness)
+                material = SurfaceMaterial(group: group)
             }
             drawMesh(group.mesh, transform: pose.headTransform, color: color,
                      texture: group.texture, unlit: false, material: material,
                      pivot: pose.worldPivot,
-                     viewProjection: viewProjection, encoder: encoder)
+                     viewProjection: viewProjection, encoder: encoder,
+                     emissiveTexture: group.emissiveTexture)
         }
     }
 
@@ -483,7 +529,8 @@ final class CharacterRenderer {
                           pivot: SIMD2<Float>,
                           viewProjection: Float4x4,
                           encoder: MTLRenderCommandEncoder,
-                          masked: Bool = true) {
+                          masked: Bool = true,
+                          emissiveTexture: MTLTexture? = nil) {
         // A zero map size switches the clip-mask raymarch off for this draw.
         let mapSize = masked ? clipMapSize : SIMD2<Float>(0, 0)
         var uniforms = CharacterUniforms(
@@ -491,14 +538,17 @@ final class CharacterRenderer {
             model: transform,
             color: color,
             clipParams: SIMD4(pivot.x, pivot.y, mapSize.x, mapSize.y),
-            flags: SIMD4(texture != nil ? 1 : 0, unlit ? 1 : 0,
-                         material.roughness, material.metalness)
+            textured: texture != nil,
+            unlit: unlit,
+            material: material,
+            emissiveTextured: emissiveTexture != nil
         )
 
         encoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
         encoder.setFragmentTexture(texture ?? whiteTexture, index: 0)
+        encoder.setFragmentTexture(emissiveTexture ?? whiteTexture, index: 3)
         encoder.drawIndexedPrimitives(type: .triangle,
                                       indexCount: mesh.indexCount,
                                       indexType: .uint32,

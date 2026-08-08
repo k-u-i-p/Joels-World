@@ -116,6 +116,17 @@ enum AdminUI {
         return button
     }
 
+    static func checkbox(_ title: String, checked: Bool = false,
+                         action: @escaping (Bool) -> Void) -> NSButton {
+        let button = ActionButton(checkboxWithTitle: title, target: nil, action: nil)
+        button.handler = { action(button.state == .on) }
+        button.target = button
+        button.action = #selector(ActionButton.fire)
+        button.state = checked ? .on : .off
+        button.font = .systemFont(ofSize: 11)
+        return button
+    }
+
     static func popUp(_ items: [String], action: @escaping (String) -> Void) -> ActionPopUpButton {
         let popUp = ActionPopUpButton(frame: .zero, pullsDown: false)
         popUp.addItems(withTitles: items)

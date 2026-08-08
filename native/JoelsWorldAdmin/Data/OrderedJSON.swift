@@ -60,8 +60,9 @@ enum OrderedJSON: Equatable {
             guard case .object(var entries) = self else { return }
             if let index = entries.firstIndex(where: { $0.key == key }) {
                 if let newValue {
-                    // Editing in place keeps the key where the author put it.
-                    entries[index].value = newValue
+                    // Editing in place keeps the key where the author put it — and
+                    // `reordered(like:)` extends that to the keys *inside* the new value.
+                    entries[index].value = newValue.reordered(like: entries[index].value)
                 } else {
                     entries.remove(at: index)
                 }
@@ -76,6 +77,43 @@ enum OrderedJSON: Equatable {
     /// land at the end.
     mutating func assign(_ updates: [(key: String, value: OrderedJSON)]) {
         for update in updates { self[update.key] = update.value }
+    }
+
+    /// Rewrites this value's object keys to follow the order of the value it is replacing.
+    ///
+    /// Only the *top-level* keys of a record keep their place on their own, because those are
+    /// edited in place. A nested value arrives rebuilt from a `[String: JSONValue]`, which has
+    /// no order, so the editor's `ordered(_:)` sorts it alphabetically — and saving one event
+    /// on an object rewrote every `show_dialog` payload in its tree from
+    /// `type, map, description` to `description, map, type`. Nothing read differently; the
+    /// diff was just noise in authored, version-controlled content, which is precisely what
+    /// this type exists to avoid.
+    ///
+    /// Keys the previous value did not have keep their incoming order, appended after the
+    /// ones it did. Arrays recurse element-wise as far as they line up, which covers an event
+    /// list whose actions stayed put.
+    func reordered(like previous: OrderedJSON) -> OrderedJSON {
+        switch (self, previous) {
+        case (.object(let entries), .object(let previousEntries)):
+            var remaining = entries
+            var ordered: [(key: String, value: OrderedJSON)] = []
+            for previousEntry in previousEntries {
+                guard let index = remaining.firstIndex(where: { $0.key == previousEntry.key }) else { continue }
+                let entry = remaining.remove(at: index)
+                ordered.append((key: entry.key, value: entry.value.reordered(like: previousEntry.value)))
+            }
+            return .object(ordered + remaining)
+
+        case (.array(let elements), .array(let previousElements)):
+            return .array(elements.enumerated().map { index, element in
+                previousElements.indices.contains(index)
+                    ? element.reordered(like: previousElements[index])
+                    : element
+            })
+
+        default:
+            return self
+        }
     }
 
     // MARK: - Parsing

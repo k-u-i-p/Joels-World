@@ -149,14 +149,36 @@ final class AdminMapViewController: NSViewController {
 
         // The roam circle is centred on where the NPC was authored, not where it has wandered
         // to. `NPCBehaviour` seeds `startX`/`startY` the first time it moves one.
-        if let npcId = selection.npcId {
+        if let npcId = selection.npcId, let npc = selectedNPC {
             let visual = session.state.visuals[npcId]
             if let startX = visual?.startX, let startY = visual?.startY {
                 snapshot.roamOrigins[npcId] = (startX, startY)
             }
+            snapshot.waypointRoute = Self.waypointRoute(
+                for: npc,
+                start: (visual?.startX ?? npc.x, visual?.startY ?? npc.y))
         }
 
         overlay.snapshot = snapshot
+    }
+
+    /// Resolves an NPC's authored waypoints — which are *cumulative* offsets from wherever it
+    /// started — into the world positions `NPCBehaviour.patrol` actually walks, closed by the
+    /// implicit step that takes it home.
+    static func waypointRoute(for npc: GameCharacter,
+                              start: (x: Double, y: Double)) -> [(x: Double, y: Double)] {
+        guard let waypoints = npc.waypoints, !waypoints.isEmpty else { return [] }
+
+        var route = [start]
+        var x = start.x
+        var y = start.y
+        for step in waypoints {
+            x += step.x ?? 0
+            y += step.y ?? 0
+            route.append((x, y))
+        }
+        route.append(start)
+        return route
     }
 
     /// Called when the world is replaced, so a selection that no longer exists is dropped.
@@ -211,19 +233,30 @@ final class AdminMapViewController: NSViewController {
     /// handler in `admin.js` has.
     func mutateSelectedObject(_ mutate: (inout WorldObject) -> Void,
                               message: (WorldObject) -> AdminMessage) {
-        guard let id = selection.objectIds.first,
-              let updated = session.state.editObject(id: id, mutate)
-        else { return }
+        guard let id = selection.objectIds.first else { return }
+        mutateObject(id: id, mutate, message: message)
+    }
+
+    func mutateSelectedNPC(_ mutate: (inout GameCharacter) -> Void,
+                           message: (GameCharacter) -> AdminMessage) {
+        guard let id = selection.npcId else { return }
+        mutateNPC(id: id, mutate, message: message)
+    }
+
+    /// The same edit addressed by id rather than by the selection, so a panel can commit to
+    /// the entity it was *editing* even after the selection has moved on — which is what the
+    /// event editor's "save before switching" prompt needs.
+    func mutateObject(id: Int, _ mutate: (inout WorldObject) -> Void,
+                      message: (WorldObject) -> AdminMessage) {
+        guard let updated = session.state.editObject(id: id, mutate) else { return }
         session.send(message(updated))
         onSelectedEntityChanged?()
         refreshOverlay()
     }
 
-    func mutateSelectedNPC(_ mutate: (inout GameCharacter) -> Void,
-                           message: (GameCharacter) -> AdminMessage) {
-        guard let id = selection.npcId,
-              let updated = session.state.editNPC(id: id, mutate)
-        else { return }
+    func mutateNPC(id: Int, _ mutate: (inout GameCharacter) -> Void,
+                   message: (GameCharacter) -> AdminMessage) {
+        guard let updated = session.state.editNPC(id: id, mutate) else { return }
         session.send(message(updated))
         onSelectedEntityChanged?()
         refreshOverlay()

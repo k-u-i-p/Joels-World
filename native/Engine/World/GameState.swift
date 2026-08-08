@@ -103,6 +103,31 @@ final class GameState {
     /// The game that has taken over the frame, when the map is a minigame map.
     private(set) var minigame: Minigame?
 
+    /// Whether NPCs run their roam and waypoint routines. Always on in the game; the editor
+    /// turns it off so an NPC cannot wander out from under the cursor mid-drag. See
+    /// `setSimulateNPCs(_:)`, which is what actually brings them to a stop.
+    private(set) var simulateNPCs = true
+
+    /// Freezes or resumes NPC movement.
+    ///
+    /// Skipping `NPCBehaviour` alone is not enough: an NPC part-way to a target keeps easing
+    /// towards it, so freezing also parks every target on the NPC's current pose. Resuming
+    /// costs nothing — each one picks its route back up from the timer it was holding, and a
+    /// roamer still wanders around its authored origin because `startX`/`startY` are untouched.
+    func setSimulateNPCs(_ enabled: Bool) {
+        guard enabled != simulateNPCs else { return }
+        simulateNPCs = enabled
+        guard !enabled else { return }
+
+        for npc in npcs {
+            guard var visual = visuals[npc.id] else { continue }
+            visual.targetX = npc.x
+            visual.targetY = npc.y
+            visual.targetRotation = npc.rotation
+            visuals[npc.id] = visual
+        }
+    }
+
     /// True while a minigame is drawing itself instead of the Metal renderer, so the renderer
     /// can stop drawing a world that is not there.
     var suppressesWorldRendering: Bool {
@@ -443,7 +468,9 @@ final class GameState {
 
         // The JS registers `updateLocalNPCs` ahead of `update` in the game loop, so NPC
         // targets for this frame are set before anything interpolates towards them.
-        NPCBehaviour.update(npcs: npcs, visuals: &visuals, dt: dt)
+        if simulateNPCs {
+            NPCBehaviour.update(npcs: npcs, visuals: &visuals, dt: dt)
+        }
 
         // Rotation (tank controls), `main.js:314-321`. The JS gates this on the minimap being
         // shut; there is no minimap on the surface that sends `turn`.

@@ -47,7 +47,25 @@ struct ModelGroup {
     var roughness: Float
     var metalness: Float
     var texture: MTLTexture?
+    /// The glTF material extensions, resolved by `GLTFLoader`. Defaults here reproduce
+    /// `MeshStandardMaterial` exactly, so a model using none of them renders as before.
+    var surface: SurfaceExtensions
+    var emissiveTexture: MTLTexture?
     var mesh: GPUMesh
+}
+
+/// The parts of a glTF material that only `MeshPhysicalMaterial` carries: emission, the
+/// dielectric F0 that `KHR_materials_ior` / `_specular` move off 0.04, and transmission.
+struct SurfaceExtensions {
+    var emissive: SIMD3<Float> = .zero
+    var specularF0: SIMD3<Float> = SIMD3(repeating: 0.04)
+    var specularIntensity: Float = 1
+    var transmission: Float = 0
+
+    static let standard = SurfaceExtensions()
+
+    var isEmissive: Bool { emissive != .zero }
+    var isTransmissive: Bool { transmission > 0 }
 }
 
 struct LoadedModel {
@@ -120,32 +138,64 @@ final class ModelStore {
                     let elapsed = (CFAbsoluteTimeGetCurrent() - started) * 1000
 
                     DispatchQueue.main.async {
+                        // A material can point its emissive map at the same image as its base
+                        // colour (`banquet_table.glb` does), so images are uploaded once each.
+                        var textures: [Int: MTLTexture] = [:]
+                        func texture(_ imageIndex: Int?) -> MTLTexture? {
+                            guard let imageIndex else { return nil }
+                            if let existing = textures[imageIndex] { return existing }
+                            guard let bytes = asset.images[imageIndex] else { return nil }
+                            // No vertical flip: glTF UVs put (0,0) at the image's top-left,
+                            // which is already Metal's sampling origin. Flipping mirrors V,
+                            // and materials that pack a sub-rectangle of an atlas through
+                            // `KHR_texture_transform` — as every surface of
+                            // `junior_school_buildings.glb` does — then sample the wrong
+                            // region entirely. (Map tiles *do* need the flip; their quad UVs
+                            // are built bottom-up. See `TextureCache`.)
+                            //
+                            // sRGB is on because glTF base-colour and emissive textures are
+                            // both sRGB-encoded and three.js tags them as such; the sampler
+                            // decodes so shading stays linear.
+                            //
+                            // The Core Graphics fallback is the same one the tiles need, and
+                            // it is load-bearing here: `desk.glb`'s emissive map is a 1-bit
+                            // greyscale PNG that `MTKTextureLoader` will not decode, and
+                            // losing it leaves that material's white `emissiveFactor`
+                            // unmodulated — a solid white desk, 27 times over.
+                            let loaded = (try? self.textureLoader.newTexture(
+                                data: bytes,
+                                options: [.SRGB: true,
+                                          .generateMipmaps: false]))
+                                ?? ImageDecoder.texture(from: bytes, device: self.device, flipped: false)
+                            if let loaded {
+                                textures[imageIndex] = loaded
+                            } else {
+                                Log.render("Model '\(path)': image \(imageIndex) failed to decode (\(bytes.count) bytes)")
+                            }
+                            return loaded
+                        }
+
                         var groups: [ModelGroup] = []
                         for group in merged {
                             guard let gpuMesh = GPUMesh(device: self.device, mesh: group.mesh) else { continue }
-                            var texture: MTLTexture?
-                            if let imageIndex = group.imageIndex, let bytes = asset.images[imageIndex] {
-                                // No vertical flip: glTF UVs put (0,0) at the image's top-left,
-                                // which is already Metal's sampling origin. Flipping mirrors V,
-                                // and materials that pack a sub-rectangle of an atlas through
-                                // `KHR_texture_transform` — as every surface of
-                                // `junior_school_buildings.glb` does — then sample the wrong
-                                // region entirely. (Map tiles *do* need the flip; their quad UVs
-                                // are built bottom-up. See `TextureCache`.)
-                                //
-                                // sRGB is on because glTF base-colour textures are sRGB-encoded
-                                // and three.js tags them as such; the sampler decodes so shading
-                                // stays linear.
-                                texture = try? self.textureLoader.newTexture(
-                                    data: bytes,
-                                    options: [.SRGB: true,
-                                              .generateMipmaps: false])
+
+                            // glTF multiplies `emissiveFactor` by the map, so a *declared* map
+                            // that would not decode has to zero the factor rather than be
+                            // treated as absent — an unmodulated white factor is far more
+                            // wrong than no emission at all.
+                            var surface = group.surface
+                            let emissiveTexture = texture(group.emissiveImageIndex)
+                            if group.emissiveImageIndex != nil, emissiveTexture == nil {
+                                surface.emissive = .zero
                             }
+
                             groups.append(ModelGroup(slot: group.slot,
                                                      baseColor: group.baseColor,
                                                      roughness: group.roughness,
                                                      metalness: group.metalness,
-                                                     texture: texture,
+                                                     texture: texture(group.imageIndex),
+                                                     surface: surface,
+                                                     emissiveTexture: emissiveTexture,
                                                      mesh: gpuMesh))
                         }
 
@@ -190,6 +240,8 @@ final class ModelStore {
         var roughness: Float
         var metalness: Float
         var imageIndex: Int?
+        var surface: SurfaceExtensions
+        var emissiveImageIndex: Int?
         var mesh: MeshData
     }
 
@@ -209,8 +261,19 @@ final class ModelStore {
             let imageIndex = (slot == .authored) ? primitive.imageIndex : nil
             let roughness = (slot == .authored) ? primitive.roughness : 1
             let metalness = (slot == .authored) ? primitive.metalness : 0
+            // A recoloured piece takes the rig's material wholesale, so it takes the rig's
+            // (standard) surface too — the rig has no emissive or transmissive parts.
+            let surface = (slot == .authored)
+                ? SurfaceExtensions(emissive: primitive.emissive,
+                                    specularF0: primitive.specularF0,
+                                    specularIntensity: primitive.specularIntensity,
+                                    transmission: primitive.transmission)
+                : .standard
+            let emissiveImageIndex = (slot == .authored) ? primitive.emissiveImageIndex : nil
 
             let key = "\(slot)-\(color)-\(roughness)-\(metalness)-\(imageIndex ?? -1)"
+                + "-\(surface.emissive)-\(surface.specularF0)-\(surface.specularIntensity)"
+                + "-\(surface.transmission)-\(emissiveImageIndex ?? -1)"
             let index: Int
             if let existing = lookup[key] {
                 index = existing
@@ -220,6 +283,8 @@ final class ModelStore {
                                           roughness: roughness,
                                           metalness: metalness,
                                           imageIndex: imageIndex,
+                                          surface: surface,
+                                          emissiveImageIndex: emissiveImageIndex,
                                           mesh: MeshData(vertices: [], indices: [])))
                 index = groups.count - 1
                 lookup[key] = index

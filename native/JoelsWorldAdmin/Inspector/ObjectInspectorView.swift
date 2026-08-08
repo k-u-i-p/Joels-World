@@ -9,6 +9,7 @@ final class ObjectInspectorView: NSView {
 
     private let idLabel = AdminUI.label("ID: —", bold: true)
     private let nameField = ValueField(placeholder: "Object name (optional)", width: 150)
+    private let rotationField = ValueField(width: 60)
     private let widthField = ValueField(width: 60)
     private let lengthField = ValueField(width: 60)
     private let clipField = ValueField(width: 60)
@@ -61,6 +62,15 @@ final class ObjectInspectorView: NSView {
                                             message: { .renameObject(id: $0.id, name: $0.name) })
         }
 
+        // Not a port: the web panel only has the two hold buttons, so an object could not be
+        // set to an exact angle — which is the one thing you want when squaring a shape up to
+        // a wall. Unparseable text falls back to 0, the same way the size fields fall back.
+        rotationField.onCommit = { [weak self] text in
+            let value = Double(text) ?? 0
+            self?.map?.mutateSelectedObject({ $0.rotation = value },
+                                            message: { .rotateObject(id: $0.id, rotation: $0.rotation ?? 0) })
+        }
+
         // A field that will not parse falls back to the JS default of 100, as `parseInt`'s
         // NaN branch does at `admin.js:435`.
         widthField.onCommit = { [weak self] text in self?.commitSize(width: Double(text) ?? 100) }
@@ -110,7 +120,7 @@ final class ObjectInspectorView: NSView {
             AdminUI.sectionTitle("Object"),
             idLabel,
             AdminUI.row("Name", [nameField]),
-            AdminUI.row("Rotate", [rotateLeft, rotateRight]),
+            AdminUI.row("Rotate", [rotateLeft, rotationField, rotateRight]),
             AdminUI.row("Width", [widthDown, widthField, widthUp]),
             AdminUI.row("Length", [lengthDown, lengthField, lengthUp]),
             AdminUI.row("Clip", [clipField]),
@@ -139,6 +149,7 @@ final class ObjectInspectorView: NSView {
 
         idLabel.stringValue = "ID: \(object.id)"
         nameField.reload(object.name ?? "")
+        rotationField.reload(String(Int((object.rotation ?? 0).rounded())))
         widthField.reload(String(Int((object.width ?? 100).rounded())))
         lengthField.reload(String(Int((object.length ?? 100).rounded())))
         clipField.reload(String(Int(object.clip ?? 10)))

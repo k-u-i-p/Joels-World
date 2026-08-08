@@ -6,9 +6,13 @@ against **no longer exists** — `client/` was deleted in Phase 8. Where a table
 "ported from `main.js:306-531`", read it as a citation into git history, not a live file:
 `git show 8ff2a7c~1:client/public/src/main.js` (any commit before the deletion) still has it.
 
-Last updated: 2026-08-08 · **Phases 1–9 complete and verified. The rewrite is done**, bar Tag,
-which is deferred at the user's request while the game is redesigned. Phase 8 retired the web
-client outright: the asset tree moved to `server/assets/`, and `client/` is gone.
+Last updated: 2026-08-08 · **Phases 1–10 complete and verified. The rewrite is done.** Tag was
+deleted outright rather than ported (see below). Phase 8 retired the web client, and Phase 10
+retired the server's HTTP surface with it: the assets and the authored world ship inside the
+apps, and `server/` is a WebSocket relay with two dependencies.
+
+Work since then is picked off the "Known gaps" list at the bottom rather than from a phase
+plan; the most recent pass is under "Editor quality of life and glTF material extensions".
 
 ---
 
@@ -50,9 +54,10 @@ client outright: the asset tree moved to `server/assets/`, and `client/` is gone
 | 5 | UI + audio: chat, dialogs, nameplates, emote picker, minimap, AVAudioEngine | **done, verified** |
 | 6 | Emotes (20, each poses the rig) | **done, verified** |
 | 7 | Minigames: tennis (2160 ln) | **done, verified** |
-| 7b | Minigames: tag (591 ln) | **deferred** — the user is reworking the game first |
+| 7b | Minigames: tag (591 ln) | **deleted** — deferred as "rubbish", then removed with its map, art and door NPC |
 | 9 | macOS admin editor (`admin.js`, 1464 ln) on the shared engine | **done, verified** |
 | 8 | Retire web client: asset tree to `server/assets/`, `client/` deleted | **done, verified** |
+| 10 | Bundle the assets and the world into the apps; strip the server to `node:http` + `ws` | **done, verified** |
 
 Phase 9 is numbered after 8 because it was decided later; it runs *before* Phase 8, since
 retiring the web client was blocked on the editor having somewhere else to live.
@@ -946,6 +951,9 @@ since they live in `Engine/Core/WalkTest.swift`):
 - `-selftest` — drives selection, dragging, resizing, creation, an event-tree round trip and
   deletion through the real mouse handlers, then a keyboard turn and walk through the real key
   handlers, logging each step. Leaves the map as it found it.
+- `-select object|npc <id>` — selects an entity on the way in, so a scripted `-shot` can frame
+  an inspector, or an NPC's rings and patrol route. Clicking is the only other way in, and
+  nothing can click from a script.
 - `-shot <path>` — writes a PNG of the whole window and quits.
 - `-shotdelay <seconds>` — how long to wait first, so tiles and models have loaded. Default 6.
 - `-map <id>` — open straight onto a map. The server remembers the last map a session was on,
@@ -1039,57 +1047,55 @@ port 80). The macOS editor takes its host and key from the sidebar instead, pers
 
 ## Known gaps / next steps
 
-**Every phase is done except Tag**, which is waiting on a design decision rather than on
-engineering — see below. What follows is the standing list of known gaps, none of them
-blocking.
+**Every phase is done.** What follows is the standing list of known gaps, none of them
+blocking; items struck off it since are written up in their own sections above.
 
-Phase 8 leaves these open:
+**The deployed server still speaks the pre-Phase-10 protocol**, so the shipped apps can only
+reach a local one until `server/deploy.sh` is run. That is the one outstanding *operational*
+item, and it needs a decision to deploy rather than any more engineering.
 
-- **`server/assets/` is 264 MB inside the Docker build context.** It was 264 MB before too,
-  under `client/public`, so nothing got worse — but now that the tree is the only large thing
-  in the image, moving the map chunk tiles to a bucket is a much more obvious win than it was.
-- **The chunk, overlay and minimap generators write into `server/assets/`.** They always
-  wrote into the asset tree; it is just worth knowing that the tree is no longer purely
-  authored content, and that `server/assets/**/chunks/` is gitignored for that reason.
+Phase 8 and 10 leave these open:
+
+- **`assets/` is 247 MB, of which `tools/assets/stage.sh` ships 155 MB inside each app.**
+  Moving the map chunk tiles to a bucket is the obvious win, and a bigger one now that the
+  tiles are the only large thing left.
+- **The chunk, overlay and minimap generators write into `assets/`.** They always wrote into
+  the asset tree; it is just worth knowing that the tree is no longer purely authored content,
+  and that `assets/**/chunks/` is gitignored for that reason.
 - **`server/emotes.js` is still a second copy of the emote *names*.** With the web client's
   `emotes.js` deleted there is no drift risk left between JS files, but the names now have to
   stay in step with `Engine/Entity/Emotes.swift`, which owns the poses. A new emote is two
   edits.
 
-Phase 9 leaves these open:
+Phase 9 leaves these open (four others were closed on 2026-08-08 — see "Four editor gaps
+closed"):
 
-- **NPCs roam while you edit.** They walk their `roam_radius` and waypoint routes in the
-  editor exactly as they do in the game, so an NPC can wander out from under the cursor
-  mid-drag. The web admin has the same behaviour; a "freeze NPCs" toggle would be a genuine
-  improvement over it rather than a port.
-- **There is no undo.** Every edit writes the map JSON on the server immediately, as
-  `admin.js` does — the delete confirmation is the only safety net. A local undo stack would
-  have to model the server's file writes to be honest about what it can take back.
-- **The event editor discards unsaved edits on selection change**, because it reloads its
-  working copy from whatever is now selected. Faithful to the web panel, and a place where a
-  "you have unsaved changes" prompt would be worth adding.
+- **There is no undo.** Every edit writes the map JSON immediately, as `admin.js` did — the
+  delete confirmation is the only safety net. A local undo stack would have to model the file
+  writes to be honest about what it can take back.
 - **`AdminOverlayView` redraws on every frame.** Twenty-odd projected quads through Core
   Graphics at 60 Hz is nothing today, but it is the obvious first thing to throttle if a map
   ever carries hundreds of objects.
-- **Rotation has no numeric field**, only the ↺ / ↻ hold buttons — same as the web panel.
-  Typing an angle would be a one-line addition to `ObjectInspectorView`.
-- **The editor does not draw waypoint routes.** Neither does the web admin; it visualises the
-  roam circle but not the patrol path, which is the harder thing to author blind.
+- **Only the selected NPC's route is drawn.** Showing every patrol at once would make a busy
+  map unreadable, but a "show all routes" toggle would help when laying several out together.
+- **A null in an update writes `"key": null` rather than removing the key.** The inspectors
+  send an explicit null to *clear* `roam_radius` and `default_emote`, and their comments say
+  the server used to delete the key. `server/admin.js` is gone, so which it really did cannot
+  be checked — and `main_building/npc.json` carries one authored `"default_emote": null`,
+  which is weak evidence that it stored them. Left as it is rather than changed on a guess.
 
-**Tag is the outstanding gameplay work**, and it is waiting on a design decision, not on
-engineering: the user is reworking the game. `minigames/tag.js` (591 lines) is a much smaller
-port than Tennis was and reuses the existing 3D renderer rather than needing a 2D one — it
-draws through `characterManager.drawCharacter`, walks on the real clip mask, and uses
-`physicsEngine.processMovement`. The plumbing it needs is already in place: `Minigame`,
-`MinigameHost`, the exit button, and `usesWorldRenderer: true` is the branch it would take.
-Two things to know before starting it:
+**Tag was deleted, not deferred** (user's direction, 2026-08-08) — the map, its art, its
+`maps.json` entry, the `MinigameKind` case and Archie, the NPC whose only content was its door.
+The minigame plumbing it would have used is still in place if a redesigned Tag ever arrives:
+`Minigame`, `MinigameHost`, the exit button, and the `usesWorldRenderer: true` branch. The old
+`tag.js` is in git history (any commit before the deletion) if its rules are wanted as a
+reference; two things about it were worth writing down at the time:
 
-- **Tag renders with `renderer.render()`, not `composer.render()`** — no SSAO — and it never
-  repositions the spotlight, so the light stays wherever the previous map's last frame left
-  it. That is a JS bug, not a style: what the map looks like depends on where you were
-  standing before you walked in.
-- **Tag's own camera** uses `pitch + 0.60`, zoom 1.2, no map clamping and no Y bias, unlike
-  the overworld camera. `Camera` would need a free-focus variant.
+- **Tag rendered with `renderer.render()`, not `composer.render()`** — no SSAO — and it never
+  repositioned the spotlight, so the light stayed wherever the previous map's last frame left
+  it. What the map looked like depended on where you had been standing before you walked in.
+- **Tag's camera** used `pitch + 0.60`, zoom 1.2, no map clamping and no Y bias, unlike the
+  overworld camera. `Camera` would need a free-focus variant.
 
 Phase 7 leaves these open:
 
@@ -1119,17 +1125,12 @@ Phase 6 leaves these open:
 - **Emote expiry runs for every character, not just visible ones.** The JS expires inside its
   draw call, so an off-screen NPC keeps a finished pose until it comes back into view. The
   difference is not observable in normal play.
-- **`EmoteCatalog` still fetches `/api/config`** for the picker's list, even though the table
-  is now local. Leaving it means the picker keeps matching whatever the server considers
-  valid; the `/command` path gates on the local table, as `main.js:222` does.
 
 Carried forward from Phase 5:
 
 - **Audio session category is `.playback`**, matching what Capacitor's `NativeAudio` gave the
   old build: the music keeps playing with the ring switch on silent. Change to `.ambient` if
   that turns out to be the wrong call for a kids' game.
-- **The minimap image and the NPC portraits stream over HTTP**, like the models — the minimaps
-  are ~200 KB each. `ImageLoader` checks `Bundle.main` first, so bundling is a packaging step.
 - **The chat feed has no scrollback.** Five messages, thirty seconds, gone — the JS behaviour.
   Nothing keeps a history.
 
@@ -1144,9 +1145,9 @@ Carried forward from Phase 4:
 
 Carried forward from Phase 3:
 
-- **glTF material extensions are parsed but ignored.** `KHR_materials_emissive_strength`,
-  `_transmission`, `_specular` and `_ior` all appear in the shipping models. They are the
-  likeliest cause of the residual difference on glass and trim.
+- **glTF material extensions no longer explain the residual difference.** All four are
+  implemented (2026-08-08, see above); transmission is approximated without a backdrop pass,
+  and `specularTexture` is still ignored. Whatever is left on glass and trim is elsewhere.
 - **SSAO runs at full resolution with 32 samples**, as the JS does. It is the most expensive
   pass by far and the obvious first lever if a device drops frames; half-resolution AO with an
   upsample is the standard fix and would be invisible at this blur radius.
@@ -1155,12 +1156,9 @@ Carried forward from Phase 3:
 
 Carried forward from Phase 2, deliberately:
 
-- **Models stream over HTTP rather than being bundled** (PLAN.md §5 wants them bundled).
-  `ModelStore.fetch` already checks `Bundle.main` first, so bundling is a packaging step with
-  no code change. Heads are ~2.6 MB each, 37 MB for all 17.
-- **`female_hair_short_2` has no `.glb` on the asset host.** The table entry is kept
-  deliberately — deleting it would shift every other female character's deterministic head
-  choice. Characters that hash onto it render headless, exactly as they do on the web.
+- **`female_hair_short_2` has no `.glb`.** The table entry is kept deliberately — deleting it
+  would shift every other female character's deterministic head choice. Characters that hash
+  onto it render headless, exactly as they did on the web.
 
 Smaller known gaps:
 
@@ -1506,3 +1504,189 @@ was being `kill`ed before anything flushed. `os_log` did not help either — `Lo
   zero asset misses in the log, the clip mask blocking on the first `-walktest` sample, and
   every model and tile resolving locally. Both targets build; the editor's `-selftest` passes
   all 21 steps.
+- **Implemented the four glTF material extensions**, and `emissiveFactor` with them — it was
+  not being read at all, which mattered for the three models that carry one. Emission is added
+  after the lighting, `KHR_materials_ior` / `_specular` now drive F0 and F90 instead of the
+  hard-coded 0.04 and 1, and transmission gets a premultiplied blended sub-pass that composites
+  to `mix(diffuse, backdrop, transmission) + specular` without a backdrop render.
+- That work walked into the blind spot this file has warned about since Phase 5: `ModelStore`
+  had no Core Graphics fallback, `desk.glb`'s emissive map is a 1-bit greyscale PNG that
+  `MTKTextureLoader` will not decode, and the first build rendered 27 solid white desks.
+  `ImageDecoder` is now shared with `TextureCache`, and an `emissiveFactor` whose declared map
+  fails to decode is zeroed rather than left unmodulated.
+- Verified by diffing the app against itself on device rather than by eye: every changed pixel
+  is on the antique desk (14.9 % of that region, the lamp bulb going 0 → 251, the magnifier
+  turning see-through), and **zero** pixels changed anywhere else in the frame — map,
+  character and HUD identical.
+- **Closed four editor gaps**, all improvements over the web panel rather than ports: a Freeze
+  NPCs toggle, a typed rotation field in both inspectors, the selected NPC's patrol route drawn
+  on the map, and a Save / Discard prompt for unsaved event edits — which committed to the
+  entity it loaded from, not to whatever is selected now.
+- That caught a diff-noise bug in the serialiser: saving an event tree rebuilt every nested
+  payload with its keys alphabetised, because the working copy passes through `JSONValue`.
+  `OrderedJSON.reordered(like:)` makes an incoming value take the key order of the value it
+  replaces; `-selftest` now re-saves an unchanged tree and asserts the file is byte-identical.
+- Added `-select object|npc <id>` and five `-selftest` steps. The run is 29 steps and both
+  entity files come back byte-identical. The Save / Discard alert itself is not covered —
+  nothing can answer a modal from a script — so the step drives the commit-by-id mechanism
+  underneath it instead.
+
+## Editor quality of life and glTF material extensions
+
+Two items off the standing gaps list, done together on 2026-08-08 after the phases were
+finished. No new phase — the rewrite is complete; this is the list at the bottom of this file
+getting shorter.
+
+### The four glTF material extensions are implemented
+
+`KHR_materials_emissive_strength`, `_transmission`, `_specular` and `_ior` were parsed and
+ignored, and were the leading suspects for Phase 3's residual difference on glass and trim.
+They are all in use, though only just — a scan of every shipping model:
+
+| Extension | Where | Effect |
+|---|---|---|
+| `_emissive_strength` | `antique_desk.glb`'s Lamp — `emissiveStrength: 8` | The bulb glows |
+| `_transmission` | `antique_desk.glb`'s Magnifier — `transmissionFactor: 1` | The lens is see-through |
+| `_specular` | 8 materials across `snake`, `stylized_bush`, `tennis_racquet`, `torso`, `banquet_table` | Moves F0 off the 0.04 default; `snake`'s head and body ask for `specularFactor: 0` |
+| `_ior` | `tennis_racquet.glb`'s two materials — `ior: 1000` | With their `specularColorFactor` of 0.02 and 0, F0 lands at ~0.02 and 0 |
+
+**`emissiveFactor` itself was not being read either**, which matters more than any of the
+extensions: `desk.glb` — placed 27 times, the most common prop in the game — carries
+`emissiveFactor [1,1,1]`, and so do `banquet_table.glb` (at 0.229) and the lamp.
+
+| File | Change |
+|---|---|
+| `Engine/Render/GLTFLoader.swift` | Reads `emissiveFactor`, `emissiveTexture` and the four extensions, and pre-composes three.js's dielectric F0 — `min(pow2((ior−1)/(ior+1)) · specularColorFactor, 1) · specularFactor` |
+| `Engine/Render/ModelStore.swift` | `SurfaceExtensions` on each draw group, a second texture slot for the emissive map, and image uploads deduplicated (a material often points both maps at one image) |
+| `Engine/Render/Shaders.metal` | Emission added after the lighting; `shadeStandard` takes F0 and F90 instead of hard-coding 0.04 and 1; `fresnelSchlick` gained its `f90` argument |
+| `Engine/Render/Renderer.swift`, `PropRenderer.swift` | A premultiplied-blend pipeline and a third sub-pass for transmissive prop materials |
+| `Engine/Render/ImageDecoder.swift` | *(new)* the Core Graphics PNG fallback, lifted out of `TextureCache` so `ModelStore` gets it too |
+
+**The defaults are exactly `MeshStandardMaterial`.** A material with none of these extensions
+sends emissive 0, F0 0.04 and F90 1, which is what the shader hard-coded before — so nothing
+that does not use them can move. The pixel diff below is what confirms it.
+
+#### Transmission without a backdrop pass
+
+three.js renders the scene to a second target and refracts it; there is no such target here.
+What the port does instead: scale the diffuse lobe by `1 − transmission`, leave the specular
+lobe alone, and blend **premultiplied**, so the composite is
+`mix(diffuse, backdrop, transmission) + specular`. That is three.js's result for an
+unrefracted, unblurred backdrop — the see-through is real, the distortion is not. Thickness
+and attenuation are not modelled either. The transmissive draw is also left out of the shadow
+pass, so a glass lens casts nothing.
+
+Two other knowing gaps: `specularTexture` / `specularColorTexture` are ignored (only
+`banquet_table.glb` has one, and only the factor is read), and `alphaMode: BLEND` still does
+not route a material into the blended pass — no shipping material needs it, since they all
+have a base-colour alpha of 1.
+
+#### The bug this uncovered: `MTKTextureLoader` rejects more than palette PNGs
+
+Phase 5 found that `MTKTextureLoader` cannot decode colour-type 3 PNGs and gave `TextureCache`
+a Core Graphics fallback, and this file has warned since then that **`ModelStore` has the same
+blind spot**. It does, and the emissive work walked straight into it: `desk.glb`'s emissive
+map is a **1-bit greyscale** PNG, 207 bytes, and entirely black. The first build of this change
+rendered 27 solid white desks — factor with no map to cancel it.
+
+`ImageDecoder` is the shared fallback. `ModelStore` also zeroes an `emissiveFactor` whose
+declared map failed to decode, because glTF multiplies the two: absent and undecodable are not
+the same thing, and an unmodulated factor is much more wrong than no emission.
+
+A scan of all 40 models found **9 images across 7 models** that `MTKTextureLoader` refuses.
+Only `desk.glb`'s is in a slot the renderer samples; the rest are occlusion, metallic-roughness
+and normal maps, which this renderer does not read.
+
+#### Verified by pixel diff, on device
+
+The Phase 3 harness is gone with the web client, so this is a before/after of the app against
+itself: same map, same `-at`, same `-zoom`, one build with the change and one without. Detention
+at (−6, −600) frames the antique desk, its lamp and its magnifier.
+
+| Region | Mean difference | Pixels changed > 8 |
+|---|---|---|
+| Whole frame | 0.775 / 255 | 2.97 % |
+| Above the desk — map, lockers, **the NPC** | 0.006 | **0** |
+| The antique desk | 3.880 | 14.9 % |
+| Below the desk — floor, HUD | 0.000 | **0** |
+
+**Every changed pixel is on the one prop that uses the extensions.** The lamp's brightest
+pixels go `(0,0,0) → (251,251,251)`, and the magnifier stops being an opaque grey disc — the
+open book underneath it is legible through the lens. Characters, ground and UI are identical,
+which is the regression check that matters.
+
+The Main Building was photographed separately to confirm the 27 desks render as brown wood
+rather than the white rectangles the first build produced.
+
+### Four editor gaps closed
+
+All four were listed under "Phase 9 leaves these open", and all four are improvements *over*
+the web panel rather than ports — `admin.js` had none of them.
+
+| Gap | What it does now |
+|---|---|
+| NPCs roam while you edit | A **Freeze NPCs** checkbox in the sidebar. `GameState.setSimulateNPCs(_:)` skips `NPCBehaviour` *and* parks every interpolation target on the NPC's current pose — skipping the behaviour alone leaves one part-way to a target still gliding. Resuming picks each route up from the timer it was holding |
+| Rotation has no numeric field | A field between the ↺ / ↻ buttons in both inspectors, live-updating as the buttons are held |
+| Waypoint routes are invisible | The selected NPC's patrol route, drawn as an amber dashed polyline with numbered stops and the implicit closing leg home. Waypoints are *cumulative offsets*, so the authored list tells you very little about where the NPC actually goes — this is the harder of the two to author blind, and the web panel drew only the roam circle |
+| Unsaved event edits vanish on selection change | A Save / Discard prompt, and the working copy is committed to the entity it was **loaded from** rather than to whatever is selected now (`EventEditorView.commit()` via the new `AdminMapViewController.mutateObject(id:)`). A background `objects_update` for the entity being edited also no longer reloads over the top of it |
+
+`-select object|npc <id>` was added alongside, because selection was otherwise only reachable
+by clicking and nothing can click from a script — it is how the route screenshot was framed.
+
+#### One bug this caught: saving an event tree reordered JSON keys
+
+Pressing **Save Events** without changing anything rewrote the file. The editor's working copy
+travels through `JSONValue`, whose objects are Swift `Dictionary`s, so every nested payload was
+rebuilt with its keys sorted: `{type, map, description}` came back as
+`{description, map, type}`. Nothing read differently — but these are authored files under
+version control, and not turning a two-line edit into a whole-file diff is the entire reason
+`OrderedJSON` exists.
+
+`OrderedJSON.reordered(like:)` fixes it at the one place a value is written over another: an
+incoming object takes the key order of the value it replaces, recursively, with unknown keys
+appended after. Arrays recurse element-wise as far as they line up, which covers an event list
+whose actions stayed put.
+
+It is a partial repair by nature — order that was never on disk cannot be recovered, so
+replacing an action with a different one and then restoring the original does not round-trip.
+`-selftest` writes to a throwaway object for exactly that reason.
+
+#### Verified by `-selftest`, which grew five steps
+
+```
+selftest 20: waypoint route for NPC 8 'Mr Savage': 4 authored steps → 6 points
+             (-1984, -411) → (-1934, -261) → (-1934, -261) → (-2034, -261) → (-2034, -261) → (-1984, -411)
+selftest 21: typed rotation on object 12: 90° → 137° (expected 137)
+selftest 23: re-saved object 12's unchanged on_enter ["show_dialog"] — the file check below is the assertion
+selftest 24: commit-by-id: wrote an event tree to object 80 while 12 was selected → 80 has 1 action(s)
+selftest 26: freeze on:  0 NPC(s) moved 0.00px over 2.0s
+selftest 27: freeze off: 5 NPC(s) moved 526px over 3.0s
+selftest 28: junior_school/npc.json is byte-identical (16518 bytes)
+selftest 29: junior_school/objects.json is byte-identical (5337 bytes)
+```
+
+Step 20's route has six points from four authored steps because two of Mr Savage's waypoints
+only rotate: they resolve onto the point before them, and the overlay stacks their markers.
+That is honest — he does stand still for those steps.
+
+**The Save / Discard prompt itself is not covered.** It is a modal `NSAlert`, and nothing can
+answer one from a script; step 24 drives the mechanism underneath it instead, which is the part
+that could silently write to the wrong record.
+
+Screenshotted with `-select npc 8`: the amber route with its numbered stops inside Mr Savage's
+cyan hitbox and dashed interaction ring, and the sidebar showing both the Freeze NPCs checkbox
+and the NPC inspector's new rotation field reading 70.
+
+## Environment gotchas (2026-08-08 follow-up)
+
+- **`MTKTextureLoader` rejects 1-bit greyscale PNGs as well as palette PNGs.** Both now go
+  through `Engine/Render/ImageDecoder.swift`. Any *new* image path must use it too.
+- **A session that ended in Detention cannot be moved with `-map`** — `maps.json` marks it
+  `can_leave: false`, so the change is rejected and the app stays put. **Uninstalling the app
+  does not help**: the session token is in the Keychain and survives. Clear the server's
+  session file, or run the shot on a map you can reach.
+- **The editor's overlay hides the props.** A `3d_model` object draws as a 60 %-opaque sky-blue
+  box on top of the model, so `-shot` is the wrong tool for a rendering comparison — the first
+  before/after of this pass diffed two pictures of the overlay. Use the iOS build and
+  `xcrun simctl io booted screenshot`.
+- `xcodebuild` has to run from `native/`; the project is not at the repository root.

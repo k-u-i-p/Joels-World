@@ -6,6 +6,7 @@ final class NPCInspectorView: NSView {
 
     private let idLabel = AdminUI.label("ID: —", bold: true)
     private let nameField = ValueField(placeholder: "NPC name", width: 150)
+    private let rotationField = ValueField(width: 60)
     private let widthField = ValueField(width: 60)
     private let heightField = ValueField(width: 60)
     private let zField = ValueField(width: 60)
@@ -64,6 +65,13 @@ final class NPCInspectorView: NSView {
         nameField.onCommit = { [weak self] text in
             let name = text.trimmingCharacters(in: .whitespaces)
             self?.update({ $0.name = name }, updates: ["name": .string(name)])
+        }
+
+        // Not a port, matching the object inspector: the hold buttons step by 5°, so an exact
+        // facing was previously unreachable.
+        rotationField.onCommit = { [weak self] text in
+            let value = Double(text) ?? 0
+            self?.update({ $0.rotation = value }, updates: ["rotation": JSONValue(value)])
         }
 
         widthField.onCommit = { [weak self] text in
@@ -149,7 +157,7 @@ final class NPCInspectorView: NSView {
             AdminUI.sectionTitle("NPC"),
             idLabel,
             AdminUI.row("Name", [nameField]),
-            AdminUI.row("Rotate", [rotateLeft, rotateRight]),
+            AdminUI.row("Rotate", [rotateLeft, rotationField, rotateRight]),
             AdminUI.row("Width", [widthDown, widthField, widthUp]),
             AdminUI.row("Height", [heightDown, heightField, heightUp]),
             AdminUI.row("Z", [zDown, zField, zUp]),
@@ -186,6 +194,7 @@ final class NPCInspectorView: NSView {
 
         idLabel.stringValue = "ID: \(npc.id)"
         nameField.reload(npc.name ?? "")
+        rotationField.reload(String(Int((npc.rotation ?? 0).rounded())))
         widthField.reload(String(Int(npc.width ?? 40)))
         heightField.reload(String(Int(npc.height ?? 40)))
         zField.reload(String(Int(npc.z ?? 0)))

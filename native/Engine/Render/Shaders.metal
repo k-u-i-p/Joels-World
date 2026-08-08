@@ -57,6 +57,14 @@ struct CharacterUniforms {
     float4   clipParams;
     /// x = sample the base-colour texture, y = unlit, z = roughness, w = metalness.
     float4   flags;
+    /// xyz = emissive radiance (`emissiveFactor` × `KHR_materials_emissive_strength`),
+    /// w = an emissive map is bound at texture 3.
+    float4   emissive;
+    /// xyz = dielectric F0 from `KHR_materials_ior` / `_specular`, w = specular intensity.
+    /// (0.04, 1) is what `MeshStandardMaterial` hard-codes and what a plain material sends.
+    float4   specular;
+    /// x = `KHR_materials_transmission`, yzw unused.
+    float4   surface;
 };
 
 // MARK: - Shadows
@@ -134,10 +142,13 @@ static float3 shadeLambert(float3 albedo, LightSample light)
 }
 
 // GGX helpers, ported from three.js `bsdfs.glsl.js`.
-static float3 fresnelSchlick(float3 f0, float dotVH)
+///
+/// `f90` is 1 for `MeshStandardMaterial`, which is what a material carrying no
+/// `KHR_materials_specular` sends — so this collapses to the two-argument form it replaced.
+static float3 fresnelSchlick(float3 f0, float f90, float dotVH)
 {
     float fresnel = exp2((-5.55473 * dotVH - 6.98316) * dotVH);
-    return f0 * (1.0 - fresnel) + fresnel;
+    return f0 * (1.0 - fresnel) + f90 * fresnel;
 }
 
 static float smithCorrelatedVisibility(float alpha, float dotNL, float dotNV)
@@ -155,21 +166,34 @@ static float distributionGGX(float alpha, float dotNH)
     return RECIPROCAL_PI * a2 / (denom * denom);
 }
 
-/// `MeshStandardMaterial` — the rig limbs and the imported head/shoe/prop meshes.
+/// `MeshStandardMaterial` — the rig limbs and the imported head/shoe/prop meshes — and the
+/// `MeshPhysicalMaterial` three.js promotes a material to once it carries
+/// `KHR_materials_ior`, `_specular` or `_transmission`.
 ///
 /// Without an environment map three.js contributes no indirect specular at all, so the
 /// ambient term is diffuse-only and the GGX lobe rides on the spotlight alone.
+///
+/// `diffuseScale` is `1 − transmission`: the diffuse lobe of a transmissive surface is
+/// replaced by what lies behind it, and the caller supplies that by blending. The specular
+/// lobe is *not* scaled, because a glass surface keeps its highlight — which is why the
+/// result is returned already premultiplied by coverage.
 static float3 shadeStandard(float3 albedo,
                             float roughness,
                             float metalness,
+                            float3 dielectricF0,
+                            float specularIntensity,
+                            float diffuseScale,
                             float3 normal,
                             float3 viewDir,
                             LightSample light)
 {
     float3 diffuseColor = albedo * (1.0 - metalness);
-    float3 specularColor = mix(float3(0.04), albedo, metalness);
+    // three.js `MeshPhysicalMaterial`: F0 mixes the dielectric reflectance towards the albedo
+    // by metalness, and F90 mixes the specular intensity towards 1 the same way.
+    float3 specularColor = mix(dielectricF0, albedo, metalness);
+    float specularF90 = mix(specularIntensity, 1.0, metalness);
 
-    float3 color = diffuseColor * RECIPROCAL_PI * (light.ambient + light.direct);
+    float3 color = diffuseColor * diffuseScale * RECIPROCAL_PI * (light.ambient + light.direct);
 
     if (light.direct > 0.0) {
         float alpha = max(roughness, 0.0525);
@@ -181,7 +205,7 @@ static float3 shadeStandard(float3 albedo,
         float dotNH = saturate(dot(normal, halfDir));
         float dotVH = saturate(dot(viewDir, halfDir));
 
-        float3 f = fresnelSchlick(specularColor, dotVH);
+        float3 f = fresnelSchlick(specularColor, specularF90, dotVH);
         float v = smithCorrelatedVisibility(alpha, dotNL, dotNV);
         float d = distributionGGX(alpha, dotNH);
         color += light.direct * f * (v * d);
@@ -282,6 +306,7 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
                                     texture2d<float> baseColor [[texture(0)]],
                                     texture2d<float> clipMap [[texture(1)]],
                                     depth2d<float> shadowMap [[texture(2)]],
+                                    texture2d<float> emissiveMap [[texture(3)]],
                                     sampler baseSampler [[sampler(0)]],
                                     sampler clipSampler [[sampler(1)]],
                                     sampler shadowSampler [[sampler(2)]])
@@ -330,15 +355,34 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
 
     SceneOut out;
     if (uniforms.flags.y > 0.5) {
-        // The shadow blob is a `MeshBasicMaterial` in the JS — flat, unlit.
+        // The shadow blob is a `MeshBasicMaterial` in the JS — flat, unlit, no emission.
         out.color = color;
     } else {
         float shadow = sampleShadow(scene, shadowMap, shadowSampler, in.worldPosition);
         LightSample light = sampleLight(scene, in.worldPosition, normal, shadow);
         float3 viewDir = normalize(scene.cameraPosition.xyz - in.worldPosition);
-        out.color = float4(shadeStandard(color.rgb, uniforms.flags.z, uniforms.flags.w,
-                                         normal, viewDir, light),
-                           color.a);
+
+        // `KHR_materials_transmission`: three.js replaces the diffuse lobe with a sample of
+        // the backdrop it renders to a separate target. There is no such target here, so the
+        // diffuse lobe is dropped by `transmission` and the surface is made that much more
+        // transparent instead — the transmissive pipeline blends premultiplied, which makes
+        // the composite `mix(diffuse, backdrop, transmission) + specular`. What is missing
+        // against three.js is the *refraction* and the roughness blur of that backdrop, not
+        // the see-through itself.
+        float transmission = uniforms.surface.x;
+
+        float3 shaded = shadeStandard(color.rgb, uniforms.flags.z, uniforms.flags.w,
+                                      uniforms.specular.xyz, uniforms.specular.w,
+                                      1.0 - transmission,
+                                      normal, viewDir, light);
+
+        // `totalEmissiveRadiance`, added after the lighting exactly as three.js does.
+        float3 emissive = uniforms.emissive.xyz;
+        if (uniforms.emissive.w > 0.5) {
+            emissive *= emissiveMap.sample(baseSampler, in.uv).rgb;
+        }
+
+        out.color = float4(shaded + emissive, color.a * (1.0 - transmission));
     }
     out.normal = packViewNormal(scene, normal);
     return out;

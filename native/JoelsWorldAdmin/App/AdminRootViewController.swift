@@ -62,7 +62,25 @@ extension AdminRootViewController: AdminSessionDelegate {
         sidebar.reloadMaps()
         mapController.worldDidChange()
         sidebar.refreshAll()
+        applySelectionArgument()
         startSelfTestIfNeeded()
+    }
+
+    /// `-select object|npc <id>` — picks an entity on the way in, so a scripted `-shot` can
+    /// frame an inspector or an NPC's rings and route. Selection is otherwise only reachable
+    /// by clicking, which nothing can do from a script.
+    private func applySelectionArgument() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-select"), index + 2 < arguments.count,
+              let id = Int(arguments[index + 2])
+        else { return }
+
+        switch arguments[index + 1] {
+        case "object": mapController.select(objectId: id)
+        case "npc": mapController.select(npcId: id)
+        default: Log.world("-select expects 'object' or 'npc'")
+        }
+        sidebar.refreshAll()
     }
 
     private func startSelfTestIfNeeded() {

@@ -36,6 +36,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var quadOverlayPipeline: MTLRenderPipelineState!
     private var characterPipeline: MTLRenderPipelineState!
     private var characterBlendPipeline: MTLRenderPipelineState!
+    /// Premultiplied blend, for props carrying `KHR_materials_transmission`.
+    private var characterTransmissivePipeline: MTLRenderPipelineState!
     private var shadowPipeline: MTLRenderPipelineState!
     private var ssaoPipeline: MTLRenderPipelineState!
     private var ssaoBlurPipeline: MTLRenderPipelineState!
@@ -129,7 +131,9 @@ final class Renderer: NSObject, MTKViewDelegate {
         /// Scene-pass pipeline: colour attachment 0 plus the view-space normal buffer SSAO reads.
         /// Blended draws (overlays, shadow blobs) leave the normal buffer alone, so it stays
         /// consistent with the depth buffer, which they also do not write.
-        func makeScenePipeline(vertex: String, fragment: String, blended: Bool) -> MTLRenderPipelineState? {
+        func makeScenePipeline(vertex: String, fragment: String,
+                               blended: Bool,
+                               premultiplied: Bool = false) -> MTLRenderPipelineState? {
             let descriptor = MTLRenderPipelineDescriptor()
             descriptor.vertexFunction = library.makeFunction(name: vertex)
             descriptor.fragmentFunction = library.makeFunction(name: fragment)
@@ -142,8 +146,11 @@ final class Renderer: NSObject, MTKViewDelegate {
                 attachment.isBlendingEnabled = true
                 attachment.rgbBlendOperation = .add
                 attachment.alphaBlendOperation = .add
-                attachment.sourceRGBBlendFactor = .sourceAlpha
-                attachment.sourceAlphaBlendFactor = .sourceAlpha
+                // A transmissive surface emits its specular highlight on top of whatever it
+                // lets through, so its colour arrives already scaled by coverage and must not
+                // be scaled again. Everything else blends the ordinary way.
+                attachment.sourceRGBBlendFactor = premultiplied ? .one : .sourceAlpha
+                attachment.sourceAlphaBlendFactor = premultiplied ? .one : .sourceAlpha
                 attachment.destinationRGBBlendFactor = .oneMinusSourceAlpha
                 attachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
                 descriptor.colorAttachments[1].writeMask = []
@@ -170,6 +177,9 @@ final class Renderer: NSObject, MTKViewDelegate {
               let quadOverlay = makeScenePipeline(vertex: "quadVertex", fragment: "quadFragment", blended: true),
               let character = makeScenePipeline(vertex: "characterVertex", fragment: "characterFragment", blended: false),
               let characterBlend = makeScenePipeline(vertex: "characterVertex", fragment: "characterFragment", blended: true),
+              let characterTransmissive = makeScenePipeline(vertex: "characterVertex",
+                                                            fragment: "characterFragment",
+                                                            blended: true, premultiplied: true),
               let shadow = try? device.makeRenderPipelineState(descriptor: shadowDescriptor),
               let ssao = makePostPipeline(fragment: "ssaoFragment", format: Self.aoFormat),
               let ssaoBlur = makePostPipeline(fragment: "ssaoBlurFragment", format: Self.aoFormat),
@@ -183,6 +193,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         quadOverlayPipeline = quadOverlay
         characterPipeline = character
         characterBlendPipeline = characterBlend
+        characterTransmissivePipeline = characterTransmissive
         shadowPipeline = shadow
         ssaoPipeline = ssao
         ssaoBlurPipeline = ssaoBlur
@@ -493,6 +504,19 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         drawCharacters(viewProjection: viewProjection, encoder: encoder, poses: poses)
+
+        // Transmissive prop materials — a glass lens, a bottle — after everything opaque, so
+        // there is something behind them to show through. Same opaque-then-transparent order
+        // three.js sorts into.
+        if props.hasTransmissive {
+            encoder.setRenderPipelineState(characterTransmissivePipeline)
+            encoder.setDepthStencilState(overlayDepthState)
+            encoder.setFragmentSamplerState(linearSamplerState, index: 0)
+            encoder.setFragmentSamplerState(samplerState, index: 1)
+            encoder.setFragmentTexture(characters.fallbackTexture, index: 1)
+            props.draw(viewProjection: viewProjection, encoder: encoder,
+                       fallbackTexture: characters.fallbackTexture, transmissive: true)
+        }
 
         // Overlays last, blended, ascending in depth.
         encoder.setRenderPipelineState(quadOverlayPipeline)
