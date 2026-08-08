@@ -49,6 +49,9 @@ final class GameViewController: UIViewController {
         NotificationCenter.default.addObserver(
             self, selector: #selector(appDidEnterBackground),
             name: UIApplication.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(appWillEnterForeground),
+            name: UIApplication.willEnterForegroundNotification, object: nil)
     }
 
     override var prefersStatusBarHidden: Bool { true }
@@ -262,6 +265,10 @@ final class GameViewController: UIViewController {
 
     @objc private func appDidEnterBackground() {
         audio.suspend()
+    }
+
+    @objc private func appWillEnterForeground() {
+        audio.resume()
     }
 
     // MARK: - Server messages

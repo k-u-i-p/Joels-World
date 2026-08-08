@@ -93,6 +93,16 @@ final class SoundManager {
 
     private let decodeQueue = DispatchQueue(label: "com.allr.joelsworld.audio", qos: .userInitiated)
 
+    /// Session calls run here rather than on the main thread. `setCategory` and `setActive` are
+    /// round trips to the audio server, not property sets, and `AVAudioSession` logs
+    /// *"This method can lead to UI unresponsiveness if called on the main thread"* for the
+    /// activation. On a game that is a dropped frame at the worst possible moment.
+    private let sessionQueue = DispatchQueue(label: "com.allr.joelsworld.audio.session")
+
+    /// Bumped whenever the session is deliberately given up, so an activation that was already
+    /// in flight cannot come back and report an active session that is no longer wanted.
+    private var sessionGeneration = 0
+
     init() {
         let center = NotificationCenter.default
         center.addObserver(self, selector: #selector(configurationChanged),
@@ -103,11 +113,6 @@ final class SoundManager {
         // graph, the buffers and the pooling are all the same on both, which is what lets the
         // map editor play the map's music without a second sound stack.
 #if os(iOS)
-        // `.playback` matches what the Capacitor build got from `NativeAudio`: the game's own
-        // music keeps playing with the ring switch on silent, which is what players expect
-        // from a game rather than from a web page.
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-
         center.addObserver(self, selector: #selector(sessionInterrupted),
                            name: AVAudioSession.interruptionNotification,
                            object: AVAudioSession.sharedInstance())
@@ -115,6 +120,11 @@ final class SoundManager {
                            name: AVAudioSession.mediaServicesWereResetNotification,
                            object: AVAudioSession.sharedInstance())
 #endif
+
+        // Warmed now rather than on the first sound. Every sound has a fetch and a decode in
+        // front of it, so the session is up long before anything needs it and the synchronous
+        // fallback in `activateSession()` never has to run on the main thread.
+        primeSession()
     }
 
     deinit {
@@ -169,7 +179,14 @@ final class SoundManager {
 
         engine.stop()
         sessionActive = false
+        sessionGeneration &+= 1
         needsRestart = true
+    }
+
+    /// Coming back from the background, where `stopAll` gave the session up. Warming it here
+    /// keeps the activation off the main thread and off the first sound after the switch.
+    func resumeSession() {
+        primeSession()
     }
 
     // MARK: - Engine
@@ -276,6 +293,7 @@ final class SoundManager {
             case .began:
                 // The session is gone; so is the engine. Drop the graph and wait.
                 self.sessionActive = false
+                self.sessionGeneration &+= 1
                 self.needsRestart = true
                 self.rebuildGraph(restart: false)
 
@@ -283,7 +301,7 @@ final class SoundManager {
                 let options = AVAudioSession.InterruptionOptions(
                     rawValue: info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
                 guard options.contains(.shouldResume) else { return }
-                self.rebuildGraph()
+                self.primeSession { self.rebuildGraph() }
 
             @unknown default:
                 break
@@ -298,9 +316,9 @@ final class SoundManager {
             guard let self else { return }
             Log.world("Media services were reset — reconfiguring audio")
             self.sessionActive = false
+            self.sessionGeneration &+= 1
             self.needsRestart = true
-            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-            self.rebuildGraph()
+            self.primeSession { self.rebuildGraph() }
         }
     }
 #endif
@@ -325,6 +343,46 @@ final class SoundManager {
         }
     }
 
+    /// Gets the session up off the main thread, then runs `work` back on the main thread.
+    ///
+    /// `.playback` matches what the Capacitor build got from `NativeAudio`: the game's own music
+    /// keeps playing with the ring switch on silent, which is what players expect from a game
+    /// rather than from a web page. It is set again on every prime because a media services
+    /// reset hands back a session with the category reset to the default.
+    ///
+    /// Call on the main thread — `sessionGeneration` is read there.
+    func primeSession(then work: (() -> Void)? = nil) {
+#if os(iOS)
+        let generation = sessionGeneration
+        sessionQueue.async { [weak self] in
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback, mode: .default)
+
+            var activated = true
+            do {
+                try session.setActive(true)
+            } catch {
+                Log.world("Audio session failed to activate: \(error.localizedDescription)")
+                activated = false
+            }
+
+            DispatchQueue.main.async {
+                if let self, activated, self.sessionGeneration == generation {
+                    self.sessionActive = true
+                }
+                work?()
+            }
+        }
+#else
+        work?()
+#endif
+    }
+
+    /// The last-resort activation, on the calling (main) thread.
+    ///
+    /// Only reached when a sound beats the background prime — a race the fetch and decode in
+    /// front of every sound makes very unlikely, but the alternative to blocking here is a
+    /// silently dropped sound, and the engine must not be started against a dead session.
     @discardableResult
     private func activateSession() -> Bool {
 #if os(iOS)

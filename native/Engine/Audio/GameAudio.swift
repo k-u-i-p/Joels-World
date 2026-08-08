@@ -84,4 +84,11 @@ final class GameAudio {
         perSource.removeAll()
         sounds.stopAll()
     }
+
+    /// Coming back to the foreground. Nothing restarts here — the loops come back on demand —
+    /// but the audio session is warmed again now so the first sound after the switch is not
+    /// the thing that has to wait for it.
+    func resume() {
+        sounds.resumeSession()
+    }
 }
