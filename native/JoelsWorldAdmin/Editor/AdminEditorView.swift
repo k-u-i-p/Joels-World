@@ -22,6 +22,11 @@ protocol AdminEditorViewDelegate: AnyObject {
 final class AdminEditorView: NSView {
     weak var delegate: AdminEditorViewDelegate?
 
+    /// Held arrow/WASD keys, polled by the frame loop. Owned here because this is the view
+    /// that receives key events; a text field in the sidebar takes first responder while it is
+    /// being typed into, which is what stops an inspector edit from walking the camera.
+    let keyboard = KeyboardMovement()
+
     /// Screen coordinates run Y-down, matching the canvas maths the editor is ported from.
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -99,7 +104,35 @@ final class AdminEditorView: NSView {
             delegate?.editorDeleteSelection()
             return
         }
+        // Swallowed rather than passed on: `super.keyDown` would hand the arrows to AppKit,
+        // which beeps at them here.
+        if keyboard.keyDown(event) { return }
         super.keyDown(with: event)
+    }
+
+    override func keyUp(with event: NSEvent) {
+        if keyboard.keyUp(event) { return }
+        super.keyUp(with: event)
+    }
+
+    /// ⌘-tabbing away mid-stride would otherwise leave the key held forever.
+    override func resignFirstResponder() -> Bool {
+        keyboard.releaseAll()
+        return super.resignFirstResponder()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: nil)
+        guard let window else { return }
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(windowDidResignKey),
+                                               name: NSWindow.didResignKeyNotification,
+                                               object: window)
+    }
+
+    @objc private func windowDidResignKey() {
+        keyboard.releaseAll()
     }
 
     // MARK: - Clipboard

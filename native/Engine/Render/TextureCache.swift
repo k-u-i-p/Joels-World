@@ -20,9 +20,9 @@ final class TextureCache {
         self.loader = MTKTextureLoader(device: device)
 
         let config = URLSessionConfiguration.default
-        config.urlCache = URLCache(memoryCapacity: 32 * 1024 * 1024,
-                                   diskCapacity: 512 * 1024 * 1024,
-                                   diskPath: "joelsworld-tiles")
+        config.urlCache = DiskCache.make(name: "joelsworld-tiles",
+                                         memoryCapacity: 32 * 1024 * 1024,
+                                         diskCapacity: 512 * 1024 * 1024)
         config.requestCachePolicy = .returnCacheDataElseLoad
         self.session = URLSession(configuration: config)
     }

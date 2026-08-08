@@ -30,6 +30,8 @@ final class AdminSelfTest {
         schedule(4.5) { self.testNPCSelectAndDrag() }
         schedule(6.0) { self.testEventTreeRead() }
         schedule(6.5) { self.testCreateEditDelete() }
+        schedule(9.0) { self.testKeyboardTurn() }
+        schedule(10.5) { self.testKeyboardWalk() }
     }
 
     private func schedule(_ delay: Double, _ body: @escaping () -> Void) {
@@ -216,6 +218,80 @@ final class AdminSelfTest {
         let exitCount = npc.on_exit?.arrayValue?.count ?? 0
         let types = (npc.on_enter?.arrayValue ?? []).compactMap { $0.objectValue?.keys.sorted().first }
         log("NPC \(npc.id) '\(npc.name ?? "?")' on_enter=\(enterCount) actions \(types), on_exit=\(exitCount)")
+    }
+
+    // MARK: - Keyboard movement
+
+    /// Hold ← for a beat and check the heading swung the way tank controls say it should.
+    /// The frame loop is what turns a held key into motion, so each of these presses, waits
+    /// for real frames to run, and releases.
+    private func testKeyboardTurn() {
+        let before = session.state.player.rotation
+        guard press(123) else { return log("could not synthesise a key event") }
+        schedule(1.0) {
+            let stillHeld = self.map.keyboard.inputState().turn
+            self.release(123)
+            let after = self.session.state.player.rotation
+            let delta = after - before
+            self.log("held ← 1.0s: rotation \(Int(before.rounded()))° → \(Int(after.rounded()))° " +
+                     "(Δ\(Int(delta.rounded()))°, expected negative)\(Self.focusNote(stillHeld))")
+        }
+    }
+
+    /// A background window drops its keys on purpose (`resignFirstResponder` /
+    /// `didResignKey`), which shows up here as a step that did nothing. Say so, rather than
+    /// leaving a Δ0 that reads like a broken key handler.
+    private static func focusNote(_ stillHeld: Double) -> String {
+        stillHeld == 0 ? "  ← key released early: the window was not frontmost" : ""
+    }
+
+    /// Hold ↑ and check the camera focus actually walked. Distance is left unasserted: the
+    /// editor's avatar walks the real clip mask, so a spawn point facing a wall legitimately
+    /// moves nothing — the log says which happened.
+    private func testKeyboardWalk() {
+        let startX = session.state.player.x
+        let startY = session.state.player.y
+        let heading = session.state.player.rotation
+        guard press(126) else { return log("could not synthesise a key event") }
+        schedule(1.0) {
+            let stillHeld = self.map.keyboard.inputState().forward
+            self.release(126)
+            let dx = self.session.state.player.x - startX
+            let dy = self.session.state.player.y - startY
+            let moved = (dx * dx + dy * dy).squareRoot()
+            self.log("held ↑ 1.0s on heading \(Int(heading.rounded()))°: moved \(Int(moved.rounded()))px " +
+                     "to (\(Int(self.session.state.player.x)), \(Int(self.session.state.player.y)))" +
+                     Self.focusNote(stillHeld))
+            // Never leave a key stuck down for whatever runs after this.
+            self.map.keyboard.releaseAll()
+        }
+    }
+
+    /// Builds the event AppKit would have delivered and hands it to the real handler. There is
+    /// no way to inject a keystroke into a Mac app from a script without an Accessibility
+    /// grant, which is the same reason `-walktest` fakes joystick input on iOS.
+    private func press(_ keyCode: UInt16) -> Bool {
+        guard let event = keyEvent(keyCode, down: true) else { return false }
+        return map.keyboard.keyDown(event)
+    }
+
+    @discardableResult
+    private func release(_ keyCode: UInt16) -> Bool {
+        guard let event = keyEvent(keyCode, down: false) else { return false }
+        return map.keyboard.keyUp(event)
+    }
+
+    private func keyEvent(_ keyCode: UInt16, down: Bool) -> NSEvent? {
+        NSEvent.keyEvent(with: down ? .keyDown : .keyUp,
+                         location: .zero,
+                         modifierFlags: [],
+                         timestamp: ProcessInfo.processInfo.systemUptime,
+                         windowNumber: map.view.window?.windowNumber ?? 0,
+                         context: nil,
+                         characters: "",
+                         charactersIgnoringModifiers: "",
+                         isARepeat: false,
+                         keyCode: keyCode)
     }
 
     // MARK: - Helpers

@@ -443,10 +443,20 @@ final class GameState {
         // targets for this frame are set before anything interpolates towards them.
         NPCBehaviour.update(npcs: npcs, visuals: &visuals, dt: dt)
 
+        // Rotation (tank controls), `main.js:314-321`. The JS gates this on the minimap being
+        // shut; there is no minimap on the surface that sends `turn`.
+        if input.turn != 0 {
+            player.rotation += input.turn * player.rotationSpeed * timeScale
+        }
+
         if input.isMoving {
             // The joystick drives heading directly, matching `input.js:188`.
             player.rotation = input.angleDegrees
         }
+
+        // `getDemandedMovementVector`: a thumbstick takes the whole branch and always drives
+        // forward, so the keys only count when there is no stick input.
+        let forward = input.isMoving ? 1.0 : input.forward
 
         var dx: Double = 0
         var dy: Double = 0
@@ -458,7 +468,7 @@ final class GameState {
             emoteForcedMove = EventInterpreter.nowMilliseconds() - emote.startTime < 800
         }
 
-        if input.isMoving && !emoteForcedMove {
+        if forward != 0 && !emoteForcedMove {
             if player.runDirectionStart == nil {
                 player.runDirectionStart = Date.timeIntervalSinceReferenceDate
             }
@@ -466,7 +476,7 @@ final class GameState {
             player.isRunning = heldFor >= 2.5
 
             let speed = player.isRunning ? player.moveSpeed * 1.2 : player.moveSpeed
-            let scaledSpeed = speed * timeScale
+            let scaledSpeed = speed * timeScale * forward
             let angle = player.rotation * .pi / 180
             dx = cos(angle) * scaledSpeed
             dy = sin(angle) * scaledSpeed

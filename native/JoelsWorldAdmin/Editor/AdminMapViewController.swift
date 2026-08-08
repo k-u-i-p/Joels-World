@@ -12,6 +12,10 @@ final class AdminMapViewController: NSViewController {
     private let overlay = AdminOverlayView()
     private var editorView: AdminEditorView { view as! AdminEditorView }
 
+    /// The held-key set the frame loop polls. Exposed so `-selftest` can drive the real
+    /// handlers, the way its mouse steps do.
+    var keyboard: KeyboardMovement { editorView.keyboard }
+
     /// Raised whenever the inspectors need to re-read the selection.
     var onSelectionChanged: (() -> Void)?
     /// Raised when a drag or resize changed the selected entity's geometry, so open inspector
@@ -80,8 +84,12 @@ final class AdminMapViewController: NSViewController {
         }
         self.renderer = renderer
 
-        // The editor never walks: the camera focus is dragged instead.
-        renderer.inputProvider = { InputState() }
+        // The editor's camera focus *is* its player (see `setCameraFocus`), so the keyboard
+        // walks it: arrows or WASD, tank controls, through the shipped movement and collision
+        // code. Dragging still pans freely — that path writes the focus directly and ignores
+        // walls, which is what you want when framing a shot rather than testing one.
+        let keyboard = editorView.keyboard
+        renderer.inputProvider = { keyboard.inputState() }
         renderer.onFrame = { [weak self] _ in self?.refreshOverlay() }
         metalView.delegate = renderer
 

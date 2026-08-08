@@ -76,9 +76,9 @@ final class ModelStore {
         self.textureLoader = MTKTextureLoader(device: device)
 
         let config = URLSessionConfiguration.default
-        config.urlCache = URLCache(memoryCapacity: 16 * 1024 * 1024,
-                                   diskCapacity: 256 * 1024 * 1024,
-                                   diskPath: "joelsworld-models")
+        config.urlCache = DiskCache.make(name: "joelsworld-models",
+                                         memoryCapacity: 16 * 1024 * 1024,
+                                         diskCapacity: 256 * 1024 * 1024)
         config.requestCachePolicy = .returnCacheDataElseLoad
         self.session = URLSession(configuration: config)
     }
