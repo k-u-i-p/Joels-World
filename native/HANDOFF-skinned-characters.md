@@ -1,5 +1,9 @@
 # Handoff — the skinned character body
 
+> **Continued in [HANDOFF-skinned-characters-part2.md](HANDOFF-skinned-characters-part2.md)** —
+> clothes. Items 4 and 5 of "What is left" below are done there, and by texture rather than by
+> geometry. Read this one first; it is where the mesh comes from.
+
 **Session 1.** This is the first step of a longer piece of work: raising character fidelity
 towards a proper modelled character. Ben asked for **Route A** of three options put to him — the
 one that can be done automatically, in the engine, with no artist and no bought asset.

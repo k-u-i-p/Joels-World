@@ -118,6 +118,28 @@ enum ClothingAtlas {
     }
 
     static func make(device: MTLDevice) -> MTLTexture? {
+        let pixels = self.pixels()
+
+        // **Not** sRGB, and not loaded through `MTKTextureLoader`. These are three instructions
+        // and an unused alpha, not a colour: a gamma curve applied to "multiply by 1" would
+        // quietly stop meaning 1.
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm,
+                                                                  width: width, height: height,
+                                                                  mipmapped: false)
+        descriptor.usage = .shaderRead
+        guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
+        texture.replace(region: MTLRegionMake2D(0, 0, width, height),
+                        mipmapLevel: 0, withBytes: pixels, bytesPerRow: width * 4)
+        return texture
+    }
+
+    /// The atlas as raw RGBA bytes, no Metal involved.
+    ///
+    /// Split out from `make` so the thing can be *looked at*. Every mark here is a number in a
+    /// band or a bump, and reading numbers is a poor way to find out that a button came out as a
+    /// dash — `tools/clothing_atlas.swift` compiles this file on its own and writes the result to
+    /// a PNG, which takes a second and answers the question directly.
+    static func pixels() -> [UInt8] {
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
         let span = Float(rowHeight - 2 * guardRows - 1)
 
@@ -137,18 +159,7 @@ enum ClothingAtlas {
                 }
             }
         }
-
-        // **Not** sRGB, and not loaded through `MTKTextureLoader`. These are three instructions
-        // and an unused alpha, not a colour: a gamma curve applied to "multiply by 1" would
-        // quietly stop meaning 1.
-        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm,
-                                                                  width: width, height: height,
-                                                                  mipmapped: false)
-        descriptor.usage = .shaderRead
-        guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
-        texture.replace(region: MTLRegionMake2D(0, 0, width, height),
-                        mipmapLevel: 0, withBytes: pixels, bytesPerRow: width * 4)
-        return texture
+        return pixels
     }
 
     private static func paint(_ region: ClothingRegion, u: Float, v: Float) -> Detail {
@@ -172,22 +183,35 @@ enum ClothingAtlas {
 
         // The collar, with a V at the front. `dip` is 1 on the centre line and 0 by a fifth of
         // the way round, and squaring it makes the V pointed rather than round-bottomed.
+        //
+        // 0.795 rather than the neck root at 0.98, and the V down to 0.66, because of what the
+        // *silhouette* does up there: from 0.83 upwards the profile is the trapezius sloping in
+        // to the neck, which faces almost straight up and is hidden by the head from every camera
+        // this game has. A collar painted where a collar sits is a collar nobody sees. This one
+        // sits on the shoulders and opens onto the chest, which is where it reads.
         let dip = max(0, 1 - u / 0.21)
-        let collarBottom = 0.865 - 0.095 * dip * dip
+        let collarBottom = 0.795 - 0.135 * dip * dip
         detail.trim = rise(v, at: collarBottom, over: 0.018)
 
         // The button placket: a strip of doubled cloth down the centre, a seam either side of it
         // and four buttons on it. It stops where the collar starts.
+        //
+        // Wider and darker than a real one, because of how few pixels it gets. The front face of
+        // the chest is about eleven units across and a character in the overworld is forty pixels
+        // tall: a placket at true scale is one pixel, which is not a placket, it is a stray. At
+        // this width it reads at overworld range and still looks like cloth up close.
         let along = between(v, 0.10, collarBottom - 0.015, soft: 0.02)
-        let strip = 1 - rise(u, at: 0.065, over: 0.012)
-        detail.shade += 0.045 * strip * along
-        detail.shade -= 0.13 * line(u, at: 0.072, halfWidth: 0.010) * along
-        for button in [Float(0.28), 0.44, 0.60, 0.76] {
-            detail.shade -= 0.22 * blob(u: u, v: v, atU: 0, atV: button, radiusU: 0.040, radiusV: 0.037)
+        let strip = 1 - rise(u, at: 0.075, over: 0.014)
+        detail.shade += 0.05 * strip * along
+        detail.shade -= 0.16 * line(u, at: 0.084, halfWidth: 0.012) * along
+        for button in [Float(0.28), 0.42, 0.56, 0.70] {
+            detail.shade -= 0.28 * blob(u: u, v: v, atU: 0, atV: button, radiusU: 0.046, radiusV: 0.040)
         }
 
-        // The shirt is loose over the shorts, so the last inch of it is in its own shadow.
-        detail.shade -= 0.11 * (1 - rise(v, at: 0.085, over: 0.055))
+        // The shirt is loose over the shorts, so the crease at the hem is in its own shadow.
+        // Gently — at this size a strong band across the waist stops reading as a shadow and
+        // starts reading as a belt.
+        detail.shade -= 0.07 * (1 - rise(v, at: 0.075, over: 0.07))
         // The yoke seam across the shoulders.
         detail.shade -= 0.055 * line(v, at: 0.815, halfWidth: 0.006)
         return detail
@@ -216,7 +240,7 @@ enum ClothingAtlas {
         var detail = Detail()
         detail.bare = rise(v, at: sleeveEnd, over: 0.012)
         // The turn-up hem, just above the edge.
-        detail.shade -= 0.13 * between(v, sleeveEnd - 0.055, sleeveEnd - 0.004, soft: 0.008)
+        detail.shade -= 0.16 * between(v, sleeveEnd - 0.060, sleeveEnd - 0.004, soft: 0.008)
         // The shadow the sleeve drops on the arm below it, fading out over an inch of skin.
         detail.shade -= 0.15 * detail.bare * (1 - rise(v, at: sleeveEnd, over: 0.075))
         // Where the sleeve is set into the yoke.
