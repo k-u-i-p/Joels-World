@@ -421,13 +421,9 @@ private final class TennisCanvasView: UIView {
             // Undo the viewport mapping to recover pure game coordinates.
             let gameX = (point.x - layout.offsetX) / layout.scale - layout.centerX
             let gameY = (point.y - layout.offsetY) / layout.scale
-            let elevateZ = side.current.z
 
             side.racket.x = Double(gameX)
             side.racket.y = Double(gameY)
-            side.racket.groundY = Double(gameY) + elevateZ
-            // Arm pitch raises the strike zone.
-            side.racket.z = elevateZ + 20 * sin(Double(pitch))
             side.racket.w = Double(max(1, rx * CGFloat(TennisGame.cameraZoom) * courtScale))
             side.racket.h = Double(max(1, headRy * CGFloat(TennisGame.cameraZoom) * courtScale))
             side.racket.angle = side.current.rotation * .pi / 180 + Double(yaw) + .pi / 2

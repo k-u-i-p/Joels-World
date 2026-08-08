@@ -78,13 +78,13 @@ extension TennisGame {
         var rotation: Double = 0
     }
 
-    /// Where the racket actually ended up, in game coordinates. Everything but `pitch`/`yaw`/
-    /// `roll`/`armX`/`armY` is filled in by the renderer.
+    /// Where the racket actually ended up, in game coordinates. `pitch`/`yaw`/`roll`/`armX`/
+    /// `armY` are the aim the simulation converges towards; `x`/`y`/`w`/`h`/`angle` are the
+    /// hitbox the renderer writes back once it has drawn the head there.
     struct Racket {
         var x: Double = 0
         var y: Double = 0
-        var groundY: Double = 0
-        var z: Double = 0
+        /// Semi-axes of the head's ellipse, in game units.
         var w: Double = 1
         var h: Double = 1
         var angle: Double = 0

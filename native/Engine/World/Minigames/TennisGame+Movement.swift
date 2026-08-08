@@ -11,20 +11,14 @@ extension TennisGame {
     /// `moveCharacterTo` (`tennis.js:1026-1034`). Returns whether the character still has
     /// meaningful distance to cover.
     @discardableResult
-    func moveCharacter(_ side: Side, toX x: Double, y: Double,
-                               z: Double = TennisGame.restingZ) -> Bool {
+    func moveCharacter(_ side: Side, toX x: Double, toY y: Double,
+                       z: Double = TennisGame.restingZ) -> Bool {
         side.target.x = x
         side.target.y = y
         side.target.z = z
         return abs(x - side.current.x) > 10
             || abs(y - side.current.y) > 10
             || abs(z - side.current.z) > 10
-    }
-
-    /// The two-argument form the JS gets from a default parameter.
-    @discardableResult
-    func moveCharacter(_ side: Side, toX x: Double, toY y: Double) -> Bool {
-        moveCharacter(side, toX: x, y: y, z: Self.restingZ)
     }
 
     /// `getOptimalInterceptPosition` (`tennis.js:1037-1072`). Where the *body* has to stand for
@@ -72,7 +66,7 @@ extension TennisGame {
         }
 
         let target = optimalInterceptPosition(for: side, intercept: intercept)
-        _ = moveCharacter(side, toX: target.x, y: target.y, z: Self.restingZ)
+        moveCharacter(side, toX: target.x, toY: target.y)
         side.previousMoveToIntercept = intercept
     }
 
@@ -185,18 +179,7 @@ extension TennisGame {
         if canCharacterHit(isPlayer: isPlayer),
            let intercept = side.lastIntercept, intercept.t >= 0, distanceXY < 100 {
 
-            /// True while the racket is still in front of the oncoming ball — once it is more
-            /// than 10 units behind, the swing has been missed and the character tracks the
-            /// prediction instead of the ball itself.
-            func isRacketInRange(racketX: Double, racketY: Double) -> Bool {
-                let speed = sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
-                if speed == 0 { return true }
-                let nx = ball.vx / speed
-                let ny = ball.vy / speed
-                let dot = (racketX - ball.x) * nx + (racketY - ball.y) * ny
-                return dot <= 10
-            }
-
+            // Where the racket is heading this frame, in world space.
             let rotation = side.current.rotation * .pi / 180
             let armWorldX = side.racketTarget.armX * cos(rotation)
                 - side.racketTarget.armY * sin(rotation)
@@ -204,31 +187,38 @@ extension TennisGame {
                 + side.racketTarget.armY * cos(rotation)
             let racketWorldX = side.current.x + armWorldX
             let racketWorldY = side.current.y + armWorldY
-            let inRange = isRacketInRange(racketX: racketWorldX, racketY: racketWorldY)
 
-            var reach = inRange
-                ? armReach(for: side, towards: ball.x, ball.y, ball.z)
-                : armReach(for: side, towards: intercept.x, intercept.y, intercept.z)
+            // How far along the ball's flight the racket sits. Positive means the ball has
+            // already gone past it: more than 10 units past and the swing has been missed, so
+            // the character goes back to tracking the prediction instead of the ball itself.
+            let speed = hypot(ball.vx, ball.vy)
+            let alongFlight = speed == 0 ? -Double.infinity
+                : ((racketWorldX - ball.x) * ball.vx
+                   + (racketWorldY - ball.y) * ball.vy) / speed
+
+            let swingAt = alongFlight <= 10
+                ? Intercept(x: ball.x, y: ball.y, z: ball.z, t: intercept.t,
+                            vx: ball.vx, vy: ball.vy, vz: ball.vz)
+                : intercept
+
+            var reach = armReach(for: side, towards: swingAt.x, swingAt.y, swingAt.z)
             reach.z = min(max(reach.z, Self.minCrouch), Self.maxJump)
 
-            let lastZChange = now - side.lastZChangeTime
-            if lastZChange > 150 {
-                if intercept.t < 0.3 && (now - side.lastJumpTime > 500)
-                    && side.current.z <= Self.jumpZ {
-                    side.lastJumpTime = now
-                    side.target.z = reach.z      // Jump — only from the ground.
-                    side.lastZChangeTime = now
-                } else if intercept.t < 0.25 && (now - side.lastJumpTime > 500)
-                            && reach.z < Self.restingZ {
-                    side.target.z = reach.z      // Crouch.
-                    side.lastZChangeTime = now
-                } else if reach.z >= Self.restingZ && reach.z < Self.jumpZ {
+            // Jump, crouch or stand — but no oftener than every 150 ms, so a jittering
+            // prediction cannot leave the character vibrating on the spot.
+            if now - side.lastZChangeTime > 150 {
+                let offJumpCooldown = now - side.lastJumpTime > 500
+                if intercept.t < 0.3 && offJumpCooldown && side.current.z <= Self.jumpZ {
+                    side.lastJumpTime = now      // Leap — only from the ground.
                     side.target.z = reach.z
-                    side.lastZChangeTime = now
+                } else if intercept.t < 0.25 && offJumpCooldown && reach.z < Self.restingZ {
+                    side.target.z = reach.z      // Crouch.
+                } else if reach.z >= Self.restingZ && reach.z < Self.jumpZ {
+                    side.target.z = reach.z      // Reach, without leaving the ground.
                 } else {
                     side.target.z = Self.restingZ
-                    side.lastZChangeTime = now
                 }
+                side.lastZChangeTime = now
             }
 
             side.racketTarget.armX = reach.x
@@ -238,14 +228,9 @@ extension TennisGame {
             let target = (x: flat.x, y: flat.y, z: Self.netHeight * Self.gameScale + 5)
             side.lastHitTarget = target
 
-            let aim = inRange
-                ? racketReturnAim(from: ball.vx, ball.vy, ball.vz,
-                                  at: ball.x, ball.y, ball.z,
-                                  side: side, target: target)
-                : racketReturnAim(from: intercept.vx, intercept.vy, intercept.vz,
-                                  at: intercept.x, intercept.y, intercept.z,
-                                  side: side, target: target)
-
+            let aim = racketReturnAim(from: swingAt.vx, swingAt.vy, swingAt.vz,
+                                      at: swingAt.x, swingAt.y, swingAt.z,
+                                      side: side, target: target)
             side.racketTarget.pitch = aim.pitch
             side.racketTarget.yaw = aim.yaw
             side.racketTarget.roll = aim.roll
@@ -286,12 +271,9 @@ extension TennisGame {
             if introTimer <= 0 { introPhase = .walkToBaseline }
 
         case .walkToBaseline:
-            let serveOffset = Self.courtWidth * 0.4
-            let targetPX = nextServerIsPlayer ? serveSide * serveOffset : serveSide * -serveOffset
-            let targetNX = nextServerIsPlayer ? serveSide * -serveOffset : serveSide * serveOffset
-
-            let pFar = moveCharacter(player, toX: targetPX, toY: Self.playerBaseY)
-            let nFar = moveCharacter(npc, toX: targetNX, toY: Self.npcBaseY)
+            let serveX = servePositionX
+            let pFar = moveCharacter(player, toX: serveX.player, toY: Self.playerBaseY)
+            let nFar = moveCharacter(npc, toX: serveX.npc, toY: Self.npcBaseY)
 
             convergePhysics(player, dt: dt, isPlayer: true, speedMult: 0.6)
             convergePhysics(npc, dt: dt, isPlayer: false, speedMult: 0.6)

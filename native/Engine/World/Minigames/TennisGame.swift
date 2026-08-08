@@ -34,7 +34,6 @@ final class TennisGame: Minigame {
     var faults = 0
     var serveSide: Double = -1
     var activeServiceBox: ServiceBox?
-    var tossTarget: (x: Double, y: Double, z: Double)?
 
     /// The `setTimeout`s `serveBall` and `throwBall` schedule, as wall-clock deadlines so a
     /// stalled frame does not stretch the serve the way an accumulated `dt` would.
@@ -71,23 +70,23 @@ final class TennisGame: Minigame {
         active = true
 
         serveSide = -1
-        let serveOffset = Self.courtWidth * 0.4
-        player.current.x = serveSide * -serveOffset
-        player.current.y = Self.playerBaseY
-        npc.current.x = serveSide * serveOffset
-        npc.current.y = Self.npcBaseY
-        resetDelayTimer = 0
-        player.current.z = 0
-        npc.current.z = 0
-        npc.target = Position(x: npc.current.x, y: npc.current.y, z: 0, rotation: 90)
-        player.target = Position(x: player.current.x, y: player.current.y, z: 0, rotation: 270)
         resetting = false
+        resetDelayTimer = 0
 
-        // The cinematic walk-on, rather than serving straight away.
+        // A cinematic walk-on from behind the baselines, rather than serving straight away.
+        let serveX = servePositionX
+        player.current.x = serveX.player
+        player.current.y = Self.playerBaseY + 30
+        player.current.z = 0
+        npc.current.x = serveX.npc
+        npc.current.y = Self.npcBaseY - 30
+        npc.current.z = 0
+        player.target = Position(x: serveX.player, y: Self.playerBaseY, z: 0, rotation: 270)
+        npc.target = Position(x: serveX.npc, y: Self.npcBaseY, z: 0, rotation: 90)
         introPhase = .walkToNet
         introTimer = 0
-        player.current.y = Self.playerBaseY + 30
-        npc.current.y = Self.npcBaseY - 30
+
+        // Out of sight under the court until the first serve puts it in a hand.
         ball.z = -100
         ball.vx = 0
         ball.vy = 0
@@ -101,6 +100,18 @@ final class TennisGame: Minigame {
         throwDeadline = nil
         apexDeadline = nil
         host.minigameStopBackground()
+    }
+
+    /// Where the two of them stand for a serve, whoever is serving: `serveBall` puts the
+    /// service box diagonally opposite the `serveSide` corner, so the server takes that corner
+    /// and the receiver waits in the box's own half.
+    ///
+    /// The intro walk-on and the between-points reset both come here. They used to work it out
+    /// separately and disagree — the intro mirrored the pair whenever the NPC was serving,
+    /// which started every match with the serve down the line and the receiver on the far side.
+    var servePositionX: (player: Double, npc: Double) {
+        let offset = serveSide * Self.courtWidth * 0.4
+        return (player: offset, npc: -offset)
     }
 
     /// The exit button — `tennis.js:684-692`.
@@ -148,24 +159,27 @@ final class TennisGame: Minigame {
     func handleTap(worldX: Double, worldY: Double) {
         guard active, !resetting else { return }
 
-        if let intercept = player.lastIntercept {
-            let dx = worldX - intercept.x
-            let dy = worldY - intercept.y
-            if sqrt(dx * dx + dy * dy) < 40 {
-                let optimal = optimalInterceptPosition(for: player, intercept: intercept)
-                _ = moveCharacter(player, toX: optimal.x, y: optimal.y, z: Self.restingZ)
-                return
-            }
+        // How near the crosshair a tap has to land to mean "swing at that" rather than
+        // "run to exactly here".
+        let swingRadius: Double = 40
+
+        var target = Intercept(x: worldX, y: worldY, z: Self.restingZ, t: 0, vx: 0, vy: 0, vz: 0)
+        if let intercept = player.lastIntercept,
+           hypot(worldX - intercept.x, worldY - intercept.y) < swingRadius {
+            target = intercept
         }
 
-        let target = Intercept(x: worldX, y: worldY, z: Self.restingZ, t: 0, vx: 0, vy: 0, vz: 0)
         let optimal = optimalInterceptPosition(for: player, intercept: target)
-        _ = moveCharacter(player, toX: optimal.x, y: optimal.y, z: Self.restingZ)
+        moveCharacter(player, toX: optimal.x, toY: optimal.y)
     }
 
     // MARK: - Frame
 
     /// `run(dt)` (`tennis.js:1353-1561`), up to the point where the JS starts rendering.
+    ///
+    /// Tapping is the whole control scheme. The web build's other movement source is the arrow
+    /// keys, which no touch device has, and it hides the joystick on the way in
+    /// (`tennis.js:675-676`).
     func update(dt: Double) {
         guard active else { return }
         fireDueTimers()
@@ -175,15 +189,12 @@ final class TennisGame: Minigame {
             return
         }
 
+        // Between points, both of them walk back to their serve marks.
         if resetting {
-            let serveOffset = Self.courtWidth * 0.4
-            let targetX = serveSide * serveOffset
-            _ = moveCharacter(player, toX: targetX, y: Self.playerBaseY, z: Self.restingZ)
-            _ = moveCharacter(npc, toX: -targetX, y: Self.npcBaseY, z: Self.restingZ)
+            let serveX = servePositionX
+            moveCharacter(player, toX: serveX.player, toY: Self.playerBaseY)
+            moveCharacter(npc, toX: serveX.npc, toY: Self.npcBaseY)
         }
-        // The web build's other movement source is the arrow keys, which no touch device has —
-        // it hides the joystick on the way in (`tennis.js:675-676`). Tapping is the whole
-        // control scheme on a phone, in both builds.
 
         processBallMovement(dt: dt)
 
@@ -196,8 +207,7 @@ final class TennisGame: Minigame {
         let npcMoved = processCharacter(npc, isPlayer: false, dt: dt)
         if !npcMoved { npc.target.rotation = 90 }
 
-        let visualBallY = ball.y - ball.z
-
+        // Both back on their marks: count the delay down, then serve.
         if resetting && !playerMoved && !npcMoved {
             if resetDelayTimer > 0 {
                 resetDelayTimer -= dt
@@ -208,26 +218,32 @@ final class TennisGame: Minigame {
 
         // Racket contact is resolved before the floor can end the rally, so a shot scooped off
         // the deck on the same frame it lands still counts.
-        processRacketDeflections(visualBallY: visualBallY)
+        processRacketDeflections(visualBallY: ball.y - ball.z)
+        processBallLeavingCourt()
+    }
 
-        if !resetting {
-            let isOffScreenX = abs(ball.x) > Self.playableHalfWidth + 150
-            let courtMaxY = Self.courtY + Self.courtHeight
-            let isOffScreenY = ball.y < Self.courtY - 150 || ball.y > courtMaxY + 150
+    /// The ball has left the playing area entirely, which ends the point one way or the other
+    /// depending on whether it ever landed in.
+    private func processBallLeavingCourt() {
+        guard !resetting else { return }
 
-            if isOffScreenX || isOffScreenY {
-                if bounceCount == 0 {
-                    // Flew out without ever bouncing.
-                    if isServe != .inPlay {
-                        triggerFault(playerServing: lastHitter == .player)
-                    } else {
-                        triggerPointReset(nextPlayerServing: lastHitter == .player)
-                    }
-                } else if bounceCount == 1 {
-                    // Bounced in, then left the court — a winner.
-                    triggerPointReset(nextPlayerServing: lastHitter == .npc)
-                }
-            }
+        let margin: Double = 150
+        let outX = abs(ball.x) > Self.playableHalfWidth + margin
+        let outY = ball.y < Self.courtY - margin
+            || ball.y > Self.courtY + Self.courtHeight + margin
+        guard outX || outY else { return }
+
+        switch bounceCount {
+        case 0 where isServe != .inPlay:
+            triggerFault(playerServing: lastHitter == .player)
+        case 0:
+            // Struck straight out, without ever landing.
+            triggerPointReset(nextPlayerServing: lastHitter == .player)
+        case 1:
+            // Bounced in, then left the court — a winner for whoever hit it.
+            triggerPointReset(nextPlayerServing: lastHitter == .npc)
+        default:
+            break    // A second bounce has already ended the point.
         }
     }
 
@@ -248,40 +264,27 @@ final class TennisGame: Minigame {
 
     // MARK: - Rules
 
-    /// `canCharacterHit` (`tennis.js:115-164`). Reproduced statement for statement — several of
-    /// the clauses are redundant with each other, and it is not worth guessing which.
+    /// `canCharacterHit` (`tennis.js:115-164`). The JS is thirteen overlapping `return false`
+    /// clauses, two of them unreachable; this is the same truth table stated once. The two
+    /// forms were checked to agree on all 6912 combinations of the state they read.
     func canCharacterHit(isPlayer: Bool) -> Bool {
-        if resetting { return false }
-        if introPhase != .playing { return false }
+        guard !resetting, introPhase == .playing, servePhase != .idle else { return false }
 
-        let lastHitterWasPlayer = lastHitter == .player
-
-        if servePhase == .idle { return false }
-
-        if isPlayer && lastHitterWasPlayer && isServe == .inPlay { return false }
-        if !isPlayer && !lastHitterWasPlayer && isServe == .inPlay { return false }
-
-        if isPlayer && isServe == .playerServe && servePhase == .idle { return false }
-        if !isPlayer && isServe == .npcServe && servePhase == .idle { return false }
-
-        if isPlayer && isServe == .npcServe && servePhase != .live { return false }
-        if !isPlayer && isServe == .playerServe && servePhase != .live { return false }
-
-        if isPlayer && isServe == .playerServe && servePhase == .live
-            && (bounceCount > 0 || rallyCount > 0) { return false }
-        if !isPlayer && isServe == .npcServe && servePhase == .live
-            && (bounceCount > 0 || rallyCount > 0) { return false }
-
-        if isPlayer && isServe == .npcServe && servePhase == .live && bounceCount == 0 { return false }
-        if !isPlayer && isServe == .playerServe && servePhase == .live && bounceCount == 0 { return false }
-
-        return true
+        if isServe == .inPlay {
+            // Whoever hit last has to let the other one play it.
+            return (lastHitter == .player) != isPlayer
+        }
+        if isServe == (isPlayer ? .npcServe : .playerServe) {
+            // Receiving: a serve is only returnable once it has bounced, and not before the
+            // toss reaches its apex.
+            return servePhase == .live && bounceCount > 0
+        }
+        // Serving: one swing at your own toss, before it lands.
+        return servePhase == .justThrown || (bounceCount == 0 && rallyCount == 0)
     }
 
     func distanceToBallXY(_ side: Side) -> Double {
-        let dx = ball.x - side.current.x
-        let dy = ball.y - side.current.y
-        return sqrt(dx * dx + dy * dy)
+        hypot(ball.x - side.current.x, ball.y - side.current.y)
     }
 
     // MARK: - Aiming
@@ -451,8 +454,8 @@ final class TennisGame: Minigame {
 
             if simZ < 0 {
                 simBounces += 1
-                // Note the JS adds `state.bounceCount` a second time here; `simBounces` already
-                // started from it. Reproduced, because it is what prunes the search.
+                // Stop at the bounce that would end the point: one more from a ball still in
+                // the air, none at all from one that has already bounced.
                 if simBounces + bounceCount > 1 { break }
                 simZ = 0
                 simVZ = abs(simVZ) * Self.dampingMultiplier

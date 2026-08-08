@@ -25,23 +25,21 @@ extension TennisGame {
     /// the native client has no admin mode (`admin.js` stays a web page — PLAN.md §7), so the
     /// sampling is left out along with the graph.
     func processBallMovement(dt: Double) {
-        let previousBallY = ball.y
-
         if servePhase == .idle { return }   // Ball in hand.
 
+        let previousBallY = ball.y
         ball.z += ball.vz * dt
         ball.vz -= Self.gravity * dt
         ball.x += ball.vx * dt
         ball.y += ball.vy * dt
 
         // Net collision: did the ball cross the centre line this frame, and how high was it?
-        if (previousBallY < Self.netY && ball.y >= Self.netY)
-            || (previousBallY >= Self.netY && ball.y < Self.netY) {
-            if ball.z < Self.netHeight {
-                ball.vy *= -0.3
-                ball.vx *= 0.3
-                ball.y = Self.netY + (ball.vy < 0 ? -5 : (ball.vy > 0 ? 5 : 0))
-            }
+        let crossedNet = (previousBallY < Self.netY) != (ball.y < Self.netY)
+        if crossedNet && ball.z < Self.netHeight {
+            ball.vy *= -0.3
+            ball.vx *= 0.3
+            // `vy` has already flipped, so this drops the ball back on the side it came from.
+            ball.y = Self.netY + (ball.vy < 0 ? -5 : (ball.vy > 0 ? 5 : 0))
         }
 
         if ball.z < 0 {
@@ -55,58 +53,53 @@ extension TennisGame {
     /// The bounce handler passed into `processBallMovement` (`tennis.js:1397-1452`).
     func onBounce() {
         setNewInterceptPoints()
+        guard !resetting else { return }
 
-        if bounceCount == 1 && !resetting {
-            guard let hitter = lastHitter else {
-                // The serve toss hit the floor before the racket found it.
-                triggerFault(playerServing: isServe == .playerServe)
-                return
-            }
+        // A second bounce means whoever should have returned it did not.
+        if bounceCount == 2 {
+            triggerPointReset(nextPlayerServing: ball.y > Self.netY)
+            return
+        }
+        guard bounceCount == 1 else { return }
 
-            let minX = Self.courtX
-            let maxX = Self.courtX + Self.courtWidth
-            let minY = Self.courtY
-            let maxY = Self.courtY + Self.courtHeight
-            let inBoundsX = ball.x >= minX && ball.x <= maxX
-            var validBounce = false
-
-            if isServe != .inPlay {
-                if let box = activeServiceBox,
-                   ball.x >= box.minX, ball.x <= box.maxX,
-                   ball.y >= box.minY, ball.y <= box.maxY {
-                    validBounce = true
-                    isServe = .inPlay    // The serve landed; the rally is open.
-                }
-            } else {
-                switch hitter {
-                case .player: validBounce = inBoundsX && ball.y >= minY && ball.y <= Self.netY
-                case .npc: validBounce = inBoundsX && ball.y >= Self.netY && ball.y <= maxY
-                }
-            }
-
-            if !validBounce {
-                if isServe != .inPlay {
-                    triggerFault(playerServing: hitter == .player)
-                } else {
-                    triggerPointReset(nextPlayerServing: hitter == .player)
-                }
-            }
+        guard let hitter = lastHitter else {
+            // Unreachable: `serveBall` names the hitter before the ball can leave a hand.
+            triggerFault(playerServing: isServe == .playerServe)
+            return
         }
 
-        // Two valid bounces means whoever should have returned it lost the point.
-        if bounceCount == 2 && !resetting {
-            triggerPointReset(nextPlayerServing: ball.y > Self.netY)
+        if isServe != .inPlay {
+            // A serve is only good if it lands in the box it was aimed at.
+            if let box = activeServiceBox,
+               ball.x >= box.minX, ball.x <= box.maxX,
+               ball.y >= box.minY, ball.y <= box.maxY {
+                isServe = .inPlay    // The serve landed; the rally is open.
+            } else {
+                triggerFault(playerServing: hitter == .player)
+            }
+            return
+        }
+
+        // In a rally, the ball has to land inside the court, in the half being hit into.
+        let inBoundsX = ball.x >= Self.courtX && ball.x <= Self.courtX + Self.courtWidth
+        let inBoundsY = hitter == .player
+            ? (ball.y >= Self.courtY && ball.y <= Self.netY)
+            : (ball.y >= Self.netY && ball.y <= Self.courtY + Self.courtHeight)
+
+        if !(inBoundsX && inBoundsY) {
+            triggerPointReset(nextPlayerServing: hitter == .player)
         }
     }
 
     /// `hitBallToTarget` (`tennis.js:513-575`).
     func hitBallToTarget(x targetX: Double, y targetY: Double, velocity: Double) {
         var boundedVelocity = min(velocity, Self.maximumBallSpeed)
-        bounceCount = 0
 
         let dx = targetX - ball.x
         let dy = targetY - ball.y
-        let dist = sqrt(dx * dx + dy * dy)
+        // A target the ball is already standing on would divide through by zero and leave every
+        // velocity NaN, which nothing downstream ever recovers from.
+        let dist = max(hypot(dx, dy), 0.001)
 
         var timeToTarget = dist / boundedVelocity
 
@@ -261,10 +254,10 @@ extension TennisGame {
         let startX = ball.x
         let startY = ball.y
 
-        tossTarget = (x: startX + (isPlayer ? 85 * Self.gameScale : -85 * Self.gameScale),
-                      y: startY + (isPlayer ? -15 * Self.gameScale : 15 * Self.gameScale),
-                      z: 125 * Self.gameScale)
-        guard let toss = tossTarget else { return }
+        // Up and out in front of the server, the way a real toss goes.
+        let toss = (x: startX + (isPlayer ? 85 : -85) * Self.gameScale,
+                    y: startY + (isPlayer ? -15 : 15) * Self.gameScale,
+                    z: 125 * Self.gameScale)
 
         let dz = max(1, toss.z - ball.z)
         let vZ = sqrt(2 * Self.gravity * dz)
@@ -288,7 +281,8 @@ extension TennisGame {
         faults += 1
 
         if faults >= 2 {
-            triggerPointReset(nextPlayerServing: !playerServing)
+            // Double fault: the server loses the point, and the loser serves the next one.
+            triggerPointReset(nextPlayerServing: playerServing)
         } else {
             resetting = true
             resetDelayTimer = 1.0
@@ -299,8 +293,9 @@ extension TennisGame {
         npc.lastIntercept = nil
     }
 
-    /// `triggerPointReset` (`tennis.js:952-993`). The loser of the rally serves next, which is
-    /// also how the point is attributed.
+    /// `triggerPointReset` (`tennis.js:952-993`). The loser of the rally serves next, so
+    /// `nextPlayerServing` doubles as "the player lost this one" — every caller has to read it
+    /// that way round.
     func triggerPointReset(nextPlayerServing: Bool) {
         if resetting { return }
         resetting = true
@@ -339,23 +334,32 @@ extension TennisGame {
     // MARK: - Contact
 
     /// `processRacketDeflections` (`tennis.js:1001-1021`) and the hit handler that follows it
-    /// (`tennis.js:1504-1540`). The hitbox is the ellipse the racket head was *drawn* as.
+    /// (`tennis.js:1504-1540`). The hitbox is the ellipse the racket head was *drawn* as, one
+    /// frame ago — see the note on `TennisGame` for why that lag is deliberate.
+    ///
+    /// The test is flat, in the same screen space the two were drawn in: `visualBallY` is the
+    /// ball's `y - z`, and `racket.y` already has the character's own height folded into it. So
+    /// a hit is "the ball looks like it is touching the strings", which is the only thing the
+    /// player can judge from a top-down view anyway.
     func processRacketDeflections(visualBallY: Double) {
         if resetting { return }
 
-        func evaluateHit(_ racket: Racket) -> Bool {
+        /// The ball against the racket head's ellipse, grown by the ball's radius, in the
+        /// racket's own frame.
+        func isTouching(_ racket: Racket) -> Bool {
             let dx = ball.x - racket.x
             let dy = visualBallY - racket.y
-            let localDx = dx * cos(-racket.angle) - dy * sin(-racket.angle)
-            let localDy = dx * sin(-racket.angle) + dy * cos(-racket.angle)
+            let localDx = dx * cos(racket.angle) + dy * sin(racket.angle)
+            let localDy = -dx * sin(racket.angle) + dy * cos(racket.angle)
 
-            return pow(localDx, 2) / pow(racket.w + Self.ballRadius, 2)
-                + pow(localDy, 2) / pow(racket.h + Self.ballRadius, 2) <= 1
+            let halfWidth = racket.w + Self.ballRadius
+            let halfHeight = racket.h + Self.ballRadius
+            return pow(localDx / halfWidth, 2) + pow(localDy / halfHeight, 2) <= 1
         }
 
-        if canCharacterHit(isPlayer: true) && evaluateHit(player.racket) {
+        if canCharacterHit(isPlayer: true) && isTouching(player.racket) {
             processHit(isPlayer: true)
-        } else if canCharacterHit(isPlayer: false) && evaluateHit(npc.racket) {
+        } else if canCharacterHit(isPlayer: false) && isTouching(npc.racket) {
             processHit(isPlayer: false)
         }
     }
@@ -365,10 +369,11 @@ extension TennisGame {
         let payload = side.lastHitTarget.map { (x: $0.x, y: $0.y) }
             ?? returnBallHitTarget(isPlayer: isPlayer, racket: side.racket)
 
-        var returnSpeed = sqrt(ball.vx * ball.vx + ball.vy * ball.vy) * (isPlayer ? 1.05 : 1.1)
-        if isServe != .inPlay {
-            returnSpeed = Self.ballSpeed * (isPlayer ? 0.8 : 0.65)
-        }
+        // A rally shot comes back a little faster than it arrived; a serve is struck from a
+        // near-stationary toss, so it gets a fixed speed instead.
+        let returnSpeed = isServe != .inPlay
+            ? Self.ballSpeed * (isPlayer ? 0.8 : 0.65)
+            : hypot(ball.vx, ball.vy) * (isPlayer ? 1.05 : 1.1)
 
         rallyCount += 1
         lastHitter = isPlayer ? .player : .npc
@@ -388,15 +393,15 @@ extension TennisGame {
             if isServe == .playerServe {
                 // Chase the serve down where it is going to land.
                 let spot = landingSpot()
-                _ = moveCharacter(npc,
-                                  toX: spot.x + 40 * Self.gameScale,
-                                  toY: spot.y - 220 * Self.gameScale * 0.7)
+                moveCharacter(npc,
+                              toX: spot.x + 40 * Self.gameScale,
+                              toY: spot.y - 220 * Self.gameScale * 0.7)
             } else {
-                _ = moveCharacter(npc,
-                                  toX: Self.courtX + (Self.courtWidth / 2)
-                                       * (0.5 + Double.random(in: 0..<1)),
-                                  toY: Self.npcBaseY + 50 * Self.gameScale
-                                       * (0.5 + Double.random(in: 0..<1)))
+                moveCharacter(npc,
+                              toX: Self.courtX + (Self.courtWidth / 2)
+                                   * (0.5 + Double.random(in: 0..<1)),
+                              toY: Self.npcBaseY + 50 * Self.gameScale
+                                   * (0.5 + Double.random(in: 0..<1)))
             }
         }
     }
