@@ -11,14 +11,110 @@ to be modelled properly, joints and all, and then for **one shared set of classe
 character movement in every minigame, with nothing else anywhere manipulating limbs or tracking
 velocity**). `server/**` and `JoelsWorld.xcodeproj/**` are untouched.
 
-**Three sessions so far.**
+**Four sessions so far.**
 - Session 1 built `Locomotion` and the lateral stride.
 - Session 2 pushed the gait out to every character, made NPCs deterministic, added `-selftest`,
   and rebuilt the character mesh.
-- Session 3 — this one — built **`CharacterMotor`**, moved every character in the game onto it,
-  gave the rig hands with thumbs and a waist that twists, and made the jump real.
+- Session 3 built **`CharacterMotor`**, moved every character in the game onto it, gave the rig
+  hands with thumbs and a waist that twists, and made the jump real.
+- Session 4 — this one — made the **stick analogue** so speed is variable from a walk to a
+  sprint, taught the rig to **counteract its own inertia** (a bracing step, a counterweight, a
+  waist that trails a turn), and **re-authored the arms as joint angles** so the elbow works.
 
 Read "Where it stands" before picking anything up. **Read "Traps" before running anything.**
+
+---
+
+## Part 0 — Session 4: analogue speed, and limbs that fight the inertia
+
+### The stick is a vector now
+
+`InputState.isMoving: Bool` + a heading became `InputState.move: SIMD2<Double>`, a world-space
+vector with a magnitude of 0…1, and `throttle` is its length. `GameState` multiplies the
+demanded speed by it.
+
+That one change is load-bearing for everything else, because of what it does to `Gait`. The
+profile's `maxSpeed` used to move *with* the demand — `.player` at 180 for a walk, swapped for
+`.playerRunning` at 216 by a 2.5-second hold timer — so `intensity`, which is `speed / maxSpeed`,
+came out at ~1 whatever the character was doing. **Every character in the game was always at
+full effort.** Now there is one profile whose ceiling is the sprint and the throttle asks for a
+fraction of it, so `intensity` is a real number between 0 and 1 and the stride, the arm swing,
+the knees, the bounce and the lean all scale with the finger.
+
+- `LocomotionProfile.player` — the whole range. `maxSpeed` 216 **is the sprint**.
+- `LocomotionProfile.playerWalking` — the old 180-only profile, kept so the self-test can still
+  pin the pace the JS moved at.
+- `LocomotionProfile.runThreshold` (0.55) — where a walk becomes a run. `Gait.run` ramps 0→1
+  from there to the ceiling, and it is the one knob for "how hard do I have to push to sprint?".
+- The joystick maps the travel between its dead zone and its rim onto `0.28…1`, so no part of
+  the usable range is a speed nobody would pick, and draws a dashed ring at the run boundary.
+- Tank controls have no magnitude, so the keyboard keeps the JS's hold-to-run — except it now
+  *ramps* from `runThreshold` to 1 across the 2.5 seconds instead of flipping at the end.
+
+### Counteracting the inertia
+
+Three new signals out of `Locomotion.resolve`, spent in `CharacterRig.pose`:
+
+| Signal | What it means | What the rig does with it |
+|---|---|---|
+| `Gait.leanLateral` | sideways acceleration, + towards the character's **left** | the outboard foot plants wide and the inboard one tucks under; both hands sweep towards the acceleration; the hips sink |
+| `Gait.leanForward` | forward acceleration; **negative is braking** | braking puts both feet out in front to stop against and throws the hands back; driving leaves them behind |
+| `Gait.turning` | yaw rate / `turnRate`, + is a turn to the character's **right** | the chest twists *against* the turn (shoulders trail the hips) and the head turns *into* it |
+
+`turning` is its own signal rather than something read out of `leanLateral`, because a character
+turning on the spot has plenty of the second and none of the first, and the shoulders should
+still trail. It is differentiated out of the heading — including for NPCs and remote players,
+where `ObservedMotion.previousFacing` is the memory that makes it possible.
+
+`Gait` also gained the per-stride waist counter-rotation: the shoulders rotate against the hips
+once per step, opposite the arm swing. One term, and it is most of what stops a walk reading as
+a mannequin on rails.
+
+### The arms are joint angles now
+
+**This is the piece worth understanding before touching the walk cycle.**
+
+The arms were swung by pushing the hand through space — `hand.x += swing * amplitude` — and two
+things were wrong with that:
+
+1. **The elbow was a leftover, not a control.** How bent an arm looks is decided entirely by how
+   far the hand is from the shoulder, and `neutralLeftHand` sits **16.37 out of a possible 17**.
+   Every arm in the game was at 96% of full extension: a locked stick pivoting at the shoulder,
+   whatever the tables asked for.
+2. **Most of the swing was never drawn.** A hand pushed along +X leaves the sphere the shoulder
+   can reach almost immediately and `IKSolver.solve` clamps it back silently — trap 2, the same
+   clamp that cost the tennis game a session. Past about six units the hand stopped travelling
+   and only the clamp moved.
+
+`CharacterRig.armTarget(shoulder:swing:sideways:flex:)` replaces it. Ask for an **angle**:
+
+- `swing` — sagittal, radians, 0 hangs straight down, positive is forward.
+- `sideways` — from straight down towards the character's **left**. Signed *absolutely*, not
+  per-arm, so "both arms sweep left" is one number added to both — which is what a counterweight
+  is, and what a per-side "spread" cannot express.
+- `flex` — how far the elbow is from straight. 0 locked, π/2 a right angle.
+
+The hand comes back on a sphere of radius `2·armBone·cos(flex/2)`, which is exactly what two
+equal bones with that much bend can span: **always reachable, never clamped, and the elbow ends
+up at the angle that was asked for.** `neutralArmSwing` / `neutralArmSideways` / `neutralArmFlex`
+are the decomposition of the existing neutral hand, so a standing character is unchanged — the
+self-test pins the round trip to within 0.01.
+
+What that buys, in the walk cycle:
+
+- **The elbow is the tell.** A walk hangs nearly straight and folds a little through the front;
+  a run is carried at a right angle the whole way round and closes further at the front. The old
+  formulation had no way at all to say this.
+- The arm phase **trails the legs** by 0.35 rad. A hand and the contralateral foot reaching the
+  front on the same frame is the metronome look that gives a rig away.
+- The arm comes **across the body** at the front and opens out at the back.
+- Running tucks the elbows in; side-stepping throws them out.
+- The idle sway is in the joints too — the breath opens and closes the elbow a fraction rather
+  than sliding the hand up and down.
+
+**If you add an arm pose, add it as angles.** Writing a hand position straight into
+`leftHandTarget` still works and is still what `CharacterMotor` and the emotes do, but it is back
+in the world of silent clamping.
 
 ---
 
@@ -230,11 +326,13 @@ of travel). Call `faceTowards` **after** them, not before. Tennis's `run(_:dt:)`
 |---|---|
 | `Engine/Core/CharacterMotor.swift` | **The movement manager.** Body, height, velocity, heading, gait and all four limbs. `moveCharacterTo`, `moveHandTo`, `jump`, `step`, `observe`, `poseOverride`, `localToWorld`. |
 | `Engine/Core/LimbMotor.swift` | `Limb`, `LimbProfile` (speed, acceleration, approach gain, reach), `LimbState` (position, velocity, target, blend, strain). |
-| `Engine/Core/Locomotion.swift` | `Gait`, `LocomotionProfile`, `LocomotionState`, `ObservedMotion`, `enum Locomotion`. Pure maths, no world knowledge. The motor is built on it. |
+| `Engine/Core/Locomotion.swift` | `Gait` (including `run`, `turning` and the two leans), `LocomotionProfile` (including `runThreshold`), `LocomotionState`, `ObservedMotion`, `enum Locomotion`. Pure maths, no world knowledge. The motor is built on it. |
+| `Engine/Core/InputState.swift` | The stick as a **vector**: `move`, `throttle`, `angleDegrees`, `InputState.stick(headingDegrees:throttle:)`. |
+| `JoelsWorld/Input/Joystick.swift` | The on-screen stick. Dead zone → rim maps onto `0.28…1`; the dashed ring is the run boundary. |
 | `Engine/Core/Deterministic.swift` | `DeterministicRandom` — SplitMix64. |
 | `Engine/Core/LocomotionSelfTest.swift` | The 67 assertions behind `-selftest`. |
 | `Engine/Core/WalkTest.swift` | Every launch argument. |
-| `Engine/Entity/CharacterRig.swift` | Anatomy (bones, joint radii, the lathed profiles, `Hand`), the neutral limb targets the motor starts from, and `pose(...)`. |
+| `Engine/Entity/CharacterRig.swift` | Anatomy (bones, joint radii, the lathed profiles, `Hand`), the neutral limb targets the motor starts from, **`armTarget` and the neutral arm angles**, and `pose(...)` — which is where the walk cycle, the run shaping and the whole counteract-the-inertia block live. |
 | `Engine/Entity/IKSolver.swift` | Two-bone IK, `segmentTransform`, and `basis(alongY:rolledTowards:)`. |
 | `Engine/Entity/Emotes.swift` | `RigMutation`, including `chestTwist`. |
 | `Engine/Render/MeshFactory.swift` | `revolved`, `limb`, and the new `merge` / `translated` / `mirroredInX`. |
@@ -249,8 +347,13 @@ No test target — adding one means editing `project.pbxproj`, which is red. Lau
 instead, which is the pattern the rest of the tree uses.
 
 ```bash
-# 67 assertions over Locomotion, Gait, CharacterMotor, limbs and DeterministicRandom. No world.
+# 100 assertions over Locomotion, Gait, CharacterMotor, limbs, the stick, the arm angles and
+# DeterministicRandom. No world, no Metal, no network.
 xcrun simctl launch booted com.allr.joelsworld -selftest
+
+# The heading and the throttle both sweep. The log carries the gait: speed, intensity, run,
+# forward, lateral, brace, turn — none of which can be checked from a screenshot.
+xcrun simctl launch booted com.allr.joelsworld -autojoin Rig -map 0 -zoom 3.4 -pitch 1.15 -walktest
 
 # The overworld camera is near-overhead. -pitch tips it over; 1.25 is a good side-on rig view.
 xcrun simctl launch booted com.allr.joelsworld -autojoin Rig -map 0 -zoom 6 -pitch 1.25
@@ -287,7 +390,19 @@ xcrun simctl spawn booted log stream --level info --predicate 'subsystem == "com
   left on the floor.
 - **Hands with thumbs**, on a forearm with a defined roll.
 - **A waist that twists** independently of the hips.
-- `-selftest`: **67 assertions, all passing.** Both targets build.
+- **The stick is analogue** and speed is continuous from a crawl to a sprint (session 4).
+- **The rig counteracts its own inertia**: a bracing step, a hand counterweight, feet planted
+  ahead to brake, a waist that trails a turn and a head that leads it (session 4).
+- **The arms are posed by joint angle and the elbow works** (session 4).
+- `-selftest`: **100 assertions, all passing.** Both targets build.
+- `-walktest` now sweeps the throttle as well as the heading, and logs the gait each half
+  second: `speed`, `intensity`, `run`, `fwd`, `lat`, `brace`, `turn`. A 30-second run over the
+  new build showed speed tracking the throttle from 55 to 215, `run` ramping 0→0.99, and
+  `turn` sitting at exactly 0.08 — which is the sweep's 45°/s over the profile's 540°/s, so the
+  scaling is right. `brace` came out negative for a clockwise turn and grew with speed, which is
+  the sign and the shape centripetal acceleration should have.
+- 3D tennis re-run for 100 s on the new build: **34 STRIKE / 1 MISS**, rallies of seven to
+  eleven shots, a game taken. No regression from any of this.
 
 ### Open
 
@@ -332,6 +447,29 @@ xcrun simctl spawn booted log stream --level info --predicate 'subsystem == "com
 
 9. **`moveFootTo` has no callers.** The machinery is identical to a hand and it is there so a
    minigame can plant a foot; nothing does yet.
+
+10. **The legs have not had the arms' treatment.** They are still swung by displacement, so they
+    are still clamped: `neutralLeftFoot` is 20.8 from its hip against a 21.3 reach, and at a
+    full sprint stride the ask is 26 — the IK pulls it back onto the reach sphere, which is why
+    the foot rises as the stride extends. It happens to read as a high-kneed sprint and is not
+    obviously wrong, but it is luck rather than control. A `legTarget(hip:swing:sideways:flex:)`
+    alongside `armTarget` is the same twenty lines, and would make the knee a control.
+
+11. **The gait's waist twist composes with the tennis coil.** `Tennis3DGame+Players` does
+    `mutation.chestTwist += signedCoil` in its override, so a running tennis player now gets the
+    stride counter-rotation *plus* the coil. It is at most 0.16 rad against a tuned coil and the
+    100-second bot run showed no change in strike rate, but the coil's tuning was done without
+    it. Emotes are not affected — `pose` zeroes the waist before an emote runs.
+
+12. **The bracing step has only been seen at gentle turn rates.** `-walktest` sweeps the heading
+    at 45°/s, which produces a `brace` of 0.04 to 0.17 and a step-out of one unit. A real cut —
+    slamming the stick the other way — reaches 0.8 or more in the maths and a step-out of five
+    or six units, which is a big, visible movement. That has been checked in `-selftest` but not
+    watched on screen. `stepOut` (6.5) and `tuckIn` (2.5) in `CharacterRig.pose` are the knobs.
+
+13. **The run band is untuned by anybody but me.** `runThreshold` 0.55, the joystick's
+    `minThrottle` 0.28 and the `0.28…1` mapping are first guesses at what feels right under a
+    thumb. Joel is the person to ask whether pushing the stick two-thirds over should be a run.
 
 ---
 

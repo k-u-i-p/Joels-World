@@ -5,13 +5,20 @@ import Foundation
 /// mask and camera can be exercised without a GUI simulator to inject touches into.
 ///
 /// Enable with `-walktest` on the launch arguments. It sweeps the heading through a full
-/// circle so the player walks into scenery and collision responses show up in the log.
+/// circle so the player walks into scenery and collision responses show up in the log, and
+/// swings the throttle from a crawl to a sprint and back over a slower cycle, so the whole
+/// walk-to-run range gets exercised — and so a hard change of direction happens at every speed,
+/// which is what puts a bracing foot out.
 final class WalkTest {
     private let start = Date.timeIntervalSinceReferenceDate
     private let sweepSeconds: Double
+    /// One full crawl → sprint → crawl cycle. Deliberately not a multiple of `sweepSeconds`, so
+    /// the two never line up and every combination of heading and speed comes round eventually.
+    private let throttleSeconds: Double
 
-    init(sweepSeconds: Double = 8) {
+    init(sweepSeconds: Double = 8, throttleSeconds: Double = 11) {
         self.sweepSeconds = sweepSeconds
+        self.throttleSeconds = throttleSeconds
     }
 
     var elapsed: Double {
@@ -19,8 +26,10 @@ final class WalkTest {
     }
 
     func currentInput() -> InputState {
-        InputState(isMoving: true,
-                   angleDegrees: (elapsed / sweepSeconds) * 360)
+        // 0.25 to 1: below a quarter the character is barely moving and nothing is learned.
+        let swing = (1 - cos(elapsed / throttleSeconds * 2 * .pi)) / 2
+        return InputState.stick(headingDegrees: (elapsed / sweepSeconds) * 360,
+                                throttle: 0.25 + 0.75 * swing)
     }
 
     static var isEnabled: Bool {

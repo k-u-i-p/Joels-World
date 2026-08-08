@@ -223,13 +223,22 @@ final class GameDebugHarness {
             let moved = previous.map { hypot(player.x - $0.x, player.y - $0.y) } ?? 0
             previous = (player.x, player.y)
 
+            // The gait goes out too. The stick's throttle is what decides `speed`, `intensity`
+            // and `run`, and `brace`/`turn` are what the legs and the waist counteract the
+            // inertia with — none of which can be checked from a screenshot, and all of which
+            // are a sign away from being backwards.
+            let gait = player.gait
+            let speed = hypot(player.velocityX, player.velocityY)
             Log.world(String(format:
-                "walktest t=%.1fs pos=(%.1f, %.1f) heading=%.0f° moved=%.1fpx mask=%@ blocked=%@",
+                "walktest t=%.1fs pos=(%.1f, %.1f) heading=%.0f° moved=%.1fpx mask=%@ blocked=%@ "
+                + "speed=%.0f intensity=%.2f run=%.2f fwd=%+.2f lat=%+.2f brace=%+.2f turn=%+.2f",
                 walkTest.elapsed, player.x, player.y, player.rotation, moved,
                 maskLoaded ? "loaded" : "none",
-                moved < 1 ? "YES" : "no"))
+                moved < 1 ? "YES" : "no",
+                speed, gait.intensity, gait.run, gait.forward, gait.lateral,
+                gait.leanLateral, gait.turning))
 
-            if walkTest.elapsed > 12 { timer.invalidate() }
+            if walkTest.elapsed > 30 { timer.invalidate() }
         }
     }
 

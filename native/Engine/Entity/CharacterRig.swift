@@ -321,6 +321,60 @@ enum CharacterRig {
     private static let bendNormalLegL = simd_normalize(SIMD3<Float>(0, -1, -0.2))
     private static let bendNormalLegR = simd_normalize(SIMD3<Float>(0, -1, 0.2))
 
+    // MARK: - Arms, by angle rather than by displacement
+
+    /// **Where an arm points and how bent its elbow is**, turned into a hand target the IK can
+    /// solve without clamping anything.
+    ///
+    /// The walk cycle used to swing an arm by shoving the hand through space — `hand.x += swing`
+    /// — and that is why the arms read as broomsticks on a hinge. Two things go wrong with it:
+    ///
+    /// 1. **The elbow is not controlled, it is a leftover.** How bent an arm looks is decided
+    ///    entirely by how far the hand is from the shoulder, and the neutral hand sits 16.37 out
+    ///    of a possible 17 — 96% of full extension, which is a locked arm. Every pose the tables
+    ///    could describe was a straight stick pivoting at the shoulder. A person's arm is never
+    ///    straight; a running one is folded to a right angle.
+    /// 2. **Most of the swing was never drawn.** A hand pushed along +X leaves the sphere the
+    ///    shoulder can actually reach almost immediately, and `IKSolver.solve` clamps it back
+    ///    without saying so (the same silent clamp that cost the tennis game a session — see the
+    ///    handoff). Past about six units the hand stopped travelling and only the clamp moved.
+    ///
+    /// Asking for an *angle* fixes both. The hand target comes out on a sphere of radius
+    /// `2·armBone·cos(flex/2)`, which is exactly the distance two equal bones with `flex`
+    /// radians of bend at the elbow can span — so it is always reachable, never clamped, and the
+    /// elbow ends up at the angle that was asked for.
+    ///
+    /// - Parameters:
+    ///   - swing: sagittal, radians. 0 hangs straight down, positive swings the hand forward.
+    ///   - sideways: radians from straight down towards the character's **left** (local +Y).
+    ///     Signed absolutely, not per-arm, so "both arms sweep left" is the same number added to
+    ///     both — which is what an arm counterweight is.
+    ///   - flex: how far the elbow is from straight, radians. 0 is locked out, π/2 is a right
+    ///     angle. Clamped short of folding the forearm onto the upper arm.
+    static func armTarget(shoulder: SIMD3<Float>,
+                          swing: Float,
+                          sideways: Float,
+                          flex: Float) -> SIMD3<Float> {
+        let bend = min(max(flex, 0), 2.4)
+        let reach = 2 * armBone * cos(bend / 2)
+        let sideCos = cos(sideways), sideSin = sin(sideways)
+        let swingCos = cos(swing), swingSin = sin(swing)
+        // Straight down, tipped `sideways` towards the character's left, then swung forward.
+        let direction = SIMD3<Float>(sideCos * swingSin, sideSin, -sideCos * swingCos)
+        return shoulder + direction * reach
+    }
+
+    /// The neutral arm written in those angles, so a standing character is posed by exactly the
+    /// same call as a running one and `neutralLeftHand` comes back out unchanged.
+    ///
+    /// They are the decomposition of `neutralLeftHand - leftShoulder` = (6, −6, −14): 16.37 long,
+    /// 0.405 rad forward of vertical, 0.375 rad out from the body, and a 0.546 rad elbow —
+    /// which is the 31° of bend a hand hanging that far from its shoulder implies.
+    /// `LocomotionSelfTest` pins the round trip.
+    static let neutralArmSwing: Float = 0.40492
+    static let neutralArmSideways: Float = 0.37533
+    static let neutralArmFlex: Float = 0.54558
+
     // MARK: - Appearance
 
     /// Deterministic string hash from `getConsistentRandom` (`characters.js:69-77`).
@@ -438,21 +492,56 @@ enum CharacterRig {
         var leftFoot = neutralLeftFoot
         var rightFoot = neutralRightFoot
 
+        // **The arms are gathered as joint angles and become hand targets once**, at the bottom
+        // of this section. See `armTarget` for why: an arm swung by pushing its hand through
+        // space is a straight stick on a hinge whose swing gets silently clamped, and no amount
+        // of tuning the offsets makes it look like a person.
+        //
+        // Named for the *character's* sides, not the rig's — `leftHand` is the character's right
+        // hand, which is a trap this file has fallen into before (see `Gait`). `sideways` is
+        // signed absolutely, positive towards the character's left, so the two arms start out
+        // mirrored and "both arms sweep left" is one number added to both.
+        var rightArmSwing = neutralArmSwing, leftArmSwing = neutralArmSwing
+        var rightArmSideways = -neutralArmSideways, leftArmSideways = neutralArmSideways
+        var rightArmFlex = neutralArmFlex, leftArmFlex = neutralArmFlex
+
         let isWalking = gait.isMoving || gait.phase > 0
+
+        // How far into a run this is, 0 walking and 1 flat out. It is the only thing separating
+        // the two: everything below scales off `forward`/`effort`, which are now a genuine
+        // fraction of a sprint rather than always ~1, and `run` adds the handful of things a
+        // run does *differently* — higher knees, a deeper bounce, a forward lean.
+        let run = Float(gait.run)
+
+        // A twist at the waist, gathered here and spent once the body pivot is built. Positive
+        // turns the chest towards the character's left.
+        var waistTwist: Float = 0
+        // How far the head turns off the chest to look where the body is going.
+        var headTurn: Float = 0
 
         if isWalking {
             let legTimer = Float(gait.phase)
             let effort = Float(min(1.2, max(abs(gait.forward), abs(gait.lateral))))
-            runtime.bodyPivotPosition.z = bodyPivotHeight + cos(legTimer * 2) * 0.5 * effort
+            // The bounce deepens into a run: a jog leaves the ground and a walk does not.
+            runtime.bodyPivotPosition.z = bodyPivotHeight
+                + cos(legTimer * 2) * (0.5 + run * 1.8) * effort
             runtime.bodyPivotPosition.x = cos(legTimer * 2) * 1.0 * effort
 
             // applyWalkCycle (`characters.js:981-1001`), split into a forward stride and a
-            // lateral one. Running dead ahead reproduces the original exactly — `forward` is 1
-            // and `lateral` is 0, so every added term below falls away.
+            // lateral one.
+            //
+            // **These amplitudes are a sprint's, not a walk's.** They used to be a walk's,
+            // because a walk was the only thing a character could be doing: `forward` was
+            // pinned at ~1 whatever speed the profile was set to, so the stride could not
+            // scale. Now the stick's throttle decides the speed and `forward` is a real
+            // fraction of top speed, so a stick half over gets half the step — which is where
+            // the walk lives. 23 at `forward` 1 comes back to the old 14 at the ~0.6 a
+            // comfortable walking pace sits at.
             let legSwing = sin(legTimer)
             let legVelocity = cos(legTimer)
-            let armSwingX: Float = 6, armLiftZ: Float = 6
-            let legStrideX: Float = 14, stepLiftZ: Float = 8
+            let legStrideX: Float = 23
+            // Knees come up in a run and barely leave the floor in a walk.
+            let stepLiftZ: Float = 11 + run * 3
             // Feet stay inside the hips' 12-unit separation, so a side-step shuffles rather
             // than crossing its own legs over.
             let legStrideY: Float = 5.5
@@ -460,14 +549,41 @@ enum CharacterRig {
             let forward = Float(gait.forward)
             let lateral = Float(gait.lateral)
 
-            leftHand.x += -legSwing * armSwingX * forward
-            leftHand.z += abs(legSwing) * armLiftZ * effort
-            rightHand.x += legSwing * armSwingX * forward
-            rightHand.z += abs(legSwing) * armLiftZ * effort
+            // The arms swing **about the shoulder**, and the elbow does something.
+            //
+            // The phase trails the legs by a fifth of a step, because an arm is thrown by the
+            // shoulder rather than wired to the opposite hip: a walk where the hand and the
+            // contralateral foot reach the front on the same frame is the metronome look that
+            // gives a rig away.
+            let armPhase = legTimer - 0.35
+            let armSweep = sin(armPhase)
+            let swingAmplitude = (0.62 + run * 0.34) * forward
+            rightArmSwing -= armSweep * swingAmplitude
+            leftArmSwing += armSweep * swingAmplitude
 
-            // Side-stepping throws the arms out for balance instead of pumping them.
-            leftHand.y -= abs(lateral) * 4
-            rightHand.y += abs(lateral) * 4
+            // **The elbow is the tell.** A walking arm hangs nearly straight and folds a little
+            // as it comes through the front; a running one is carried at a right angle the whole
+            // way round and closes further still at the front. This is the single biggest
+            // difference between a walk and a run in a human, and the old hand-displacement
+            // swing had no way at all to say it — the elbow angle was whatever fell out of how
+            // far the hand happened to be from the shoulder.
+            let carriedFlex = run * 0.55
+            let pumpFlex = (0.30 + run * 0.40) * effort
+            rightArmFlex += carriedFlex + max(0, -armSweep) * pumpFlex
+            leftArmFlex += carriedFlex + max(0, armSweep) * pumpFlex
+
+            // An arm also comes **across the body** at the front and opens out again at the
+            // back. A swing kept in one plane is a pendulum on a bracket; the small sideways
+            // component is most of what is left of the difference.
+            let across = (0.12 + run * 0.10) * abs(forward)
+            rightArmSideways += max(0, -armSweep) * across
+            leftArmSideways -= max(0, armSweep) * across
+
+            // Side-stepping throws the arms out for balance instead of pumping them; running
+            // tucks the elbows in against the ribs.
+            let heldOut = abs(lateral) * 0.26 - run * 0.10
+            rightArmSideways -= heldOut
+            leftArmSideways += heldOut
 
             leftFoot.x += legSwing * legStrideX * forward
             leftFoot.y += legSwing * legStrideY * lateral
@@ -481,6 +597,11 @@ enum CharacterRig {
             // shuffle rather than the legs scissoring around a stationary centre.
             leftFoot.y += lateral * 2.5
             rightFoot.y += lateral * 2.5
+
+            // The shoulders counter-rotate against the hips once per step, opposite to the arm
+            // swing — the arm going forward belongs to the shoulder coming forward. Without it
+            // a walk is a mannequin on rails with its arms wagging, and it costs one term.
+            waistTwist += -legSwing * forward * 0.16 * effort
         } else if emoteDefinition == nil {
             // Standing *and* not posed by an emote. When an emote is running the JS leaves the
             // body pivot wherever the emote put it, so a `wave` that started mid-stride keeps
@@ -488,14 +609,94 @@ enum CharacterRig {
             runtime.bodyPivotPosition.z = bodyPivotHeight
             runtime.bodyPivotPosition.x = 0
 
-            // applyIdleSway (`characters.js:1003-1013`)
-            let armSwayZ = Float(sin(idleTime * 2.0) * 0.6)
-            let armSwayX = Float(cos(idleTime * 1.5) * 0.4)
-            leftHand.z += armSwayZ
-            leftHand.x += armSwayX
-            rightHand.z += armSwayZ
-            rightHand.x -= armSwayX
+            // applyIdleSway (`characters.js:1003-1013`), in the joints rather than in the hand
+            // positions. 0.025 rad on a 16.4-unit arm is the 0.4 units of x the JS swayed by;
+            // the breath is the elbow opening and closing a fraction instead of the hand
+            // sliding up and down, which is what a hanging arm actually does.
+            let armSwayAngle = Float(cos(idleTime * 1.5)) * 0.025
+            rightArmSwing += armSwayAngle
+            leftArmSwing -= armSwayAngle
+            let breathFlex = Float(sin(idleTime * 2.0)) * 0.10
+            rightArmFlex += breathFlex
+            leftArmFlex += breathFlex
         }
+
+        // --- Counteracting the inertia ---
+        //
+        // A character changing direction is being shoved about by its own feet, and the tell of
+        // a game that skips this is a body that slides onto a new heading with its legs still
+        // doing a tidy forward walk. Four things happen instead, all off signals `Locomotion`
+        // already resolves and none of them needing to know what the character is doing or why:
+        //
+        //   * **A foot steps out to brace.** To be pushed left you plant your right foot out to
+        //     the right and shove off it. The outboard foot goes wide and the inboard one tucks
+        //     under to get out of its way. This is the one you can see from across the room.
+        //   * **The hands counterweight.** Both swing towards the acceleration and the trailing
+        //     one crosses the chest, which is the shape someone cutting inside makes.
+        //   * **The feet plant ahead to brake** and drive out behind to accelerate.
+        //   * **The shoulders trail the hips through a turn**, and the head leads it.
+        //
+        // The signs, once, carefully. Local +Y is the character's **left**, so `leftFoot`
+        // (y = −6) is the character's *right* foot — the rig's names run the other way round,
+        // see the note in `Gait`. `gait.leanLateral` is positive for an acceleration towards the
+        // character's left; `gait.turning` is positive for a turn towards their right.
+        let brace = Float(gait.leanLateral)
+        let braking = max(0, -Float(gait.leanForward))
+        let driving = max(0, Float(gait.leanForward))
+
+        // How far the pushing foot goes out, and how far the other one gets out of its way.
+        let stepOut: Float = 6.5, tuckIn: Float = 2.5
+        if brace > 0 {
+            // Pushed towards the character's left: their right foot plants out to the right.
+            leftFoot.y -= brace * stepOut
+            rightFoot.y -= brace * tuckIn
+        } else {
+            let push = -brace
+            rightFoot.y += push * stepOut
+            leftFoot.y += push * tuckIn
+        }
+        // And the hips sink over the braced leg. A change of direction taken with straight legs
+        // is a mannequin being slid sideways.
+        runtime.bodyPivotPosition.z -= abs(brace) * 1.5
+
+        // Stopping means getting a foot in front of your own weight; starting means leaving both
+        // behind it.
+        leftFoot.x += braking * 5 - driving * 3
+        rightFoot.x += braking * 5 - driving * 3
+
+        // The counterweight. Both arms sweep towards the acceleration, which puts the trailing
+        // one across the chest and throws the leading one wide — the shape someone cutting
+        // inside makes. The elbows close at the same time, because a folded arm is a shorter
+        // lever and comes round faster, which is exactly why people do it.
+        rightArmSideways += brace * 0.42
+        leftArmSideways += brace * 0.42
+        rightArmFlex += abs(brace) * 0.35
+        leftArmFlex += abs(brace) * 0.20
+
+        // Stopping throws the hands back behind the body; setting off throws them forward.
+        let checkSwing = driving * 0.30 - braking * 0.40
+        rightArmSwing += checkSwing
+        leftArmSwing += checkSwing
+
+        // --- The arms become hand targets ---
+        // Capped short of horizontal: past about 75° out, an arm is being held up rather than
+        // swung, and none of the signals above mean that.
+        func sideways(_ angle: Float) -> Float { min(max(angle, -1.3), 1.3) }
+        leftHand = armTarget(shoulder: leftShoulder,
+                             swing: rightArmSwing,
+                             sideways: sideways(rightArmSideways),
+                             flex: rightArmFlex)
+        rightHand = armTarget(shoulder: rightShoulder,
+                              swing: leftArmSwing,
+                              sideways: sideways(leftArmSideways),
+                              flex: leftArmFlex)
+
+        // A turn is led from the pelvis and the chest catches up, so the waist twists *against*
+        // the turn while it is happening — while the head goes the other way and looks where the
+        // body is heading. Turning right (`turning` > 0) leaves the chest facing left of the
+        // hips, which is a positive `chestTwist`.
+        waistTwist += Float(gait.turning) * 0.30
+        headTurn -= Float(gait.turning) * 0.35
 
         // --- Lean into the acceleration ---
         // Nothing in the JS does this; it is what sells the inertia `Locomotion` introduced.
@@ -505,6 +706,9 @@ enum CharacterRig {
         let maxLean: Float = 0.22
         runtime.bodyPivotRotation.y += min(maxLean, max(-maxLean, Float(gait.leanForward) * maxLean))
         runtime.bodyPivotRotation.x = min(maxLean, max(-maxLean, Float(-gait.leanLateral) * maxLean))
+        // A sprint is run leaning into, whether or not it is still gathering speed — the
+        // acceleration lean above has nothing left to give once the character is at top speed.
+        runtime.bodyPivotRotation.y += run * 0.12
 
         // --- Emote overrides (`applyEmoteOverrides:1015-1026`) ---
         var mutation = RigMutation(bodyPivotPosition: runtime.bodyPivotPosition,
@@ -514,11 +718,17 @@ enum CharacterRig {
                                    rightHandTarget: rightHand,
                                    leftFootTarget: leftFoot,
                                    rightFootTarget: rightFoot,
+                                   chestTwist: waistTwist,
                                    holding: character.holding)
 
         if let emoteDefinition, let emote {
             // Both branches kill the idle sway before posing.
             mutation.bodyPivotRotation.y = 0
+            // And the waist, for the same reason: an emote's pose was authored against a square
+            // pair of shoulders. A minigame that wants a coil adds one back in its `override`,
+            // which runs after this — that is what the tennis swing does.
+            mutation.chestTwist = 0
+            headTurn = 0
             emoteDefinition.pose(&mutation,
                                  EmoteContext(elapsed: EventInterpreter.nowMilliseconds() - emote.startTime,
                                               nowMs: EventInterpreter.nowMilliseconds(),
@@ -542,6 +752,12 @@ enum CharacterRig {
         leftFoot = mutation.leftFootTarget
         rightFoot = mutation.rightFootTarget
         pose.holding = mutation.holding
+
+        // The head looks where the body is going. Added *after* the write-back on purpose:
+        // `runtime.headRotation` survives between frames, so anything folded into it would
+        // accumulate a frame at a time until the character was looking over its own shoulder.
+        // This is a view of it for this frame only.
+        let headRotation = runtime.headRotation + SIMD3<Float>(0, 0, headTurn)
 
         let bodyPivot = meshGroup
             * Float4x4.translation(runtime.bodyPivotPosition)
@@ -590,9 +806,9 @@ enum CharacterRig {
         // carries down into it instead of snapping the head off the shoulders.
         let neck = chest
             * Float4x4.translation(neckBase)
-            * Float4x4.eulerXYZ(runtime.headRotation.x * neckFollowsHead,
-                                runtime.headRotation.y * neckFollowsHead,
-                                runtime.headRotation.z * neckFollowsHead)
+            * Float4x4.eulerXYZ(headRotation.x * neckFollowsHead,
+                                headRotation.y * neckFollowsHead,
+                                headRotation.z * neckFollowsHead)
             * Float4x4.translation(SIMD3(0, 0, neckLength / 2))
             * Float4x4.rotationX(.pi / 2)
         pose.parts.append((.neck, neck))
@@ -602,7 +818,7 @@ enum CharacterRig {
         // whole transform, including the non-uniform 0.65/0.65/0.7 scale.
         let headAnchor = chest
             * Float4x4.translation(SIMD3(2, 0, 36))
-            * Float4x4.eulerXYZ(runtime.headRotation.x, runtime.headRotation.y, runtime.headRotation.z)
+            * Float4x4.eulerXYZ(headRotation.x, headRotation.y, headRotation.z)
             * Float4x4.scale(SIMD3(0.65, 0.65, 0.7))
 
         let head = headEntry(for: character)

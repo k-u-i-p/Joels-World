@@ -48,14 +48,46 @@ enum LocomotionSelfTest {
 
         // The old formulation moved the player `moveSpeed` units every 1/60 s frame. If this
         // ever stops matching, the overworld silently changes pace.
-        check("player profile matches the old per-frame speed",
-              near(LocomotionProfile.player.maxSpeed, 3 * 60),
-              "maxSpeed \(LocomotionProfile.player.maxSpeed), expected 180")
+        check("the walking profile matches the old per-frame speed",
+              near(LocomotionProfile.playerWalking.maxSpeed, 3 * 60),
+              "maxSpeed \(LocomotionProfile.playerWalking.maxSpeed), expected 180")
+        // `player` is now the whole range, walk to sprint, and its ceiling is the sprint — the
+        // throttle asks for a fraction of it. Break this and every stride in the game rescales.
+        check("the player's ceiling is the 1.2× sprint",
+              near(LocomotionProfile.player.maxSpeed, 3 * 60 * 1.2),
+              "maxSpeed \(LocomotionProfile.player.maxSpeed), expected 216")
         check("braking outruns acceleration",
               LocomotionProfile.player.braking > LocomotionProfile.player.acceleration,
               "a character that cannot stop faster than it starts feels like ice")
-        check("running reaches further per stride",
-              LocomotionProfile.playerRunning.strideLength > LocomotionProfile.player.strideLength)
+        check("a sprint reaches further per stride than the old walk-only profile",
+              LocomotionProfile.player.strideLength > LocomotionProfile.playerWalking.strideLength)
+        // Observed movers are measured against the same ceiling the local player is, or a remote
+        // player sprinting past reads as intensity 1.4 and everyone ambles at a different scale.
+        check("observed movers share the player's ceiling",
+              near(LocomotionProfile.observed.maxSpeed, LocomotionProfile.player.maxSpeed))
+
+        // MARK: The stick
+
+        // The whole point of the analogue stick: the magnitude is the speed. A stick reporting a
+        // corner-of-the-square 1.41 must not outrun one pushed straight along an axis.
+        check("a centred stick asks for nothing",
+              !InputState().isMoving && InputState().throttle == 0)
+        check("throttle is the length of the vector",
+              near(InputState(move: SIMD2(0.3, 0.4)).throttle, 0.5, 1e-9),
+              "got \(InputState(move: SIMD2(0.3, 0.4)).throttle)")
+        check("and is clamped at 1",
+              near(InputState(move: SIMD2(1, 1)).throttle, 1),
+              "got \(InputState(move: SIMD2(1, 1)).throttle)")
+        check("a stick built from a heading reads that heading back",
+              {
+                  let stick = InputState.stick(headingDegrees: 135, throttle: 0.5)
+                  return near(stick.angleDegrees, 135, 1e-9) && near(stick.throttle, 0.5, 1e-9)
+              }(),
+              "got \(InputState.stick(headingDegrees: 135, throttle: 0.5).angleDegrees)°")
+        // World +Y is *down* the screen and so is UIKit's, which is why the touch offset needs
+        // no sign flipping on the way in. Pin it: south is +y.
+        check("a stick pushed south is world +y",
+              InputState.stick(headingDegrees: 90, throttle: 1).move.y > 0.99)
 
         // MARK: Heading
 
@@ -195,6 +227,161 @@ enum LocomotionSelfTest {
               near(backing.gait.forward, -1, 0.01) && near(backing.gait.lateral, 0, 0.01),
               "forward \(backing.gait.forward), lateral \(backing.gait.lateral)")
 
+        // MARK: Walk, run and sprint
+
+        // The analogue stick's reason for existing. Asking for a third of top speed has to
+        // *give* a third of top speed and read as a walk; asking for all of it has to read as a
+        // sprint. Before this, `intensity` was pinned near 1 whatever the character was doing,
+        // because the profile's ceiling moved with the demand instead of the demand moving
+        // inside a fixed ceiling.
+        func gaitHolding(throttle: Double, frames: Int = 180) -> Gait {
+            var state = LocomotionState()
+            let speed = LocomotionProfile.player.maxSpeed * throttle
+            for _ in 0..<frames {
+                _ = Locomotion.step(&state, desired: (speed, 0), facingIntent: nil,
+                                    profile: .player, dt: 1.0 / 60)
+            }
+            return state.gait
+        }
+        let ambling = gaitHolding(throttle: 0.35)
+        let sprinting = gaitHolding(throttle: 1.0)
+        check("a third of a throttle is a third of top speed",
+              near(ambling.intensity, 0.35, 0.01), "intensity \(ambling.intensity)")
+        check("and reads as a walk, not as a run",
+              ambling.run == 0, "run \(ambling.run)")
+        check("a full throttle reads as a flat-out sprint",
+              near(sprinting.run, 1, 0.001) && near(sprinting.intensity, 1, 0.001),
+              "run \(sprinting.run), intensity \(sprinting.intensity)")
+        check("the walk-to-run boundary is where the profile says it is",
+              {
+                  let below = gaitHolding(throttle: LocomotionProfile.player.runThreshold - 0.05)
+                  let above = gaitHolding(throttle: LocomotionProfile.player.runThreshold + 0.05)
+                  return below.run == 0 && above.run > 0 && above.run < 1
+              }(),
+              "the ramp has to start at runThreshold and still be climbing just past it")
+
+        // A slower character takes shorter steps *as well as* slower ones. Scaling only the
+        // cadence leaves it taking sprint-sized strides in slow motion, which is a moonwalk.
+        //
+        // Ground covered per full 2π of phase, at a given fraction of top speed. The phase wraps
+        // at 4π, so the advance has to be accumulated a frame at a time rather than subtracted
+        // across the loop — do it the other way and the fast case silently measures 600 frames.
+        func strideCovered(throttle: Double) -> Double {
+            var state = LocomotionState()
+            let speed = LocomotionProfile.player.maxSpeed * throttle
+            for _ in 0..<120 {
+                _ = Locomotion.step(&state, desired: (speed, 0), facingIntent: nil,
+                                    profile: .player, dt: 1.0 / 60)
+            }
+            var advanced: Double = 0
+            var covered: Double = 0
+            var previousPhase = state.gait.phase
+            var frames = 0
+            while advanced < 2 * .pi && frames < 2000 {
+                // `step` produces a *demand*; nothing moves until `commit` accepts it, so the
+                // ground covered is the demand, not a difference in `state.x`.
+                let demand = Locomotion.step(&state, desired: (speed, 0), facingIntent: nil,
+                                             profile: .player, dt: 1.0 / 60)
+                var phaseStep = state.gait.phase - previousPhase
+                if phaseStep < 0 { phaseStep += 4 * .pi }
+                advanced += phaseStep
+                previousPhase = state.gait.phase
+                covered += (demand.dx * demand.dx + demand.dy * demand.dy).squareRoot()
+                frames += 1
+            }
+            return covered
+        }
+        check("a walk's stride is shorter than a sprint's, not just slower",
+              strideCovered(throttle: 0.35) < strideCovered(throttle: 1) * 0.85,
+              "walk \(strideCovered(throttle: 0.35)) vs sprint \(strideCovered(throttle: 1))")
+        // At full speed the stride is the profile's, un-shortened — that is the definition of
+        // `strideLength`. The tolerance is one frame's worth of ground, because the loop above
+        // can only stop on the frame *after* the one that crosses 2π.
+        check("and a sprint's stride is the profile's",
+              near(strideCovered(throttle: 1), LocomotionProfile.player.strideLength,
+                   LocomotionProfile.player.maxSpeed / 60),
+              "covered \(strideCovered(throttle: 1)) per stride, profile says \(LocomotionProfile.player.strideLength)")
+
+        // MARK: Counteracting the inertia
+        //
+        // The signals the rig braces, counterweights and counter-rotates off. Every one of them
+        // is a sign, which is exactly the kind of thing this file is for: get one backwards and
+        // the character throws the wrong foot out and falls into the turn instead of out of it.
+
+        // Cut hard to the character's left while facing straight ahead. Local +Y is their left,
+        // and world −Y is where that lands at a 0° facing.
+        var cutting = LocomotionState(vx: LocomotionProfile.player.maxSpeed, facing: 0)
+        for _ in 0..<20 {
+            _ = Locomotion.step(&cutting,
+                                desired: (0, -LocomotionProfile.player.maxSpeed),
+                                facingIntent: 0, profile: .player, dt: 1.0 / 60)
+        }
+        check("accelerating towards the character's left is a positive lean",
+              cutting.gait.leanLateral > 0.2,
+              "leanLateral \(cutting.gait.leanLateral) — the rig braces on the wrong foot if this flips")
+
+        // Braking from a sprint. `leanForward` going negative is what puts a foot out in front.
+        var skidding = LocomotionState(vx: LocomotionProfile.player.maxSpeed, facing: 0)
+        for _ in 0..<6 {
+            _ = Locomotion.step(&skidding, desired: (0, 0), facingIntent: 0,
+                                profile: .player, dt: 1.0 / 60)
+        }
+        check("braking is a negative forward lean",
+              skidding.gait.leanForward < -0.1,
+              "leanForward \(skidding.gait.leanForward)")
+        check("and setting off is a positive one",
+              {
+                  var starting = LocomotionState(facing: 0)
+                  for _ in 0..<6 {
+                      _ = Locomotion.step(&starting,
+                                          desired: (LocomotionProfile.player.maxSpeed, 0),
+                                          facingIntent: 0, profile: .player, dt: 1.0 / 60)
+                  }
+                  return starting.gait.leanForward > 0.1
+              }())
+
+        // Turning on the spot: no velocity at all, so `leanLateral` has nothing to say and
+        // `turning` is the only signal there is. This is the case the shoulders trail through.
+        //
+        // Held, not sampled at the end: at 540°/s a quarter turn is over in ten frames and the
+        // smoothing has decayed most of the way back to zero by frame thirty. Spinning on the
+        // spot means re-aiming the intent ahead of the body every frame.
+        func spinPeak(clockwise: Bool) -> (peak: Double, intensity: Double) {
+            var state = LocomotionState(facing: 0)
+            var peak: Double = 0
+            for _ in 0..<60 {
+                let ahead = state.facing + (clockwise ? 45 : -45)
+                _ = Locomotion.step(&state, desired: (0, 0), facingIntent: ahead,
+                                    profile: .player, dt: 1.0 / 60)
+                if abs(state.gait.turning) > abs(peak) { peak = state.gait.turning }
+            }
+            return (peak, state.gait.intensity)
+        }
+        let clockwiseSpin = spinPeak(clockwise: true)
+        check("turning on the spot reports a turn even with no velocity",
+              clockwiseSpin.peak > 0.1 && clockwiseSpin.intensity == 0,
+              "turning \(clockwiseSpin.peak), intensity \(clockwiseSpin.intensity)")
+        check("and turning the other way flips its sign",
+              spinPeak(clockwise: false).peak < -0.1,
+              "turning \(spinPeak(clockwise: false).peak)")
+        check("a settled heading stops reporting a turn",
+              {
+                  var settled = LocomotionState(facing: 0)
+                  for _ in 0..<240 {
+                      _ = Locomotion.step(&settled, desired: (0, 0), facingIntent: 0,
+                                          profile: .player, dt: 1.0 / 60)
+                  }
+                  return abs(settled.gait.turning) < 0.01
+              }())
+
+        // A heading that crosses the 0/360 wrap must not read as a 359° whip round.
+        check("a turn across the wrap is small, not enormous",
+              near(Locomotion.shortestTurn(from: 350, to: 10), 20),
+              "got \(Locomotion.shortestTurn(from: 350, to: 10))")
+        check("and is signed the short way in both directions",
+              near(Locomotion.shortestTurn(from: 10, to: 350), -20),
+              "got \(Locomotion.shortestTurn(from: 10, to: 350))")
+
         // MARK: Walls
 
         // `commit` is the half that is easy to miss. A character shoved into a wall must shed
@@ -248,10 +435,12 @@ enum LocomotionSelfTest {
 
         // MARK: Observed movers
 
-        // `observe` is what gives remote players and NPCs a gait. Walk one straight ahead.
+        // `observe` is what gives remote players and NPCs a gait. Run one flat out, straight
+        // ahead — a frame's worth of ground at the observed profile's top speed.
+        let observedStep = LocomotionProfile.observed.maxSpeed / 60
         var walker = ObservedMotion()
         for _ in 0..<120 {
-            Locomotion.observe(&walker, dx: 3, dy: 0, facing: 0, dt: 1.0 / 60)
+            Locomotion.observe(&walker, dx: observedStep, dy: 0, facing: 0, dt: 1.0 / 60)
         }
         check("an observed mover walking along its facing reads as forward",
               near(walker.gait.forward, 1, 0.02) && near(walker.gait.lateral, 0, 0.02),
@@ -261,11 +450,39 @@ enum LocomotionSelfTest {
         // rotation faces down the corridor while it walks across it.
         var crabbing = ObservedMotion()
         for _ in 0..<120 {
-            Locomotion.observe(&crabbing, dx: 0, dy: 3, facing: 0, dt: 1.0 / 60)
+            Locomotion.observe(&crabbing, dx: 0, dy: observedStep, facing: 0, dt: 1.0 / 60)
         }
         check("an observed mover walking across its facing side-steps",
               near(crabbing.gait.lateral, -1, 0.02) && near(crabbing.gait.forward, 0, 0.02),
               "forward \(crabbing.gait.forward), lateral \(crabbing.gait.lateral)")
+
+        // An NPC ambling at a third of a sprint must read as a walk, not as a sprint played
+        // slowly. Before the profile ceiling meant the sprint, every mover came out at ~1.
+        var ambler = ObservedMotion()
+        for _ in 0..<120 {
+            Locomotion.observe(&ambler, dx: observedStep * 0.3, dy: 0, facing: 0, dt: 1.0 / 60)
+        }
+        check("a slow observed mover is a walk, not a slow sprint",
+              near(ambler.gait.intensity, 0.3, 0.02) && ambler.gait.run == 0,
+              "intensity \(ambler.gait.intensity), run \(ambler.gait.run)")
+
+        // A turn has to be differentiated out of the heading, because nothing upstream of an
+        // NPC or a remote player ever forms one. Clockwise is a turn to the character's right.
+        var pivoting = ObservedMotion()
+        for frame in 1...60 {
+            Locomotion.observe(&pivoting, dx: 0, dy: 0, facing: Double(frame) * 2,
+                               dt: 1.0 / 60)
+        }
+        check("an observed mover turning clockwise reports a positive turn",
+              pivoting.gait.turning > 0.1,
+              "turning \(pivoting.gait.turning)")
+        check("and it does not fire on the very first frame it is seen",
+              {
+                  var fresh = ObservedMotion()
+                  Locomotion.observe(&fresh, dx: 0, dy: 0, facing: 250, dt: 1.0 / 60)
+                  return fresh.gait.turning == 0
+              }(),
+              "a heading nobody has seen before is not a turn")
 
         // Standing still must settle, or every idle NPC in the school jogs on the spot.
         var halting = walker
@@ -497,6 +714,77 @@ enum LocomotionSelfTest {
         check("and finishes back on the rig's own animation",
               handTarget(after: engaged, rigPose: walkCyclePose) == walkCyclePose)
 
+        // MARK: Arms, by angle
+
+        // `armTarget` exists because an arm swung by pushing its hand through space is a
+        // straight stick whose swing gets silently clamped by the IK. Two things have to hold
+        // for the replacement to be worth having: the neutral angles must reproduce the neutral
+        // hand exactly, and **nothing it produces may ever be out of reach**.
+        let neutralByAngle = CharacterRig.armTarget(shoulder: CharacterRig.leftShoulder,
+                                                    swing: CharacterRig.neutralArmSwing,
+                                                    sideways: -CharacterRig.neutralArmSideways,
+                                                    flex: CharacterRig.neutralArmFlex)
+        check("the neutral arm angles rebuild the neutral hand",
+              simd_length(neutralByAngle - CharacterRig.neutralLeftHand) < 0.01,
+              "got \(neutralByAngle), wanted \(CharacterRig.neutralLeftHand)")
+        check("and the mirrored ones rebuild the other hand",
+              {
+                  let other = CharacterRig.armTarget(shoulder: CharacterRig.rightShoulder,
+                                                     swing: CharacterRig.neutralArmSwing,
+                                                     sideways: CharacterRig.neutralArmSideways,
+                                                     flex: CharacterRig.neutralArmFlex)
+                  return simd_length(other - CharacterRig.neutralRightHand) < 0.01
+              }())
+
+        // The whole range, swept. Anything outside `2 · armBone` is a target `IKSolver.solve`
+        // would quietly move somewhere else, and the drawn arm would stop matching the pose.
+        check("no arm angle can put a hand out of reach",
+              {
+                  var worst: Float = 0
+                  for swingStep in -12...12 {
+                      for sideStep in -13...13 {
+                          for flexStep in 0...24 {
+                              let hand = CharacterRig.armTarget(
+                                  shoulder: CharacterRig.leftShoulder,
+                                  swing: Float(swingStep) * 0.15,
+                                  sideways: Float(sideStep) * 0.1,
+                                  flex: Float(flexStep) * 0.1)
+                              worst = max(worst,
+                                          simd_length(hand - CharacterRig.leftShoulder))
+                          }
+                      }
+                  }
+                  return worst <= CharacterRig.armBone * 2 + 0.001
+              }(),
+              "a swept arm reached past \(CharacterRig.armBone * 2)")
+
+        // A bent elbow brings the hand in. This is the number the old formulation could not
+        // control at all: the neutral hand sat at 96% of full extension, so every arm in the
+        // game was a locked stick whatever the tables asked for.
+        func armReach(flex: Float) -> Float {
+            simd_length(CharacterRig.armTarget(shoulder: CharacterRig.leftShoulder,
+                                               swing: 0, sideways: 0, flex: flex)
+                        - CharacterRig.leftShoulder)
+        }
+        check("a locked elbow spans both bones",
+              abs(armReach(flex: 0) - CharacterRig.armBone * 2) < 0.001,
+              "reach \(armReach(flex: 0))")
+        check("and a right angle pulls the hand in by nearly a third",
+              abs(armReach(flex: .pi / 2) - CharacterRig.armBone * 2 * 0.7071) < 0.01,
+              "reach \(armReach(flex: .pi / 2))")
+        check("the neutral arm is bent, not locked",
+              armReach(flex: CharacterRig.neutralArmFlex) < CharacterRig.armBone * 2 - 0.4,
+              "reach \(armReach(flex: CharacterRig.neutralArmFlex)) of \(CharacterRig.armBone * 2)")
+
+        // Positive swing is forward and positive sideways is the character's left — the same
+        // frame everything else in this file is pinned against.
+        check("positive swing puts the hand in front of the shoulder",
+              CharacterRig.armTarget(shoulder: .zero, swing: 0.6, sideways: 0, flex: 0.5).x > 0)
+        check("positive sideways puts it on the character's left",
+              CharacterRig.armTarget(shoulder: .zero, swing: 0, sideways: 0.6, flex: 0.5).y > 0)
+        check("and a hanging arm hangs down",
+              CharacterRig.armTarget(shoulder: .zero, swing: 0, sideways: 0, flex: 0.5).z < 0)
+
         // MARK: Frames, once more with the motor
 
         // The same sign convention the rig uses, now going through the motor's own converter.
@@ -520,13 +808,13 @@ enum LocomotionSelfTest {
         let watched = CharacterMotor(profile: .observed)
         watched.teleport(x: 0, y: 0, facing: 0)
         for frame in 1...120 {
-            watched.observe(x: Double(frame) * 3, y: 0, z: 0, facing: 0, dt: 1.0 / 60)
+            watched.observe(x: Double(frame) * observedStep, y: 0, z: 0, facing: 0, dt: 1.0 / 60)
         }
         check("an observed motor walking along its facing reads as forward",
               near(watched.gait.forward, 1, 0.02) && near(watched.gait.lateral, 0, 0.02),
               "forward \(watched.gait.forward), lateral \(watched.gait.lateral)")
         check("and its position is exactly where it was put",
-              near(watched.x, 360), "x \(watched.x)")
+              near(watched.x, observedStep * 120), "x \(watched.x)")
 
         Log.world("selftest — \(passed) passed, \(failed) failed")
         return failed == 0

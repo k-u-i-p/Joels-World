@@ -20,11 +20,29 @@ struct Gait {
     var lateral: Double = 0
     /// 0 standing, 1 flat out. Scales the whole stride so a walk is not a sprint.
     var intensity: Double = 0
+    /// **0 walking, 1 sprinting.** `intensity` measured against the profile's `runThreshold`, so
+    /// there is one number to hang everything a run does differently on: a longer stride, higher
+    /// knees, a bigger arm swing, more bounce and a forward lean. Before the stick had a
+    /// magnitude this was unanswerable — every character was always at `intensity` 1 and a walk
+    /// was a sprint played at the same speed.
+    var run: Double = 0
     /// Forward acceleration as a fraction of what the legs can produce, smoothed. Leans the
     /// torso into a sprint start and back out of a skid.
+    ///
+    /// Also the **braking** signal, when negative: it is what puts a foot out in front of the
+    /// body to stop against, which is what a person actually does and a character sliding to a
+    /// halt on two straight legs does not.
     var leanForward: Double = 0
-    /// Sideways acceleration, same units. Banks the body into a change of direction.
+    /// Sideways acceleration, same units. Banks the body into a change of direction — and, at
+    /// the legs, decides which foot steps out to brace against it. Positive is an acceleration
+    /// towards the character's **left** (local +Y).
     var leanLateral: Double = 0
+    /// **How fast the body is turning**, as a fraction of `LocomotionProfile.turnRate`, smoothed
+    /// and signed: positive is clockwise in world terms, which is a turn towards the character's
+    /// right. Distinct from `leanLateral`, which is nothing at all when a character turns on the
+    /// spot. Counter-rotates the shoulders against the hips, so the chest trails the turn
+    /// instead of the whole character rotating like a chess piece on its base.
+    var turning: Double = 0
 
     /// A character standing still.
     static let still = Gait()
@@ -55,39 +73,54 @@ struct LocomotionProfile {
     /// body is still coming round, the velocity is off to one side of the facing, and the gait
     /// says so.
     var turnRate: Double
-    /// World units covered per full 2π stride cycle — two footfalls.
+    /// World units covered per full 2π stride cycle — two footfalls, **at top speed**. Slower
+    /// than that and `resolve` shortens it: see the note there about why cadence alone is wrong.
     var strideLength: Double
     /// How much acceleration tilts the torso. 0 disables the lean.
     var lean: Double = 1
+    /// The fraction of `maxSpeed` at which a walk becomes a run. Everything a run does
+    /// differently — the stride, the knees, the arms, the bounce, the footstep audio — ramps in
+    /// from here to `maxSpeed`, so it is the one knob for "how hard do I have to push to
+    /// sprint?".
+    var runThreshold: Double = 0.55
 
-    /// The overworld player. `Player.moveSpeed` is 3 units per 1/60 s frame in the old
-    /// per-frame formulation, which is 180 units a second.
-    static let player = LocomotionProfile(maxSpeed: 180,
-                                          acceleration: 900,
-                                          braking: 1400,
+    /// **The overworld player's whole range**, walk to sprint. `maxSpeed` is the *sprint*: the
+    /// thumbstick asks for a fraction of it, and that fraction is what `Gait.intensity` reports,
+    /// so a stick a third of the way over is genuinely a third of a sprint rather than a full
+    /// run at a slower playback rate.
+    ///
+    /// `Player.moveSpeed` is 3 units per 1/60 s frame in the old per-frame formulation — 180
+    /// units a second — and the sprint is 1.2× that, which is where 216 comes from.
+    static let player = LocomotionProfile(maxSpeed: 216,
+                                          acceleration: 1000,
+                                          braking: 1500,
                                           turnRate: 540,
-                                          strideLength: 62)
+                                          strideLength: 74)
 
-    /// Running flat out costs the same acceleration but reaches further.
-    static let playerRunning = LocomotionProfile(maxSpeed: 216,
-                                                 acceleration: 1000,
+    /// The old walk-only profile: 180 units a second and nothing above it. Kept because it is
+    /// the pre-analogue behaviour and `LocomotionSelfTest` pins it against the per-frame speed
+    /// the JS moved at, so a change to `player` above cannot quietly change the game's pace.
+    static let playerWalking = LocomotionProfile(maxSpeed: 180,
+                                                 acceleration: 900,
                                                  braking: 1400,
-                                                 turnRate: 480,
-                                                 strideLength: 72)
+                                                 turnRate: 540,
+                                                 strideLength: 62)
 
     /// A mover this client does not drive — a remote player being eased towards the server's
     /// last word, an NPC walking a patrol route. `Locomotion.observe` uses it to read a gait
     /// back out of movement that has already happened.
     ///
-    /// `maxSpeed` is deliberately the *player's* 180 rather than the mover's own top speed, so
-    /// `intensity` comes out as a fraction of a normal walk: a slow NPC ambles instead of
-    /// sprinting in slow motion, and a fast one leans on the same 1.4 clamp everyone else does.
-    /// `turnRate` is unused here — nothing turns an observed mover but the world.
-    static let observed = LocomotionProfile(maxSpeed: 180,
+    /// `maxSpeed` is deliberately the *player's* rather than the mover's own top speed, so
+    /// `intensity` comes out as a fraction of what a person can do: a slow NPC ambles instead of
+    /// sprinting in slow motion, and a remote player sprinting past reads as a sprint because it
+    /// is being measured against the same ceiling the local player is.
+    /// `turnRate` is used only to scale `Gait.turning` here — nothing turns an observed mover
+    /// but the world.
+    static let observed = LocomotionProfile(maxSpeed: 216,
                                             acceleration: 900,
                                             braking: 1400,
                                             turnRate: 540,
-                                            strideLength: 62)
+                                            strideLength: 74)
 }
 
 /// Velocity carried between frames for a mover the simulation does not drive.
@@ -100,6 +133,10 @@ struct ObservedMotion {
     var vx: Double = 0
     var vy: Double = 0
     var gait = Gait()
+    /// Last frame's heading, so the yaw rate can be differentiated out of it the same way the
+    /// velocity is differentiated out of the position. Nil until the first frame — there is no
+    /// turn to measure against a heading nobody has seen yet.
+    var previousFacing: Double?
 
     /// Throws away the carried velocity. Call it on a teleport, where the displacement between
     /// two frames is a jump rather than a stride and would otherwise read as a 4000-unit sprint.
@@ -107,6 +144,7 @@ struct ObservedMotion {
         vx = 0
         vy = 0
         gait = .still
+        previousFacing = nil
     }
 }
 
@@ -196,6 +234,7 @@ enum Locomotion {
         let speed = state.speed
         let travelHeading = speed > 1 ? atan2(state.vy, state.vx) * 180 / .pi : state.facing
         let targetFacing = facingIntent ?? travelHeading
+        let previousFacing = state.facing
         state.facing = turn(state.facing, towards: targetFacing, limit: profile.turnRate * dt)
 
         // --- Resolve into the body's own frame ---
@@ -203,6 +242,7 @@ enum Locomotion {
                 vx: state.vx, vy: state.vy,
                 accelX: accelX / dt, accelY: accelY / dt,
                 facing: state.facing,
+                yawRate: shortestTurn(from: previousFacing, to: state.facing) / dt,
                 profile: profile, dt: dt)
 
         return (dx: state.vx * dt, dy: state.vy * dt)
@@ -245,11 +285,18 @@ enum Locomotion {
         if abs(motion.vx) < 0.08 { motion.vx = 0 }
         if abs(motion.vy) < 0.08 { motion.vy = 0 }
 
+        // The heading is differentiated the same way the position is, and for the same reason:
+        // nothing upstream forms a turn rate, so an NPC rounding a corner had no way to counter-
+        // rotate its shoulders into it.
+        let yawRate = motion.previousFacing.map { shortestTurn(from: $0, to: facing) / dt } ?? 0
+        motion.previousFacing = facing
+
         resolve(&motion.gait,
                 vx: motion.vx, vy: motion.vy,
                 accelX: (motion.vx - previousVx) / dt,
                 accelY: (motion.vy - previousVy) / dt,
                 facing: facing,
+                yawRate: yawRate,
                 profile: profile, dt: dt)
     }
 
@@ -266,9 +313,18 @@ enum Locomotion {
 
     /// Turns `current` towards `target` by at most `limit` degrees, the short way round.
     static func turn(_ current: Double, towards target: Double, limit: Double) -> Double {
-        let difference = ((target - current) + 540).truncatingRemainder(dividingBy: 360) - 180
+        let difference = shortestTurn(from: current, to: target)
         if abs(difference) <= limit { return normalize(target) }
         return normalize(current + (difference < 0 ? -limit : limit))
+    }
+
+    /// The signed angle from one heading to another, −180…180 degrees. Positive is clockwise,
+    /// which in this world's Y-down frame is a turn towards the character's **right**.
+    ///
+    /// Doing this by subtraction instead is the bug that makes a character spin the long way
+    /// round the 360° wrap: 350° to 10° is +20, not −340.
+    static func shortestTurn(from current: Double, to target: Double) -> Double {
+        ((target - current) + 540).truncatingRemainder(dividingBy: 360) - 180
     }
 
     static func normalize(_ degrees: Double) -> Double {
@@ -293,6 +349,7 @@ enum Locomotion {
                                 vx: Double, vy: Double,
                                 accelX: Double, accelY: Double,
                                 facing: Double,
+                                yawRate: Double,
                                 profile: LocomotionProfile,
                                 dt: Double) {
         let radians = facing * .pi / 180
@@ -309,11 +366,24 @@ enum Locomotion {
         gait.lateral = clamp(lateral / top, -1.4, 1.4)
         gait.intensity = clamp(speed / top, 0, 1.4)
 
+        // Walk or run, as one number from 0 to 1. Everything a run does differently hangs off
+        // it, so the transition is a ramp rather than a switch and there is no frame where the
+        // character visibly changes animation.
+        let threshold = clamp(profile.runThreshold, 0, 0.99)
+        gait.run = clamp((gait.intensity - threshold) / (1 - threshold), 0, 1)
+
         // Stride advances with ground covered, not with time, so a character easing to a halt
         // takes shorter and shorter steps instead of moonwalking.
+        //
+        // But *only* scaling the cadence is wrong too: it gives a dawdling character the same
+        // enormous steps taken very slowly, which reads as a moonwalk in the other direction.
+        // Real legs shorten the stride as well as slowing it, roughly as the square root of the
+        // speed either way, so half of the slowdown goes into each.
+        let strideScale = 0.45 + 0.55 * clamp(gait.intensity, 0, 1).squareRoot()
+        let stride = max(profile.strideLength * strideScale, 1)
         if speed > 1 {
             let distance = speed * dt
-            gait.phase += distance / max(profile.strideLength, 1) * 2 * .pi
+            gait.phase += distance / stride * 2 * .pi
             if gait.phase > .pi * 4 { gait.phase -= .pi * 4 }
         } else if gait.phase != 0 {
             // Finish the step rather than snapping mid-stride, which is the one thing the old
@@ -328,6 +398,12 @@ enum Locomotion {
 
         // Lean follows acceleration, smoothed hard — raw frame-to-frame acceleration is far too
         // noisy to drive a torso with.
+        //
+        // These two are also what the legs brace against. A character changing direction is
+        // being pushed sideways by its own feet, and the honest way to draw that is a foot
+        // planted out on the far side of the push — so `leanLateral` decides which foot steps
+        // out and how far, and `leanForward`, when it goes negative, puts a foot in front of the
+        // body to stop against. `CharacterRig.pose` is where both are spent.
         let accelForward = accelX * cosine + accelY * sine
         let accelLateral = accelX * sine - accelY * cosine
         let reference = max(profile.acceleration, 1)
@@ -336,6 +412,12 @@ enum Locomotion {
                              - gait.leanForward) * smoothing
         gait.leanLateral += (clamp(accelLateral / reference, -1, 1) * profile.lean
                              - gait.leanLateral) * smoothing
+
+        // The turn rate is its own signal rather than something read out of the lateral
+        // acceleration, because a character spinning on the spot has plenty of the first and
+        // none of the second — and the shoulders should still trail the hips through it.
+        let turnReference = max(profile.turnRate, 1)
+        gait.turning += (clamp(yawRate / turnReference, -1, 1) - gait.turning) * smoothing
     }
 
     private static func clamp(_ value: Double, _ lower: Double, _ upper: Double) -> Double {

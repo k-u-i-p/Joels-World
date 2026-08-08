@@ -405,24 +405,38 @@ final class GameState {
             hasJumped = false
         }
 
-        // Holding a direction for two and a half seconds breaks into a run (`main.js:334`).
-        let holdingDirection = !emoteForcedMove && (input.isMoving || input.forward != 0)
-        if holdingDirection {
+        // The profile is the player's whole range now — `maxSpeed` is the sprint — and the
+        // throttle below decides how much of it is being asked for. That is the difference
+        // between a walk and a sprint being two animations with a switch between them and being
+        // one animation with a number: `Gait.intensity` comes out as a real fraction, so the
+        // stride, the arm swing, the knees and the bounce all scale with the finger.
+        //
+        // `Player.moveSpeed` is authored in the old per-frame units — 3 units per 1/60 s — so it
+        // is scaled up to the per-second ones `Locomotion` works in, and 1.2× on top for the
+        // sprint, which is exactly where `LocomotionProfile.player`'s 216 comes from.
+        var profile = LocomotionProfile.player
+        profile.maxSpeed = player.moveSpeed * 60 * 1.2
+        playerMotor.profile = profile
+
+        // **How much of that speed the player is asking for**, 0…1.
+        //
+        // A thumbstick knows: it is how far over it is pushed. Tank controls do not — a key is
+        // down or it is not — so the keyboard keeps the JS's hold-to-run (`main.js:334`), except
+        // that it now *ramps* from a walk to a sprint over the two and a half seconds instead of
+        // flipping at the end of them.
+        let heldDirection = !emoteForcedMove && (input.isMoving || input.forward != 0)
+        if heldDirection {
             if player.runDirectionStart == nil {
                 player.runDirectionStart = Date.timeIntervalSinceReferenceDate
             }
-            player.isRunning = Date.timeIntervalSinceReferenceDate
-                - (player.runDirectionStart ?? 0) >= 2.5
         } else {
             player.runDirectionStart = nil
-            player.isRunning = false
         }
+        let held = player.runDirectionStart.map { Date.timeIntervalSinceReferenceDate - $0 } ?? 0
+        let keyboardThrottle = min(1, profile.runThreshold + (1 - profile.runThreshold) * held / 2.5)
 
-        // The player's own `moveSpeed` is authored in the old per-frame units — 3 units per
-        // 1/60 s — so it is scaled up to the per-second ones `Locomotion` works in.
-        var profile = player.isRunning ? LocomotionProfile.playerRunning : .player
-        profile.maxSpeed = player.moveSpeed * 60 * (player.isRunning ? 1.2 : 1)
-        playerMotor.profile = profile
+        let throttle = input.isMoving ? input.throttle : keyboardThrottle
+        player.isRunning = heldDirection && throttle > profile.runThreshold
 
         // `getDemandedMovementVector`: a thumbstick takes the whole branch and always drives
         // forward, so the keys only count when there is no stick input.
@@ -430,17 +444,18 @@ final class GameState {
         // Tank controls aim the body themselves; a thumbstick lets it turn towards travel,
         // which is what leaves a window where the legs are side-stepping.
         let tankFacing: Double? = input.turn != 0 ? player.rotation : nil
+        let demandedSpeed = profile.maxSpeed * throttle
 
         if emoteForcedMove {
             playerMotor.holdPosition()
         } else if input.isMoving {
             let angle = input.angleDegrees * .pi / 180
-            playerMotor.driveCharacter(velocityX: cos(angle) * profile.maxSpeed,
-                                       velocityY: sin(angle) * profile.maxSpeed,
+            playerMotor.driveCharacter(velocityX: cos(angle) * demandedSpeed,
+                                       velocityY: sin(angle) * demandedSpeed,
                                        facing: tankFacing)
         } else if input.forward != 0 {
             let angle = player.rotation * .pi / 180
-            let signedSpeed = profile.maxSpeed * input.forward
+            let signedSpeed = demandedSpeed * input.forward
             playerMotor.driveCharacter(velocityX: cos(angle) * signedSpeed,
                                        velocityY: sin(angle) * signedSpeed,
                                        facing: player.rotation)
