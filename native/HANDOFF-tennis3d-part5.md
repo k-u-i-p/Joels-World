@@ -128,26 +128,155 @@ from **14.0 m — flat against the fence — to 8.5 m**, which is standing on th
 every ball of every rally, and which also pins `attack` at 1 so it stops being something a short
 ball earns you. 0.45 puts the median just inside the baseline.
 
+And the aim ranges opened up with it — the player's from 0.38–0.78 of a half-court to 0.42–0.86,
+Alex's to 0.34–0.70 at difficulty 0 and 0.49–0.98 at 1. Part 3's careful table of aim widths was
+measured against players who could not reach a ball above their own shoulder; the same aim moves
+nobody now.
+
+## Making Easy easy, and Hard hard
+
+`Tuning.difficulty` reached across four numbers, and all four were Alex. Three more now, and one
+of them is on the player's side of the net:
+
+| | Easy 0.35 | Normal 0.6 | Hard 0.9 |
+|---|---|---|---|
+| `playerReachScale` — **the player's sweet spot** | 1.19 → 0.50 m | 1.0 → 0.42 m | 0.775 → 0.33 m |
+| `npcPaceScale` — how hard Alex hits | 0.92 | 1.00 | 1.11 |
+| `npcAimRange` — how near the lines she aims | 0.39–0.80 | 0.43–0.87 | 0.48–0.95 |
+
+All three are anchored so that **Normal is exactly the balance three previous sessions measured**.
+Easy and Hard move away from it in opposite directions.
+
+The sweet spot is the important one, and it is worth saying why the difficulty setting reaches
+across the net at all. Part 4 measured 0.60 against 0.02 and found no difference, and concluded
+that "the honest lever is probably on the player's side". It is: in twenty measured points at the
+start of this session **not one ball went out or into the net**. Every point ended with somebody
+failing to reach a ball. If reaching the ball is the whole game, the size of the target is the
+whole difficulty. The green X is drawn the size of the sweet spot it stands for, so pressing Easy
+visibly makes the target bigger rather than only making it bigger in the arithmetic.
+
 ## Measured
 
-Four minutes each, `-tennis3dtaps -tennis3dtrace`, tap bot versus Alex. The bot reads the ball
-perfectly and has no reaction time, so it is a good deal better than a ten-year-old.
+Four to five minutes each, `-tennis3dtaps -tennis3dtrace`, tap bot versus Alex, one run per
+simulator. The bot reads the ball perfectly and has no reaction time, so it is a good deal better
+than a ten-year-old — read it as an upper bound on Joel.
 
-| | Bot – Alex | Misses | Mean rally | Median contact |
-|---|---|---|---|---|
-| **Before this session**, 0.35 | 5 – 6 | 7 | 4.9 | 14.0 m, 1.5 m high |
-| **Before**, 0.90 | 1 – 8 | 4 | 5.1 | 14.0 m |
-| Lift only, 0.35 | 0 – 0 | 0 | **59** | — |
-| Lift + stretch penalty, 0.35 | 2 – 0 | 1 | 14 | — |
-| **Shipped**, 0.35 | 8 – 0 | 0 | 11.3 | 8.5 m, 1.0 m high |
-| **Shipped**, 0.90 | 2 – 5 | — | 9.0 | — |
+| | Bot – Alex | Mean rally | Median contact |
+|---|---|---|---|
+| **Before this session**, 0.35 | 5 – 6 | 4.9 | 14.0 m, ball 1.5 m up |
+| **Before**, 0.90 | 1 – 8 | 5.1 | 14.0 m |
+| Lift only, 0.35 | 0 – 0 | **59** | — |
+| Lift + stretch penalty, 0.35 | 2 – 0 | 14 | — |
+| **Shipped, Easy** 0.35 | 8 – 0 | 7.3 | 9.4 m |
+| **Shipped, Normal** 0.6 | 4 – 3 | 11.7 (median 3) | 8.5 m, ball 1.0 m up |
+| **Shipped, Hard** 0.9 | 0 – 5 | 4.6 | — |
 
-The two rows that matter are the last two. **Easy and Hard now produce opposite results** — a
-walkover for the bot on Easy, a defeat on Hard — where at the start of the session they were 5–6
-and 1–8, which is to say Easy was the harder half of a coin toss. That was the biggest open item
-in part 4's list and it is closed.
+**The three settings now produce three different games**, which is the biggest open item in part
+4's list and the reason for most of this session. A perfect player is level with Alex on Normal
+and loses to her on Hard.
 
-Rallies are twice as long as part 4's 5.1, and that is the honest number rather than a
-regression: most of the old short points ended on the over-the-head miss, which was a hole in the
-strike zone rather than anybody's skill. A point now takes about thirty seconds, so a Short match
-is five or six minutes.
+The rally distribution is skewed rather than long — a median of three shots with the occasional
+twenty or forty — which is a better shape than a flat mean suggests. A point takes about thirty
+seconds, so a Short match is five or six minutes.
+
+## Three things Joel can do that he could not
+
+### Aim
+
+**Tap Alex's half of the court and the next shot goes there.** One tap, no second finger, nothing
+to learn — and it cannot be confused with steering, because you cannot stand on her half. A tap
+over there previously meant nothing more useful than "run at the net".
+
+- `Tennis3DGame.aimShot(atWorldX:y:)` clamps it inside the singles court with a 0.6 m margin, so
+  choosing a target is never itself the error.
+- Five gold posts mark it. It is spent by the next shot, hit or miss, and expires after eight
+  seconds — keeping it would send every ball of the rest of the point to the same corner.
+- `planShot` gives a chosen target outright: no away-from-Alex, no slide nudge, no random depth.
+  It is still only a request, because `strike` drags a mistimed or stretched shot back towards
+  the middle. Choosing the line and *then* reaching for the ball off balance gets you most of the
+  way there and not all of it.
+- The tap is unprojected on the **floor**, whereas a steer is unprojected at racket height. Those
+  planes are more than a metre apart on screen at this camera angle.
+
+### Choose how long the match is
+
+`Tennis3DMatchLength` — Short (2 games) or Long (4) — with the same shape as the difficulty:
+buttons under the scoreboard, persisted in `UserDefaults`, read fresh at the end of every game so
+nothing caches it. `-tennisgames <n>` overrides it for a run that has to reach the badge quickly.
+
+### Drag in the corner he is standing in
+
+The button bar is five 44-point circles across the bottom right, which is exactly where the near
+player stands when a deep ball has pushed them back. They sat on top of the character and ate the
+first centimetre of any drag starting there — the drag you most need, because you are in trouble.
+Badges and emotes are hidden for the duration of any minigame now (`ButtonBarView.setMinigameMode`),
+leaving the exit and the help button. Neither does anything a minigame can use.
+
+## A rule about the far end of the court
+
+Worth writing down, because it cost an hour and the symptom is silence rather than an error.
+
+**Nothing may lie flat on Alex's half of the court.** The aim marker was first a flat gold square
+and then a square outline of thin bars, both a couple of units above the surface, and *neither
+appeared on screen at all* — while a small post standing in the middle of them, from the same
+array, in the same blended pass, drew perfectly every frame.
+
+It is the depth buffer. The camera orbits at 1631 units with `Camera.far` at 2000, so the far
+baseline is right out at the end of the range, where the depth value cannot separate two surfaces
+two units apart. Near the player the same trick is fine — the ball's shadow lies 1.6 units up and
+has never flickered — because precision at the bottom of the screen is a different world from
+precision at the top. Part 1 recorded "z-fighting between three ground planes 1.5 cm apart" as a
+solved mystery; this is the same mystery at a different distance.
+
+So the aim marker is five little posts, and it reads better than the square would have: from a
+camera tipped 46° over, something standing up is something you can see. Raising `Camera.far` is
+still the real fix and is still a red-zone change — see part 4's note.
+
+## New debug flags
+
+| Flag | What |
+|---|---|
+| `-tennis3daim` | The tap bot picks a corner of Alex's court before each shot, **by tapping it**. The only thing that exercises the aiming gesture end to end, since its ordinary taps are all on its own half. |
+| `-tennisgames <n>` | Games needed to win. `-tennisgames 1` reaches the match panel and the badge in about three minutes. |
+
+## Seen on screen, not just in a log
+
+Screenshots, `xcrun simctl io <udid> screenshot`, since the Claude Code panel would not attach:
+
+- The **settings panel** lays out as two rows — `ALEX [Easy][Normal][Hard]` over
+  `MATCH [Short][Long]` — with the live choice highlighted. It only shows between points, so catch
+  it in the first three seconds of a launch; at seven seconds a rally is already going and it has
+  faded out.
+- The **aim target** is five gold posts on Alex's court, clearly legible from the near baseline.
+- The **match panel** reads "YOU WIN! You beat Alex 1—0. The tennis badge is yours. Your longest
+  rally was 7 shots." over Play again / Back to school.
+- The **button bar** is down to the exit and the help button during a match.
+
+## The badge path still works
+
+`-tennis3ddemo -tennisgames 1 -tennisdifficulty 0.2` played a match out, and the trace has it in
+order: four points, `Claiming badge: tennis` **once**, `matchOver`, the demo bot's restart, and
+then a clean second match from `toMarks` with the score back to Love. So the panel lays out, "Play
+again" restarts, and the badge fires once per match won and not twice.
+
+## What is left
+
+1. **Nobody has still played it with a thumb.** Four handoffs now. `-tennis3dtaps` covers
+   everything downstream of the CGPoint and `-tennis3daim` now covers the aiming tap as well, so
+   what is untested is `panned`'s `.began`/`.changed` bookkeeping and the 1.8 m grab radius. The
+   Claude Code simulator panel would not attach in this session either — it reported repeated
+   crashes and asked for the panel to be reopened — and `simctl` still cannot inject a touch.
+   **If the panel attaches for you, this is the first thing to do.**
+2. **The ball carries too far.** A topspin ball kicks on five or six metres past its bounce, which
+   is why `intercept` has to be bribed to take it early at all, and why both players stand a
+   couple of metres inside the baseline rather than on it. `bounceRestitution` (0.73) and the
+   topspin `kick` in `bounce()` are where to look. It is the honest version of the positioning
+   fix, where the behind-baseline cost is the cheap one.
+3. **Rally length is skewed, not long.** A median of three shots with occasional forty-shot
+   points. The long ones are two well-positioned players exchanging from the same spot; whatever
+   ends them is chance. Watch one before tuning anything.
+4. **Alex never comes to the net, and neither can the player usefully.** There is no volley: the
+   choreography is one groundstroke, and `steer` clamps the player to 0.6 m from the net but
+   nothing rewards being there. A net game is the obvious next feature and it is a real one.
+5. **`Camera.far` is still 2000.** See part 4, and the z-fighting note above. Red zone.
+6. **The 2D game is still in the tree** behind `-tennis2d`. Deleting it is Ben's call.

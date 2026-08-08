@@ -27,7 +27,10 @@ A top-down multiplayer school. You play a pupil at St Peters. The loop:
 The seven badges are fixed in code today —
 [MenuDialogs.swift:63](native/JoelsWorld/UI/MenuDialogs.swift:63): rugby, tennis, swimming,
 tig, good friend, tower defence, detention. Only **tennis** is actually winnable so far
-([TennisGame+Ball.swift:319](native/Engine/World/Minigames/TennisGame+Ball.swift:319)).
+([Tennis3DGame+Rules.swift:215](native/Engine/World/Minigames/Tennis3D/Tennis3DGame+Rules.swift:215)).
+Tennis is the 3D rebuild now; the old 2D one is still in the tree behind `-tennis2d`. Five handoff
+notes explain how it works, starting at
+[HANDOFF-tennis3d.md](native/HANDOFF-tennis3d.md) — read them before changing it.
 
 The rest of the storyline is **not written yet**. Graduation and escape are the goal, but how
 you get there is open. If Joel invents story, that's the point — it's his game. Write it down
