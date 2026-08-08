@@ -236,8 +236,9 @@ final class EventInterpreter {
     }
 
     /// Emote start times are JS epoch milliseconds — they travel to other clients over the
-    /// wire, so the clock has to match the web client's.
+    /// wire, so the clock has to match the web client's. `SceneClock` is that wall clock,
+    /// except in the character lab, which pins it so an emote poses the same way twice.
     static func nowMilliseconds() -> Double {
-        (Date().timeIntervalSince1970 * 1000).rounded()
+        SceneClock.nowMilliseconds
     }
 }

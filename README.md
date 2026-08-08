@@ -83,6 +83,28 @@ A server running against the same checkout notices the write and broadcasts the 
 everyone connected, editor included. There is no admin key any more — the editor's connection
 is an ordinary one, and exists only to show live players on the map being edited.
 
+### The character lab
+
+The same app, launched with `-lab`, opens a character lab instead: one pupil on a metre grid, no
+server, every gait and every emote as a named take, and a scrubbable clock. It is where character,
+clothing, animation and movement work gets looked at, because the game's own cameras are too far
+away and too near-overhead to show a knee or a collar.
+
+```bash
+"Joels World Map Editor.app/Contents/MacOS/Joels World Map Editor" -lab
+```
+
+It also writes what it shows, which is how a change gets checked without a person at the keyboard —
+a captioned filmstrip spanning one stride, a contact sheet of every take, the clothing atlas split
+into its channels, or a JSON table of foot contact and hip bounce:
+
+```bash
+"Joels World Map Editor.app/Contents/MacOS/Joels World Map Editor" -lab -labtake run -labsheet /tmp/run.png
+```
+
+The clock is pinned while the lab is up, so the same frame comes out the same every run.
+[native/HANDOFF-character-lab.md](native/HANDOFF-character-lab.md) has the whole flag set.
+
 ---
 
 ## Game Architecture

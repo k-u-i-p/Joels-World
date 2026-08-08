@@ -80,6 +80,12 @@ sentences what the file does and what your change will do. Build afterwards.
 - `native/JoelsWorld/Audio/**`
 - `tools/assets/**` — the slicing and minimap scripts
 
+**To see a character close up**, run the Mac editor with `-lab`. That opens the character lab —
+one pupil on a metre grid with every walk, run, jump and emote as a take you can scrub through.
+It is the right place to check anything about how a character looks or moves, and it can write a
+strip of pictures out on its own: see
+[HANDOFF-character-lab.md](native/HANDOFF-character-lab.md).
+
 **A new minigame is the single best thing to build here**, because it feeds the badge loop
 directly. Copy how tennis works: a map in `data/maps.json` marked as a minigame, a
 `Minigame` class in `native/Engine/World/Minigames/`, and a call to

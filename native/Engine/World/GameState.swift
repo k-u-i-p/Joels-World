@@ -239,6 +239,35 @@ final class GameState {
         }
     }
 
+    #if DEBUG
+    /// **The character lab's way in.** Puts a `WorldRenderedMinigame` on screen with no map,
+    /// no server and no player behind it.
+    ///
+    /// Everything else that draws goes through `apply(initPayload:)`, which needs a map out of
+    /// the bundled `maps.json` and a minigame named by that map's `import`. The lab is not a
+    /// place in the school and has no business being in the map list, so it comes in here
+    /// instead: the roster is emptied, `hasWorld` is raised so the renderer will draw, and the
+    /// scene supplies its own cast, ground and camera the way the tennis court does.
+    func startToolScene(_ game: Minigame) {
+        if let running = minigame {
+            running.stop()
+            minigame = nil
+        }
+        mapData = nil
+        characters = []
+        npcs = []
+        objects = []
+        visuals.removeAll()
+        hasWorld = true
+        minigame = game
+        game.start()
+        // The renderer only re-reads the clear colour when the map changes, and the lab never
+        // changes map — without this it keeps the overworld's grass green behind a scene that
+        // asked for a grey studio wall.
+        mapDidChange = true
+    }
+    #endif
+
     /// A badge the server says the player has earned.
     func addBadge(_ badge: String) {
         guard !player.badges.contains(badge) else { return }

@@ -675,7 +675,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         characters.syncClipMask(state.physics.clipMask)
 
         let scale = state.mapData?.character_scale ?? 1
-        let now = Date().timeIntervalSince1970
+        // The wall clock, unless the character lab has pinned it to its own timeline.
+        let now = SceneClock.now
         let viewProjection = state.camera.viewProjection
 
         // Camera basis in world space, so `love`'s heart sprites can be billboarded the way
