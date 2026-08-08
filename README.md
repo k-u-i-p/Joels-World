@@ -11,11 +11,16 @@ Welcome to **Joel's World**, a persistent, multiplayer top-down RPG map experien
 
 | Directory | What it is |
 |---|---|
-| `server/` | The Node WebSocket server. Two dependencies: `ws`, and `@google/genai` for the NPC agents |
+| `server/` | The Node WebSocket server, plus its Cloud Run scripts (`deploy.sh`, `stream_logs.sh`). Two dependencies: `ws`, and `@anthropic-ai/sdk` for the NPC agents |
 | `data/` | The authored world — `maps.json`, and each map's `objects.json` and `npc.json`. Read by the server, bundled into the apps, edited by the macOS editor |
 | `assets/` | Art and audio. A working tree: the full-size map layers are slicer input, and the apps ship only what `tools/assets/stage.sh` selects |
 | `native/` | Swift. `Engine/` is the shared game engine, `JoelsWorld/` the iOS game, `JoelsWorldAdmin/` the macOS map editor |
 | `tools/assets/` | The offline asset pipeline — slicing, overlays, minimaps — and the staging script the Xcode builds run |
+
+Inside `native/`, each target is grouped by role: `Engine/` splits into `Core` `Net` `Entity`
+`Render` `World`, the iOS app into `App` `UI` `Input` `Audio`, and the editor into `App`
+`Data` `Editor` `Inspector`. All three are file-system-synchronised Xcode groups, so a new
+file in one of those directories is in the build with no project edit.
 
 The browser client was retired in favour of the native apps — see `native/PROGRESS.md`.
 

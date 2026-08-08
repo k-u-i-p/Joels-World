@@ -23,7 +23,7 @@ enum EmoteDump {
     static func run() {
         Log.world("emotedump: elapsed=\(Int(elapsed))ms now=\(Int(nowMs)) rot=\(Int(rotationDegrees))°")
 
-        for name in Emotes.table.keys.sorted() {
+        for name in Emotes.names {
             guard let definition = Emotes.table[name] else { continue }
             let runtime = RigRuntime()
 

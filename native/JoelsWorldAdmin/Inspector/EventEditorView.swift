@@ -219,7 +219,7 @@ final class EventEditorView: NSView {
             return [text]
 
         case "emote", "player_emote":
-            let popUp = AdminUI.popUp(Emotes.table.keys.sorted()) { [weak self] name in
+            let popUp = AdminUI.popUp(Emotes.names) { [weak self] name in
                 self?.setPayload(.string(name), forKey: typeKey, at: index, isEnter: isEnter)
             }
             popUp.reload(selected: payload.stringValue)

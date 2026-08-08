@@ -1,90 +1,12 @@
 import Foundation
 import simd
 
-/// The locally-controlled player. Mirrors the `player` object in `main.js:252`.
-struct Player {
-    var id: Int = 0
-    var x: Double = 0
-    var y: Double = 0
-    var z: Double = 0
-    var rotation: Double = 0
-    var width: Double = 40
-    var height: Double = 40
-    var moveSpeed: Double = 3
-    var rotationSpeed: Double = 3
-    var name: String?
-
-    var isRunning = false
-    var runDirectionStart: TimeInterval?
-    var legAnimationTime: Double = 0
-    var activeBuilding: Int?
-    var emote: EmoteState?
-    /// Badges earned, carried on the session record and topped up by `badge_earned`.
-    var badges: [String] = []
-
-    /// Last values sent upstream, so sync only fires on change.
-    var lastSentX: Double?
-    var lastSentY: Double?
-    var lastSentRotation: Double?
-    var lastSentEmote: EmoteState??
-
-    /// Colours and appearance arrive from the server; retained for Phase 2 rendering.
-    var appearance: GameCharacter?
-}
-
-/// Everything the simulation needs from outside itself: the socket, and the UI and audio
-/// layers.
-protocol GameStateDelegate: AnyObject {
-    func gameStateSyncPlayer(_ character: GameCharacter)
-    func gameStateSendLog(message: String, npcId: Int)
-
-    func gameStateShowDialog(_ request: DialogRequest)
-    func gameStateHideDialog()
-    func gameStateShowAvatar(sourceId: Int, name: String?, imagePath: String)
-    func gameStateHideAvatar()
-    /// Walking out of an NPC's radius: its portrait animates away and any dialog it raised
-    /// closes. Port of `cleanupNpcUI` (`ui.js:22`).
-    func gameStateCleanupNPCUI(sourceId: Int)
-    func gameStateDidSay(sourceId: Int, name: String?, message: String)
-    func gameStatePlaySound(sourceId: Int, path: String, volume: Double, isBackground: Bool)
-    func gameStateStopSound(sourceId: Int)
-    func gameStateStopBackgroundSound()
-    /// The footstep loop, re-rated when the player breaks into a run (`main.js:453-466`).
-    func gameStateSetWalkingAudio(active: Bool, isRunning: Bool)
-    /// `clearEmoteAudio` — the emote's own sound fades out when the emote ends.
-    func gameStateClearEmoteAudio()
-
-    /// A pooled one-shot with a playback rate — the minigames' racket hits.
-    func gameStatePlayEffect(path: String, volume: Double, rate: Double)
-    func gameStateChangeMap(_ mapId: Int)
-    func gameStateAwardBadge(_ badge: String)
-
-    /// The map turned out to be a minigame: hand the screen over to it.
-    func gameStateDidStartMinigame(_ minigame: Minigame)
-    func gameStateDidEndMinigame()
-}
-
-extension GameStateDelegate {
-    func gameStateShowDialog(_ request: DialogRequest) {}
-    func gameStateHideDialog() {}
-    func gameStateShowAvatar(sourceId: Int, name: String?, imagePath: String) {}
-    func gameStateHideAvatar() {}
-    func gameStateCleanupNPCUI(sourceId: Int) {}
-    func gameStateDidSay(sourceId: Int, name: String?, message: String) {}
-    func gameStatePlaySound(sourceId: Int, path: String, volume: Double, isBackground: Bool) {}
-    func gameStateStopSound(sourceId: Int) {}
-    func gameStateStopBackgroundSound() {}
-    func gameStateSetWalkingAudio(active: Bool, isRunning: Bool) {}
-    func gameStateClearEmoteAudio() {}
-    func gameStatePlayEffect(path: String, volume: Double, rate: Double) {}
-    func gameStateChangeMap(_ mapId: Int) {}
-    func gameStateAwardBadge(_ badge: String) {}
-    func gameStateDidStartMinigame(_ minigame: Minigame) {}
-    func gameStateDidEndMinigame() {}
-}
-
 /// Owns all mutable game state and drives one simulation step per frame.
 /// Port of `update()` in `main.js:306-531`.
+///
+/// The player it drives is `Player`; what it needs from the app around it is
+/// `GameStateDelegate`; and what the event tree and the minigames ask of it lands in
+/// `GameState+Effects.swift`.
 final class GameState {
     private(set) var player = Player()
     private(set) var mapData: MapData?
@@ -373,83 +295,6 @@ final class GameState {
         player.y = y
     }
 
-    // MARK: - Rendering feed
-
-    /// Everything that should be drawn as a character this frame: the local player first,
-    /// then remote players, then NPCs — each with the walk phase its rig should use.
-    var drawableCharacters: [(character: GameCharacter, legAnimationTime: Double)] {
-        // A minigame owns the screen; the overworld roster is not on it.
-        if minigame != nil { return [] }
-
-        var out: [(GameCharacter, Double)] = []
-
-        if var mine = player.appearance {
-            mine.x = player.x
-            mine.y = player.y
-            mine.z = player.z
-            mine.rotation = player.rotation
-            mine.name = player.name
-            // The live emote lives on `player`, not on the appearance record the roster
-            // arrived with — without this the local player is the one character whose emote
-            // never poses the rig.
-            mine.emote = player.emote
-            out.append((mine, player.legAnimationTime))
-        }
-
-        for character in characters where character.id != player.id {
-            out.append((character, visuals[character.id]?.legAnimationTime ?? 0))
-        }
-        for npc in npcs {
-            out.append((npc, visuals[npc.id]?.legAnimationTime ?? 0))
-        }
-
-        return out
-    }
-
-    /// What the nameplate/bubble layer needs about one character. Kept free of UIKit types so
-    /// the `World` layer stays renderer- and UI-agnostic.
-    struct OverlaySubject {
-        var id: Int
-        var name: String?
-        var hideNameplate: Bool
-        var x: Double
-        var y: Double
-        var z: Double
-        var chatMessage: String?
-        var chatTime: TimeInterval?
-    }
-
-    /// In the same order the JS draws them, which decides which three bubbles win when more
-    /// than three characters are talking at once.
-    var overlaySubjects: [OverlaySubject] {
-        // Nameplates and bubbles are DOM nodes the minigames never create.
-        if minigame != nil { return [] }
-
-        var out: [OverlaySubject] = []
-        out.reserveCapacity(characters.count + npcs.count + 1)
-
-        func append(_ character: GameCharacter, x: Double, y: Double, z: Double, name: String?) {
-            let visual = visuals[character.id]
-            out.append(OverlaySubject(id: character.id,
-                                      name: name,
-                                      hideNameplate: character.hide_nameplate ?? false,
-                                      x: x, y: y, z: z,
-                                      chatMessage: visual?.chatMessage,
-                                      chatTime: visual?.chatTime))
-        }
-
-        if let mine = player.appearance {
-            append(mine, x: player.x, y: player.y, z: player.z, name: player.name)
-        }
-        for character in characters where character.id != player.id {
-            append(character, x: character.x, y: character.y, z: character.z ?? 0, name: character.name)
-        }
-        for npc in npcs {
-            append(npc, x: npc.x, y: npc.y, z: npc.z ?? 0, name: npc.name)
-        }
-        return out
-    }
-
     // MARK: - Simulation
 
     func update(dt: Double, input: InputState, viewport: SIMD2<Float>) {
@@ -682,14 +527,31 @@ final class GameState {
         setPlayerEmote(nil)
     }
 
-    /// A chat frame from the server. Parks the text on the sender so the bubble renderer
-    /// picks it up, and hands back the display name for the chat feed (`network.js:246-268`).
-    @discardableResult
-    func applyChat(id: Int, message: String) -> String {
+    /// Parks a line of text on a character so the bubble renderer picks it up. The three ways
+    /// one can arrive — a `chat` frame, the local echo, and an NPC's `say` event — all land
+    /// here, and the bubble times out on `chatTime` regardless of which it was.
+    func setChatBubble(id: Int, message: String) {
         var visual = visuals[id] ?? CharacterVisual()
         visual.chatMessage = message
         visual.chatTime = Date.timeIntervalSinceReferenceDate
         visuals[id] = visual
+    }
+
+    /// Poses a remote player or an NPC. Whichever roster holds the id is the one that changes;
+    /// an id in neither is a character that has since left the map.
+    func setEmote(_ emote: EmoteState?, onCharacterId id: Int) {
+        if let index = npcs.firstIndex(where: { $0.id == id }) {
+            npcs[index].emote = emote
+        } else if let index = characters.firstIndex(where: { $0.id == id }) {
+            characters[index].emote = emote
+        }
+    }
+
+    /// A chat frame from the server. Parks the text on the sender so the bubble renderer
+    /// picks it up, and hands back the display name for the chat feed (`network.js:246-268`).
+    @discardableResult
+    func applyChat(id: Int, message: String) -> String {
+        setChatBubble(id: id, message: message)
 
         if id == player.id { return player.name ?? "User \(id)" }
         return characters.first(where: { $0.id == id })?.name
@@ -699,10 +561,7 @@ final class GameState {
 
     /// The local echo of something the player just typed, before the server bounces it back.
     func setLocalChat(_ message: String) {
-        var visual = visuals[player.id] ?? CharacterVisual()
-        visual.chatMessage = message
-        visual.chatTime = Date.timeIntervalSinceReferenceDate
-        visuals[player.id] = visual
+        setChatBubble(id: player.id, message: message)
     }
 
     /// Resolves an event tree that may be a bare reference to another object's tree.
@@ -829,79 +688,5 @@ final class GameState {
         payload.name = player.name
         payload.emote = player.emote
         delegate?.gameStateSyncPlayer(payload)
-    }
-}
-
-// MARK: - Event effects
-
-extension GameState: EventInterpreterDelegate {
-    func eventShowAvatar(sourceId: Int, name: String?, imagePath: String) {
-        delegate?.gameStateShowAvatar(sourceId: sourceId, name: name, imagePath: imagePath)
-    }
-
-    func eventSay(sourceId: Int, message: String) {
-        var visual = visuals[sourceId] ?? CharacterVisual()
-        visual.chatMessage = message
-        visual.chatTime = Date.timeIntervalSinceReferenceDate
-        visuals[sourceId] = visual
-
-        let name = npcs.first(where: { $0.id == sourceId })?.name
-            ?? characters.first(where: { $0.id == sourceId })?.name
-        delegate?.gameStateDidSay(sourceId: sourceId, name: name, message: message)
-    }
-
-    func eventShowDialog(_ request: DialogRequest) {
-        delegate?.gameStateShowDialog(request)
-    }
-
-    func eventPlaySound(sourceId: Int, path: String, volume: Double, isBackground: Bool) {
-        delegate?.gameStatePlaySound(sourceId: sourceId,
-                                     path: path,
-                                     volume: volume,
-                                     isBackground: isBackground)
-    }
-
-    func eventSetEmote(_ emote: EmoteState?, sourceId: Int, targetsPlayer: Bool) {
-        if targetsPlayer {
-            setPlayerEmote(emote)
-        } else if let index = npcs.firstIndex(where: { $0.id == sourceId }) {
-            npcs[index].emote = emote
-        } else if let index = characters.firstIndex(where: { $0.id == sourceId }) {
-            characters[index].emote = emote
-        }
-    }
-
-    func eventLog(message: String, npcId: Int) {
-        delegate?.gameStateSendLog(message: message, npcId: npcId)
-    }
-}
-
-// MARK: - Minigame host
-
-extension GameState: MinigameHost {
-    func minigameShowDialog(_ text: String, onConfirm: @escaping () -> Void) {
-        delegate?.gameStateShowDialog(DialogRequest(text: text,
-                                                    confirmAction: nil,
-                                                    onConfirm: onConfirm))
-    }
-
-    func minigameChangeMap(_ mapId: Int) {
-        delegate?.gameStateChangeMap(mapId)
-    }
-
-    func minigameAwardBadge(_ badge: String) {
-        delegate?.gameStateAwardBadge(badge)
-    }
-
-    func minigamePlayBackground(path: String, volume: Double) {
-        delegate?.gameStatePlaySound(sourceId: -1, path: path, volume: volume, isBackground: true)
-    }
-
-    func minigamePlayEffect(path: String, volume: Double, rate: Double) {
-        delegate?.gameStatePlayEffect(path: path, volume: volume, rate: rate)
-    }
-
-    func minigameStopBackground() {
-        delegate?.gameStateStopBackgroundSound()
     }
 }

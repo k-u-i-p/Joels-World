@@ -3,8 +3,8 @@ import UIKit
 // MARK: - Emotes
 
 /// `#emotes-dialog`. The web build fetched the list from `/api/config` (`ui.js:145-205`);
-/// `EmoteCatalog` reads `Emotes.table` instead, so the picker offers exactly the emotes that
-/// can pose the rig.
+/// `Emotes.names` is compiled in instead, so the picker offers exactly the emotes that can
+/// pose the rig.
 final class EmotesDialogView: PanelDialogView {
     /// The chat line the tapped row submits, e.g. `/dance`.
     var onEmote: ((String) -> Void)?
@@ -15,7 +15,7 @@ final class EmotesDialogView: PanelDialogView {
         "sit": "🪑", "jump": "🦘", "eat": "🍔", "lunch": "🥪", "tennis": "🎾",
     ]
 
-    private var populatedCount = 0
+    private var isPopulated = false
 
     init() {
         super.init(title: "Emotes")
@@ -27,15 +27,14 @@ final class EmotesDialogView: PanelDialogView {
 
     override func present() {
         super.present()
-        // Retries on every open until the list arrives, so a dropped request is not fatal.
-        EmoteCatalog.load { [weak self] emotes in
-            guard let self, emotes.count != self.populatedCount else { return }
-            self.populate(emotes)
-        }
+        // The list is a compile-time constant now, so the first open is the only one that
+        // builds rows — the web build re-tried here until its `/api/config` fetch landed.
+        guard !isPopulated else { return }
+        isPopulated = true
+        populate(Emotes.names)
     }
 
     private func populate(_ emotes: [String]) {
-        populatedCount = emotes.count
         for view in content.arrangedSubviews { view.removeFromSuperview() }
 
         for emote in emotes {

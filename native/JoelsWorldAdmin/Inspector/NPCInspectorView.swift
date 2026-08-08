@@ -135,7 +135,7 @@ final class NPCInspectorView: NSView {
             self.reloadHeadList(gender: gender, selected: defaultHead)
         }
 
-        emotePopUp = AdminUI.popUp([Self.noEmote] + Emotes.table.keys.sorted()) { [weak self] title in
+        emotePopUp = AdminUI.popUp([Self.noEmote] + Emotes.names) { [weak self] title in
             if title == Self.noEmote {
                 self?.update({ $0.default_emote = nil }, updates: ["default_emote": .null])
             } else {
