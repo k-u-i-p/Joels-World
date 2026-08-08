@@ -1,0 +1,121 @@
+[
+  {
+    "id": 1,
+    "name": "Mr Maycock",
+    "x": 238,
+    "y": -356,
+    "width": 76,
+    "height": 68,
+    "rotation": 80,
+    "gender": "male",
+    "interaction_radius": 150,
+    "on_enter": [
+      {
+        "avatar": "avatars/mr_maycock.png",
+        "say": [
+          "I used to play professional rugby, {name}!?",
+          "Hurry up and get in the pool {name}!",
+          "Keep those elbows high and your core tight, {name}!",
+          "Built like a tank, ain't I {name}?",
+          "I want to see Michael Phelps speeds today!",
+          "That's the spirit, {name}! Push through the burn!",
+          "Form is everything! Don't let me see you slouching, {name}!",
+          "Look at the width of these shoulders! Swimming did this!"
+        ]
+      }
+    ],
+    "on_exit": [
+      {
+        "say": [
+          "Don't drown, {name}!"
+        ]
+      }
+    ],
+    "head": "male_hair_short",
+    "hair_color": "#aa7942",
+    "shirt_color": "#002e7a",
+    "pants_color": "#111111",
+    "arm_color": "#002e7a",
+    "shoe_color": "#111111"
+  },
+  {
+    "id": 2,
+    "name": "Xander",
+    "x": 1120,
+    "y": -99,
+    "width": 58,
+    "height": 40,
+    "rotation": 175,
+    "on_enter": [
+      {
+        "say": [
+          "La da da da da da da de doo do!"
+        ]
+      }
+    ],
+    "on_exit": [],
+    "gender": "male",
+    "head": "male_hair_bald",
+    "hair_color": "#000000",
+    "shirt_color": "#3498db",
+    "pants_color": "#2c3e50",
+    "arm_color": "#3498db"
+  },
+  {
+    "id": 3,
+    "name": "Archie",
+    "x": -580,
+    "y": 43,
+    "width": 40,
+    "height": 40,
+    "rotation": 0,
+    "on_enter": [
+      {
+        "say": [
+          "Hey {name}! What's up?"
+        ]
+      }
+    ],
+    "on_exit": [],
+    "gender": "male",
+    "default_emote": {
+      "name": "swim",
+      "startTime": 1773674236062
+    },
+    "interaction_radius": 150,
+    "roam_radius": 300,
+    "head": "male_hair_bald",
+    "hair_color": "#000000",
+    "shirt_color": "#77bb41",
+    "pants_color": "#2c3e50",
+    "arm_color": "#3498db"
+  },
+  {
+    "id": 4,
+    "name": "Ben",
+    "x": -400.71086516270367,
+    "y": 102.2785106491594,
+    "width": 40,
+    "height": 40,
+    "rotation": 175,
+    "on_enter": [
+      {
+        "say": [
+          "Hi {name}! We're playing catch with our beachball."
+        ]
+      }
+    ],
+    "on_exit": [],
+    "gender": "male",
+    "default_emote": {
+      "name": "swim",
+      "startTime": 1773674200626
+    },
+    "roam_radius": 150,
+    "head": "male_hair_bald",
+    "hair_color": "#000000",
+    "shirt_color": "#ff4013",
+    "pants_color": "#2c3e50",
+    "arm_color": "#3498db"
+  }
+]
