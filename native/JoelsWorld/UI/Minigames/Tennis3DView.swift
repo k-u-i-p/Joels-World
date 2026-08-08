@@ -527,11 +527,29 @@ final class Tennis3DView: UIView {
     /// two centimetres across and a court is only sixteen metres wide on screen. Grabbing is also
     /// the gesture that does not put a thumb on top of the thing you are trying to watch.
     @objc private func panned(_ recognizer: UIPanGestureRecognizer) {
+        let finger = recognizer.location(in: self)
         switch recognizer.state {
+        case .began: handleDrag(.began, at: finger)
+        case .changed: handleDrag(.changed, at: finger)
+        default: handleDrag(.ended, at: finger)
+        }
+    }
+
+    /// The three things a drag can be, independent of `UIPanGestureRecognizer`.
+    ///
+    /// Split out so the drag can be driven without a finger — see `debugDrag`. A
+    /// `UIPanGestureRecognizer` cannot be constructed with a chosen state and location, so as
+    /// long as the bookkeeping lived inside `panned` there was no way to exercise it at all, and
+    /// "nobody has played it with a thumb" stayed the oldest item on the handoff list for five
+    /// sessions. Now the only untested step is UIKit's own delivery of a touch to this view,
+    /// which `-tennis3dhittest` checks from the other end.
+    enum DragPhase { case began, changed, ended }
+
+    private func handleDrag(_ phase: DragPhase, at finger: CGPoint) {
+        switch phase {
         case .began:
             isDragging = true
             grabOffset = nil
-            let finger = recognizer.location(in: self)
             // The grab test asks about the **body**, which stands on the ground, so it reads the
             // ground plane. The steering below asks about the **strings**, which do not.
             if let game,
@@ -541,12 +559,17 @@ final class Tennis3DView: UIView {
                let strings = worldPoint(for: finger, height: game.playerContactHeight) {
                 let anchor = game.playerRacketAnchor
                 grabOffset = (x: anchor.x - strings.x, y: anchor.y - strings.y)
+                game.trace(String(format: "DRAG grabbed, offset (%.2f, %.2f)m",
+                                  grabOffset!.x / Tennis3DCourt.unitsPerMetre,
+                                  grabOffset!.y / Tennis3DCourt.unitsPerMetre))
+            } else {
+                game?.trace("DRAG began off the player — steering straight at the finger")
             }
             steer(to: finger)
         case .changed:
             isDragging = true
-            steer(to: recognizer.location(in: self))
-        default:
+            steer(to: finger)
+        case .ended:
             isDragging = false
             grabOffset = nil
         }
@@ -651,6 +674,28 @@ final class Tennis3DView: UIView {
     func debugTouch(at point: CGPoint) {
         grabOffset = nil
         handleTap(at: point)
+    }
+
+    /// Enters at the same line `panned(_:)` does, with the phase and the CGPoint UIKit would have
+    /// handed it. This is what makes the **drag** testable rather than only the tap: the grab
+    /// radius, the offset held across the gesture, and the `.began`/`.changed` bookkeeping are
+    /// all on this path.
+    func debugDrag(_ phase: DragPhase, at point: CGPoint) {
+        handleDrag(phase, at: point)
+    }
+
+    /// **Would a touch on the court actually reach this view?**
+    ///
+    /// The half of the input path `debugDrag` and `debugTouch` cannot cover, because they both
+    /// start *inside* the view. This asks the real window the question UIKit asks — hit-test this
+    /// point — and reports which view wins. Anything other than `Tennis3DView` means a layer
+    /// stacked above the court is eating the gesture and no finger will ever work, however
+    /// correct everything downstream is.
+    func debugHitTestReport(at point: CGPoint) -> String {
+        guard let window else { return "no window" }
+        let hit = window.hitTest(window.convert(point, from: self), with: nil)
+        let name = hit.map { String(describing: type(of: $0)) } ?? "nil"
+        return "\(name)\(hit === self ? " ✓" : " ✗ — this view is not reachable")"
     }
 #endif
 

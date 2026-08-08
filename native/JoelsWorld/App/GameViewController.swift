@@ -93,6 +93,26 @@ final class GameViewController: UIViewController {
         metalView.delegate = renderer
     }
 
+    /// Which corner the button row is pinned to. Swapped by `setButtonBarOutOfPlay`.
+    private var buttonsBottomConstraint: NSLayoutConstraint?
+    private var buttonsTopConstraint: NSLayoutConstraint?
+
+    /// **Moves the button row out of the bottom-right corner for the duration of a minigame.**
+    ///
+    /// Hiding three of the five buttons was not enough. A hit-test probe of the live hierarchy
+    /// (`-tennis3dhittest`) reports the bottom-right corner of the court resolving to `UIButton`
+    /// rather than `Tennis3DView`, which means a drag that *starts* there never reaches the game
+    /// at all — and that corner is exactly where the near player stands when a deep ball has
+    /// pushed them back onto the fence. It is the drag you most need and the one that did
+    /// nothing.
+    ///
+    /// The top-right is empty sky above the far baseline in tennis, clear of the scoreboard, and
+    /// nobody ever stands there — it is the opponent's end of the court.
+    func setButtonBarOutOfPlay(_ outOfPlay: Bool) {
+        buttonsBottomConstraint?.isActive = !outOfPlay
+        buttonsTopConstraint?.isActive = outOfPlay
+    }
+
     private func setupOverlays() {
         // Bottom to top: world, the 2D minigame surface, nameplates, controls, HUD, dialogs.
         for subview in [tennis, tennis3d, overlay, joystick, buttons, hud, minimap,
@@ -160,8 +180,14 @@ final class GameViewController: UIViewController {
             joystick.heightAnchor.constraint(equalToConstant: 130),
 
             buttons.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -20),
-            buttons.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -20),
         ]
+
+        // The button row lives in the bottom-right corner in the world, and in the **top**-right
+        // corner during a minigame. See `setButtonBarOutOfPlay`.
+        buttonsBottomConstraint = buttons.bottomAnchor.constraint(equalTo: guide.bottomAnchor,
+                                                                  constant: -20)
+        buttonsTopConstraint = buttons.topAnchor.constraint(equalTo: guide.topAnchor, constant: 12)
+        constraints += [buttonsBottomConstraint].compactMap { $0 }
 
         // Everything else is a full-screen layer.
         for subview in [tennis, tennis3d, overlay, hud, minimap, emotesDialog,

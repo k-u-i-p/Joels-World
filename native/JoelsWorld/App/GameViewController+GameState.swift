@@ -95,6 +95,7 @@ extension GameViewController: GameStateDelegate {
         joystick.isHidden = true
         hud.isHidden = true
         buttons.setMinigameMode(true)
+        setButtonBarOutOfPlay(true)
 
         if let game = minigame as? TennisGame {
             tennis.present(game: game)
@@ -115,6 +116,7 @@ extension GameViewController: GameStateDelegate {
         tennis.dismiss()
         tennis3d.dismiss()
         buttons.setMinigameMode(false)
+        setButtonBarOutOfPlay(false)
         joystick.isHidden = false
         hud.isHidden = false
     }

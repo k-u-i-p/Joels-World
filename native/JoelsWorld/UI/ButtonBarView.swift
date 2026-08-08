@@ -112,6 +112,10 @@ final class ButtonBarView: UIView {
         exitButton.isHidden = !active
         badgesButton.isHidden = active
         emotesButton.isHidden = active
+        // The row moves to the top-right corner for a minigame (`setButtonBarOutOfPlay`), where a
+        // horizontal pair of circles runs into the right-hand end of the scoreboard. Stacked, the
+        // two survivors are one button wide and clear it.
+        stack.axis = active ? .vertical : .horizontal
     }
 
     @objc private func mapTapped() { onMap?() }

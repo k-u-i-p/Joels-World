@@ -27,6 +27,11 @@ final class GameDebugHarness {
     private var tennis3DTraceTimer: Timer?
     private var tennis3DDemoTimer: Timer?
     private var tennis3DTapTimer: Timer?
+    private var tennis3DDragTimer: Timer?
+    private var tennis3DHitTestTimer: Timer?
+    /// True once `-tennis3ddrag` has sent its `.began`, so every tick after it is a `.changed` —
+    /// which is what makes it a drag rather than a stream of separate grabs.
+    private var tennis3DDragInProgress = false
     /// The demo restarts the match once after it ends, to prove `restartMatch()` is clean and
     /// that the badge does not fire a second time. Only once — otherwise it plays for ever.
     private var tennis3DHasRestarted = false
@@ -93,6 +98,8 @@ final class GameDebugHarness {
         if let game = minigame as? Tennis3DGame {
             start3DTennisDemo(game)
             start3DTennisTapDemo(game)
+            start3DTennisDragDemo(game)
+            start3DTennisHitTest(game)
             start3DTennisTrace(game)
             startExitTimer { [weak game] in game?.requestExit() }
         }
@@ -100,15 +107,18 @@ final class GameDebugHarness {
 
     func minigameDidEnd() {
         for timer in [tennisDemoTimer, tennisExitTimer, tennis3DDemoTimer, tennis3DTapTimer,
-                      tennis3DTraceTimer] {
+                      tennis3DDragTimer, tennis3DHitTestTimer, tennis3DTraceTimer] {
             timer?.invalidate()
         }
         tennisDemoTimer = nil
         tennisExitTimer = nil
         tennis3DDemoTimer = nil
         tennis3DTapTimer = nil
+        tennis3DDragTimer = nil
+        tennis3DHitTestTimer = nil
         tennis3DTraceTimer = nil
         tennis3DHasRestarted = false
+        tennis3DDragInProgress = false
     }
 
     private func startTennisDemo(_ game: TennisGame) {
@@ -216,6 +226,70 @@ final class GameDebugHarness {
                                                     z: intercept.z)
             else { return }
             view.debugTouch(at: point)
+        }
+    }
+
+    /// `-tennis3ddrag`: plays the human's side **by dragging**, at 30 Hz.
+    ///
+    /// The gesture is a real one rather than a series of taps: a single `.began` on the player —
+    /// so the grab branch runs, with its 1.8 m radius and its held offset — then `.changed` every
+    /// tick for the rest of the point, then `.ended` when the point does. A tap bot can never
+    /// catch a bug in any of that, because it never begins or ends anything.
+    private func start3DTennisDragDemo(_ game: Tennis3DGame) {
+        guard WalkTest.dragPlays3DTennis, tennis3DDragTimer == nil else { return }
+        Log.world("-tennis3ddrag: playing the player's side by dragging")
+
+        tennis3DDragTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self, weak game] _ in
+            guard let self, let game, let view = self.host.tennis3d as Tennis3DView? else { return }
+
+            // Between points the finger comes off, exactly as a player's would.
+            guard game.phase == .rally || (game.phase == .toss && !game.serverIsPlayer) else {
+                if self.tennis3DDragInProgress {
+                    self.tennis3DDragInProgress = false
+                    if let point = view.debugScreenPoint(worldX: game.player.motor.x,
+                                                         worldY: game.player.motor.y, z: 0) {
+                        view.debugDrag(.ended, at: point)
+                    }
+                }
+                return
+            }
+
+            // A drag starts **on the player** — that is the branch worth testing, and it is what
+            // a thumb naturally does. Every tick after it follows the ball.
+            if !self.tennis3DDragInProgress {
+                guard let start = view.debugScreenPoint(worldX: game.playerRacketAnchor.x,
+                                                        worldY: game.playerRacketAnchor.y,
+                                                        z: game.playerContactHeight) else { return }
+                view.debugDrag(.began, at: start)
+                self.tennis3DDragInProgress = true
+                return
+            }
+
+            guard let intercept = game.idealIntercept(),
+                  let point = view.debugScreenPoint(worldX: intercept.x, worldY: intercept.y,
+                                                    z: intercept.z)
+            else { return }
+            view.debugDrag(.changed, at: point)
+        }
+    }
+
+    /// `-tennis3dhittest`: once a second, which view would a touch in the middle of the court
+    /// actually land on? See `Tennis3DView.debugHitTestReport`.
+    private func start3DTennisHitTest(_ game: Tennis3DGame) {
+        guard WalkTest.hitTests3DTennis, tennis3DHitTestTimer == nil else { return }
+
+        tennis3DHitTestTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self, let view = self.host.tennis3d as Tennis3DView? else { return }
+            let bounds = view.bounds
+            let probes: [(String, CGPoint)] = [
+                ("court centre", CGPoint(x: bounds.midX, y: bounds.midY)),
+                ("near baseline", CGPoint(x: bounds.midX, y: bounds.maxY - 180)),
+                ("bottom-right corner", CGPoint(x: bounds.maxX - 60, y: bounds.maxY - 90)),
+                ("Alex's half", CGPoint(x: bounds.midX, y: bounds.minY + bounds.height * 0.35)),
+            ]
+            for (name, point) in probes {
+                Log.world("tennis3d hit-test · \(name) \(Int(point.x)),\(Int(point.y)) → \(view.debugHitTestReport(at: point))")
+            }
         }
     }
 

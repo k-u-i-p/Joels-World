@@ -163,6 +163,25 @@ final class WalkTest {
         argument("-tennisdifficulty").flatMap(Double.init)
     }
 
+    /// `-tennis3ddrag` plays the human's side **by dragging** rather than tapping: one `.began`
+    /// on the player, then `.changed` all the way round the point, then `.ended`.
+    ///
+    /// `-tennis3dtaps` covers the tap recogniser's path and nothing else. The drag has its own
+    /// bookkeeping — the grab test, the offset held constant for the rest of the gesture, and the
+    /// `isDragging` flag that stops the tap recogniser fighting it — and none of it had ever run,
+    /// on any machine, in five sessions. Being unable to inject a touch is not a reason for the
+    /// logic behind the touch to go unexercised.
+    static var dragPlays3DTennis: Bool {
+        ProcessInfo.processInfo.arguments.contains("-tennis3ddrag")
+    }
+
+    /// `-tennis3dhittest` asks the window, once a second, which view would receive a touch in the
+    /// middle of the court. The one question no amount of driving the view from inside can
+    /// answer: whether a layer stacked above the court is quietly eating every gesture.
+    static var hitTests3DTennis: Bool {
+        ProcessInfo.processInfo.arguments.contains("-tennis3dhittest")
+    }
+
     /// `-tennis3daim` makes the tap bot pick a corner of Alex's court before each of its shots,
     /// by tapping it — which is the only way the aiming gesture gets exercised end to end, since
     /// the bot's ordinary taps are all on its own half. See `Tennis3DGame.aimShot`.
