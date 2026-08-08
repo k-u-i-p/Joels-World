@@ -844,6 +844,8 @@ final class Tennis3DGame: WorldRenderedMinigame {
         return out
     }
 
+    var sceneModels: [SceneModel] { [Tennis3DCourt.stadiumModel] }
+
     // MARK: - Camera
 
     /// Frames the court from behind the player's baseline.
@@ -860,28 +862,51 @@ final class Tennis3DGame: WorldRenderedMinigame {
         // Zoom is set by width: the doubles court plus a stride of run-off either side has to
         // fit, whatever the device.
         //
-        // It was `doublesWidth + 5.6 m`, and half the frame was ground nobody could stand on —
-        // grey apron, then grass, then more grass, with the players reduced to two hats on a
-        // diagram. 3.8 m is a stride past each tramline plus a little air.
+        // **5.9 m, back up from 3.8, and the reason is measured rather than argued.**
         //
-        // It cannot go much tighter, and the reason is the tilt rather than the width. The camera
-        // sits behind the baseline, so the **near** end of the court is the magnified end: the
-        // visible half-width down at the near baseline works out at 7.1 m against a
-        // `playableHalfWidth` of 7.085 m. A player pinned against the side fence at their own
-        // baseline is exactly on the edge of the frame, and one more notch of zoom puts them
-        // outside it.
-        var desiredWidth = Tennis3DCourt.doublesWidth + Tennis3DCourt.metres(3.8)
-        var pitch = 0.80
+        // Part 5 cut this from 5.6 m to 3.8 m because "half the frame was ground nobody could
+        // stand on — grey apron, then grass, then more grass". That is no longer what is out
+        // there: the frame past the court is now the stadium's concrete surround, its benches,
+        // its umpire chair and its stands, so the width buys scenery instead of costing it.
+        //
+        // Part 5 also recorded that at 3.8 m "the visible half-width down at the near baseline
+        // works out at 7.1 m against a `playableHalfWidth` of 7.085 m — exactly on the edge".
+        // **That number is wrong.** Measured off a screenshot — find the near baseline, count the
+        // pixels between the doubles sidelines, scale the half-frame by the metres those pixels
+        // are worth — it is **6.29 m**, and a player pinned against the side fence at their own
+        // baseline has been three-quarters of a metre off the bottom corner of the screen for
+        // five sessions. The ten-line script that measures it is in HANDOFF-tennis3d-part7.md,
+        // which is also where the numbers below come from.
+        //
+        //   3.8 m → 6.26 m visible   5.9 m → 7.09 m visible   (playable half-width 7.085 m)
+        //
+        // So this is the width at which the playable rectangle is actually all on screen, which
+        // matters more than it sounds: being in the wrong place is the only way to miss a ball,
+        // and you cannot steer to a corner you cannot see.
+        var desiredWidth = Tennis3DCourt.doublesWidth + Tennis3DCourt.metres(5.9)
+        var pitch = 0.88
         #if DEBUG
         if let override = WalkTest.tennisCameraWidth { desiredWidth = Tennis3DCourt.metres(override) }
         if let override = WalkTest.tennisCameraPitch { pitch = override }
         #endif
         camera.zoom = max(0.35, viewportWidth / desiredWidth)
-        // **Behind the player's shoulder, not overhead.** 0.80 rad is about where a television
-        // camera sits behind the baseline, and it is the single biggest change to how the game
-        // reads: at 0.34 both players were legible but tiny, two hats on a diagram of a court.
-        // Tipped over, the near player is a person with a racket in their hand, the far one is
+        // **Behind the player's shoulder, not overhead.** About where a television camera sits
+        // behind the baseline, and it is the single biggest change to how the game reads: at
+        // 0.34 both players were legible but tiny, two hats on a diagram of a court. Tipped
+        // over, the near player is a person with a racket in their hand, the far one is
         // recognisably a person too, and the net has a front and a back.
+        //
+        // **0.88 rather than 0.80, because there is now something up there to see.** At 0.80 the
+        // top of the frame stops at the inner wall of the arena and the stadium reads as a dark
+        // green fence; eight hundredths further over and the stand rises into shot with its
+        // seats in it. The tilt is nearly free in the dimension that constrains it — the near
+        // baseline's visible half-width moves 6.29 → 6.26 m across 0.80 to 0.88, because tipping
+        // the camera also walks the eye further away from the near baseline and the two cancel.
+        //
+        // It does not go much further. The camera orbits at a fixed distance set by the viewport
+        // height, so tilt trades height for distance: by 0.95 the eye has dropped to 37 m and
+        // slid back to 52 m, which is **inside the near stand**, and the bottom half of the
+        // frame is the roof of it. 1.05 is worse. `-tennispitch` sweeps this without a rebuild.
         //
         // The cost is that a tap in the far half is worth much more court than a tap in the near
         // half, and that a marker floating a metre up sits well over a metre up-screen of the

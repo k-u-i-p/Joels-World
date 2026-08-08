@@ -375,6 +375,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         props.sync(objects: state.objects)
+        props.sync(minigameModels: state.worldRenderedMinigame?.sceneModels ?? [])
 
         // A minigame rebuilds its geometry every frame: the court is static but the ball is not,
         // and at this scale one array is cheaper than tracking what moved.
@@ -458,8 +459,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         encoder.setFrontFacing(.counterClockwise)
         encoder.setCullMode(.front)
 
-        props.draw(viewProjection: lighting.viewProjection, encoder: encoder,
-                   fallbackTexture: characters.fallbackTexture)
+        props.drawShadowCasters(viewProjection: lighting.viewProjection, encoder: encoder,
+                                fallbackTexture: characters.fallbackTexture)
         primitives.drawShadowCasters(scenePrimitives,
                                      viewProjection: lighting.viewProjection,
                                      encoder: encoder,

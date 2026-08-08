@@ -8,19 +8,30 @@ import simd
 /// Props keep the colours and textures their artist authored, cast and receive shadows, and —
 /// unlike characters — are **not** clip-masked: the JS only injects that shader into character
 /// materials.
+///
+/// A world-rendered minigame has no server objects to place, so it hands over `SceneModel`s
+/// instead (`sync(minigameModels:)`). They draw through exactly the same path; the only
+/// difference is that they choose whether to enter the shadow pass.
 final class PropRenderer {
     /// One placed instance. The model itself may still be loading.
     private struct Placement {
         var id: Int
         var path: String
         var transform: Float4x4
+        var castsShadow: Bool = true
     }
 
     private let models: ModelStore
     private var placements: [Placement] = []
+    /// The minigame's own models, kept apart from the server's so `sync(objects:)` cannot
+    /// discard them and vice versa.
+    private var minigamePlacements: [Placement] = []
+    private var minigameSignature: [String] = []
     /// Identity of the object list the placements were built from, so the transforms are only
     /// rebuilt when the server actually sends new objects.
     private var signature: [Int: String] = [:]
+
+    private var allPlacements: [Placement] { placements + minigamePlacements }
 
     init(models: ModelStore) {
         self.models = models
@@ -45,17 +56,43 @@ final class PropRenderer {
         Log.render("Props: \(placements.count) 3D model instance(s) placed")
     }
 
+    /// Rebuilds the minigame's placements when they change. Safe to call every frame.
+    func sync(minigameModels: [SceneModel]) {
+        let fresh = minigameModels.map { "\($0.path)|\($0.transform)|\($0.castsShadow)" }
+        guard fresh != minigameSignature else { return }
+        minigameSignature = fresh
+
+        minigamePlacements = minigameModels.enumerated().map { index, model in
+            Placement(id: -1 - index, path: AssetLocator.relative(model.path),
+                      transform: model.transform, castsShadow: model.castsShadow)
+        }
+        if !minigamePlacements.isEmpty {
+            Log.render("Props: \(minigamePlacements.count) minigame model(s) placed")
+        }
+    }
+
     func clear() {
         placements.removeAll()
         signature.removeAll()
+        minigamePlacements.removeAll()
+        minigameSignature.removeAll()
     }
 
-    var isEmpty: Bool { placements.isEmpty }
+    var isEmpty: Bool { placements.isEmpty && minigamePlacements.isEmpty }
 
     /// True once a loaded model turns out to carry a transmissive material, so the renderer
     /// only encodes the extra blended sub-pass when there is something in it.
     var hasTransmissive: Bool {
-        placements.contains { models.model($0.path)?.groups.contains { $0.surface.isTransmissive } == true }
+        allPlacements.contains { models.model($0.path)?.groups.contains { $0.surface.isTransmissive } == true }
+    }
+
+    /// The shadow-map pass: only the placements that opted in. Every server-placed prop does;
+    /// a minigame's scenery generally should not — see `SceneModel.castsShadow`.
+    func drawShadowCasters(viewProjection: Float4x4,
+                           encoder: MTLRenderCommandEncoder,
+                           fallbackTexture: MTLTexture) {
+        draw(allPlacements.filter(\.castsShadow), viewProjection: viewProjection,
+             encoder: encoder, fallbackTexture: fallbackTexture, transmissive: false)
     }
 
     /// Draws every prop whose model has finished loading, requesting the rest.
@@ -68,6 +105,15 @@ final class PropRenderer {
               encoder: MTLRenderCommandEncoder,
               fallbackTexture: MTLTexture,
               transmissive: Bool = false) {
+        draw(allPlacements, viewProjection: viewProjection, encoder: encoder,
+             fallbackTexture: fallbackTexture, transmissive: transmissive)
+    }
+
+    private func draw(_ placements: [Placement],
+                      viewProjection: Float4x4,
+                      encoder: MTLRenderCommandEncoder,
+                      fallbackTexture: MTLTexture,
+                      transmissive: Bool) {
         for placement in placements {
             guard let model = models.model(placement.path) else {
                 models.request(path: placement.path, classifier: { _ in .authored })

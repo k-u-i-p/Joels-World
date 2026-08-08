@@ -61,6 +61,16 @@ enum Tennis3DCourt {
     static let netPostHeight = metres(1.07)
     static let netPostOffset = halfDoubles + metres(0.914)
 
+    /// **How far out the net is actually drawn**, which is not where its posts would be.
+    ///
+    /// `netPostOffset` is the doubles post, and it stays that way because `netHeight(atX:)` is
+    /// the sag curve the ball is tested against and moving it would move the physics. But this
+    /// is a singles match, and the stadium's umpire chair stands at 6.2–7.8 m from the centre
+    /// line — a doubles post at 6.4 m is planted inside it. Singles sticks go 0.914 m outside
+    /// the *singles* sideline, which is 5.03 m, clear of the chair and correct for the match
+    /// being played. Nothing legal ever crosses the net past 4.1 m anyway.
+    static let netEdge = halfSingles + metres(0.914)
+
     /// Painted lines are 5 cm wide; the baseline is 10 cm.
     static let lineWidth = metres(0.05)
     static let baselineWidth = metres(0.10)
@@ -83,6 +93,31 @@ enum Tennis3DCourt {
 
     static let playableHalfWidth = halfDoubles + sideRun
     static let playableHalfLength = halfLength + runBack
+
+    // MARK: - The stadium
+
+    /// The model the court stands in, and where it stands.
+    ///
+    /// `tools/assets/build_stadium.js` builds it from the Fab export: the same stadium, with its
+    /// own court and net taken out, because those are drawn here — in the place the ball physics
+    /// believes in, at the size `unitsPerMetre` says. Two courts a centimetre apart is a z-fight,
+    /// and the one that would win is the one the game does not know about.
+    ///
+    /// The model is authored in **metres, Y-up, court along Z**, and its arena floor sits 19 mm
+    /// below its origin. So: tip it up (glTF Y-up → this world's Z-up, the same `rotationX`
+    /// `PropRenderer` applies to every placed prop), scale by `unitsPerMetre`, then lift it by
+    /// that 19 mm so the floor lands exactly on z = 0 — which is the plane the lawn used to
+    /// occupy, and is two units below the apron, the separation the apron and the painted lines
+    /// have always used.
+    ///
+    /// The court's long axis comes out along world Y and its centre on the origin without any
+    /// further help, because `rotationX(π/2)` takes glTF +Z to render −Y, and the model's court
+    /// is centred on its own origin to the millimetre.
+    static let stadiumModel = SceneModel(
+        path: "models/tennis_stadium.glb",
+        transform: Float4x4.translation(SIMD3(0, 0, Float(metres(0.019))))
+            * Float4x4.scale(SIMD3(repeating: Float(unitsPerMetre)))
+            * Float4x4.rotationX(.pi / 2))
 
     /// **The drawn apron is deliberately far bigger than the playable one**, so that its edge is
     /// never in shot where it would be read as the edge of the world.
@@ -115,9 +150,15 @@ enum Tennis3DCourt {
 
     // MARK: - Colours
 
-    /// The 2D game's palette, kept: a blue-grey hard court, `#7bed9f` grass, white lines.
-    static let surfaceColor = parseHexColor("#3c4a52")
-    static let insideColor = parseHexColor("#2f6f8f")
+    /// **Grass, now that the court stands in a grass-court stadium.** The 2D game's palette was
+    /// a blue-grey hard court (`#3c4a52` apron, `#2f6f8f` inside the lines) and it was right for
+    /// a court on its own in a field; a blue court in the middle of Centre Court is not. The two
+    /// greens are sampled off the model's own lawn texture — the light mown stripe and the dark
+    /// one — so the game's court and the stadium floor it sits on read as the same grass.
+    ///
+    /// Reverting is those two hex strings and nothing else.
+    static let surfaceColor = parseHexColor("#4a7a34")
+    static let insideColor = parseHexColor("#6b9a44")
     static let grassColor = parseHexColor("#7bed9f")
     static let lineColor = parseHexColor("#f5f7fa")
     static let netColor = parseHexColor("#1b2430")
@@ -213,19 +254,19 @@ enum Tennis3DCourt {
                 castsShadow: false))
         }
 
-        // The lawn, then the hard-court apron on top of it, then the darker playing area inside
-        // the lines. The lawn shows as a band behind the far baseline and runs out of frame
-        // everywhere else — see the note on `surfaceHalfLength` for why the apron is that shape.
+        // The apron, then the lighter playing area inside the lines, then the paint.
         //
-        // The gaps between the three used to be 0.4 units — a centimetre and a half — and the
+        // **There is no lawn slab any more.** There used to be one four times the apron's size at
+        // z = 0, standing in for the world outside the court; the stadium's own arena floor is
+        // that now, and it is at exactly z = 0 — see `stadiumModel`. Drawing both would be two
+        // coplanar planes 40 m across, which is the one thing a depth buffer cannot arbitrate.
+        //
+        // The gaps between what is left used to be 0.4 units — a centimetre and a half — and the
         // grass was six times the size of the surface, which is nearly three hundred metres long.
         // A depth buffer asked to separate three planes a centimetre apart across three hundred
         // metres cannot, and the result was ragged slabs of the wrong colour appearing off the
         // corners of the court and vanishing again as the camera drifted. Two units of separation
-        // and a lawn only big enough to fill the frame is plenty of room; from this camera, seven
-        // centimetres of lift is invisible.
-        slab(x: 0, y: apronCentreY, width: surfaceHalfWidth * 4, length: surfaceHalfLength * 4,
-             z: 0, color: grassColor, unlit: false)
+        // is plenty of room; from this camera, seven centimetres of lift is invisible.
         slab(x: 0, y: apronCentreY, width: surfaceHalfWidth * 2, length: surfaceHalfLength * 2,
              z: 2, color: surfaceColor, unlit: false)
         slab(x: 0, y: 0, width: doublesWidth, length: length, z: 4,
@@ -270,14 +311,14 @@ enum Tennis3DCourt {
     private static func netPrimitives() -> [ScenePrimitive] {
         var out: [ScenePrimitive] = []
         let cord = Float(metres(0.012))
-        let span = netPostOffset * 2
+        let span = netEdge * 2
 
         // Posts.
         for side in [-1.0, 1.0] {
             out.append(ScenePrimitive(
-                shape: .cylinder(radius: Float(metres(0.05)), height: Float(netPostHeight)),
-                transform: Float4x4.translation(SIMD3(Float(side * netPostOffset), 0,
-                                              Float(netPostHeight / 2)))
+                shape: .cylinder(radius: Float(metres(0.05)), height: Float(netHeight(atX: netEdge))),
+                transform: Float4x4.translation(SIMD3(Float(side * netEdge), 0,
+                                              Float(netHeight(atX: netEdge) / 2)))
                     // MeshFactory builds cylinders along +Y; stand it up along +Z.
                     * Float4x4.rotationX(.pi / 2),
                 color: postColor,
@@ -289,7 +330,7 @@ enum Tennis3DCourt {
         let verticalCount = 46
         for index in 0...verticalCount {
             let t = Double(index) / Double(verticalCount)
-            let x = -netPostOffset + t * span
+            let x = -netEdge + t * span
             let height = netHeight(atX: x)
             out.append(ScenePrimitive(
                 shape: .box(width: cord, height: Float(height), depth: cord),
@@ -308,8 +349,8 @@ enum Tennis3DCourt {
         for row in 1...rows {
             let fraction = Double(row) / Double(rows + 1)
             for segment in 0..<segments {
-                let x0 = -netPostOffset + span * Double(segment) / Double(segments)
-                let x1 = -netPostOffset + span * Double(segment + 1) / Double(segments)
+                let x0 = -netEdge + span * Double(segment) / Double(segments)
+                let x1 = -netEdge + span * Double(segment + 1) / Double(segments)
                 let midX = (x0 + x1) / 2
                 let z = netHeight(atX: midX) * fraction
                 out.append(ScenePrimitive(
@@ -324,8 +365,8 @@ enum Tennis3DCourt {
         // The white tape along the top, and the centre strap holding the net down.
         let tape = Float(metres(0.06))
         for segment in 0..<segments {
-            let x0 = -netPostOffset + span * Double(segment) / Double(segments)
-            let x1 = -netPostOffset + span * Double(segment + 1) / Double(segments)
+            let x0 = -netEdge + span * Double(segment) / Double(segments)
+            let x1 = -netEdge + span * Double(segment + 1) / Double(segments)
             let midX = (x0 + x1) / 2
             let z = netHeight(atX: midX)
             out.append(ScenePrimitive(

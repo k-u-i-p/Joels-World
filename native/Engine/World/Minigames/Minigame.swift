@@ -31,6 +31,10 @@ protocol WorldRenderedMinigame: Minigame {
     /// costs nothing at this scale and means the ball is just another entry.
     var scenePrimitives: [ScenePrimitive] { get }
 
+    /// Authored `.glb` models to stand in the scene — the stadium the court sits inside.
+    /// Static, so this is read once when the minigame starts rather than every frame.
+    var sceneModels: [SceneModel] { get }
+
     /// Where the camera goes. Called after `update(dt:)` with the same step, in place of the
     /// overworld's follow-the-player logic. It takes `dt` because a camera that eases towards
     /// its target has to ease in *seconds* — a fixed fraction per frame runs at half speed on a
@@ -44,6 +48,26 @@ protocol WorldRenderedMinigame: Minigame {
 extension WorldRenderedMinigame {
     var usesWorldRenderer: Bool { true }
     var backgroundColor: String? { nil }
+    var sceneModels: [SceneModel] { [] }
+}
+
+/// One authored `.glb` standing in a minigame's scene, in **render space** (Y negated, Z up).
+///
+/// The overworld gets its models from `WorldObject`s the server sends; a minigame has no server
+/// objects and no map, so it names them itself. `PropRenderer` draws both from the same list —
+/// the only thing this carries that a placed object does not is the choice below.
+struct SceneModel {
+    /// Relative to the asset root, e.g. `models/tennis_stadium.glb`.
+    var path: String
+    /// glTF is authored Y-up and this world is Z-up, so a placement almost always ends in
+    /// `Float4x4.rotationX(.pi / 2)`, the same way `PropRenderer.transform(for:)` does.
+    var transform: Float4x4
+    /// **Off by default, and that is the interesting one.** The shadow map is a 1024² depth
+    /// buffer over a 3000-unit cone: a 550,000-vertex stadium drawn into it costs a second full
+    /// pass over the model and buys a shadow of a grandstand onto seats that are already
+    /// occluded in their own base colour. A prop small enough to shadow something the player
+    /// looks at should say so.
+    var castsShadow: Bool = false
 }
 
 /// One character a minigame wants drawn, with everything the rig needs that a bare

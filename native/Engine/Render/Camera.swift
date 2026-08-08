@@ -19,8 +19,19 @@ struct Camera {
     var yaw: Double = 0
 
     let fovDegrees: Float = 30
+
+    /// **4000, up from 2000.** The overworld never came near the old plane — the camera orbits
+    /// at about 1631 units and the ground it looks at is flat — but the tennis stadium is 54 m
+    /// of bowl in every direction from the court, which at 27 units to the metre puts its far
+    /// stand nearly 2900 units from the eye. At 2000 the back half of the stadium was simply
+    /// not there, the same way the lawn used to stop 18 m past the far baseline.
+    ///
+    /// It costs almost nothing. Depth is stored in a `depth32Float` buffer and the precision of
+    /// `1 − near/z` depends on **near**, not on far: at 2000 units out, one float32 step is
+    /// about 0.24 units either way, against the 2-unit separations the court's stacked planes
+    /// have always used. Doubling `far` moves that by a part in two thousand.
     let near: Float = 1
-    let far: Float = 2000
+    let far: Float = 4000
 
     private(set) var viewProjection = matrix_identity_float4x4
     private(set) var inverseViewProjection = matrix_identity_float4x4

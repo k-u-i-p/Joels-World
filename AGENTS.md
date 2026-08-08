@@ -28,11 +28,12 @@ The seven badges are fixed in code today —
 [MenuDialogs.swift:63](native/JoelsWorld/UI/MenuDialogs.swift:63): rugby, tennis, swimming,
 tig, good friend, tower defence, detention. Only **tennis** is actually winnable so far
 ([Tennis3DGame+Rules.swift:215](native/Engine/World/Minigames/Tennis3D/Tennis3DGame+Rules.swift:215)).
-Tennis is the 3D rebuild now; the old 2D one is still in the tree behind `-tennis2d`. Six handoff
+Tennis is the 3D rebuild now; the old 2D one is still in the tree behind `-tennis2d`. Seven handoff
 notes explain how it works, starting at
 [HANDOFF-tennis3d.md](native/HANDOFF-tennis3d.md) — read them before changing it.
-[Part 6](native/HANDOFF-tennis3d-part6.md) is the most recent, and its "Read this before you start
-a measured run" section will save you an afternoon.
+[Part 7](native/HANDOFF-tennis3d-part7.md) is the most recent — the court stands in a stadium now —
+and [part 6](native/HANDOFF-tennis3d-part6.md)'s "Read this before you start a measured run"
+section will save you an afternoon.
 
 The rest of the storyline is **not written yet**. Graduation and escape are the goal, but how
 you get there is open. If Joel invents story, that's the point — it's his game. Write it down
