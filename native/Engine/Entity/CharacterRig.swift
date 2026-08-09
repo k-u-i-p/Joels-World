@@ -214,6 +214,24 @@ enum CharacterRig {
     /// how big the shoe is to how high the character has to stand.
     static let shoeSoleBelowAnkle: Float = 9.001
 
+    /// **How far the toe and the heel reach from the ankle**, in the same model units as
+    /// `shoeSoleBelowAnkle` and measured off the same file. The mesh spans −0.083…0.269 along
+    /// its own +Z under a node scaled 80 on that axis, and `shoeModelLocal` turns the model's
+    /// +Z into the shoe frame's +X — so the shoe runs from 6.62 behind the ankle to 21.54 in
+    /// front of it.
+    ///
+    /// Scaled by `shoeScale` that is a foot 14.1 long with the ankle 23% of the way back from
+    /// the toe, which is where a real ankle sits, and it is why `shoeScale` reads right.
+    ///
+    /// These exist because a foot that pitches has a **lowest corner that is not its origin**:
+    /// the sole clearance under a toe-down foot is `shoeSoleBelowAnkle` only while the foot is
+    /// level. `soleClearance` is the thing that knows that, and nothing had a number for the
+    /// length of the foot before it needed one.
+    static let shoeToeAheadOfAnkle: Float = 21.54
+    static let shoeHeelBehindAnkle: Float = 6.62
+    /// The same measurement across the foot — the model's own ±0.066 on X, scaled 100.
+    static let shoeHalfWidth: Float = 6.6
+
     /// How far the sole is allowed under the floor. A shoe resting exactly on z = 0 shows a hard
     /// line where it meets the ground; a little sink hides it. The old rig had 1.05 of sink by
     /// accident, which is where "the feet look planted" came from.
@@ -777,6 +795,113 @@ enum CharacterRig {
     /// full-throttle stride and nothing at mid-stance, on its own.
     static func groundContactSink(leftFoot: SIMD3<Float>, rightFoot: SIMD3<Float>) -> Float {
         min(max(min(leftFoot.z, rightFoot.z) - neutralLeftFoot.z, -3), 3)
+    }
+
+    /// **One foot's world frame: pitched to follow the shin, and stopped by the floor.**
+    ///
+    /// The rigid ankle of the previous session took the shin's own lean and gave it to the foot,
+    /// which is right for a foot in the air and wrong for a foot on the ground — a shin rotates
+    /// through a whole stride while the sole under it stays flat on the floor. What was missing
+    /// was any way to know which of the two a foot was doing, and the answer turns out not to
+    /// need the gait to say: **the floor already knows.** A foot whose shin lean would drive its
+    /// toe through the ground is, by definition, a foot on the ground.
+    ///
+    /// So the rule is one sentence with no tuned number in it: *take the shin's pitch, and if it
+    /// buries a corner of the sole, wind it back — by the least that lifts that corner onto the
+    /// floor, and never past level.*
+    ///
+    /// Every property a real ankle has falls out of that:
+    ///
+    /// - **A planted foot is flat**, because level is where it gets stopped.
+    /// - **A foot in the air keeps the whole of its shin pitch**, because nothing is in its way.
+    ///   Heel strike stays toe-up and push-off stays toe-down; those are swing-phase poses.
+    /// - **The release is smooth**, because the constraint slackens continuously as the ankle
+    ///   rises — a 0.45 rad toe-down foot is level at the floor, 0.19 at four units up, and its
+    ///   own pitch again by nine. Nothing pops.
+    /// - **The heel lets go sooner than the toe**, because it is 3.3 from the ankle against the
+    ///   toe's 10.8, and a short lever leaves the floor first. That is also the real asymmetry.
+    ///
+    /// "Never past level" is what makes it safe when the floor cannot be satisfied at all — an
+    /// ankle dropped below its resting height by the pelvis sink has no pitch that lifts the sole
+    /// out, and level is the best of a bad set, because level is where the two corners meet and
+    /// therefore where the **lower** of them is highest. That last fact is exactly what makes the
+    /// wind-back well defined in the first place: the lowest corner rises monotonically all the
+    /// way from the shin's pitch to level, so "the least that lifts it" is a single answer.
+    ///
+    /// The arithmetic works on the columns of the composed frame rather than on the rig-local
+    /// numbers, so the character's scale, the pelvis sink, the acceleration lean and the bank in
+    /// a hard turn are all already in it. The bank is the one term that does not depend on the
+    /// pitch — tipping sideways lowers a corner by an amount no amount of pitching recovers — so
+    /// it comes in as a constant drop, taken on the worse side.
+    static func shoeFrame(ankle: SIMD3<Float>, shin: SIMD3<Float>, bodyPivot: Float4x4) -> Float4x4 {
+        let base = bodyPivot * Float4x4.translation(ankle)
+        let rigid = atan2(-shin.x, -shin.z)
+
+        // How much world height a unit along the foot and a unit up out of it are worth. After a
+        // pitch of θ the foot's own axis is `cos θ · along − sin θ · up`, so it lies flat when
+        // `cos θ · alongZ = sin θ · upZ` — that angle is `level`.
+        let alongZ = base.columns.0.z, upZ = base.columns.2.z
+        let level = atan2(alongZ, upZ)
+
+        let sole = -shoeSoleBelowAnkle * shoeScale
+        let originZ = base.columns.3.z
+        let bankDrop = -abs(shoeHalfWidth * shoeScale * base.columns.1.z)
+        // A corner at `along` sits at `originZ + bankDrop + radius · cos(θ − phase)`, which is
+        // the whole of the geometry: one sinusoid per corner, and the floor is a line across it.
+        let wanted = -footSink - originZ - bankDrop
+
+        func cleared(along: Float) -> Float {
+            let cosCoefficient = along * alongZ + sole * upZ
+            let sinCoefficient = sole * alongZ - along * upZ
+            let radius = (cosCoefficient * cosCoefficient
+                          + sinCoefficient * sinCoefficient).squareRoot()
+            guard radius > 1e-4 else { return level }
+            let ratio = wanted / radius
+            // Above the sinusoid's own crest: no pitch clears this corner, so take level.
+            guard ratio <= 1 else { return level }
+            let phase = atan2(sinCoefficient, cosCoefficient)
+            guard radius * cos(rigid - phase) < wanted else { return rigid }
+            let half = acos(max(-1, ratio))
+            let low = phase - half, high = phase + half
+            return abs(low - rigid) <= abs(high - rigid) ? low : high
+        }
+
+        // Take the most-corrected of the two, then clamp the whole thing to the run from the
+        // shin's own pitch to level. The clamp is what makes a candidate on the far side of
+        // `rigid` — a corner that pitching away from level would never have helped — a no-op.
+        var pitch = rigid
+        for along in [shoeToeAheadOfAnkle * shoeScale, -shoeHeelBehindAnkle * shoeScale] {
+            let candidate = cleared(along: along)
+            pitch = level >= rigid ? min(level, max(pitch, candidate))
+                                   : max(level, min(pitch, candidate))
+        }
+
+        return base * Float4x4.rotationY(pitch)
+    }
+
+    /// **How high the lowest corner of a shoe is above the floor**, given that shoe's world frame
+    /// — `RigPose.leftShoeBox` or `rightShoeBox`. Negative is under the floor.
+    ///
+    /// It exists because "how high is the sole" had until now been answered as *the origin's
+    /// height, minus how far the sole hangs below the origin*, which is only true of a **level**
+    /// foot. A foot pitched toe-down by 0.3 rad puts its toe three units lower than that answer,
+    /// and three units is most of a shoe: the difference between a foot on the floor and a foot
+    /// buried in it, invisible to every number the lab printed.
+    ///
+    /// Four corners rather than two, because the body pivot banks as well as pitches and a tipped
+    /// foot's lowest point is a corner of the sole, not a point on its centre line. The frame
+    /// carries the character's scale, so the corners come out in world units for free.
+    static func soleClearance(_ shoeBox: Float4x4) -> Float {
+        let sole = -shoeSoleBelowAnkle * shoeScale
+        let halfWidth = shoeHalfWidth * shoeScale
+        var lowest = Float.greatestFiniteMagnitude
+        for along in [shoeToeAheadOfAnkle * shoeScale, -shoeHeelBehindAnkle * shoeScale] {
+            for across in [halfWidth, -halfWidth] {
+                let corner = shoeBox * SIMD4<Float>(along, across, sole, 1)
+                lowest = min(lowest, corner.z)
+            }
+        }
+        return lowest
     }
 
     // MARK: - Appearance
@@ -1474,14 +1599,18 @@ enum CharacterRig {
         //
         // Square to the shin means the shin's own rotation away from vertical, applied backwards:
         // `rotationY` takes +X down as its angle grows, and a shin leaning forward should take
-        // the toe *up*. Hence the negated X. Straight down is still 0, so a standing character's
-        // feet are flat, exactly as before.
+        // the toe *up*. Hence the negated X.
+        //
+        // **And then the floor gets a say**, which is `shoeFrame` below — because square to the
+        // shin is only the right answer for a foot that is in the air. A standing character's
+        // shin is not vertical: the neutral leg is 0.096 rad forward of the hip with a 0.583 rad
+        // knee, which leaves the shin leaning 0.222 rad *back* and put the toe of every standing
+        // shoe 2.7 units under the floor. Nothing caught it because a foot's pitch is invisible
+        // from the front, which is the view a flat sole was checked in.
         let leftShin = leftAnkle - leftKnee
         let rightShin = rightAnkle - rightKnee
-        let leftShoeGroup = bodyPivot * Float4x4.translation(leftAnkle)
-            * Float4x4.rotationY(atan2(-leftShin.x, -leftShin.z))
-        let rightShoeGroup = bodyPivot * Float4x4.translation(rightAnkle)
-            * Float4x4.rotationY(atan2(-rightShin.x, -rightShin.z))
+        let leftShoeGroup = shoeFrame(ankle: leftAnkle, shin: leftShin, bodyPivot: bodyPivot)
+        let rightShoeGroup = shoeFrame(ankle: rightAnkle, shin: rightShin, bodyPivot: bodyPivot)
 
         let shoeModelLocal = Float4x4.eulerXYZ(0, .pi / 2, .pi / 2)
             * Float4x4.scale(SIMD3(repeating: shoeScale))

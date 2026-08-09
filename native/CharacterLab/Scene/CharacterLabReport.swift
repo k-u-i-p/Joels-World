@@ -220,11 +220,14 @@ enum CharacterLabReport {
                                subject: CharacterLabScene.Subject,
                                pose: RigPose) -> Sample {
         let gait = subject.motor.gait
-        let scale = characterScale(subject.character)
-        let soleDrop = Double(CharacterRig.shoeSoleBelowAnkle * CharacterRig.shoeScale) * scale
 
-        let left = height(pose.leftShoeBox) - soleDrop
-        let right = height(pose.rightShoeBox) - soleDrop
+        // **The lowest corner of the shoe, not the height of the ankle minus a constant.** That
+        // constant is `shoeSoleBelowAnkle`, and subtracting it answers "how high is the sole" for
+        // a level foot only — which was every foot the rig produced until the shoe learned to
+        // pitch. A toe-down foot's toe is lower than that answer by most of a shoe, and the whole
+        // point of measuring a sole is to catch exactly that. See `CharacterRig.soleClearance`.
+        let left = Double(CharacterRig.soleClearance(pose.leftShoeBox))
+        let right = Double(CharacterRig.soleClearance(pose.rightShoeBox))
 
         return Sample(t: t,
                       x: subject.motor.x,
@@ -261,12 +264,6 @@ enum CharacterLabReport {
             travelledMetres: travelled / CharacterLabScene.unitsPerMetre,
             averageSpeed: seconds > 0 ? travelled / seconds : 0,
             hipRange: (hips.max() ?? 0) - (hips.min() ?? 0))
-    }
-
-    /// The same scale `CharacterRig.pose` applies: the map's character scale — 1 in the lab —
-    /// times the larger of the character's own width and height against the default 40.
-    private static func characterScale(_ character: GameCharacter) -> Double {
-        max((character.width ?? 40) / 40, (character.height ?? 40) / 40)
     }
 
     private static func partHeight(_ pose: RigPose, _ part: RigPart) -> Double {
