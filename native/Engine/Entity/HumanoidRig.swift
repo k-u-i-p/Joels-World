@@ -350,12 +350,18 @@ final class HumanoidSkeleton {
     /// feet reach the floor.
     let hipsToLegMid: SIMD3<Float>
 
+    /// Canonical bones whose model sits on the opposite side of the character from the `RigPart`
+    /// driving them. Empty is what you want; anything in it means a mirrored character.
+    let mirrored: [HumanoidBone]
+
+    /// The rig at rest, built once. Two things here want it — the hip height every model is
+    /// scaled by, and the side check — and `bindPose` runs the whole IK to produce it.
+    static let engineBind = CharacterRig.bindPose()
+
     /// Hip height above the soles at rest, taken from `CharacterRig.bindPose`. The number the
     /// model is scaled to under `ScaleMode.hips`.
-    static let engineHipHeight: Float = {
-        let bind = CharacterRig.bindPose()
-        return (bind.leftLeg.root.z + bind.rightLeg.root.z) * 0.5
-    }()
+    static let engineHipHeight: Float =
+        (engineBind.leftLeg.root.z + engineBind.rightLeg.root.z) * 0.5
 
     init(mesh: GLTFSkinnedMesh, profile: HumanoidProfile) {
         let count = mesh.jointNames.count
@@ -568,6 +574,28 @@ final class HumanoidSkeleton {
             if simd_length(perpendicular) > 1e-4 { rollOut[index] = simd_normalize(perpendicular) }
         }
         rollAxis = rollOut
+
+        // --- The side check ---
+        //
+        // **Does each bone end up on the side of the body the rig is driving it from?** It is one
+        // line of arithmetic per limb and it is here because the answer was *no* for a whole
+        // session and nobody could see it: a mirrored character walks, runs, stands and idles
+        // perfectly, because every one of those is symmetric. It took a wave — an emote that uses
+        // one arm — before anything looked wrong, and by then the mirror had been under every
+        // other measurement in this file.
+        //
+        // Both sides of the comparison are rest poses about the character's own centre line, so
+        // the sign of Y is all it takes. Bones near the middle say nothing and are left out.
+        var swapped: [HumanoidBone] = []
+        for bone in HumanoidBone.allCases {
+            guard let index = found[bone], let part = bone.driver,
+                  let rest = Self.engineBind.bones[part] else { continue }
+            let model = position(of: index).y
+            let rig = rest.columns.3.y
+            guard abs(model) > 1, abs(rig) > 1 else { continue }
+            if (model < 0) != (rig < 0) { swapped.append(bone) }
+        }
+        mirrored = swapped
     }
 
     /// One line per recognised bone, for the lab's report and for working out why a model came
@@ -597,6 +625,9 @@ final class HumanoidSkeleton {
         }
         lines.append("  \(jointCount - matched.count) unnamed joints ride their parents")
         if unmatched > 0 { lines.append("  \(unmatched) canonical bones unmatched") }
+        if !mirrored.isEmpty {
+            lines.append("  MIRRORED: \(mirrored.map(\.rawValue).joined(separator: ", "))")
+        }
         return lines.joined(separator: "\n")
     }
 }
