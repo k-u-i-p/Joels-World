@@ -88,6 +88,12 @@ It is the right place to check anything about how a character looks or moves, an
 strip of pictures out on its own: see
 [HANDOFF-character-lab.md](native/HANDOFF-character-lab.md).
 
+**How the characters themselves are built** — the skinned body, the school uniform painted onto it
+rather than modelled, the hands, and where each number lives — is four handoffs starting at
+[HANDOFF-skinned-characters.md](native/HANDOFF-skinned-characters.md).
+[Part 4](native/HANDOFF-skinned-characters-part4.md) is the most recent, and its "What is left"
+is the list to pick the next job off.
+
 **A new minigame is the single best thing to build here**, because it feeds the badge loop
 directly. Copy how tennis works: a map in `data/maps.json` marked as a minigame, a
 `Minigame` class in `native/Engine/World/Minigames/`, and a call to
