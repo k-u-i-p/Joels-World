@@ -19,7 +19,6 @@ final class NPCInspectorView: NSView {
 
     private var hairPopUp: ActionPopUpButton!
     private var genderPopUp: ActionPopUpButton!
-    private var headPopUp: ActionPopUpButton!
     private var emotePopUp: ActionPopUpButton!
 
     private let stack = AdminUI.verticalStack()
@@ -120,19 +119,13 @@ final class NPCInspectorView: NSView {
                          updates: ["hair_color": .string(value)])
         }
 
-        headPopUp = AdminUI.popUp([]) { [weak self] title in
-            self?.update({ $0.head = title }, updates: ["head": .string(title)])
-        }
-
-        // Changing gender also resets the head, because the head tables do not overlap.
+        // **There is no head picker any more.** Every character is drawn with one bought,
+        // rigged model that arrives with its own head, so the fourteen head GLBs and the tables
+        // that chose between them are gone. `head` is still a field on an NPC and still written
+        // out to `npc.json` if it is already there — nothing reads it. When a second model is
+        // bought, the row that replaces this one picks a *model*, not a head.
         genderPopUp = AdminUI.popUp(["male", "female"]) { [weak self] gender in
-            guard let self else { return }
-            let defaultHead = gender == "female" ? "female_hair_long" : "male_hair_short"
-            self.update({ npc in
-                npc.gender = gender
-                npc.head = defaultHead
-            }, updates: ["gender": .string(gender), "head": .string(defaultHead)])
-            self.reloadHeadList(gender: gender, selected: defaultHead)
+            self?.update({ $0.gender = gender }, updates: ["gender": .string(gender)])
         }
 
         emotePopUp = AdminUI.popUp([Self.noEmote] + Emotes.names) { [weak self] title in
@@ -168,7 +161,6 @@ final class NPCInspectorView: NSView {
             AdminUI.row("Arms", [armWell]),
             AdminUI.row("Hair", [hairPopUp]),
             AdminUI.row("Gender", [genderPopUp]),
-            AdminUI.row("Head", [headPopUp]),
             AdminUI.row("Emote", [emotePopUp]),
             deleteButton,
         ]
@@ -208,20 +200,7 @@ final class NPCInspectorView: NSView {
 
         let gender = npc.gender ?? "male"
         genderPopUp.reload(selected: gender)
-        reloadHeadList(gender: gender, selected: npc.head)
         emotePopUp.reload(selected: npc.default_emote?.name ?? Self.noEmote)
-    }
-
-    /// The head list follows gender, plus whatever the NPC already has — an authored head
-    /// from the other table stays selectable rather than being silently replaced
-    /// (`admin.js:695-707`).
-    private func reloadHeadList(gender: String, selected: String?) {
-        var heads = (gender == "female" ? HeadTables.female : HeadTables.male).map(\.name).sorted()
-        if let selected, !selected.isEmpty, !heads.contains(selected) {
-            heads.append(selected)
-        }
-        let fallback = gender == "female" ? "female_hair_long" : "male_hair_short"
-        headPopUp.reload(items: heads, selected: selected?.isEmpty == false ? selected : fallback)
     }
 
     // MARK: - Edits

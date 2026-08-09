@@ -18,8 +18,8 @@ struct CharacterUniforms {
     /// xyz = dielectric F0, w = specular intensity (three.js's `specularF90` before the
     /// metalness mix). The defaults (0.04, 1) are what `MeshStandardMaterial` hard-codes.
     var specular: SIMD4<Float>
-    /// x = transmission, y = the clothing atlas is bound at texture 0 and `uv` addresses it
-    /// (the skinned body, and nothing else), zw unused.
+    /// x = transmission, yzw unused. `y` used to say the clothing atlas was bound at texture 0;
+    /// the clothing atlas dressed the procedural body and went with it.
     var surface: SIMD4<Float>
 }
 
@@ -36,10 +36,6 @@ struct SurfaceMaterial {
     static let pants = SurfaceMaterial(roughness: 0.9, metalness: 0.0)
     static let shoe = SurfaceMaterial(roughness: 0.7, metalness: 0.2)
     static let hair = SurfaceMaterial(roughness: 0.5, metalness: 0.1)
-    /// Collars, cuffs and socks. No vertex carries this one — the clothing atlas picks it per
-    /// texel and the fragment shader mixes towards it, colour and material together.
-    static let trim = SurfaceMaterial(roughness: 0.85, metalness: 0.0)
-
     /// The material of an imported model's draw group, extensions included.
     init(group: ModelGroup) {
         self.init(roughness: group.roughness,
@@ -63,8 +59,7 @@ extension CharacterUniforms {
          textured: Bool,
          unlit: Bool,
          material: SurfaceMaterial,
-         emissiveTextured: Bool = false,
-         clothed: Bool = false) {
+         emissiveTextured: Bool = false) {
         let extensions = material.extensions
         self.init(modelViewProjection: modelViewProjection,
                   model: model,
@@ -74,7 +69,7 @@ extension CharacterUniforms {
                                material.roughness, material.metalness),
                   emissive: SIMD4(extensions.emissive, emissiveTextured ? 1 : 0),
                   specular: SIMD4(extensions.specularF0, extensions.specularIntensity),
-                  surface: SIMD4(extensions.transmission, clothed ? 1 : 0, 0, 0))
+                  surface: SIMD4(extensions.transmission, 0, 0, 0))
     }
 }
 
@@ -91,48 +86,37 @@ struct CharacterPipelines {
     var shadowSkinned: MTLRenderPipelineState
 }
 
-/// Draws the procedural character rig: the shared primitive meshes, the glTF head and shoe
-/// models, and the ground shadow blob.
+/// Draws a character: one bought, rigged model, whatever it is holding, its emote props and its
+/// ground shadow blob.
 ///
-/// Port of the render half of `characters.js`. The pose itself comes from `CharacterRig`,
-/// which holds no Metal types.
+/// **It used to draw a character it generated.** Sessions 1–4 built a humanoid out of Swift — a
+/// capsule per limb with a sphere in every joint, then one skinned mesh with a painted-on
+/// uniform, plus a head GLB and a shoe GLB on top. Session 5 imported a bought model alongside
+/// it and this session removed the generated one, so a character is one skinned draw now and the
+/// ladder of fallbacks underneath it is gone. `SkinnedBody` and `ClothingAtlas` were the two
+/// files that went; `git log` has them if the reasoning is ever wanted back.
+///
+/// The pose itself still comes from `CharacterRig`, which holds no Metal types and has no idea
+/// any of this changed — that is `HumanoidRig`'s whole job.
 final class CharacterRenderer {
     private let device: MTLDevice
     private let models: ModelStore
 
-    // Shared primitive geometry — built once, drawn for every character.
-    private var torsoMesh: GPUMesh!
-    private var pelvisMesh: GPUMesh!
-    private var neckMesh: GPUMesh!
-    private var shoulderMesh: GPUMesh!
-    private var upperArmMesh: GPUMesh!
-    private var lowerArmMesh: GPUMesh!
-    private var elbowMesh: GPUMesh!
-    private var leftHandMesh: GPUMesh!
-    private var rightHandMesh: GPUMesh!
-    private var upperLegMesh: GPUMesh!
-    private var lowerLegMesh: GPUMesh!
-    private var kneeMesh: GPUMesh!
-    private var shoeBoxMesh: GPUMesh!
+    /// The ground blob every character casts, and its falloff texture.
     private var shadowMesh: GPUMesh!
     private var shadowTexture: MTLTexture?
 
-    /// The body as one skinned mesh — see `SkinnedBody`. When it is present the primitive parts
-    /// above are only used for the emote props and the shoe stand-in; when it is `nil` the rig
-    /// falls back to drawing them one at a time, which is what the game did before.
-    private var skinnedBody: GPUSkinMesh?
-    /// The collars, buttons, cuffs and socks — see `ClothingAtlas`. One texture for every
-    /// character, because it says what to *do* to a colour rather than what colour to be.
-    private var clothingTexture: MTLTexture?
     /// Pipelines for the skinned body. Owned by `Renderer`, which builds them, and handed over
-    /// here because the body has to be drawn with a different vertex function from the head,
-    /// the shoes and the props it is drawn among.
+    /// here because the body has to be drawn with a different vertex function from the props it
+    /// is drawn among.
     var pipelines: CharacterPipelines?
 
-    /// Scratch for the per-character uniform blocks, so posing a crowd allocates nothing.
-    private var jointMatrices = [Float4x4](repeating: matrix_identity_float4x4,
-                                           count: SkinnedBody.boneCount)
-    private var palette = [SIMD4<Float>](repeating: .zero, count: SkinnedBody.paletteCount * 2)
+    /// Matches `SKIN_PALETTE_COUNT` in `Shaders.metal`. A bought model takes its colour from its
+    /// own texture and uses none of these slots, but the skinned vertex function reads the
+    /// palette unconditionally, so one is still bound and it has to be the size the shader
+    /// expects. Scratch, so drawing a crowd allocates nothing.
+    private static let paletteCount = 5
+    private var palette = [SIMD4<Float>](repeating: .zero, count: paletteCount * 2)
 
     /// One GPU mesh per emote prop geometry, built up front and shared by every character.
     private var propMeshes: [PropMesh: GPUMesh] = [:]
@@ -154,17 +138,50 @@ final class CharacterRenderer {
     /// One retargeter per model. `solve` is called once per character per pass and holds no
     /// per-character state between calls, so a model needs only one.
     private var retargeters: [String: HumanoidRetargeter] = [:]
-    /// Scratch for the imported skeleton's joint matrices, and the buffer they are uploaded in.
-    /// A bought rig has too many bones for `setVertexBytes`' 4 KB — see `ImportedCharacterBody`.
+    /// Scratch for the imported skeleton's joint matrices, on the CPU side.
     private var importedJoints: [Float4x4] = []
-    private var importedJointBuffer: MTLBuffer?
 
-    /// The model every character is drawn with, or nil for the procedural body.
+    /// **Where every character's joint matrices go, and why it is a ring and not a buffer.**
     ///
-    /// Set it and the rig, the gaits, the IK and every minigame carry on untouched — that is the
-    /// whole point of `HumanoidRig`. `JW_CHARACTER_MODEL` sets it without a rebuild, which is how
-    /// the character lab switches between the two.
-    var importedModelPath: String? {
+    /// A bought rig has too many bones for `setVertexBytes`' 4 KB — see `ImportedCharacterBody`
+    /// — so the matrices go in a real buffer. `setVertexBytes` **copies** at encode time; a
+    /// buffer does not. It is read by the GPU when the draw actually runs, which is after the
+    /// whole frame has been encoded.
+    ///
+    /// So one buffer, written per character, gives every character in a crowd the *last*
+    /// character's matrices — and those matrices carry position, so a class of thirty draws
+    /// thirty times in one place and looks like one pupil with twenty-nine spare shadows. That
+    /// is exactly what a school register looked like the first time the bought model drew the
+    /// whole cast, and it had been latent since the model was imported: the procedural body was
+    /// still the default, and it passed its bones the copying way.
+    ///
+    /// Each character now takes its own slice. The ring holds `framesInFlight` times the busiest
+    /// frame yet seen, so by the time the cursor comes back round to a slice, the frame that
+    /// wrote it is several frames retired and the GPU is long done with it.
+    private var jointRing: MTLBuffer?
+    private var jointCursor = 0
+    private var jointBytesThisFrame = 0
+    private var jointBytesBusiestFrame = 0
+
+    /// What the drawable queue depth works out at. Three is what `MTKView` allows by default,
+    /// and the ring is sized against it rather than against a guess at the cast size.
+    private static let framesInFlight = 3
+    /// Enough for a modest crowd before the ring ever has to grow.
+    private static let jointRingMinimum = 64 * 1024
+
+    /// **The model every character is drawn with.**
+    ///
+    /// It used to be optional, with `nil` meaning the procedural body — the one generated vertex
+    /// by vertex in Swift over sessions 1–4 — and `JW_CHARACTER_MODEL` switching between the two.
+    /// The procedural body is gone, so there is nothing to switch to and nothing to fall back on:
+    /// this is the character now. `JW_CHARACTER_MODEL` still overrides it, which is how a second
+    /// bought model gets looked at without a rebuild.
+    ///
+    /// Set it and the rig, the gaits, the IK and every minigame carry on untouched — that is
+    /// still the whole point of `HumanoidRig`.
+    static let defaultModelPath = "models/characters/stylized_boy.glb"
+
+    var importedModelPath: String? = defaultModelPath {
         didSet { if importedModelPath != oldValue { retargeters.removeAll() } }
     }
     /// Per-model profile, read from a `.rig.json` beside the model if it has one.
@@ -179,10 +196,9 @@ final class CharacterRenderer {
         self.importedBodies = ImportedCharacterStore(device: device)
         guard buildMeshes() else { return nil }
 
-        if let path = ProcessInfo.processInfo.environment["JW_CHARACTER_MODEL"], !path.isEmpty {
-            importedModelPath = path
-            importedProfile = Self.profile(besideModel: path)
-        }
+        let override = ProcessInfo.processInfo.environment["JW_CHARACTER_MODEL"]
+        if let override, !override.isEmpty { importedModelPath = override }
+        importedProfile = Self.profile(besideModel: importedModelPath ?? Self.defaultModelPath)
     }
 
     /// Reads `<model>.rig.json` if the model has one. Everything in it is optional; a
@@ -199,122 +215,19 @@ final class CharacterRenderer {
 
     // MARK: - Setup
 
-    /// Every limb is generated with +Y running from its **start** joint to its **end** joint,
-    /// because that is the axis `IKSolver.segmentTransform` maps onto the bone. So for an upper
-    /// arm, `radiusStart` is the shoulder and `radiusEnd` the elbow; for a calf, `radiusStart` is
-    /// the knee and `radiusEnd` the ankle.
-    ///
-    /// That is worth spelling out because the old calf had it backwards — it was tapered to 60%
-    /// at the *knee* and left full width at the ankle, which is a leg on upside down. It is the
-    /// one place here that deliberately departs from `characters.js`.
+    /// Builds what is left to build: the ground shadow, the white stand-in, the emote props and
+    /// the heart sprite. It used to build a body too — a torso silhouette, a tapered capsule per
+    /// limb segment, a sphere per joint and a lofted hand with a thumb, plus the skinned mesh
+    /// and clothing atlas that replaced them. All of that drew the procedural character, and the
+    /// procedural character is gone.
     private func buildMeshes() -> Bool {
-        // Torso and pelvis are hand-authored silhouettes rather than squashed capsules: a
-        // capsule cannot have a shoulder line and a waist, and without those a character is a
-        // pill with a beautifully modelled head on top.
-        let torso = MeshFactory.revolvedElliptical(profile: CharacterRig.torsoProfile,
-                                                   radialSegments: 28)
-
-        var pelvis = MeshFactory.revolved(profile: CharacterRig.pelvisProfile, radialSegments: 24)
-        MeshFactory.applyScale(&pelvis, CharacterRig.pelvisSquash)
-
-        let neck = MeshFactory.cylinder(radiusTop: CharacterRig.neckRadiusTop,
-                                        radiusBottom: CharacterRig.neckRadiusBottom,
-                                        height: CharacterRig.neckLength,
-                                        radialSegments: 16)
-
-        // Deltoid: a sphere stretched along the humerus, which the pose turns to follow it.
-        var shoulder = MeshFactory.sphere(radius: CharacterRig.shoulderRadius,
-                                          widthSegments: 14, heightSegments: 12)
-        MeshFactory.applyScale(&shoulder, CharacterRig.shoulderStretch)
-
-        // Arms thicken towards the body and thin towards the wrist, as arms do. Both segments
-        // use `elbowEndScale` where they meet, so the taper runs continuously through the joint.
-        //
-        // The wrist is the only end of any limb that nothing else covers, so it is the only one
-        // closed flush rather than domed past its joint — see `MeshFactory.limb`. Everywhere
-        // else the overshoot is what makes the joint blend.
-        let upperArm = MeshFactory.limb(length: CharacterRig.upperArmLength,
-                                        radiusStart: CharacterRig.upperArmRadius * CharacterRig.shoulderEndScale,
-                                        radiusEnd: CharacterRig.upperArmRadius * CharacterRig.elbowEndScale)
-
-        let lowerArm = MeshFactory.limb(length: CharacterRig.lowerArmLength,
-                                        radiusStart: CharacterRig.lowerArmRadius * CharacterRig.elbowEndScale,
-                                        radiusEnd: CharacterRig.lowerArmRadius * CharacterRig.wristEndScale,
-                                        domeEnd: false)
-
-        let elbow = MeshFactory.sphere(radius: CharacterRig.elbowRadius,
-                                       widthSegments: 12, heightSegments: 10)
-
-        // A hand with a thumb, assembled from four ellipsoids and merged into one mesh. See
-        // `CharacterRig.Hand` for the frame and for why this could not be done until the forearm
-        // had a basis instead of a direction.
-        let rightHand = Self.buildHand()
-        // The left is the right, mirrored — including the winding, or it renders inside-out.
-        let leftHand = MeshFactory.mirroredInX(rightHand)
-
-        // Thighs are heaviest at the hip; calves are heaviest at the knee and narrow into the
-        // ankle, where the shoe takes over.
-        let upperLeg = MeshFactory.limb(length: CharacterRig.upperLegLength,
-                                        radiusStart: CharacterRig.upperLegRadius * CharacterRig.hipEndScale,
-                                        radiusEnd: CharacterRig.upperLegRadius * CharacterRig.kneeEndScale)
-
-        // The ankle end is domed past the joint on purpose: the shoe model swallows it.
-        let lowerLeg = MeshFactory.limb(length: CharacterRig.lowerLegLength,
-                                        radiusStart: CharacterRig.lowerLegRadius * CharacterRig.kneeEndScale,
-                                        radiusEnd: CharacterRig.lowerLegRadius * CharacterRig.ankleEndScale)
-
-        let knee = MeshFactory.sphere(radius: CharacterRig.kneeRadius,
-                                      widthSegments: 12, heightSegments: 10)
-
-        guard let torsoMesh = GPUMesh(device: device, mesh: torso),
-              let pelvisMesh = GPUMesh(device: device, mesh: pelvis),
-              let neckMesh = GPUMesh(device: device, mesh: neck),
-              let shoulderMesh = GPUMesh(device: device, mesh: shoulder),
-              let upperArmMesh = GPUMesh(device: device, mesh: upperArm),
-              let lowerArmMesh = GPUMesh(device: device, mesh: lowerArm),
-              let elbowMesh = GPUMesh(device: device, mesh: elbow),
-              let leftHandMesh = GPUMesh(device: device, mesh: leftHand),
-              let rightHandMesh = GPUMesh(device: device, mesh: rightHand),
-              let upperLegMesh = GPUMesh(device: device, mesh: upperLeg),
-              let lowerLegMesh = GPUMesh(device: device, mesh: lowerLeg),
-              let kneeMesh = GPUMesh(device: device, mesh: knee),
-              let shoeBoxMesh = GPUMesh(device: device, mesh: MeshFactory.box(width: 11, height: 8, depth: 5)),
-              let shadowMesh = GPUMesh(device: device, mesh: MeshFactory.plane(width: 28, height: 28))
+        guard let shadowMesh = GPUMesh(device: device,
+                                       mesh: MeshFactory.plane(width: 28, height: 28))
         else {
             Log.render("Failed to build character meshes")
             return false
         }
-
-        self.torsoMesh = torsoMesh
-        self.pelvisMesh = pelvisMesh
-        self.neckMesh = neckMesh
-        self.shoulderMesh = shoulderMesh
-        self.upperArmMesh = upperArmMesh
-        self.lowerArmMesh = lowerArmMesh
-        self.elbowMesh = elbowMesh
-        self.leftHandMesh = leftHandMesh
-        self.rightHandMesh = rightHandMesh
-        self.upperLegMesh = upperLegMesh
-        self.lowerLegMesh = lowerLegMesh
-        self.kneeMesh = kneeMesh
-        self.shoeBoxMesh = shoeBoxMesh
         self.shadowMesh = shadowMesh
-
-        // The skinned body, built from the same anatomy the parts above are. If it fails to
-        // build the rig still draws — as twenty separate solids with balls for joints, which is
-        // what it was — so this is a `Log` and not a `return false`.
-        let (skin, inverseBind) = SkinnedBody.build()
-        skinnedBody = GPUSkinMesh(device: device, mesh: skin, inverseBind: inverseBind)
-        if skinnedBody == nil {
-            Log.render("Failed to build the skinned body — falling back to the rigid rig")
-        } else {
-            Log.render("Skinned body: \(skin.vertices.count) vertices, \(skin.indices.count / 3) triangles")
-        }
-
-        clothingTexture = ClothingAtlas.make(device: device)
-        if clothingTexture == nil {
-            Log.render("Failed to build the clothing atlas — the body falls back to flat colours")
-        }
 
         shadowTexture = ProceduralTextures.makeShadowTexture(device: device)
         whiteTexture = ProceduralTextures.makeWhiteTexture(device: device)
@@ -323,109 +236,6 @@ final class CharacterRenderer {
         return whiteTexture != nil
     }
 
-    /// **The right hand**: a lofted palm, four tapered fingers rooted inside it, and a thumb.
-    ///
-    /// It was three ellipsoids and a capsule merged, which read as a bunch of bananas: three
-    /// closed surfaces pushed into each other, creasing wherever they crossed, and none of them
-    /// the shape of any part of a hand. The attempt after that made the whole hand one loft with
-    /// the fingers pressed into it as grooves, and the shape that came out was a **flipper** — a
-    /// ring tapering to nothing at the far end is a paddle whatever is grooved into it.
-    ///
-    /// So: a palm that is a loft, because a palm is one smooth flattened form and a lathe cannot
-    /// make one; and fingers that are separate solids, because four rounded tips at four
-    /// different heights is what a hand's silhouette *is*. Intersecting surfaces are not the
-    /// problem they were — a finger really does emerge from a palm and really does crease where
-    /// it does, and every root here is buried a unit and a half inside, so no crease lands
-    /// anywhere but at a knuckle.
-    ///
-    /// **The UVs are anatomical and they are kept.** `u` folds about the back: 0 down the middle
-    /// of the back of the hand, 0.5 at either edge, 1 down the middle of the palm — the same
-    /// fold the torso uses, and for the same reason (see `ClothingAtlas.uv`). Each finger folds
-    /// about its own centre line, so the underside of every finger is the shaded side. `v` runs
-    /// 0 at the buried wrist ring to 1 at `fingerReach`. `SkinnedBody` reads them straight
-    /// through: an angle round a ring is known where the ring is made and nowhere afterwards.
-    static func buildHand() -> MeshData {
-        let hand = CharacterRig.Hand.self
-        let profile = hand.palmProfile
-        let firstY = profile.first?.y ?? 0
-        let span = max(hand.fingerReach - firstY, 1e-4)
-
-        /// Where a point in the hand's own space lands in the atlas. `centre` is the axis the
-        /// fold is taken about — the palm's is the middle of the hand, a finger's is its own.
-        func place(_ position: SIMD3<Float>, foldedAbout centre: Float) -> SIMD2<Float> {
-            // Measured from +X, the back of the hand, and folded so both edges arrive at 0.5.
-            var fromBack = abs(atan2(position.z - centre, position.x))
-            if fromBack > .pi { fromBack = 2 * .pi - fromBack }
-            return SIMD2(fromBack / .pi, min(max((position.y - firstY) / span, 0), 1))
-        }
-
-        var rings: [[MeshVertex]] = []
-        for ring in profile {
-            var points: [MeshVertex] = []
-            for segment in 0..<hand.radialSegments {
-                // The same winding `lathe` uses — angle 0 at +Z, turning towards +X — so a
-                // lofted part and a revolved one can share a mesh without one being inside-out.
-                let angle = Float(segment) / Float(hand.radialSegments) * 2 * .pi
-                let position = SIMD3(ring.through * sin(angle), ring.y, ring.across * cos(angle))
-                points.append(MeshVertex(position: position, normal: .zero,
-                                         uv: place(position, foldedAbout: 0)))
-            }
-            rings.append(points)
-        }
-        // No end caps: the first and last rings of the profile have no radius at all, so both
-        // ends are closed already.
-        var parts = [MeshFactory.loft(rings: rings)]
-
-        // The fingers. Each is curled towards the palm and fanned out from the middle of the
-        // hand, in that order — the curl is about +Z and the fan about +X, and doing the fan
-        // first would carry the curl out of the plane it is meant to be in.
-        for finger in hand.fingers {
-            let curl = hand.fingerCurl
-            let spread = finger.across * hand.fingerSpread
-            var mesh = MeshFactory.limb(length: finger.length,
-                                        radiusStart: finger.radius,
-                                        radiusEnd: finger.radius * hand.fingerTaper,
-                                        radialSegments: hand.fingerSegments, capSegments: 4)
-            MeshFactory.applyRotation(&mesh, .rotationZ(curl))
-            MeshFactory.applyRotation(&mesh, .rotationX(spread))
-            let axis = SIMD3<Float>(-sin(curl), cos(curl) * cos(spread), cos(curl) * sin(spread))
-            let root = SIMD3<Float>(0, finger.root, finger.across)
-            mesh = MeshFactory.translated(mesh, by: root + axis * (finger.length / 2))
-            // `limb` writes a lathe's own parameterisation, which means nothing here. A finger
-            // folds about its own centre line, so its underside reads as its underside.
-            for index in mesh.vertices.indices {
-                mesh.vertices[index].uv = place(mesh.vertices[index].position,
-                                                foldedAbout: finger.across)
-            }
-            parts.append(mesh)
-        }
-
-        // The thumb: tapered, domed both ends, swung out of the palm's plane and then forward.
-        // Same order, and the same reason.
-        var thumb = MeshFactory.limb(length: hand.thumbLength,
-                                     radiusStart: hand.thumbRadiusRoot,
-                                     radiusEnd: hand.thumbRadiusTip,
-                                     radialSegments: 12, capSegments: 5)
-        MeshFactory.applyRotation(&thumb, .rotationZ(hand.thumbForward))
-        MeshFactory.applyRotation(&thumb, .rotationX(hand.thumbSplay))
-        // `limb` is centred on its own middle, so it is pushed half its length along the axis
-        // those two rotations left it pointing down, or it starts through the palm rather than
-        // at the root.
-        let thumbAxis = SIMD3<Float>(-sin(hand.thumbForward),
-                                     cos(hand.thumbForward) * cos(hand.thumbSplay),
-                                     cos(hand.thumbForward) * sin(hand.thumbSplay))
-        thumb = MeshFactory.translated(thumb, by: hand.thumbRoot + thumbAxis * (hand.thumbLength / 2))
-        for index in thumb.vertices.indices {
-            thumb.vertices[index].uv = place(thumb.vertices[index].position,
-                                             foldedAbout: hand.thumbRoot.z)
-        }
-        parts.append(thumb)
-
-        return MeshFactory.merge(parts)
-    }
-
-    /// Every geometry the emote table instantiates, with the constructor arguments and the
-    /// geometry-space rotations `emotes.js` bakes in before instancing.
     private func buildPropMeshes() {
         func rotated(_ mesh: MeshData, _ rotation: Float4x4) -> MeshData {
             var copy = mesh
@@ -525,9 +335,19 @@ final class CharacterRenderer {
     /// - Parameter includeProps: `false` for the shadow pass. Emote props are added to the rig
     ///   after `ensureThreeSetup`'s `castShadow` traverse has already run (`characters.js:970`),
     ///   so in the JS they never cast — the held model does, because `loadHoldingModel` sets
-    ///   `castShadow` on its own clone. It doubles as the flag for "this is the shadow pass",
-    ///   which is also where the joint fillers are dropped: they sit inside the silhouette the
-    ///   limbs already cast, and the shadow pass is the one that draws every character twice.
+    ///   `castShadow` on its own clone. It doubles as the flag for "this is the shadow pass".
+    ///
+    /// **A character is one bought model and nothing else now.** This used to be a ladder of
+    /// three: the imported body if there was one, else the skinned procedural body, else twenty
+    /// rigid parts drawn one at a time — and then a head GLB and a shoe GLB on top of whichever
+    /// of the two procedural ones drew. The bought model is the whole body, head, hair and shoes
+    /// included, so all of that went with it. What is left is the body, whatever it is holding,
+    /// and its emote props.
+    ///
+    /// The one thing worth knowing: `drawImportedBody` returns `false` for the frames before the
+    /// model is resident, and there is no longer anything behind it. A character is **invisible**
+    /// for those frames rather than briefly procedural. It is a few frames on a background load
+    /// and the shadow blob still draws, so a character fades up rather than pops in.
     func draw(pose: RigPose,
               viewProjection: Float4x4,
               encoder: MTLRenderCommandEncoder,
@@ -536,28 +356,9 @@ final class CharacterRenderer {
 
         let shadowPass = !includeProps
 
-        // An imported character is the whole body — head, hair and shoes included — so when one
-        // draws, the three rigid models that dress the procedural rig are skipped with it.
-        let importedDrew = drawImportedBody(pose: pose, viewProjection: viewProjection,
-                                            encoder: encoder, shadowPass: shadowPass)
+        _ = drawImportedBody(pose: pose, viewProjection: viewProjection,
+                             encoder: encoder, shadowPass: shadowPass)
 
-        if !importedDrew,
-           !drawSkinnedBody(pose: pose, viewProjection: viewProjection,
-                            encoder: encoder, shadowPass: shadowPass) {
-            for (part, transform) in pose.parts {
-                if shadowPass && part.isJointFiller { continue }
-                guard let mesh = mesh(for: part) else { continue }
-                drawMesh(mesh, transform: transform, color: SIMD4(color(for: part, colors: pose.colors), 1),
-                         texture: nil, unlit: false, material: material(for: part),
-                         pivot: pose.worldPivot,
-                         viewProjection: viewProjection, encoder: encoder)
-            }
-        }
-
-        if !importedDrew {
-            drawHead(pose: pose, viewProjection: viewProjection, encoder: encoder)
-            drawShoes(pose: pose, viewProjection: viewProjection, encoder: encoder)
-        }
         drawHolding(pose: pose, viewProjection: viewProjection, encoder: encoder)
 
         if includeProps {
@@ -565,10 +366,43 @@ final class CharacterRenderer {
         }
     }
 
-    /// Draws a bought, rigged character in place of the procedural body, and returns `false` if
+    /// **Call once at the top of each frame**, before anything is encoded.
+    ///
+    /// All it does is size the joint ring: it remembers the busiest frame so far and keeps room
+    /// for `framesInFlight` of those, so the cursor cannot lap a frame the GPU has not finished.
+    /// It deliberately does *not* reset the cursor — the cursor running on across frames is what
+    /// keeps a slice out of reach until several frames have gone by.
+    func beginFrame() {
+        jointBytesBusiestFrame = max(jointBytesBusiestFrame, jointBytesThisFrame)
+        jointBytesThisFrame = 0
+
+        let wanted = max(Self.jointRingMinimum, jointBytesBusiestFrame * Self.framesInFlight)
+        if (jointRing?.length ?? 0) < wanted {
+            jointRing = device.makeBuffer(length: wanted, options: .storageModeShared)
+            jointCursor = 0
+        }
+    }
+
+    /// A slice of the ring for one character's joint matrices, or `nil` if it will not fit.
+    ///
+    /// Offsets are 256-byte aligned because the shader takes the matrices in the `constant`
+    /// address space, and that is the alignment Metal requires for a constant buffer offset on
+    /// the Macs this also builds for.
+    private func takeJointSlice(byteLength: Int) -> (MTLBuffer, Int)? {
+        let stride = (byteLength + 255) & ~255
+        if jointRing == nil { beginFrame() }
+        guard let ring = jointRing, stride <= ring.length else { return nil }
+        if jointCursor + stride > ring.length { jointCursor = 0 }
+        let offset = jointCursor
+        jointCursor += stride
+        jointBytesThisFrame += stride
+        return (ring, offset)
+    }
+
+    /// Draws a bought, rigged character, and returns `false` if
     /// there is none set, it has not finished loading, or it failed.
     ///
-    /// The pose it is handed is **the same pose the procedural body gets** — `CharacterRig` has
+    /// The pose it is handed is **the pose the rig has always produced** — `CharacterRig` has
     /// no idea any of this exists. `HumanoidRetargeter.solve` is the whole difference: it turns
     /// the rig's per-`RigPart` transforms into one skinning matrix per joint of somebody else's
     /// skeleton, keeping that skeleton's own proportions. See `HumanoidRig.swift`.
@@ -579,8 +413,9 @@ final class CharacterRenderer {
         guard let path = importedModelPath, let pipelines else { return false }
 
         guard let body = importedBodies.body(path) else {
-            // Not resident yet. Ask again — `request` is cheap once it is loading — and let the
-            // procedural body draw this frame, so a character never blinks out while it loads.
+            // Not resident yet. Ask again — `request` is cheap once it is loading — and draw
+            // nothing this frame. There is no procedural body behind this any more, so the
+            // character is its shadow blob until the model lands.
             importedBodies.request(path: path, profile: importedProfile)
             return false
         }
@@ -593,20 +428,20 @@ final class CharacterRenderer {
         retargeter.solve(pose: pose, into: &importedJoints)
 
         let byteLength = MemoryLayout<Float4x4>.stride * body.skeleton.jointCount
-        if importedJointBuffer == nil || importedJointBuffer!.length < byteLength {
-            importedJointBuffer = device.makeBuffer(length: byteLength, options: .storageModeShared)
+        guard let (jointBuffer, jointOffset) = takeJointSlice(byteLength: byteLength) else {
+            return false
         }
-        guard let jointBuffer = importedJointBuffer else { return false }
         importedJoints.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
-            jointBuffer.contents().copyMemory(from: base, byteCount: byteLength)
+            jointBuffer.contents().advanced(by: jointOffset)
+                .copyMemory(from: base, byteCount: byteLength)
         }
 
-        // The palette is still bound because the shared vertex function reads it, but nothing
-        // downstream uses it: `clothed: false` sends the fragment to its textured branch, where
-        // the colour is the model's own map times slot 0.
+        // The palette is still bound because the shared vertex function reads it. Slot 0 is the
+        // only one anything reads back: `tint` takes its colour and `surfaceParams` the pair
+        // after it, and the fragment then multiplies that by the model's own base colour map.
         palette[0] = body.baseColor
-        palette[SkinnedBody.paletteCount] = SIMD4(body.roughness, body.metalness, 0, 0)
+        palette[Self.paletteCount] = SIMD4(body.roughness, body.metalness, 0, 0)
 
         var uniforms = CharacterUniforms(
             modelViewProjection: viewProjection,
@@ -615,17 +450,16 @@ final class CharacterRenderer {
             clipParams: SIMD4(pose.worldPivot.x, pose.worldPivot.y, clipMapSize.x, clipMapSize.y),
             textured: body.baseColorTexture != nil,
             unlit: false,
-            material: SurfaceMaterial(roughness: body.roughness, metalness: body.metalness),
-            clothed: false
+            material: SurfaceMaterial(roughness: body.roughness, metalness: body.metalness)
         )
 
         encoder.setRenderPipelineState(shadowPass ? pipelines.shadowSkinned : pipelines.skinned)
         encoder.setVertexBuffer(body.vertexBuffer, offset: 0, index: 0)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
-        encoder.setVertexBuffer(jointBuffer, offset: 0, index: 2)
+        encoder.setVertexBuffer(jointBuffer, offset: jointOffset, index: 2)
         if !shadowPass {
             encoder.setVertexBytes(&palette,
-                                   length: MemoryLayout<SIMD4<Float>>.stride * SkinnedBody.paletteCount * 2,
+                                   length: MemoryLayout<SIMD4<Float>>.stride * Self.paletteCount * 2,
                                    index: 3)
             encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
             encoder.setFragmentTexture(body.baseColorTexture ?? whiteTexture, index: 0)
@@ -645,89 +479,6 @@ final class CharacterRenderer {
     var importedReport: String? {
         guard let path = importedModelPath else { return nil }
         return importedBodies.reports[path]
-    }
-
-    /// Draws the body as one skinned mesh, and returns `false` if it could not — either because
-    /// the mesh failed to build or because `Renderer` has not handed over the pipelines yet, in
-    /// which case the caller falls back to the twenty rigid parts.
-    ///
-    /// The joint matrix for a bone is **this frame's transform times the inverse of its bind
-    /// transform**. `CharacterRig` already produces the first of those for every bone as part of
-    /// posing the old rigid rig, so nothing about the walk cycle, the emotes, the IK or a
-    /// minigame's override had to change to make this work — the pose is the same, it is only
-    /// spent differently.
-    ///
-    /// Leaves the encoder on the rigid pipeline, because the head, the shoes and the props that
-    /// follow are all rigid meshes.
-    private func drawSkinnedBody(pose: RigPose,
-                                 viewProjection: Float4x4,
-                                 encoder: MTLRenderCommandEncoder,
-                                 shadowPass: Bool) -> Bool {
-        if ProcessInfo.processInfo.environment["JW_RIGID_RIG"] != nil { return false }
-        guard let body = skinnedBody, let pipelines else { return false }
-
-        var filled: UInt32 = 0
-        for (part, transform) in pose.parts {
-            guard let index = SkinnedBody.boneIndex[part] else { continue }
-            jointMatrices[index] = transform * body.inverseBind[index]
-            filled |= 1 << UInt32(index)
-        }
-        // A bone the pose skipped — `segmentTransform` gives up on a limb shorter than 0.1 —
-        // rides the pelvis rather than the identity, which would leave that geometry standing at
-        // the world origin in the rest pose for everyone to see.
-        let fallback = jointMatrices[SkinnedBody.boneIndex[.pelvis] ?? 0]
-        for index in 0..<SkinnedBody.boneCount where filled & (1 << UInt32(index)) == 0 {
-            jointMatrices[index] = fallback
-        }
-
-        palette[0] = SIMD4(pose.colors.skin, 1)
-        palette[1] = SIMD4(pose.colors.shirt, 1)
-        palette[2] = SIMD4(pose.colors.arm, 1)
-        palette[3] = SIMD4(pose.colors.pants, 1)
-        // No vertex carries the trim slot; the clothing atlas picks it per texel.
-        palette[4] = SIMD4(ClothingAtlas.trimColor, 1)
-        // Skin's and trim's entries are read by the *texture*, not by a vertex: `characterFragment`
-        // mixes towards them wherever it mixes the colour, so a bare forearm below a short sleeve
-        // is lit as skin rather than as the cotton the vertex it belongs to is made of.
-        for (offset, material) in [SurfaceMaterial.skin, .shirt, .arm, .pants, .trim].enumerated() {
-            palette[SkinnedBody.paletteCount + offset] = SIMD4(material.roughness, material.metalness, 0, 0)
-        }
-
-        // The joint matrices already carry the character's position, heading and scale, so the
-        // model matrix is the identity and the "model-view-projection" is just the camera.
-        var uniforms = CharacterUniforms(
-            modelViewProjection: viewProjection,
-            model: matrix_identity_float4x4,
-            color: SIMD4(1, 1, 1, 1),
-            clipParams: SIMD4(pose.worldPivot.x, pose.worldPivot.y, clipMapSize.x, clipMapSize.y),
-            textured: false,
-            unlit: false,
-            material: .shirt,
-            clothed: clothingTexture != nil
-        )
-
-        encoder.setRenderPipelineState(shadowPass ? pipelines.shadowSkinned : pipelines.skinned)
-        encoder.setVertexBuffer(body.vertexBuffer, offset: 0, index: 0)
-        encoder.setVertexBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
-        encoder.setVertexBytes(&jointMatrices,
-                               length: MemoryLayout<Float4x4>.stride * SkinnedBody.boneCount,
-                               index: 2)
-        if !shadowPass {
-            encoder.setVertexBytes(&palette,
-                                   length: MemoryLayout<SIMD4<Float>>.stride * SkinnedBody.paletteCount * 2,
-                                   index: 3)
-            encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
-            encoder.setFragmentTexture(clothingTexture ?? whiteTexture, index: 0)
-            encoder.setFragmentTexture(whiteTexture, index: 3)
-        }
-        encoder.drawIndexedPrimitives(type: .triangle,
-                                      indexCount: body.indexCount,
-                                      indexType: .uint32,
-                                      indexBuffer: body.indexBuffer,
-                                      indexBufferOffset: 0)
-
-        encoder.setRenderPipelineState(shadowPass ? pipelines.shadowRigid : pipelines.rigid)
-        return true
     }
 
     /// The blended half of the emote props, drawn after the opaque rig so they sort against it
@@ -787,58 +538,6 @@ final class CharacterRenderer {
                  viewProjection: viewProjection, encoder: encoder)
     }
 
-    private func drawHead(pose: RigPose, viewProjection: Float4x4, encoder: MTLRenderCommandEncoder) {
-        guard let headName = pose.headModel else { return }
-        let path = "models/heads/\(headName).glb"
-
-        guard let model = models.model(path) else {
-            models.request(path: path, classifier: Self.headSlot)
-            return
-        }
-
-        for group in model.groups {
-            let color: SIMD4<Float>
-            let material: SurfaceMaterial
-            switch group.slot {
-            case .hair: color = SIMD4(pose.colors.hair, 1); material = .hair
-            case .skin: color = SIMD4(pose.colors.skin, 1); material = .skin
-            case .shoe: color = SIMD4(pose.colors.shoe, 1); material = .shoe
-            case .authored:
-                color = group.baseColor
-                material = SurfaceMaterial(group: group)
-            }
-            drawMesh(group.mesh, transform: pose.headTransform, color: color,
-                     texture: group.texture, unlit: false, material: material,
-                     pivot: pose.worldPivot,
-                     viewProjection: viewProjection, encoder: encoder,
-                     emissiveTexture: group.emissiveTexture)
-        }
-    }
-
-    private func drawShoes(pose: RigPose, viewProjection: Float4x4, encoder: MTLRenderCommandEncoder) {
-        let path = "models/slip_on_shoes.glb"
-        let color = SIMD4(pose.colors.shoe, 1)
-
-        guard let model = models.model(path) else {
-            // Box stand-ins until the model arrives, matching the JS fallback rig.
-            models.request(path: path, classifier: { _ in .shoe })
-            for transform in [pose.leftShoeBox, pose.rightShoeBox] {
-                drawMesh(shoeBoxMesh, transform: transform, color: color, texture: nil,
-                         unlit: false, material: .shoe, pivot: pose.worldPivot,
-                         viewProjection: viewProjection, encoder: encoder)
-            }
-            return
-        }
-
-        for transform in [pose.leftShoeModel, pose.rightShoeModel] {
-            for group in model.groups {
-                drawMesh(group.mesh, transform: transform, color: color, texture: nil,
-                         unlit: false, material: .shoe, pivot: pose.worldPivot,
-                         viewProjection: viewProjection, encoder: encoder)
-            }
-        }
-    }
-
     private func drawMesh(_ mesh: GPUMesh,
                           transform: Float4x4,
                           color: SIMD4<Float>,
@@ -873,72 +572,5 @@ final class CharacterRenderer {
                                       indexType: .uint32,
                                       indexBuffer: mesh.indexBuffer,
                                       indexBufferOffset: 0)
-    }
-
-    // MARK: - Part tables
-
-    private func mesh(for part: RigPart) -> GPUMesh? {
-        switch part {
-        case .torso: return torsoMesh
-        case .pelvis: return pelvisMesh
-        case .neck: return neckMesh
-        case .leftShoulder, .rightShoulder: return shoulderMesh
-        case .leftUpperArm, .rightUpperArm: return upperArmMesh
-        case .leftLowerArm, .rightLowerArm: return lowerArmMesh
-        case .leftElbow, .rightElbow: return elbowMesh
-        case .leftHand: return leftHandMesh
-        case .rightHand: return rightHandMesh
-        case .leftUpperLeg, .rightUpperLeg: return upperLegMesh
-        case .leftLowerLeg, .rightLowerLeg: return lowerLegMesh
-        case .leftKnee, .rightKnee: return kneeMesh
-        }
-    }
-
-    /// A joint takes the colour of whatever it is a joint *in*: a deltoid belongs to the sleeve,
-    /// a knee to the trouser leg. The neck is the one that belongs to neither — it is skin, and
-    /// it is what carries the head colour down onto the body.
-    private func color(for part: RigPart, colors: RigColors) -> SIMD3<Float> {
-        switch part {
-        case .torso: return colors.shirt
-        case .pelvis: return colors.pants
-        case .neck: return colors.skin
-        case .leftShoulder, .rightShoulder,
-             .leftUpperArm, .leftLowerArm, .rightUpperArm, .rightLowerArm,
-             .leftElbow, .rightElbow:
-            return colors.arm
-        case .leftHand, .rightHand: return colors.skin
-        case .leftUpperLeg, .leftLowerLeg, .rightUpperLeg, .rightLowerLeg,
-             .leftKnee, .rightKnee:
-            return colors.pants
-        }
-    }
-
-    private func material(for part: RigPart) -> SurfaceMaterial {
-        switch part {
-        case .torso: return .shirt
-        case .pelvis: return .pants
-        case .neck: return .skin
-        case .leftShoulder, .rightShoulder,
-             .leftUpperArm, .leftLowerArm, .rightUpperArm, .rightLowerArm,
-             .leftElbow, .rightElbow:
-            return .arm
-        case .leftHand, .rightHand: return .skin
-        case .leftUpperLeg, .leftLowerLeg, .rightUpperLeg, .rightLowerLeg,
-             .leftKnee, .rightKnee:
-            return .pants
-        }
-    }
-
-    /// Name-based material assignment for head GLBs (`characters.js:189-206`): eyes and
-    /// eyelashes keep what the artist authored, hair takes the hair colour, and the face
-    /// takes the skin colour.
-    static func headSlot(_ primitive: GLTFPrimitive) -> MaterialSlot {
-        let material = primitive.materialName
-        if material.contains("eye") || material.contains("animetest") { return .authored }
-
-        let name = primitive.nodeName
-        if name.contains("hair") { return .hair }
-        if name.contains("face") || name.contains("head") || name.contains("skin") { return .skin }
-        return .authored
     }
 }

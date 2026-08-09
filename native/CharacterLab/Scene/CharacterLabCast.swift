@@ -7,8 +7,8 @@ import Foundation
 /// - `.solo` — one pupil, alone, framed close. The one to use for a rig or an animation: a
 ///   knee, an elbow, where a foot lands.
 /// - `.school` — five real pupils out of `data/junior_school/npc.json`. The one to use for
-///   clothes and palettes, because these are the actual colours the game puts on screen, and a
-///   change to `ClothingAtlas` shows up here or it does not matter.
+///   crowds and for scale: these are the actual sizes and names the game puts on screen. They no
+///   longer differ in colour — every character is the same bought model until a second is bought.
 /// - `.extremes` — five synthetic characters chosen to break things: the darkest skin against
 ///   the darkest shirt, white on white, a teacher scaled to 52 × 58, a headless one. Contrast
 ///   bugs and scale bugs hide behind well-chosen colours.
@@ -43,8 +43,8 @@ enum CharacterLabCast {
         }
     }
 
-    /// The lab's default subject: a Junior Campus pupil in the middle of the palette, with an
-    /// explicit head so a new entry in `HeadTables` cannot silently re-cast him.
+    /// The lab's default subject: a Junior Campus pupil. The colours below are still set and
+    /// still stored; nothing draws with them now that the character is a textured bought model.
     static func pupil() -> GameCharacter {
         var character = GameCharacter(id: labId(0))
         character.name = "Subject"

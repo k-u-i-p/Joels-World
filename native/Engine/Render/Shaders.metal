@@ -4,12 +4,15 @@ using namespace metal;
 constant float PI = 3.14159265358979323846;
 constant float RECIPROCAL_PI = 1.0 / PI;
 
-/// Colour slots in the skinned body's palette — skin, shirt, arm, pants, trim. Must match
-/// `SkinnedBody.paletteCount` and the cases of `ColorSlot`.
+/// How many colours the skinned palette holds, followed by that many roughness/metalness pairs.
+/// Must match `CharacterRenderer.paletteCount`.
+///
+/// It used to be five *named* slots — skin, shirt, arm, pants, trim — because the procedural body
+/// was one draw call whose vertices each named the colour they wanted. A bought model's colour is
+/// its own texture and every vertex carries slot 0, so only that slot is ever read now. The
+/// palette stays because the vertex function below reads it unconditionally, and the size stays
+/// because the stride has to agree with what Swift binds.
 constant uint SKIN_PALETTE_COUNT = 5;
-/// The two slots the *clothing atlas* reaches for, as opposed to the ones a vertex names.
-constant uint SKIN_SLOT_SKIN = 0;
-constant uint SKIN_SLOT_TRIM = 4;
 
 // Vertices are indexed directly out of a device buffer, so no vertex descriptor is used.
 struct QuadVertex {
@@ -23,7 +26,7 @@ struct MeshVertex {
     float2 uv;
 };
 
-/// A vertex of the skinned character body. Mirrors `SkinVertex` in `SkinnedBody.swift`.
+/// A vertex of the skinned character body. Mirrors `SkinVertex` in `ImportedCharacterBody.swift`.
 ///
 /// `joints` indexes the matrix array bound at vertex buffer 2 and `colorSlot` the palette at
 /// buffer 3 — the body is one draw call, so neither the bone nor the colour can come from the
@@ -313,23 +316,6 @@ struct CharacterInOut {
     float4 tint;
     /// x = roughness, y = metalness.
     float2 surfaceParams;
-    /// Skinned path only. rgb = this character's skin colour, which the clothing atlas mixes
-    /// towards below a short sleeve and between the shorts and the sock; **a = 1 when texture 0
-    /// is the clothing atlas** and `uv` addresses it. Zero for every rigid draw, which is what
-    /// keeps one fragment shader serving both.
-    float4 bare;
-    /// The colour of a collar, a cuff and a sock. Constant across the whole mesh — it rides an
-    /// interpolant only because the palette is a vertex-stage buffer and this is needed after a
-    /// texture fetch.
-    float3 trim;
-    /// Roughness and metalness for the two materials the *texture* can introduce: `xy` for skin,
-    /// `zw` for trim. Constant across the mesh, and here for the same reason `trim` is.
-    ///
-    /// Without these, a bare arm below a short sleeve is lit as cotton, because `surfaceParams`
-    /// comes from the vertex's colour slot and the bare mix happens two stages later in the
-    /// fragment. Skin is rougher-but-metallic (0.6 / 0.1) and cotton is matte (0.8 / 0.0), so the
-    /// difference is a soft sheen along a forearm and a calf that cloth has no business having.
-    float4 detailSurface;
 };
 
 vertex CharacterInOut characterVertex(uint vertexID [[vertex_id]],
@@ -345,10 +331,6 @@ vertex CharacterInOut characterVertex(uint vertexID [[vertex_id]],
     out.worldPosition = (uniforms.model * local).xyz;
     out.tint = uniforms.color;
     out.surfaceParams = uniforms.flags.zw;
-    // No clothing atlas on a rigid draw: a head, a shoe or a prop keeps its own texture at 0.
-    out.bare = float4(0.0);
-    out.trim = float3(0.0);
-    out.detailSurface = float4(0.0);
     return out;
 }
 
@@ -389,11 +371,6 @@ vertex CharacterInOut characterSkinnedVertex(uint vertexID [[vertex_id]],
     // The palette holds the colours first and the roughness/metalness pairs after them.
     out.tint = float4(palette[slot].rgb, uniforms.color.a);
     out.surfaceParams = palette[slot + SKIN_PALETTE_COUNT].xy;
-    // `surface.y` is the renderer saying it managed to build the clothing atlas and bind it.
-    out.bare = float4(palette[SKIN_SLOT_SKIN].rgb, uniforms.surface.y);
-    out.trim = palette[SKIN_SLOT_TRIM].rgb;
-    out.detailSurface = float4(palette[SKIN_SLOT_SKIN + SKIN_PALETTE_COUNT].xy,
-                               palette[SKIN_SLOT_TRIM + SKIN_PALETTE_COUNT].xy);
     return out;
 }
 
@@ -409,30 +386,16 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
                                     sampler shadowSampler [[sampler(2)]])
 {
     float4 color = in.tint;
-    /// x = roughness, y = metalness. The vertex's own to begin with; the clothing branch below
-    /// moves it wherever the texture moves the colour.
+    /// x = roughness, y = metalness.
+    ///
+    /// There used to be a branch above this one: texture 0 could be the clothing atlas rather
+    /// than an albedo — three channels of instructions about the colour the palette had already
+    /// given the vertex — and it moved `surfaceParams` wherever it moved the colour, so a bare
+    /// arm below a short sleeve was *lit* as skin. That dressed the procedural body. A bought
+    /// model arrives with its uniform painted into its own base colour map, so texture 0 is an
+    /// albedo again for every draw this shader now sees.
     float2 surfaceParams = in.surfaceParams;
-    if (in.bare.a > 0.5) {
-        // **The clothes.** Texture 0 is `ClothingAtlas` — not an albedo but three instructions
-        // about the colour the palette already gave this vertex, so one texture dresses every
-        // character in the game whatever colour their shirt is.
-        //
-        //   blue  — how much of this texel is bare skin (below a sleeve, above a sock)
-        //   green — how much of it is trim (a collar, a cuff, the sock itself)
-        //   red   — what to multiply the result by, ×2, so 0.5 leaves it alone. Seams and folds.
-        //
-        // Shade goes last so a fold darkens skin and cotton alike.
-        float3 detail = baseColor.sample(baseSampler, in.uv).rgb;
-        float3 cloth = mix(color.rgb, in.bare.rgb, detail.b);
-        cloth = mix(cloth, in.trim, detail.g);
-        color.rgb = cloth * (detail.r * 2.0);
-
-        // The material follows the colour. A texel that is skin is *lit* as skin — the mix runs
-        // in the same order as the colour's, so a collar over a bare arm would come out as
-        // cotton, which is what a collar over a bare arm is.
-        surfaceParams = mix(surfaceParams, in.detailSurface.xy, detail.b);
-        surfaceParams = mix(surfaceParams, in.detailSurface.zw, detail.g);
-    } else if (uniforms.flags.x > 0.5) {
+    if (uniforms.flags.x > 0.5) {
         color *= baseColor.sample(baseSampler, in.uv);
     }
     if (color.a <= 0.001) { discard_fragment(); }

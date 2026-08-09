@@ -3,6 +3,29 @@ import Metal
 import MetalKit
 import simd
 
+/// A vertex of a skinned character. Layout must match `SkinVertex` in `Shaders.metal`.
+///
+/// The joint indices are floats rather than the `ushort4` a glTF file would use. It costs eight
+/// bytes a vertex, and it buys the guarantee that Swift's and Metal's ideas of where each field
+/// starts cannot silently disagree — every member is four-byte or sixteen-byte aligned in both
+/// languages, in the same order, with nothing implicit.
+///
+/// It lived in `SkinnedBody` while there were two kinds of skinned character and both filled it.
+/// There is one kind now, and this is the only thing left of that file.
+struct SkinVertex {
+    var position: SIMD3<Float>
+    var normal: SIMD3<Float>
+    /// How much each of `joints` moves this vertex. Sums to 1.
+    var weights: SIMD4<Float>
+    /// Indices into the joint matrix array. Unused slots carry a zero weight.
+    var joints: SIMD4<Float>
+    var uv: SIMD2<Float>
+    /// Which palette colour the vertex takes. Always 0 for a bought model, whose colour is its
+    /// own texture — the slot exists because the shared vertex descriptor has the field.
+    var colorSlot: Float
+    var pad: Float = 0
+}
+
 /// A bought, rigged character: its mesh on the GPU and the skeleton `HumanoidRetargeter` aims.
 ///
 /// **It reuses the body's shaders exactly as they are.** `characterSkinnedVertex` blends four
@@ -11,10 +34,9 @@ import simd
 /// one. What makes the fragment take that branch rather than the clothing-atlas branch is
 /// `clothed: false`; see `CharacterUniforms.surface`.
 ///
-/// The one thing that is genuinely different is where the bone matrices live. The procedural
-/// body has 13 bones and passes them with `setVertexBytes`, which tops out at 4 KB — 64
-/// matrices. A bought rig has 52 here and routinely more elsewhere once fingers and twist bones
-/// are counted, so these go in a real buffer.
+/// The one thing that is genuinely different from a hand-built body is where the bone matrices
+/// live. `setVertexBytes` tops out at 4 KB — 64 matrices. A bought rig has 52 here and routinely
+/// more elsewhere once fingers and twist bones are counted, so these go in a real buffer.
 final class ImportedCharacterBody {
     let vertexBuffer: MTLBuffer
     let indexBuffer: MTLBuffer
@@ -28,8 +50,8 @@ final class ImportedCharacterBody {
     let roughness: Float
     let metalness: Float
 
-    /// Triangles, for the budget line in the report — a bought character is typically several
-    /// times the procedural body and this is the number that decides whether it ships.
+    /// Triangles, for the budget line in the report. This is the number that decides whether a
+    /// model ships: a classroom of thirty draws it thirty times, twice each with the shadow pass.
     var triangleCount: Int { indexCount / 3 }
 
     init?(device: MTLDevice,
@@ -51,9 +73,8 @@ final class ImportedCharacterBody {
                 position: SIMD3(position.x, position.y, position.z),
                 normal: normal,
                 weights: vertex.weights,
-                // The shader indexes with `uint(v.joints[i])`; the procedural body carries them
-                // as floats for the alignment reasons in `SkinnedBody`, and this matches so both
-                // can share one vertex descriptor.
+                // The shader indexes with `uint(v.joints[i])`; see `SkinVertex` above for why
+                // they travel as floats.
                 joints: SIMD4(Float(vertex.joints.x), Float(vertex.joints.y),
                               Float(vertex.joints.z), Float(vertex.joints.w)),
                 uv: vertex.uv,

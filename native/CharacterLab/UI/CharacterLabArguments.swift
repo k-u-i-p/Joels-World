@@ -20,9 +20,6 @@ import Foundation
 /// # One frame of every take, to see the whole rig at a glance
 /// … -labtake all -labsheet /tmp/all.png
 ///
-/// # The clothing atlas, and its three channels split out
-/// … -labatlas /tmp/atlas.png
-///
 /// # The numbers: foot contact, hip bounce, lean, per take
 /// … -labreport /tmp/lab.json
 /// ```
@@ -60,8 +57,6 @@ enum CharacterLabArguments {
     static var sheetPath: String? { value("-labsheet") }
     /// Frames in a filmstrip. Ignored by `-labtake all`, which uses one per take.
     static var sheetFrames: Int { number("-labframes").map { Int($0) } ?? 8 }
-    /// `-labatlas <path>` — the clothing atlas as a PNG, then quit. No GPU needed.
-    static var atlasPath: String? { value("-labatlas") }
     /// `-labreport <path>` — measurements as JSON, then quit. No GPU needed.
     static var reportPath: String? { value("-labreport") }
     /// How many instants each take is sampled at in a report.

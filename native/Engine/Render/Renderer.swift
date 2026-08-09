@@ -388,6 +388,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         let poses = preparePoses()
 
+        // Every character's joint matrices are written into one ring buffer, a slice each, and
+        // the GPU reads them long after this frame is encoded. This is the frame boundary that
+        // keeps the ring big enough for the cast — see `CharacterRenderer.beginFrame`.
+        characters.beginFrame()
+
         if shadowsEnabled {
             encodeShadowPass(commandBuffer: commandBuffer, poses: poses,
                              primitives: scenePrimitives)

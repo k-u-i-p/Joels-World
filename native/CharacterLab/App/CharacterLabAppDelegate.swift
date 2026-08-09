@@ -1,23 +1,18 @@
 import AppKit
 
-/// The two modes that produce a file and never draw a frame: the clothing atlas, and the
-/// measurements.
+/// The mode that produces a file and never draws a frame: the measurements.
 ///
-/// Both are pure CPU work — the atlas is painted by `ClothingAtlas.pixels()`, the report poses
-/// the rig itself — so neither needs the app to finish launching. `main.swift` runs this first
-/// and exits if it did anything.
+/// It is pure CPU work — the report poses the rig itself — so it does not need the app to finish
+/// launching. `main.swift` runs this first and exits if it did anything.
+///
+/// There used to be two. The other painted the clothing atlas, and the clothing atlas dressed the
+/// procedural body, which is gone.
 enum CharacterLabHeadless {
 
     /// True if it handled the launch and the app should stop here.
     @discardableResult
     static func run() -> Bool {
         var did = false
-
-        if let path = CharacterLabArguments.atlasPath {
-            did = true
-            let wrote = CharacterLabCapture.writeAtlas(to: path)
-            print(wrote ? "Clothing atlas written to \(path)" : "Failed to write \(path)")
-        }
 
         if let path = CharacterLabArguments.reportPath {
             did = true

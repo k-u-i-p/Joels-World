@@ -1,41 +1,6 @@
 import Foundation
 import simd
 
-/// Head GLBs, with the per-model scale and Z offset the artist's exports need.
-/// Tables copied verbatim from `characters.js:24-45` — the order matters, because the head a
-/// character gets is chosen by hashing its id into this list.
-enum HeadTables {
-    static let male: [(name: String, scale: Float, z: Float)] = [
-        ("male_hair_long", 90, -10.5),
-        ("male_hair_messy", 90, -10.5),
-        ("male_hair_short", 90, -10.5),
-        ("male_hair_short_2", 90, -10.5),
-        ("male_hair_spiky", 90, -10.5),
-        ("male_hair_bald", 90, -10.5),
-    ]
-
-    /// `female_hair_short_2` has no `.glb` on the asset host — it is kept because removing it
-    /// would shift every other female character's deterministic head choice. Characters that
-    /// hash onto it simply render headless, exactly as they do on the web.
-    static let female: [(name: String, scale: Float, z: Float)] = [
-        ("female_hair_bun", 85, -10.5),
-        ("female_hair_long", 85, -10.5),
-        ("female_hair_long_2", 85, -10.5),
-        ("female_hair_long_3", 85, -10.5),
-        ("female_hair_messy", 85, -10.5),
-        ("female_hair_neat", 85, -10.5),
-        ("female_hair_pigtails", 85, -10.5),
-        ("female_hair_pigtails_2", 85, -10.5),
-        ("female_hair_ponytail", 32, -10.5),
-        ("female_hair_short", 85, -10.5),
-        ("female_hair_short_2", 85, -10.5),
-    ]
-
-    static func entry(named: String) -> (name: String, scale: Float, z: Float)? {
-        male.first { $0.name == named } ?? female.first { $0.name == named }
-    }
-}
-
 /// `HAIR_COLOR_MAP` / `HAIR_COLORS` (`characters.js:60-67`). Order is load-bearing: the
 /// fallback hair colour is picked by hashing the character id into `values`.
 enum HairColors {
@@ -49,13 +14,14 @@ enum HairColors {
     static let values = ["#efca41", "#5d5d5d", "#222222", "#9a3e10", "#6e2c00"]
 }
 
-/// The primitive body parts, each of which maps to one procedural mesh and one colour.
+/// **The bones of the rig.** Each is a frame `pose` puts somewhere in the world, and each is
+/// what `HumanoidRig` aims the matching bone of a bought model at.
 ///
-/// This used to be eleven parts — a squashed capsule for the torso, a capsule per limb segment
-/// and a sphere for each hand. Next to the head GLBs, which are modelled down to individual
-/// strands of hair, a body with no neck, no shoulders, no waist and ball hands was the thing
-/// giving the characters away. The additions are all joints: the places where two capsules meet
-/// at an angle and, before this, simply crossed through one another.
+/// They were *body parts* once: one procedural mesh and one colour each, a capsule per limb
+/// segment with a sphere stuffed into every elbow, knee and shoulder to hide the seam. Nothing
+/// draws them now — a character is one bought model — so the joint fillers no longer fill
+/// anything. **They are kept because they are still good aiming points**: `.leftElbow` is where
+/// the elbow is, and a retargeter that knows that does not have to work it out.
 enum RigPart: CaseIterable {
     case torso
     /// The hips, in trouser colour. Splitting it off the torso is what gives a character a
@@ -68,18 +34,6 @@ enum RigPart: CaseIterable {
     case leftUpperLeg, leftLowerLeg, leftKnee
     case rightUpperLeg, rightLowerLeg, rightKnee
 
-    /// True for the parts that only smooth a joint over. They sit inside the silhouette the
-    /// limbs and body already cast, so the shadow pass skips them: the shadow map is identical
-    /// either way and it is the one pass that draws every character a second time.
-    var isJointFiller: Bool {
-        switch self {
-        case .neck, .leftShoulder, .rightShoulder,
-             .leftElbow, .rightElbow, .leftKnee, .rightKnee:
-            return true
-        default:
-            return false
-        }
-    }
 }
 
 /// Per-character palette. Defaults match `buildSkeletonMaterials` (`characters.js:770-779`).
@@ -98,14 +52,14 @@ struct RigPose {
     var colors: RigColors
     var parts: [(part: RigPart, transform: Float4x4)] = []
 
-    /// Head GLB name and its fully-composed transform (group × the model's own offset,
-    /// rotation and scale from `HeadTables`).
-    var headModel: String?
+    /// The head *group* — the frame props parented to the head inherit, including its
+    /// non-uniform scale. It used to be the placement of a head GLB as well; the bought model
+    /// brings its own head, so this is only an anchor now.
     var headTransform = matrix_identity_float4x4
 
-    /// Shoe GLB transforms, and the box transforms used until that model has loaded.
-    var leftShoeModel = matrix_identity_float4x4
-    var rightShoeModel = matrix_identity_float4x4
+    /// **The two foot frames**, at the ankle with +X along the foot. Nothing draws a shoe any
+    /// more — a bought model has its own — but `HumanoidRig` drives the imported feet off these,
+    /// and `CharacterRig.soleClearance` measures the floor with them. See `shoeFrame`.
     var leftShoeBox = matrix_identity_float4x4
     var rightShoeBox = matrix_identity_float4x4
 
@@ -131,7 +85,7 @@ typealias RigChain = (root: SIMD3<Float>, mid: SIMD3<Float>, tip: SIMD3<Float>)
 /// standing at the world origin, facing +X, at scale 1.
 struct RigBindPose {
     /// Rest transform per skinning bone. The joint fillers — shoulders, elbows, knees — are
-    /// absent: a skinned body has no seams for them to hide, which is the whole point.
+    /// absent: they were only ever there to hide a seam between two capsules.
     var bones: [RigPart: Float4x4]
 
     var leftArm: RigChain      ///< shoulder → elbow → wrist
@@ -152,7 +106,7 @@ struct RigBindPose {
 /// rather than fighting it.
 typealias RigOverride = (inout RigMutation) -> Void
 
-/// Poses the procedural character rig.
+/// Poses the character rig.
 ///
 /// Port of `buildSkeletonRig` / `buildSkeletonLimbs` / `updateCharacter3D` /
 /// `resolveInverseKinematics` (`characters.js:786-1079`). Holds no Metal types: it emits
@@ -188,17 +142,6 @@ enum CharacterRig {
     /// a longer leg simply takes a longer step.
     static let thighBone: Float = 14.4
     static let shinBone: Float = 11.6
-
-    // Limb radii, from `buildSkeletonLimbs`. The lengths are aliases kept so the renderer reads
-    // as "the upper arm is this long" rather than "the arm bone is this long, twice".
-    //
-    // `handRadius`, `torsoRadius` and `torsoLength` used to sit here too. Nothing takes a single
-    // radius for any of the three any more: the hand and the torso are authored silhouettes
-    // (`handProfile`, `torsoProfile`) and a capsule cannot describe either.
-    static let upperArmRadius: Float = 3.3, upperArmLength: Float = armBone
-    static let lowerArmRadius: Float = 3.3, lowerArmLength: Float = armBone
-    static let upperLegRadius: Float = 3.6, upperLegLength: Float = thighBone
-    static let lowerLegRadius: Float = 3.6, lowerLegLength: Float = shinBone
 
     // MARK: - Standing on the floor
 
@@ -257,291 +200,55 @@ enum CharacterRig {
 
     // MARK: - Anatomy
     //
-    // Everything below is new. The numbers are all in the rig's own frame — +X forward, +Y the
-    // character's left, +Z up — measured from the body pivot, which stands 15.5 above the
-    // ground. The old body was a capsule spanning z 7…33 with a half-width of 10.35 and a
-    // half-depth of 5.85; the torso and pelvis profiles below are built to sit inside that same
-    // envelope, so a character still fits the doorways, nameplates and clip mask it always did.
-    // Widen them and you will find the walls first.
+    // Where the torso, the pelvis and the neck sit in the rig's own frame — +X forward, +Y the
+    // character's left, +Z up — measured from the body pivot.
+    //
+    // **This used to be the shape of the body as well as its skeleton**: a torso silhouette of
+    // five rings, a pelvis profile with a squash, a radius at each end of every limb, a deltoid,
+    // an elbow and a knee. Those numbers were what the procedural body was *generated from*, and
+    // the procedural body is gone. What is left is the placements below, which are not geometry —
+    // they position `RigPart.torso`, `.pelvis` and `.neck`, and `HumanoidRig` aims a bought
+    // model's spine, hips and neck at exactly those.
 
-    /// Where the torso mesh is centred. Its own y = 0 sits here, so a ring at y = 6.4 is at
-    /// rig z 26.4 — which is the arithmetic every number in `torsoProfile` was chosen by.
+    /// Where the torso part is centred.
     static let torsoCentreZ: Float = 20
 
-    /// **The shirt: hem, waist, chest, shoulder and the turn into the neck.**
-    ///
-    /// Read bottom to top. `halfDepth` is front-to-back and `halfWidth` side-to-side, both as
-    /// finished sizes — there is no squash applied afterwards any more, and that is the change
-    /// this profile exists for.
-    ///
-    /// **It used to be one radius per ring and a single `torsoSquash` of (0.62, 1, 1.12) over
-    /// the lot.** One aspect ratio for the whole torso is the reason these characters had no
-    /// shoulders: the widest the shirt could get at the top without also becoming a barrel
-    /// front-to-back was about 9.6 half-width, which is *less* than the deltoid standing 13.7
-    /// out beside it. So the top of the body domed away from the arm rather than reaching over
-    /// it, the arm's cap was the widest thing at its own height, and what a camera found was two
-    /// green balls bolted to the sides of an egg. A shoulder is not a ball on a body, it is the
-    /// body coming out to meet the arm, and a single squash cannot say that.
-    ///
-    /// So the shape now changes as it climbs — **wide and shallow at the shoulder, narrower and
-    /// deep at the chest, tucked in both ways at the waist**:
-    ///
-    /// | rig z | what | half-width | was |
-    /// |---|---|---|---|
-    /// | 26.4 | chest, deepest | 10.3 | 10.4 |
-    /// | 28.4 | shoulder, widest | 10.4 | ~10.3 |
-    /// | 30.0 | acromion — over the top of the deltoid | 10.2 | 9.6 |
-    /// | 31.3 | trapezius | 8.6 | 7.8 |
-    ///
-    /// The width at the widest point is deliberately **unchanged**: 10.4 is what the old
-    /// envelope note at the top of this section allows, and the doorways and the clip mask are
-    /// built to it. What moved is *where* the width is — up by about two units, so there is
-    /// finally some shoulder above the joint the arm hangs off at z 26 — and how deep the body
-    /// is at each height, which is what the old form could not vary at all.
-    ///
-    /// **The bottom of the shirt is open, and hangs 1.5 units lower than it did.** That is the
-    /// other half of this change, and it is what finally takes off the **black arrowhead at the
-    /// navel** — the hard dark chevron across every character's belly that sessions 3 and 4 both
-    /// went after and neither removed.
-    ///
-    /// It is not a shadow. Sampled off a render, those pixels come back (18, 27, 37) against a
-    /// shirt of (26, 128, 69): they are **shorts**, seen where the shorts stand outside the
-    /// shirt. The two are separate solids and neither knows about the other, so somewhere there
-    /// is a ring where they swap over — and the old pair swapped over while running *nearly
-    /// parallel*, a closing disc grazing a closing cone with under half a unit between them for
-    /// two units of height. A seam between two surfaces that near-tangent is not a line, it is a
-    /// region, and every wobble the skinning puts into either one pushes a piece of shorts out
-    /// through the shirt. That is the chevron, and no amount of shading fixes a surface that is
-    /// genuinely in front.
-    ///
-    /// So there is no closing dome any more. The shirt is a **tube whose bottom rim is simply
-    /// left open** at z 11.6, more than a unit inside the shorts, where nothing can see it — and
-    /// its wall runs steeply from there, crossing the shorts at about z 12.2 and standing over a
-    /// unit clear of them by z 12.8. One crossing, at a steep angle, with margin either side.
-    ///
-    /// Leaving it open costs nothing: the rim is buried in a solid, so its back faces are never
-    /// drawn and its hole never lets the shadow map through.
-    ///
-    /// ⚠️ **The profile's floor moved, so every `v` on the shirt moved.** They are written as rig
-    /// heights now rather than as fractions — see `ClothingAtlas.shirtV` — so this is the last
-    /// time that costs anything.
-    static let torsoProfile: [(y: Float, halfDepth: Float, halfWidth: Float)] = [
-        (-8.4,  3.7,  6.5),    // z 11.6 — the open rim, buried well inside the shorts
-        (-7.6,  4.5,  7.9),    // z 12.4 — crosses the shorts just below here
-        (-6.8,  4.95, 8.65),   // z 13.2 — and is a clear unit outside them by here
-        (-6.0,  5.15, 8.95),   // z 14.0 — the hem edge, and the widest the shirt gets down here
-        (-4.5,  5.05, 8.8),    // z 15.5
-        (-2.1,  4.8,  8.5),    // z 17.9 — waist, the narrowest point above the hips
-        ( 1.0,  5.1,  9.0),    // z 21.0
-        ( 4.0,  5.6,  9.8),    // z 24.0 — lower ribs
-        ( 6.4,  5.8, 10.3),    // z 26.4 — chest, the deepest ring front to back
-        ( 8.4,  5.5, 10.4),    // z 28.4 — shoulder, the widest ring
-        (10.0,  5.0, 10.2),    // z 30.0 — acromion: still wide, reaching out over the deltoid
-        (11.3,  4.3,  8.6),    // z 31.3 — trapezius, turning in
-        (12.3,  3.4,  6.2),    // z 32.3
-        (13.0,  2.9,  4.3),    // z 33.0 — neck root
-        (13.6,  0.0,  0.0),    // z 33.6 — closed, under the neck
-    ]
-
-    /// Shorts. Its own solid rather than a colour band on the torso, because the two want
-    /// different silhouettes: hips flare where a waist tucks in.
+    /// Where the pelvis part is centred.
     static let pelvisCentreZ: Float = 11
-    static let pelvisSquash = SIMD3<Float>(0.62, 1, 1.10)
-    /// **Do not take the top of this up to meet the shirt.** It is tempting — the shirt hangs a
-    /// clear unit and a half off it and the gap between them is the black crescent this profile
-    /// used to be blamed for. But the torso closes from 7.2 to nothing over four tenths of a
-    /// unit, so its underside is very nearly a flat disc, and a pelvis ring run up close under
-    /// that disc crosses it at a glancing angle: the two surfaces interpenetrate in a jagged band
-    /// that flickers as the waist twists, which is worse than the shadow. It was tried. The
-    /// crescent is dealt with in `ClothingAtlas.shorts` instead, where it can be lit rather than
-    /// filled.
-    static let pelvisProfile: [(y: Float, radius: Float)] = [
-        (-6.2, 0.0),
-        (-5.6, 6.2),    // where the thighs leave
-        (-4.0, 7.4),
-        (-1.4, 8.0),    // hip, widest
-        ( 1.0, 7.5),
-        ( 1.8, 5.7),
-        ( 2.4, 3.4),    // dives away from the shirt's closing disc
-        ( 3.2, 1.8),
-        ( 4.0, 0.0),    // closed, under the shirt
-    ]
 
-    /// Neck: a short taper from the shoulders up into the head model, which swallows the top of
-    /// it. Without one the head sits straight on the chest, which is the single most obvious
-    /// tell that the body is not modelled to the same standard as the hair.
+    /// The base of the neck, and how long it is.
     static let neckBase = SIMD3<Float>(1, 0, 30.5)
     static let neckLength: Float = 7
-    static let neckRadiusBottom: Float = 4.1
-    static let neckRadiusTop: Float = 3.2
-    /// How much of the head's rotation the neck takes. A head that turns while the neck stays
-    /// bolted forward looks broken; taking a share of it reads as the neck twisting with it.
+
+    /// How much of the head's rotation the neck takes. A neck that took all of it would swivel
+    /// like an owl; one that took none would leave the head floating free of the shoulders.
     static let neckFollowsHead: Float = 0.45
 
-    /// How much of its radius each limb keeps at each end. The value at a joint is shared by
-    /// both segments that meet there, so the two capsules line up exactly and the limb reads as
-    /// one tapering shape rather than as two tubes of different thickness butted together.
-    static let shoulderEndScale: Float = 1.12
-    static let elbowEndScale: Float = 0.95
-    static let wristEndScale: Float = 0.72
-    static let hipEndScale: Float = 1.06
-    static let kneeEndScale: Float = 0.95
-    static let ankleEndScale: Float = 0.62
-
-    /// Deltoid. Elongated along the humerus and turned to follow it, so it caps the shoulder
-    /// rather than sitting on it as a ball — and so it covers the seam where the upper arm
-    /// crosses into the chest.
-    static let shoulderRadius: Float = 3.75
-    static let shoulderStretch = SIMD3<Float>(1, 1.25, 1)
-
-    /// Elbow and knee, at **exactly** the radius the limb has there.
+    /// **The hand's frame**, which the retargeter reads and nothing draws any more.
     ///
-    /// The first attempt made these deliberately wider, on the theory that a bulge reads as a
-    /// joint. It does not: it reads as a balloon animal, three separate blobs stacked up an arm.
-    /// Matched to the limb they are invisible on a straight limb — which is the point — and on a
-    /// bent one they fill the notch the two capsule caps would otherwise leave on the inside of
-    /// the bend. A wave emote is the case that needs them.
-    static let elbowRadius: Float = upperArmRadius * elbowEndScale
-    static let kneeRadius: Float = upperLegRadius * kneeEndScale
-
-    /// **The hand.** A wrist, a palm, a finger block and a thumb.
-    ///
-    /// It was a mitt — one silhouette revolved about the forearm — and it was that shape for a
-    /// specific reason: `IKSolver.quaternionFromUnitY` pinned the direction the forearm pointed
-    /// and left the roll about it undefined, so anything with a front and a back would have spun
-    /// freely as the arm moved. A revolved solid cannot notice. `IKSolver.basis` now fixes the
-    /// roll against the arm's own bending normal, which is what makes a hand with a side
-    /// possible at all.
-    ///
-    /// The frame is the forearm's: **y = 0 is the wrist, +Y runs out to the fingertips, +Z is
-    /// the thumb side, +X is the back of the hand.** All four pieces are merged into one mesh,
-    /// because the rig is drawn twice per character and a hand worth three draws is a hand worth
-    /// six.
-    ///
-    /// The forearm is the one limb built with `domeEnd: false`, so it finishes flush at the
-    /// wrist and everything past that belongs to the hand. The first attempt at a hand had a
-    /// domed forearm reaching a full radius past the wrist and a mitt too short to cover it,
-    /// which came out as a bracelet with a thumb poking through the end.
+    /// It is the forearm's: **y = 0 is the wrist, +Y runs out to the fingertips, +Z is the thumb
+    /// side, +X is the back of the hand.** `IKSolver.quaternionFromUnitY` pinned the direction
+    /// the forearm pointed and left the roll about it undefined; `IKSolver.basis` fixes that roll
+    /// against the arm's own bending normal, which is what makes a hand with a side possible at
+    /// all — and what `HumanoidRig` aims a bought model's wrist and thumb with.
     enum Hand {
-        /// **The palm, as a stack of rings** — inside the forearm, the wrist, the heel, and the
-        /// dome that closes over the knuckles.
+        /// **How far the hand mesh is rolled about the forearm at rest.**
         ///
-        /// It was three ellipsoids and a capsule merged, and it read as a bunch of bananas from
-        /// every angle: three closed surfaces pushed into each other leave a crease everywhere
-        /// they cross, and nothing about a stack of spheres says "hand".
+        /// `IKSolver.basis` aims the forearm and rolls it to the plane the elbow bends in, which
+        /// is the right reference for *where the elbow goes* and simply not the same thing as
+        /// which way a palm faces. A quarter turn about the forearm's own long axis puts the
+        /// thumb forward, the back of the hand outward and the palm against the thigh, which is
+        /// where a hanging hand's palm is. Same sign for both hands.
         ///
-        /// `through` is the half-thickness front to back — the palm's own axis, local X — and
-        /// `across` is the half-width over the knuckles, local Z. A palm is about 1.7 times as
-        /// wide as it is thick; the wrist is nearly round, because the forearm it butts onto is.
-        ///
-        /// The first ring is **inside the forearm**: the arm closes flush at the wrist plane
-        /// (`domeEnd: false`) and something has to fill the last of the tube, or a raised arm
-        /// shows daylight through the joint. Both ends close on a ring of no radius rather than
-        /// on an apex vertex, which `MeshFactory.loft` reads as "already closed".
-        /// **Where this crosses the forearm matters more than any other number here.** The arm
-        /// closes 0.7 short of the wrist plane (`SkinnedBody.appendArms`, `tipInset`), so it is a
-        /// blunt 2.38 at y −0.7 and nothing at 0. The palm has to be *inside* it below that and
-        /// *outside* it above, and the shorter the band the two share, the tidier the crease. It
-        /// crosses at about −0.2.
-        static let palmProfile: [(y: Float, through: Float, across: Float)] = [
-            (-2.30, 0.00, 0.00),    // closed
-            (-1.60, 1.30, 1.40),    // well inside the forearm
-            (-0.80, 2.00, 2.08),    // still inside it
-            (-0.25, 2.28, 2.38),    // and out through it
-            ( 0.30, 2.25, 2.40),    // the wrist
-            ( 1.30, 1.98, 2.38),    // the heel, flattening as it widens
-            ( 2.20, 1.65, 2.40),
-            ( 3.00, 1.45, 2.40),    // the knuckles — widest, and thinnest front to back
-            ( 3.40, 1.28, 2.20),
-            ( 3.70, 0.90, 1.60),    // the dome the fingers come out of
-            ( 3.90, 0.42, 0.80),
-            ( 4.00, 0.00, 0.00),    // closed
-        ]
-
-        /// How many points go round each ring of the palm. The fingers use fewer.
-        static let radialSegments = 20
-
-        // MARK: The fingers
-
-        /// **Four fingers, each its own tapered solid, rooted inside the palm.**
-        ///
-        /// The attempt before this cut them as grooves into one lofted mitt, and the shape that
-        /// came out was a flipper: a ring that tapers to nothing at the far end is a paddle, and
-        /// no depth of groove changes what the silhouette is doing. Four fingers of four
-        /// different lengths, ending in four rounded tips, is the shape — and the intersection
-        /// that made the old hand a bunch of bananas is not a problem here, because a finger
-        /// really does emerge from a palm and really does crease where it does. The roots are
-        /// buried a unit and a half inside, so the crease is never anywhere but at the knuckle.
-        ///
-        /// `across` is local Z, positive towards the thumb, so the first of these is the index.
-        /// `root` is where the finger's own axis starts, well inside the palm; `length` is the
-        /// shaft, before the domed ends add a radius at each.
-        ///
-        /// **They overlap on purpose.** Neighbouring centres are 1.10 apart and the radii add up
-        /// to 1.40, so each pair fuses along its length and what shows between them is a groove
-        /// rather than daylight. Four separate rods with air between them is a skeleton hand; the
-        /// fingers of a relaxed hand touch.
-        static let fingers: [(across: Float, root: Float, length: Float, radius: Float)] = [
-            ( 1.66, 2.30, 3.15, 0.70),  // index
-            ( 0.56, 2.50, 3.65, 0.72),  // middle — the longest
-            (-0.56, 2.45, 3.35, 0.70),  // ring
-            (-1.66, 2.25, 2.70, 0.63),  // little
-        ]
-        /// The tip's radius as a fraction of the root's.
-        static let fingerTaper: Float = 0.86
-        /// How many points go round a finger. They are half a unit across on a character 66
-        /// units tall; ten is already more than the silhouette can show.
-        static let fingerSegments = 10
-
-        /// **The curl.** Radians about +Z, which tips a finger towards −X — the palm side. A hand
-        /// at rest is not flat and its fingers are not straight; this is most of what stops the
-        /// hand reading as a rubber glove.
-        static let fingerCurl: Float = 0.34
-        /// How far the fingers fan apart, in radians per unit of `across`. Very little: enough
-        /// that the grooves between them open towards the tips, not enough to break the overlap.
-        static let fingerSpread: Float = 0.015
-        /// How far the fingertips reach, for the atlas's `v`. Not derived from the table above —
-        /// it is where the middle finger's tip lands once curl and spread have had their say, and
-        /// it only has to be close.
-        static let fingerReach: Float = 6.7
-
-        // MARK: The thumb
-
-        /// The thumb is the one piece that has to be placed rather than cut, because it leaves
-        /// the palm's plane — which is the whole point of the forearm carrying a basis rather
-        /// than a direction. Tapered, and rooted deep enough inside the palm that the seam where
-        /// the two surfaces cross is never outside the body.
-        /// The tip lands about a unit past the widest part of the palm and a unit in front of its
-        /// plane, which is where a relaxed thumb sits. Reaching further needs a longer thumb, not
-        /// a wider splay — past about 1.2 radians it stops being a thumb and becomes a spur.
-        static let thumbLength: Float = 2.6
-        static let thumbRadiusRoot: Float = 1.10
-        static let thumbRadiusTip: Float = 0.82
-        /// Radians about +X: tips the thumb's own +Y axis out towards +Z, the thumb side.
-        static let thumbSplay: Float = 1.05
-        /// Radians about +Z, applied first: tips it towards −X, the palm side, so it opposes the
-        /// fingers instead of lying in their plane.
-        static let thumbForward: Float = 0.45
-        static let thumbRoot = SIMD3<Float>(-0.30, 1.30, 1.60)
-
-        /// **How far the hand is turned about the forearm**, on top of the basis the arm's
-        /// bending normal gives it.
-        ///
-        /// Without this the hand comes out with its **thumb pointing across the body and its
-        /// palm facing backwards**, which is not a hand at rest — it is a hand halfway through
-        /// being turned over. That falls out of `IKSolver.basis` honestly: the roll is pinned to
-        /// the plane the elbow bends in, which is the right reference for *where the elbow goes*
-        /// and simply not the same thing as which way a palm faces.
-        ///
-        /// A quarter turn about the forearm's own long axis puts the thumb forward, the back of
-        /// the hand outward and the palm against the thigh, which is where a hanging hand's palm
-        /// is. It works out as the same sign for both hands — the left hand's mesh is mirrored in
-        /// X, and that mirrors what "the back of the hand" means along with it.
-        ///
-        /// **It is applied to the hand mesh only, not to `rightHandAnchor`.** The racket and
+        /// **It is applied to the hand part only, not to `rightHandAnchor`.** The racket and
         /// every emote prop ride on that anchor, and their placement was tuned against the
         /// unrolled frame; spinning it here would roll the strings a quarter turn with it and
         /// turn the tennis racket edge-on.
+        ///
+        /// This is the whole of what is left of `Hand`. It used to carry a palm profile, four
+        /// fingers with a taper and a spread, and a thumb — the numbers a hand was **generated**
+        /// from. A bought model arrives with its hand already modelled, and `HumanoidRig` finds
+        /// its fingers by name, so none of those numbers describe anything any more.
         static let restRoll: Float = 1.25
     }
 
@@ -932,22 +639,6 @@ enum CharacterRig {
             shoe: parseHexColor(character.shoe_color ?? "#7f8c8d"),
             hair: parseHexColor(hair)
         )
-    }
-
-    /// Head selection from `applyHeadModel` (`characters.js:164-181`): a deterministic pick
-    /// per id, overridden by an explicit `head` field, with a fallback for legacy values.
-    static func headEntry(for character: GameCharacter) -> (name: String, scale: Float, z: Float) {
-        let isFemale = character.gender == "female"
-        let table = isFemale ? HeadTables.female : HeadTables.male
-
-        var name = table[consistentRandom("\(character.id)_head", table.count)].name
-        if let explicit = character.head {
-            name = explicit.replacingOccurrences(of: ".glb", with: "")
-        }
-
-        if let entry = HeadTables.entry(named: name) { return entry }
-        let fallback = isFemale ? "female_hair_ponytail" : "male_hair_short"
-        return HeadTables.entry(named: fallback)!
     }
 
     // MARK: - Posing
@@ -1438,12 +1129,7 @@ enum CharacterRig {
             * Float4x4.eulerXYZ(headRotation.x, headRotation.y, headRotation.z)
             * Float4x4.scale(SIMD3(0.65, 0.65, 0.7))
 
-        let head = headEntry(for: character)
-        pose.headModel = head.name
         pose.headTransform = headAnchor
-            * Float4x4.translation(SIMD3(0, 0, head.z))
-            * Float4x4.eulerXYZ(.pi / 2, .pi / 2, 0)
-            * Float4x4.scale(SIMD3(repeating: head.scale))
 
         // --- Inverse kinematics (`resolveInverseKinematics:1028-1079`) ---
         // Ankles ride `ankleLift` above the foot target so calves do not punch through the shoes.
@@ -1530,7 +1216,7 @@ enum CharacterRig {
         // `Hand.restRoll`. Everything that rides in a hand hangs off the anchor, and the racket's
         // grip was tuned against the unrolled frame.
         //
-        // This reaches the skinned body as well as the rigid parts, and by the right route: the
+        // This reaches the imported body by the right route: the
         // renderer builds each bone as `transform × inverseBind`, and `bindPose` does *not* apply
         // the roll — so the hand is built unrolled and turned at draw time, rather than being
         // baked into the mesh and cancelled straight back out again.
@@ -1612,10 +1298,6 @@ enum CharacterRig {
         let leftShoeGroup = shoeFrame(ankle: leftAnkle, shin: leftShin, bodyPivot: bodyPivot)
         let rightShoeGroup = shoeFrame(ankle: rightAnkle, shin: rightShin, bodyPivot: bodyPivot)
 
-        let shoeModelLocal = Float4x4.eulerXYZ(0, .pi / 2, .pi / 2)
-            * Float4x4.scale(SIMD3(repeating: shoeScale))
-        pose.leftShoeModel = leftShoeGroup * shoeModelLocal
-        pose.rightShoeModel = rightShoeGroup * shoeModelLocal
         pose.leftShoeBox = leftShoeGroup
         pose.rightShoeBox = rightShoeGroup
 
@@ -1635,10 +1317,10 @@ enum CharacterRig {
 
     /// The rig standing still, with the character at the world origin facing +X.
     ///
-    /// This is the shape the skinned body mesh is **built in**. `SkinnedBody` generates every
-    /// vertex in this space and records, for each one, which bones move it and how much; at
-    /// draw time each bone contributes `current × bind⁻¹`, which is the identity for a
-    /// character standing exactly like this and departs from it as the pose does.
+    /// **What it is for now.** It used to be the space the procedural body's vertices were
+    /// generated in. Nothing generates vertices any more, but `HumanoidRig` measures against
+    /// this: how long the rig's own arm is, where its ankle sits, which way its thumb points —
+    /// every constant the retargeter compares a bought skeleton to comes from here.
     ///
     /// It has to agree with what `pose` produces for a still, un-emoting character — same
     /// constants, same order, same IK. It is written out separately rather than obtained by
