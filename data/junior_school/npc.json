@@ -8,6 +8,7 @@
     "height": 58,
     "rotation": 140,
     "gender": "male",
+    "model": "man",
     "interaction_radius": 150,
     "agent": {
       "log_file": "junior_school/agent_mr_hardy_logs.txt",
@@ -61,6 +62,7 @@
     "height": 40,
     "rotation": 35,
     "gender": "male",
+    "model": "boy",
     "interaction_radius": 150,
     "on_enter": [
       {
@@ -87,6 +89,7 @@
     "height": 40,
     "rotation": 115,
     "gender": "male",
+    "model": "stylized_boy",
     "interaction_radius": 150,
     "on_enter": [
       {
@@ -115,6 +118,7 @@
     "height": 40,
     "rotation": 295,
     "gender": "male",
+    "model": "boy",
     "interaction_radius": 150,
     "on_enter": [
       {
@@ -143,6 +147,7 @@
     "height": 40,
     "rotation": 215,
     "gender": "male",
+    "model": "stylized_boy",
     "interaction_radius": 150,
     "on_enter": [
       {
@@ -198,6 +203,7 @@
     "height": 54,
     "rotation": 70,
     "gender": "male",
+    "model": "man",
     "interaction_radius": 150,
     "waypoints": [
       {
@@ -274,6 +280,7 @@
     "on_exit": [],
     "interaction_radius": 800,
     "gender": "male",
+    "model": "man",
     "hair_color": "brown",
     "shirt_color": "#3498db",
     "pants_color": "#2c3e50",
@@ -290,6 +297,7 @@
     "height": 40,
     "rotation": -130,
     "gender": "male",
+    "model": "boy",
     "on_enter": [
       {
         "say": [
@@ -328,6 +336,7 @@
     ],
     "on_exit": [],
     "gender": "male",
+    "model": "stylized_boy",
     "hair_color": "#000000",
     "shirt_color": "#3498db",
     "pants_color": "#2c3e50",
@@ -353,6 +362,7 @@
     ],
     "on_exit": [],
     "gender": "male",
+    "model": "boy",
     "hair_color": "brown",
     "shirt_color": "#ff6251",
     "pants_color": "#2c3e50",
@@ -376,6 +386,7 @@
     ],
     "on_exit": [],
     "gender": "female",
+    "model": "woman",
     "interaction_radius": 150,
     "head": "female_hair_long",
     "hair_color": "blonde",
@@ -434,6 +445,7 @@
     ],
     "roam_radius": 300,
     "gender": "male",
+    "model": "boy",
     "head": "male_hair_messy",
     "shirt_color": "#e74c3c",
     "pants_color": "#2c3e50",
@@ -449,6 +461,7 @@
     "height": 35,
     "rotation": 180,
     "gender": "female",
+    "model": "girl",
     "on_enter": [
       {
         "avatar": "avatars/girl_age_6.png",
@@ -489,6 +502,7 @@
     ],
     "roam_radius": 150,
     "gender": "male",
+    "model": "stylized_boy",
     "head": "male_hair_messy",
     "shirt_color": "#2ecc71",
     "pants_color": "#2c3e50",
@@ -504,6 +518,7 @@
     "height": 35,
     "rotation": 0,
     "gender": "female",
+    "model": "girl",
     "on_enter": [
       {
         "avatar": "avatars/girl_age_8.png",
@@ -531,6 +546,7 @@
     "height": 48,
     "rotation": 200,
     "gender": "female",
+    "model": "woman",
     "on_enter": [
       {
         "avatar": "avatars/becky.png",
@@ -567,6 +583,7 @@
     "height": 48,
     "rotation": 135,
     "gender": "male",
+    "model": "man",
     "on_enter": [
       {
         "avatar": "avatars/ben.png",
@@ -595,6 +612,7 @@
     "height": 48,
     "rotation": 70,
     "gender": "male",
+    "model": "man",
     "on_enter": [
       {
         "avatar": "avatars/divorce_school_dad.png",
@@ -627,6 +645,7 @@
     "height": 48,
     "rotation": 180,
     "gender": "female",
+    "model": "woman",
     "on_enter": [
       {
         "avatar": "avatars/dowdy_school_mum.png",
@@ -657,6 +676,7 @@
     "height": 48,
     "rotation": 160,
     "gender": "female",
+    "model": "woman",
     "on_enter": [
       {
         "avatar": "avatars/hot_school_mum.png",
@@ -689,6 +709,7 @@
     "height": 48,
     "rotation": 85,
     "gender": "female",
+    "model": "woman",
     "on_enter": [
       {
         "avatar": "avatars/hot_school_mum_2.png",

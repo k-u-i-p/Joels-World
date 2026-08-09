@@ -8,6 +8,7 @@
     "height": 52,
     "rotation": 85,
     "gender": "male",
+    "model": "man",
     "interaction_radius": 600,
     "agent": {
       "prompt_file": "detention/agent_mr_hardy.md",
@@ -48,6 +49,7 @@
   {
     "id": 3,
     "name": "Jack",
+    "model": "stylized_boy",
     "x": 204,
     "y": -216,
     "z": 43,
@@ -89,6 +91,7 @@
     "height": 40,
     "rotation": -90,
     "gender": "female",
+    "model": "girl",
     "interaction_radius": 200,
     "on_enter": [
       {
@@ -119,6 +122,7 @@
   {
     "id": 5,
     "name": "Noah",
+    "model": "boy",
     "x": -157,
     "y": 108,
     "width": 40,
@@ -160,6 +164,7 @@
     "height": 40,
     "rotation": -90,
     "gender": "female",
+    "model": "girl",
     "interaction_radius": 200,
     "on_enter": [
       {
@@ -190,6 +195,7 @@
   {
     "id": 2,
     "name": "Olly",
+    "model": "boy",
     "x": -189,
     "y": -202,
     "z": 43,

@@ -89,11 +89,20 @@ strip of pictures out on its own: see
 [HANDOFF-character-lab.md](native/HANDOFF-character-lab.md).
 
 **How the characters themselves work** — a **bought, rigged model**, driven by our own walk cycle,
-IK and emotes — is four handoffs starting at
+IK and emotes — is five handoffs starting at
 [HANDOFF-imported-characters.md](native/HANDOFF-imported-characters.md).
-[Part 4](native/HANDOFF-imported-characters-part4.md) is the most recent, and its "What is left"
-is the list to pick the next job off. Its biggest item: **every pupil is currently the same boy**,
-because there is one model, and the fix is a model per character.
+[Part 5](native/HANDOFF-imported-characters-part5.md) is the most recent, and its "What is left"
+is the list to pick the next job off.
+
+**There are five characters now** — `boy`, `girl`, `man`, `woman` and `stylized_boy`. Which one an
+NPC wears is one word in `npc.json`, which makes it a green-zone change:
+
+```json
+{ "name": "Mr Hardy", "model": "man" }
+```
+
+The list lives in [CharacterModels.swift](native/Engine/Entity/CharacterModels.swift), and the map
+editor has a **Model** row in the NPC inspector that writes the same field.
 
 Four earlier handoffs starting at
 [HANDOFF-skinned-characters.md](native/HANDOFF-skinned-characters.md) describe the character we

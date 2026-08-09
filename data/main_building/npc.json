@@ -8,6 +8,7 @@
     "height": 48,
     "rotation": 15,
     "gender": "female",
+    "model": "woman",
     "interaction_radius": 150,
     "on_enter": [
       {
@@ -47,6 +48,7 @@
     "height": 29,
     "rotation": 470,
     "gender": "female",
+    "model": "girl",
     "interaction_radius": 150,
     "on_enter": [
       {
@@ -120,6 +122,7 @@
     "height": 35,
     "rotation": 0,
     "gender": "male",
+    "model": "boy",
     "interaction_radius": 150,
     "on_enter": [
       {
@@ -158,6 +161,7 @@
     "height": 35,
     "rotation": 180,
     "gender": "female",
+    "model": "girl",
     "interaction_radius": 150,
     "on_enter": [
       {
@@ -196,6 +200,7 @@
     "height": 48,
     "rotation": -115,
     "gender": "male",
+    "model": "man",
     "interaction_radius": 150,
     "on_enter": [
       {
@@ -226,6 +231,7 @@
   {
     "id": 7,
     "name": "Oliver D",
+    "model": "stylized_boy",
     "x": 826,
     "y": -502,
     "width": 40,
@@ -268,6 +274,7 @@
     ],
     "on_exit": [],
     "gender": "male",
+    "model": "man",
     "head": "male_hair_bald",
     "hair_color": "#000000",
     "shirt_color": "#3498db",
@@ -284,6 +291,7 @@
     "height": 48,
     "rotation": 180,
     "gender": "female",
+    "model": "woman",
     "on_enter": [
       {
         "avatar": "avatars/prospective_school_mum.png",

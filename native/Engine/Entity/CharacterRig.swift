@@ -52,6 +52,12 @@ struct RigPose {
     var colors: RigColors
     var parts: [(part: RigPart, transform: Float4x4)] = []
 
+    /// **The bought model this character is drawn with**, already resolved to an asset path by
+    /// `CharacterModels`. It rides on the pose because the pose is the only thing that reaches
+    /// the renderer per character — everything else about a draw is a global, and a global is
+    /// what made every pupil the same boy.
+    var model: String = CharacterModels.defaultPath
+
     /// The head *group* — the frame props parented to the head inherit, including its
     /// non-uniform scale. It used to be the placement of a head GLB as well; the bought model
     /// brings its own head, so this is only an anchor now.
@@ -668,6 +674,7 @@ enum CharacterRig {
                      cameraUp: SIMD3<Float> = SIMD3(0, 0, 1),
                      override: RigOverride? = nil) -> RigPose {
         var pose = RigPose(colors: colors(for: character))
+        pose.model = CharacterModels.path(for: character.model)
 
         // --- Root transform (`ensureThreeSetup` + `drawCharacter:1220`) ---
         let baseScale = Float(mapCharacterScale)

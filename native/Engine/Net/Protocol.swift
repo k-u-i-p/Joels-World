@@ -222,6 +222,11 @@ struct GameCharacter: Codable {
     var rotation: Double?
     var gender: String?
     var head: String?
+    /// Which bought model this character wears — a key from `CharacterModels`, or a path.
+    /// `nil` is the catalogue's default. `head` used to do this job for the fourteen head GLBs
+    /// the procedural character wore; it is parsed and ignored now (see part 4 of the imported
+    /// characters handoff).
+    var model: String?
     var color: String?
     var hair_color: String?
     var shirt_color: String?

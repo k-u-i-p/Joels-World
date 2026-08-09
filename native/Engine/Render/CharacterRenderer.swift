@@ -169,23 +169,20 @@ final class CharacterRenderer {
     /// Enough for a modest crowd before the ring ever has to grow.
     private static let jointRingMinimum = 64 * 1024
 
-    /// **The model every character is drawn with.**
+    /// **Which model a character is drawn with is the pose's business now**, not this class's.
     ///
-    /// It used to be optional, with `nil` meaning the procedural body — the one generated vertex
-    /// by vertex in Swift over sessions 1–4 — and `JW_CHARACTER_MODEL` switching between the two.
-    /// The procedural body is gone, so there is nothing to switch to and nothing to fall back on:
-    /// this is the character now. `JW_CHARACTER_MODEL` still overrides it, which is how a second
-    /// bought model gets looked at without a rebuild.
+    /// It used to be one path here, shared by everybody, for a good reason at the time: there was
+    /// one bought model. `RigPose.model` carries the path per character now, resolved from
+    /// `npc.json` by `CharacterModels`, and everything below — the body store, the retargeters,
+    /// the profiles — is keyed by it.
     ///
-    /// Set it and the rig, the gaits, the IK and every minigame carry on untouched — that is
-    /// still the whole point of `HumanoidRig`.
-    static let defaultModelPath = "models/characters/stylized_boy.glb"
+    /// This stays because a *tool* still wants a single answer: `JW_CHARACTER_MODEL=<path>` draws
+    /// the whole cast with one model, which is how a sixth model gets a first look without
+    /// touching the catalogue or any data.
+    var modelOverride: String?
 
-    var importedModelPath: String? = defaultModelPath {
-        didSet { if importedModelPath != oldValue { retargeters.removeAll() } }
-    }
-    /// Per-model profile, read from a `.rig.json` beside the model if it has one.
-    var importedProfile: HumanoidProfile = .standard
+    /// Per-model profile, read once from a `.rig.json` beside each model if it has one.
+    private var profiles: [String: HumanoidProfile] = [:]
 
     /// Shared by the prop renderer, which needs the same "no texture here" placeholder.
     var fallbackTexture: MTLTexture { whiteTexture }
@@ -197,8 +194,15 @@ final class CharacterRenderer {
         guard buildMeshes() else { return nil }
 
         let override = ProcessInfo.processInfo.environment["JW_CHARACTER_MODEL"]
-        if let override, !override.isEmpty { importedModelPath = override }
-        importedProfile = Self.profile(besideModel: importedModelPath ?? Self.defaultModelPath)
+        if let override, !override.isEmpty { modelOverride = override }
+    }
+
+    /// The profile for a model, read from disk the first time it is asked for.
+    private func profile(for path: String) -> HumanoidProfile {
+        if let known = profiles[path] { return known }
+        let made = Self.profile(besideModel: path)
+        profiles[path] = made
+        return made
     }
 
     /// Reads `<model>.rig.json` if the model has one. Everything in it is optional; a
@@ -410,13 +414,14 @@ final class CharacterRenderer {
                                   viewProjection: Float4x4,
                                   encoder: MTLRenderCommandEncoder,
                                   shadowPass: Bool) -> Bool {
-        guard let path = importedModelPath, let pipelines else { return false }
+        guard let pipelines else { return false }
+        let path = modelOverride ?? pose.model
 
         guard let body = importedBodies.body(path) else {
             // Not resident yet. Ask again — `request` is cheap once it is loading — and draw
             // nothing this frame. There is no procedural body behind this any more, so the
             // character is its shadow blob until the model lands.
-            importedBodies.request(path: path, profile: importedProfile)
+            importedBodies.request(path: path, profile: profile(for: path))
             return false
         }
 
@@ -475,10 +480,13 @@ final class CharacterRenderer {
         return true
     }
 
-    /// The skeleton report for the model in use, for the lab to print.
-    var importedReport: String? {
-        guard let path = importedModelPath else { return nil }
-        return importedBodies.reports[path]
+    /// The skeleton report for every model that has finished loading, for the lab to print.
+    /// Ordered by the catalogue so two runs print the same thing in the same order.
+    var importedReports: [(path: String, report: String)] {
+        let loaded = importedBodies.reports
+        let catalogued = CharacterModels.all.map(\.path).filter { loaded[$0] != nil }
+        let extras = loaded.keys.filter { !catalogued.contains($0) }.sorted()
+        return (catalogued + extras).map { ($0, loaded[$0]!) }
     }
 
     /// The blended half of the emote props, drawn after the opaque rig so they sort against it

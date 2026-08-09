@@ -2,13 +2,18 @@ import Foundation
 
 /// **Who stands in the lab.**
 ///
-/// Three casts, because there are three different questions a character gets looked at for:
+/// Four casts, because there are four different questions a character gets looked at for:
 ///
 /// - `.solo` — one pupil, alone, framed close. The one to use for a rig or an animation: a
 ///   knee, an elbow, where a foot lands.
 /// - `.school` — five real pupils out of `data/junior_school/npc.json`. The one to use for
-///   crowds and for scale: these are the actual sizes and names the game puts on screen. They no
-///   longer differ in colour — every character is the same bought model until a second is bought.
+///   crowds and for scale: these are the actual sizes, names **and models** the game puts on
+///   screen.
+/// - `.models` — **one of every model in `CharacterModels`, at the same size.** The one to use
+///   when the question is about the models themselves rather than about the game: five bodies
+///   side by side, nothing else different between them, so a proportion or a skeleton that
+///   retargets badly stands out against four that do not. It is also the shot that proves all
+///   five load at once — see the ring in `CharacterRenderer`.
 /// - `.extremes` — five synthetic characters chosen to break things: the darkest skin against
 ///   the darkest shirt, white on white, a teacher scaled to 52 × 58, a headless one. Contrast
 ///   bugs and scale bugs hide behind well-chosen colours.
@@ -19,12 +24,14 @@ enum CharacterLabCast {
     enum Kind: String, CaseIterable {
         case solo
         case school
+        case models
         case extremes
 
         var title: String {
             switch self {
             case .solo: return "One pupil"
             case .school: return "Five from Junior Campus"
+            case .models: return "One of every model"
             case .extremes: return "Awkward colours and sizes"
             }
         }
@@ -38,8 +45,28 @@ enum CharacterLabCast {
             return [pupil()]
         case .school:
             return schoolPupils()
+        case .models:
+            return everyModel()
         case .extremes:
             return extremes()
+        }
+    }
+
+    /// One character per catalogue entry, identical in every other way.
+    ///
+    /// **Same `width` and `height` for all five on purpose.** A model is scaled to the rig's hip
+    /// height on load, so this is the lineup that shows what each one's *own* proportions do with
+    /// that — a long-legged adult and a short-legged child both stand hip-high to the same line,
+    /// and how much taller that leaves the adult's head is the model's own answer, not a number
+    /// anybody typed. Give them the sizes the game gives a teacher and a pupil and you would be
+    /// photographing `npc.json` instead.
+    private static func everyModel() -> [GameCharacter] {
+        CharacterModels.all.enumerated().map { index, entry in
+            var character = pupil()
+            character.id = labId(index)
+            character.name = entry.title
+            character.model = entry.key
+            return character
         }
     }
 

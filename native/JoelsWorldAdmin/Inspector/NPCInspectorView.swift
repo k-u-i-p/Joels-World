@@ -19,6 +19,7 @@ final class NPCInspectorView: NSView {
 
     private var hairPopUp: ActionPopUpButton!
     private var genderPopUp: ActionPopUpButton!
+    private var modelPopUp: ActionPopUpButton!
     private var emotePopUp: ActionPopUpButton!
 
     private let stack = AdminUI.verticalStack()
@@ -119,13 +120,19 @@ final class NPCInspectorView: NSView {
                          updates: ["hair_color": .string(value)])
         }
 
-        // **There is no head picker any more.** Every character is drawn with one bought,
-        // rigged model that arrives with its own head, so the fourteen head GLBs and the tables
-        // that chose between them are gone. `head` is still a field on an NPC and still written
-        // out to `npc.json` if it is already there — nothing reads it. When a second model is
-        // bought, the row that replaces this one picks a *model*, not a head.
         genderPopUp = AdminUI.popUp(["male", "female"]) { [weak self] gender in
             self?.update({ $0.gender = gender }, updates: ["gender": .string(gender)])
+        }
+
+        // **This is the row that replaced the head picker**, exactly as the last session said it
+        // would: it picks a *model*, not a head. A character is one bought, rigged body that
+        // arrives with its own head and hair, so there is one thing to choose and this is it.
+        //
+        // Titles rather than keys, because "Stylized boy" reads better than `stylized_boy` in a
+        // menu; what goes into `npc.json` is the key.
+        modelPopUp = AdminUI.popUp(CharacterModels.all.map(\.title)) { [weak self] title in
+            guard let entry = CharacterModels.all.first(where: { $0.title == title }) else { return }
+            self?.update({ $0.model = entry.key }, updates: ["model": .string(entry.key)])
         }
 
         emotePopUp = AdminUI.popUp([Self.noEmote] + Emotes.names) { [weak self] title in
@@ -161,6 +168,7 @@ final class NPCInspectorView: NSView {
             AdminUI.row("Arms", [armWell]),
             AdminUI.row("Hair", [hairPopUp]),
             AdminUI.row("Gender", [genderPopUp]),
+            AdminUI.row("Model", [modelPopUp]),
             AdminUI.row("Emote", [emotePopUp]),
             deleteButton,
         ]
@@ -200,6 +208,10 @@ final class NPCInspectorView: NSView {
 
         let gender = npc.gender ?? "male"
         genderPopUp.reload(selected: gender)
+        // An NPC with no `model` shows the catalogue's default, which is what it will be drawn
+        // with — the menu says what you would see, not what the file happens to hold.
+        let modelKey = npc.model.flatMap { CharacterModels.byKey[$0]?.key } ?? CharacterModels.defaultKey
+        modelPopUp.reload(selected: CharacterModels.byKey[modelKey]?.title ?? modelKey)
         emotePopUp.reload(selected: npc.default_emote?.name ?? Self.noEmote)
     }
 

@@ -369,6 +369,12 @@ final class CharacterLabViewController: NSViewController {
         } else {
             Log.render("Character lab failed to write \(run.path)")
         }
+        // What was actually in the picture. A character whose model had not landed by the time
+        // the shutter went is a shadow with nothing above it, and at a lineup's zoom that reads
+        // as a gap in the row rather than as a missing model. Raise `-labwarmup` if this is short.
+        let loaded = renderer?.loadedCharacterModels ?? []
+        Log.render("Character lab: \(loaded.count) model(s) resident — "
+                   + (loaded.isEmpty ? "none" : loaded.joined(separator: ", ")))
         NSApp.terminate(nil)
     }
 

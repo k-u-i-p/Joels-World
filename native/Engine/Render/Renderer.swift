@@ -84,6 +84,11 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// Supplies fresh input each frame; owned by the view controller.
     var inputProvider: (() -> InputState)?
 
+    /// Which bought character models are resident, for the lab to say so. A model that never
+    /// arrived draws as nothing but a shadow blob, which in a lineup of five looks like a gap
+    /// rather than like a failure — this is the list that names it.
+    var loadedCharacterModels: [String] { characters.importedReports.map(\.path) }
+
     /// Called on the main thread once the simulation has stepped, with the viewport in
     /// points. The UI layer uses it to reposition nameplates and bubbles, which the web build
     /// does inside its own draw call.
