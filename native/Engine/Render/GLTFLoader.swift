@@ -300,9 +300,28 @@ enum GLTFLoader {
         if let index = attributes["NORMAL"] as? Int {
             normals = readAccessor(index, accessors: accessors, bufferViews: bufferViews, buffers: buffers)
         }
+        // **UV set 0, unless it is empty — in which case set 1.**
+        //
+        // A material names the UV set it samples with a `texCoord`, and every character seen so
+        // far omits it, which means set 0. `family.glb` has *two* sets, and set 0 is 27,091
+        // pairs of zeros: the real map is in set 1. It is the export that is wrong, but the way
+        // it is wrong is silent — every vertex samples the same texel of the atlas, so the
+        // character arrives fully rigged, correctly scaled, posed by the walk cycle, and
+        // uniformly the colour of whatever happens to sit at the top-left of its texture. It
+        // reads as "the loader ignored the texture", which is the one thing it did not do.
+        //
+        // So an all-zero set 0 falls through to set 1 when there is one, and says so. Anything
+        // that genuinely wants zero UVs everywhere is asking for one texel and does not care.
         var uvs: AccessorData?
         if let index = attributes["TEXCOORD_0"] as? Int {
             uvs = readAccessor(index, accessors: accessors, bufferViews: bufferViews, buffers: buffers)
+        }
+        if uvs?.floats.allSatisfy({ $0 == 0 }) == true,
+           let second = attributes["TEXCOORD_1"] as? Int,
+           let fallback = readAccessor(second, accessors: accessors, bufferViews: bufferViews,
+                                       buffers: buffers) {
+            Log.render("glTF: TEXCOORD_0 is entirely zeros — using TEXCOORD_1")
+            uvs = fallback
         }
 
         var vertices: [GLTFSkinVertex] = []
