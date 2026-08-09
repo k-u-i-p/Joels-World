@@ -301,6 +301,55 @@ struct HumanoidProfile {
     }
 }
 
+// MARK: - Closing a hand
+
+/// **How far each knuckle bends, and about what.**
+///
+/// A bought model's fingers arrive articulated and are driven by nothing: they ride the hand as
+/// one rigid piece, which is what gives us fifteen finger bones for free and also means a racket
+/// sits in a palm held flat like a paddle. The rig has no finger drivers and is not going to grow
+/// fifteen of them — so the fingers are posed from a **single number** instead, an amount of
+/// closure between an open hand and a fist, and the amount comes from something the rig already
+/// says: whether this character is holding anything.
+///
+/// **The axis is measured, not assumed.** Two directions are already known about a hand at load —
+/// `boneAxis`, along the fingers, and `rollAxis`, out towards the thumb, square to it. Call them
+/// `f` and `t`, and their cross product `n = t × f`. For a **right** hand `n` is the way the palm
+/// faces, and a finger closing is a rotation about `+t` — check it on your own hand: fingers
+/// north, palm down, thumb west, and curling takes the fingertips downward, the way the palm
+/// faces. A **left** hand is that mirrored, so `n` comes out on the back of the hand and the same
+/// closure is a rotation about `−t`.
+///
+/// The **thumb** is the odd one and comes out the same for both: it does not close alongside the
+/// fingers, it comes *across* to meet them, which is a rotation about `n` either way.
+///
+/// Only the hand's own frame is used, so this needs no new landmark and works on any rig whose
+/// thumb `rollAxis` was found. A hand with no thumb bone gets no curl at all rather than a
+/// guessed one — the same rule the palm roll already follows.
+enum Grip {
+    /// Radians per joint, indexed by how far below the hand the joint sits: 1 is the knuckle,
+    /// 2 the middle joint, 3 the last one. Anything deeper is an exporter's `_end` marker and
+    /// gets nothing.
+    ///
+    /// They **compound**, because a child joint inherits its parent's bend before adding its own,
+    /// which is exactly what a finger does. So the fingertip of a closed hand is through about
+    /// 0.90 + 1.15 + 0.70 = 2.75 rad, a bit under a half turn, which is a fist.
+    static let fingerGrip: [Float] = [0, 0.90, 1.15, 0.70]
+    static let thumbGrip: [Float] = [0, 0.55, 0.60, 0.45]
+
+    /// And with nothing in the hand. Not zero: a model is rigged in a T-pose with its fingers
+    /// straight out and splayed, and a hand left at its bind pose hangs off the wrist as a flat
+    /// paddle. A relaxed hand has a bend in every knuckle, so this is the pose the character
+    /// stands in and the grip above is what it closes *from*.
+    static let fingerRest: [Float] = [0, 0.22, 0.30, 0.18]
+    static let thumbRest: [Float] = [0, 0.15, 0.18, 0.12]
+
+    static func angle(level: Int, thumb: Bool, closed: Bool) -> Float {
+        let table = closed ? (thumb ? thumbGrip : fingerGrip) : (thumb ? thumbRest : fingerRest)
+        return level < table.count ? table[level] : 0
+    }
+}
+
 // MARK: - The retargeted skeleton
 
 /// A bought skeleton, measured once and turned into everything `solve` needs per frame.
@@ -336,6 +385,18 @@ final class HumanoidSkeleton {
     /// inverts a bind pose that has already been normalised, so feeding it raw file-space
     /// positions scales the model twice and turns it inside out.
     let normalizeTransform: Float4x4
+
+    /// The axis each finger joint bends about, in its own bind-local frame, and how far it bends
+    /// with an empty hand and with a full grip. `.zero` / 0 for everything that is not a finger.
+    /// See `Grip` for where the numbers and the axes come from.
+    let curlAxis: [SIMD3<Float>]
+    let curlRest: [Float]
+    let curlGrip: [Float]
+    /// Which `RigPart` drives the hand each finger hangs off, so only the hand that is actually
+    /// holding something closes. Nil for every joint that is not a finger.
+    let curlHandPart: [RigPart?]
+    /// Hands whose fingers are curling, for reporting.
+    private(set) var curledHands: [HumanoidBone] = []
 
     /// Joints whose canonical bone we recognised, for reporting.
     private(set) var matched: [HumanoidBone: Int] = [:]
@@ -575,6 +636,67 @@ final class HumanoidSkeleton {
         }
         rollAxis = rollOut
 
+        // --- Finger curl ---
+        //
+        // Which joints are fingers, how deep each one sits under its hand, and which of them are
+        // thumb. One pass in `order`, so a joint's parent has always been classified first and
+        // this is a walk *down* rather than a walk back up to the wrist per joint.
+        var handRoot = [Int?](repeating: nil, count: count)
+        var level = [Int](repeating: 0, count: count)
+        var isThumb = [Bool](repeating: false, count: count)
+        for index in order {
+            guard let parent = mesh.parents[index] else { continue }
+            let thumbHere = HumanoidNaming.isThumb(mesh.jointNames[index])
+            if bones[parent] == .leftHand || bones[parent] == .rightHand {
+                handRoot[index] = parent
+                level[index] = 1
+                isThumb[index] = thumbHere
+            } else if let root = handRoot[parent] {
+                handRoot[index] = root
+                level[index] = level[parent] + 1
+                // Named off the first joint of the chain: Mixamo spells the whole thumb
+                // `LeftHandThumb1..4`, but a rig that only names its root joint still gets it.
+                isThumb[index] = isThumb[parent] || thumbHere
+            }
+        }
+
+        var curlOut = [SIMD3<Float>](repeating: .zero, count: count)
+        var restOut = [Float](repeating: 0, count: count)
+        var gripOut = [Float](repeating: 0, count: count)
+        var partOut = [RigPart?](repeating: nil, count: count)
+        var curled: Set<HumanoidBone> = []
+        for index in 0..<count {
+            guard let hand = handRoot[index], let handBone = bones[hand] else { continue }
+            let angleRest = Grip.angle(level: level[index], thumb: isThumb[index], closed: false)
+            let angleGrip = Grip.angle(level: level[index], thumb: isThumb[index], closed: true)
+            if angleRest == 0 && angleGrip == 0 { continue }
+
+            // The hand's own frame, in the bind pose. `rollOut` is zero for a hand with no thumb
+            // bone under it, and there is nothing to build a frame out of in that case — so those
+            // fingers stay as rigid as they were rather than bending about a guess.
+            let handRotation = bindWorld[hand].orthonormalRotation
+            guard rollOut[hand] != .zero else { continue }
+            let along = simd_normalize(handRotation * axesOut[hand])
+            let toThumb = simd_normalize(handRotation * rollOut[hand])
+            let palm = simd_cross(toThumb, along)
+            // See `Grip`: fingers about ±thumb depending on which hand, thumb about the palm
+            // normal on both.
+            let worldAxis = isThumb[index] ? palm
+                                           : toThumb * (handBone == .leftHand ? -1 : 1)
+
+            // Into the joint's own frame, so it rides the joint the way `boneAxis` does.
+            curlOut[index] = simd_normalize(bindWorld[index].orthonormalRotation.transpose * worldAxis)
+            restOut[index] = angleRest
+            gripOut[index] = angleGrip
+            partOut[index] = handBone.driver
+            curled.insert(handBone)
+        }
+        curlAxis = curlOut
+        curlRest = restOut
+        curlGrip = gripOut
+        curlHandPart = partOut
+        curledHands = HumanoidBone.allCases.filter(curled.contains)
+
         // --- The side check ---
         //
         // **Does each bone end up on the side of the body the rig is driving it from?** It is one
@@ -623,7 +745,15 @@ final class HumanoidSkeleton {
                 unmatched += 1
             }
         }
-        lines.append("  \(jointCount - matched.count) unnamed joints ride their parents")
+        let fingers = curlAxis.filter { $0 != .zero }.count
+        lines.append("  \(jointCount - matched.count) unnamed joints ride their parents"
+                     + (fingers > 0 ? ", \(fingers) of them fingers that curl" : ""))
+        if !curledHands.isEmpty, curledHands.count < 2 {
+            // One hand curling and not the other means a hand whose thumb was never found, and
+            // that hand is going to hold a racket in a flat palm while the other one closes.
+            lines.append("  only \(curledHands.map(\.rawValue).joined(separator: ", ")) curls"
+                         + " — the other hand has no thumb bone to take a frame from")
+        }
         if unmatched > 0 { lines.append("  \(unmatched) canonical bones unmatched") }
         if !mirrored.isEmpty {
             lines.append("  MIRRORED: \(mirrored.map(\.rawValue).joined(separator: ", "))")
@@ -673,6 +803,19 @@ final class HumanoidRetargeter {
             ?? matrix_identity_float4x4
         let characterScale = simd_length(SIMD3(rootPart.columns.0.x, rootPart.columns.0.y, rootPart.columns.0.z))
         let scale = characterScale > 1e-5 ? characterScale : 1
+
+        // Which hand, if any, is closed round something this frame.
+        //
+        // **`RigPart.rightHand` is the character's left** — the naming inversion in
+        // `HumanoidBone.driver` again — and that is the hand a racket goes in:
+        // `CharacterRig.pose` composes `holdingTransform` off `rightHandAnchor`. So the part is
+        // named here rather than the bone, and it stays right if that anchor ever moves.
+        //
+        // **It snaps rather than blends, on purpose.** The prop it is closing around appears and
+        // disappears in one frame — a racket is drawn only while `pose.holding` is set — so a
+        // hand that took a quarter of a second to close would be gripping air on the way in and
+        // clutching nothing on the way out. `solve` has no timestep to smooth over anyway.
+        let holdingPart: RigPart? = pose.holding != nil ? .rightHand : nil
 
         for index in skeleton.order {
             let localRest = skeleton.localBind[index]
@@ -726,6 +869,19 @@ final class HumanoidRetargeter {
                         let have = simd_normalize(rotation * skeleton.rollAxis[index])
                         rotation = Self.shortestArc(from: have, to: want) * rotation
                     }
+                }
+            }
+
+            // A finger. Nothing drives one, so it is not aimed at anything — it takes whatever
+            // the hand did to it and then bends by its own share of `Grip`. Doing it here, in
+            // `order`, is what makes the bends compound down the finger for free: a joint's
+            // children have not been visited yet and will inherit this rotation as their rest.
+            if skeleton.curlAxis[index] != .zero {
+                let closed = holdingPart != nil && skeleton.curlHandPart[index] == holdingPart
+                let angle = closed ? skeleton.curlGrip[index] : skeleton.curlRest[index]
+                if angle != 0 {
+                    let axis = simd_normalize(rotation * skeleton.curlAxis[index])
+                    rotation = simd_float3x3(simd_quatf(angle: angle, axis: axis)) * rotation
                 }
             }
 

@@ -187,6 +187,14 @@ final class ImportedCharacterStore {
                     // why a character came out in a heap, and this is the line that says so.
                     Log.render("  unmatched: \(missing.map(\.rawValue).joined(separator: ", "))")
                 }
+                // Fingers are the one part of a bought rig that is posed without being driven,
+                // so a model whose hands never close looks like a bug in the grip rather than
+                // what it is — a rig this could not find a thumb on. See `Grip`.
+                let fingers = skeleton.curlAxis.filter { $0 != .zero }.count
+                Log.render("  \(fingers) finger joints curl, on "
+                           + (skeleton.curledHands.isEmpty
+                              ? "neither hand — no thumb bone to take a frame from"
+                              : skeleton.curledHands.map(\.rawValue).joined(separator: " and ")))
                 if !skeleton.mirrored.isEmpty {
                     // The one failure this whole system cannot show you: a mirrored character
                     // walks, runs and stands perfectly. See `HumanoidSkeleton`'s side check.

@@ -1,5 +1,8 @@
 # Handoff — bought characters, part 2: the hands, and which side they are on
 
+> **Read [part 3](HANDOFF-imported-characters-part3.md) after this one.** It takes the fingers off
+> "What is left" below — and they turned out not to need a driver each.
+
 **Session 6.** Part 1 ([HANDOFF-imported-characters.md](HANDOFF-imported-characters.md)) got a
 bought, rigged glTF character standing, walking and running on our own movement code. This session
 took the top two items off its "What is left" and found that one of them was hiding the other.
