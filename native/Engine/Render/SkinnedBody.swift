@@ -142,19 +142,18 @@ enum SkinnedBody {
     // whole win: a torso weighted partly to the pelvis has a waist that twists.
 
     private static func appendBody(_ out: inout SkinMeshData, bind: RigBindPose) {
-        var torso = MeshFactory.revolved(profile: CharacterRig.torsoProfile, radialSegments: 24)
-        MeshFactory.applyScale(&torso, CharacterRig.torsoSquash)
+        let torso = MeshFactory.revolvedElliptical(profile: CharacterRig.torsoProfile,
+                                                   radialSegments: 28)
         append(torso, into: &out, bind: bind.bones[.torso] ?? matrix_identity_float4x4,
                slot: .shirt, region: .torso,
                uv: { local, world in
                    // Bottom of the profile to the top: the hem of the shirt to the neck root.
-                   SIMD2(facing(world), (local.y - profileFloor(CharacterRig.torsoProfile))
-                                        / profileHeight(CharacterRig.torsoProfile))
+                   SIMD2(facing(world), (local.y - torsoFloor) / torsoSpan)
                }) { local, _ in
             // Read on the lathe's own axis, which stands on +Y before the transform turns it
-            // upright: −6.4 is the hem of the shirt and 13.6 is where the neck leaves it.
+            // upright: −8.4 is the shirt's open rim and 13.6 is where the neck leaves it.
             var weights = SkinWeights()
-            weights.add(.pelvis, 0.5 * (1 - smoothstep((local.y + 6.0) / 3.6)))
+            weights.add(.pelvis, 1 - chestShare(rigZ: local.y + CharacterRig.torsoCentreZ))
             weights.add(.neck, 0.45 * smoothstep((local.y - 9.5) / 4.1))
             weights.fill(.torso)
             return weights
@@ -169,7 +168,7 @@ enum SkinnedBody {
                                         / profileHeight(CharacterRig.pelvisProfile))
                }) { local, world in
             var weights = SkinWeights()
-            weights.add(.torso, 0.45 * smoothstep((local.y - 2.4) / 2.6))
+            weights.add(.torso, chestShare(rigZ: local.y + CharacterRig.pelvisCentreZ))
             // The bottom of the shorts goes with whichever thigh is leaving through it, so a
             // raised knee lifts the hem on that side instead of dragging the whole pelvis.
             let leg = simd_distance(world, bind.leftLeg.root) < simd_distance(world, bind.rightLeg.root)
@@ -218,6 +217,36 @@ enum SkinnedBody {
         }
     }
 
+    /// **How much of a point at this height belongs to the chest rather than the hips**, as a
+    /// pure function of how high up the rig it is — and the reason the shirt and the shorts can
+    /// no longer slide through each other.
+    ///
+    /// They are two separate closed solids that overlap for about three units at the waist, the
+    /// shirt's rim tucked inside the shorts and the shorts' cone tucked inside the shirt. Which
+    /// of them is outside at a given height is decided by where their surfaces cross, and in the
+    /// bind pose that is a designed number with two units of margin either side of it
+    /// (`CharacterRig.torsoProfile`).
+    ///
+    /// **None of that survives if the two are weighted differently**, and they were: the shirt's
+    /// bottom took half its motion from the pelvis on one curve, the shorts' top took 0.45 of
+    /// theirs from the chest on another. Any pose that moves the chest against the hips — which
+    /// is *every* pose, the idle sway included — then moves the two surfaces by different
+    /// amounts, and where they were half a unit apart it pushes one out through the other. That
+    /// is the **black arrowhead at the navel**: not a shadow and not a hole, but a wedge of
+    /// shorts standing outside the shirt, which is why three sessions of shading it never
+    /// touched it.
+    ///
+    /// Reading the same curve at the same *rig* height — not at each lathe's own local height,
+    /// which is what made them different in the first place — means both surfaces are carried by
+    /// exactly the same combination of bones wherever they are near each other. They deform
+    /// identically, so the margin designed into the profiles is the margin in every frame.
+    ///
+    /// 10.0 to 18.0 spans it: 0 at the hips, 1 by the waist, and the crossing at z 12.3 sits at
+    /// 0.20, which both of them then use.
+    private static func chestShare(rigZ: Float) -> Float {
+        smoothstep((rigZ - 10.0) / 8.0)
+    }
+
     /// Where a point on the torso or the shorts is round the body, as the clothing atlas's `u`:
     /// **0 at the middle of the chest, 0.5 at the side, 1 down the spine**, and the same coming
     /// round the other way.
@@ -229,8 +258,27 @@ enum SkinnedBody {
     ///
     /// Taking the *magnitude* of the angle is what folds it, and folding is what stops the last
     /// quad round the body carrying u from 0.96 back to 0 — see `ClothingAtlas.uv`.
+    ///
+    /// ⚠️ **The `-world.x` is not a typo, and it is a bug fix.** This read `atan2(-world.y,
+    /// world.x)` for three sessions, and that is half a turn out: it put u = 0 on the surface
+    /// facing *away* from the head's face. Every mark the atlas calls "front" — the collar's V,
+    /// the button placket, all four buttons, the fly on the shorts — was painted down the
+    /// **spine**, and the front of every character in the game was a blank field of colour.
+    ///
+    /// It was invisible for three sessions because each mark, found missing from the chest, was
+    /// explained away rather than chased: session 3 measured the collar's V off a front render,
+    /// concluded the head's overhang was hiding it, and moved it down twice looking for it. It
+    /// was never in front of the camera to find.
+    ///
+    /// **Measured, not derived.** Reading the transform chain says the opposite of this — the
+    /// torso's bind is a translation and `rotationX(π/2)`, which leaves the lathe's own X on the
+    /// rig's, and the rig's +X is the way the face and the hands point. Something between here
+    /// and the screen turns the body half a turn against that, and it is not in this file.
+    /// The check that settles it takes one build: paint `detail.trim` a solid band over
+    /// `u < 0.22` at the end of `ClothingAtlas.shirt` and render `-labview front` and
+    /// `-labview back`. The band belongs on the chest. **Do that before changing this line back.**
     private static func facing(_ world: SIMD3<Float>) -> Float {
-        abs(atan2(-world.y, world.x)) / .pi
+        abs(atan2(-world.y, -world.x)) / .pi
     }
 
     private static func profileFloor(_ profile: [(y: Float, radius: Float)]) -> Float {
@@ -240,6 +288,13 @@ enum SkinnedBody {
     private static func profileHeight(_ profile: [(y: Float, radius: Float)]) -> Float {
         max((profile.last?.y ?? 1) - (profile.first?.y ?? 0), 1e-4)
     }
+
+    /// The same two, for the torso's three-column profile. Both are the ends of the shirt, and
+    /// `ClothingAtlas.shirt`'s whole `v` is measured between them — so if a ring is ever added
+    /// *outside* the present −6.4…13.6, every mark on the shirt moves.
+    private static let torsoFloor = CharacterRig.torsoProfile.first?.y ?? 0
+    private static let torsoSpan =
+        max((CharacterRig.torsoProfile.last?.y ?? 1) - (CharacterRig.torsoProfile.first?.y ?? 0), 1e-4)
 
     // MARK: - Arms and legs
 

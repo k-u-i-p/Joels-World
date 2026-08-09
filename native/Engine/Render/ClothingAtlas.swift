@@ -106,16 +106,49 @@ enum ClothingAtlas {
     /// neither knows about the other — so it is worked out from where they sit. Both stand on the
     /// body pivot, the shirt's at `torsoCentreZ` 20 and the shorts' at `pelvisCentreZ` 11.
     ///
-    /// It is where the two **surfaces cross**, which is not where either of them ends. Both
-    /// squash their X by the same 0.62, so the crossing is simply where their raw radii are
-    /// equal: the shirt climbs 0 → 7.2 between its own y −6.4 and −6.0, the shorts fall away from
-    /// 5.7 at their y 1.8, and the two meet at about 2.6 each, at rig z 13.7. That is the shorts'
-    /// y 2.7 on a profile running −6.2…4.0, so: (2.7 + 6.2) / 10.2 = 0.873.
+    /// It is where the two **surfaces cross**, which is not where either of them ends. The shirt
+    /// climbs 7.2 → 7.9 wide between rig z 11.6 and 12.4 while the shorts fall from 8.3 to 7.3
+    /// over the same run; they pass each other at about 7.4 each, at **rig z 12.2** — and within
+    /// a twentieth of a unit of the same height front-to-back, which is what makes one number
+    /// able to describe the crossing at all. That is the shorts' own y 1.2 on a profile running
+    /// −6.2…4.0, so: (1.2 + 6.2) / 10.2 = 0.726.
+    ///
+    /// **0.726, down from 0.873** — the shirt's hem was taken lower and its closing dome removed
+    /// so that the two surfaces cross once, steeply. See `CharacterRig.torsoProfile`.
     ///
     /// **Move this if either lathe moves.** Above it the shorts are inside the shirt; below it
     /// they come out of a cast shadow. Both are wrong by the same amount if this is wrong, which
     /// at least makes the error easy to see.
-    static let shirtHem: Float = 0.873
+    static let shirtHem: Float = 0.726
+
+    // MARK: - The shirt's heights
+    //
+    // `shirt` writes every one of its marks as a height in the **rig's own frame** — z up, zero
+    // at the body pivot, the frame `CharacterRig` is written in — rather than as a fraction of
+    // the shirt. Session 4 ended with a ⚠️ saying that moving either end of `torsoProfile` moves
+    // every `v` on the garment and all of them have to be rescaled by hand; this is that warning
+    // dealt with rather than repeated. Move the profile, change the two numbers below, and every
+    // mark stays on the seam it was drawn on.
+    //
+    // They are **plain numbers rather than a read of `CharacterRig`** for one reason:
+    // `tools/clothing_atlas.swift` compiles this file on its own, so it cannot see the engine.
+    // Keep them equal to `torsoCentreZ` plus the first and last `y` of `torsoProfile`.
+
+    /// Rig z of the shirt's open bottom rim — `torsoCentreZ` 20 + the profile's first y, −8.4.
+    static let shirtFloorZ: Float = 11.6
+    /// Rig z of the shirt's closed top — 20 + the profile's last y, 13.6.
+    static let shirtCeilingZ: Float = 33.6
+
+    /// A height on the character, as the shirt's `v`.
+    static func shirtV(_ rigZ: Float) -> Float {
+        (rigZ - shirtFloorZ) / (shirtCeilingZ - shirtFloorZ)
+    }
+
+    /// A distance up the character, as a span of the shirt's `v`. For the width of a band or the
+    /// softness of an edge, where an absolute height would be meaningless.
+    static func shirtSpan(_ units: Float) -> Float {
+        units / (shirtCeilingZ - shirtFloorZ)
+    }
 
     /// Turns a region-local `(u, v)` into a texture coordinate.
     ///
@@ -274,42 +307,48 @@ enum ClothingAtlas {
         return detail
     }
 
-    /// **The shirt.** `v` = 0 at the hem, 1 at the neck root, over the twenty units of
-    /// `CharacterRig.torsoProfile`. The waist is at 0.20, the chest at 0.65, the shoulder yoke at
-    /// 0.83. `u` = 0 is dead centre of the chest and 0.5 is the side seam.
+    /// **The shirt.** `v` = 0 at the closed bottom and 1 at the closed top, over the 21.2 units
+    /// of `CharacterRig.torsoProfile` — but nothing below says `v` at all. Every mark is a rig
+    /// height through `shirtV`, so the landmarks are the ones on the character: the hem edge at
+    /// z 14.0, the waist at 17.9, the chest at 26.4, the shoulder at 28.4, the acromion at 30.0.
     ///
-    /// The horizontal scale near the front works out at about 0.053 of `u` per unit of chest, so
-    /// a placket 2.5 units wide is 0.065 either side of nothing.
+    /// `u` = 0 is dead centre of the chest, 0.5 the side seam, 1 down the spine.
+    ///
+    /// ⚠️ **`u` = 0 was the spine, not the chest, until this session** — see the note on
+    /// `SkinnedBody.facing`. Everything front-facing here was landing on the back, which is worth
+    /// knowing before believing any tuning note written before it: the collar's V was moved twice
+    /// looking for a front it was never on.
+    ///
+    /// The horizontal scale near the front works out at about 0.05 of `u` per unit of chest, so
+    /// a placket 2.5 units wide is 0.06 either side of nothing.
     private static func shirt(u: Float, v: Float) -> Detail {
         var detail = Detail()
 
         // The collar, with a V at the front. `dip` is 1 on the centre line and 0 by a quarter of
         // the way round, and squaring it makes the V pointed rather than round-bottomed.
         //
-        // 0.755 rather than the neck root at 0.98, because from 0.83 upwards the profile is the
-        // trapezius sloping into the neck, which faces almost straight up and is hidden by the
-        // head from every camera this game has. **The shoulders are the whole collar.** The V at
-        // the front is very nearly decoration: these characters carry a big stylised head on a
-        // short neck, and it overhangs the chest so far that the highest shirt texel visible at
-        // the centre line — measured off a render, not reasoned about — is around v 0.52, well
-        // below the point of any V that is still a V. It was drawn at 0.63, then at 0.56 chasing
-        // it, and neither put one white pixel on the front of anybody.
+        // z 28.7 at the sides rather than the neck root at 33, because above about 31 the profile
+        // is the trapezius sloping into the neck, which faces almost straight up and is hidden by
+        // the head from every camera this game has. **The shoulders are the whole collar.**
         //
-        // 0.60 is where it stopped. It is a collar when a camera gets low or a head tips back
-        // (the tennis chase camera does both), and going deeper to catch the overworld camera
-        // means painting white down the middle of the chest, which stops being a collar and
-        // starts being a bib. If the front of a collar is ever really wanted, the fix is at the
-        // head — a longer neck or a smaller skull — not here.
+        // The front is still nearly decoration and for the reason session 3 gave, which survives
+        // the `facing` fix: these characters carry a big stylised head on a short neck, and it
+        // overhangs the chest so far that the highest shirt texel visible at the centre line is
+        // around z 26. A V that dips to 25.6 puts a sliver of white under the chin and no more.
+        // Going deeper to catch the overworld camera means painting white down the middle of the
+        // chest, which stops being a collar and starts being a bib. If a front collar is ever
+        // really wanted the fix is at the head — a longer neck or a smaller skull — not here.
         let dip = max(0, 1 - u / 0.24)
-        let collarBottom = 0.755 - 0.155 * dip * dip
-        detail.trim = rise(v, at: collarBottom, over: 0.018)
+        let collarBottom = shirtV(28.7 - 3.1 * dip * dip)
+        detail.trim = rise(v, at: collarBottom, over: shirtSpan(0.38))
 
         // **The shadow under the collar**, which is what makes it a collar rather than a white
         // area. Almost all of the trim above faces up and away, so from a camera looking down at
         // a character it is edge-on and only a few pixels of it survive; the eye finds a garment
         // edge far more reliably by the dark line beneath it than by the light band itself. This
         // is that line, and it is drawn on shirt-coloured cloth where it stays visible.
-        detail.shade -= 0.15 * between(v, collarBottom - 0.095, collarBottom - 0.004, soft: 0.030)
+        detail.shade -= 0.15 * between(v, collarBottom - shirtSpan(1.9),
+                                       collarBottom - shirtSpan(0.08), soft: shirtSpan(0.6))
 
         // The button placket: a strip of doubled cloth down the centre, a seam either side of it
         // and four buttons on it. It stops where the collar starts.
@@ -318,24 +357,37 @@ enum ClothingAtlas {
         // the chest is about eleven units across and a character in the overworld is forty pixels
         // tall: a placket at true scale is one pixel, which is not a placket, it is a stray. At
         // this width it reads at overworld range and still looks like cloth up close.
-        let along = between(v, 0.10, collarBottom - 0.015, soft: 0.02)
+        let along = between(v, shirtV(15.6), collarBottom - shirtSpan(0.3), soft: shirtSpan(0.4))
         let strip = 1 - rise(u, at: 0.075, over: 0.014)
         detail.shade += 0.05 * strip * along
         detail.shade -= 0.16 * line(u, at: 0.084, halfWidth: 0.012) * along
         // Buttons are on the placket, so they are cut off by the same `along` the placket is —
         // without it the top one is painted onto the collar, which is a dark spot on a white
         // point rather than a button on a shirt.
-        for button in [Float(0.24), 0.34, 0.44] {
-            detail.shade -= 0.28 * blob(u: u, v: v, atU: 0, atV: button, radiusU: 0.046, radiusV: 0.040) * along
+        //
+        // **Four of them, two units apart.** The comment has said four since session 3 and there
+        // were three: the fourth ran off the top of the old placket. With the placket on the
+        // chest rather than the spine they are worth counting, and the top one at z 24.4 is the
+        // highest that clears the head's overhang.
+        for button in [Float(18.4), 20.4, 22.4, 24.4] {
+            detail.shade -= 0.28 * blob(u: u, v: v, atU: 0, atV: shirtV(button),
+                                        radiusU: 0.046, radiusV: shirtSpan(0.8)) * along
         }
 
         // The shirt is loose over the shorts, so the crease at the hem is in its own shadow.
         // Gently — at this size a strong band across the waist stops reading as a shadow and
         // starts reading as a belt. It is the top half of the pair the shorts finish: this is
         // the underside of the hem going dark, `shorts` is the shadow it throws.
-        detail.shade -= 0.12 * (1 - rise(v, at: 0.085, over: 0.080))
-        // The yoke seam across the shoulders.
-        detail.shade -= 0.055 * line(v, at: 0.815, halfWidth: 0.006)
+        detail.shade -= 0.12 * (1 - rise(v, at: shirtV(14.8), over: shirtSpan(1.6)))
+        // **And then the last of it is lit again**, which is the same admission `shorts` makes
+        // one garment down. The bottom two units of the shirt lean in under themselves, so the
+        // spotlight rakes across them at nothing and there is no bounce in this scene to fill
+        // them in; left alone they fall to flat ambient and read as a hole rather than as the
+        // underside of a hem. This is that missing bounce, put back by hand.
+        detail.shade += 0.09 * (1 - rise(v, at: shirtV(13.2), over: shirtSpan(1.4)))
+
+        // The yoke seam across the shoulders, on the acromion.
+        detail.shade -= 0.055 * line(v, at: shirtV(29.9), halfWidth: shirtSpan(0.12))
 
         // **Under the arm.** `limbRings` domes the top of an arm back *past* the shoulder joint
         // on purpose, so the deltoid is buried in this surface and the ribs beside it are in a
@@ -345,22 +397,40 @@ enum ClothingAtlas {
         // shadow where its arm meets it reads as a painted cylinder however good the silhouette
         // underneath is. This is the single darkest mark in the atlas for that reason.
         //
-        // The shoulder joint sits at rig z 26, which is v 0.62, and the deltoid is 3.75 across;
-        // the wedge is centred just below it. `u` 0.5 is the side seam, and the fold means the
-        // one mark is drawn under both arms.
+        // The shoulder joint sits at rig z 26 and the deltoid is 3.75 across; the wedge is
+        // centred just below it. `u` 0.5 is the side seam, and the fold means the one mark is
+        // drawn under both arms.
         let flank = line(u, at: 0.5, halfWidth: 0.34)
-        detail.shade -= 0.22 * flank * between(v, 0.38, 0.70, soft: 0.14)
+        detail.shade -= 0.22 * flank * between(v, shirtV(21.5), shirtV(27.0), soft: shirtSpan(2.6))
         // Fainter, further down: where a hanging arm lies against the ribs. It is wrong the
         // moment the arm lifts, which is what a baked shadow costs — kept shallow for that
         // reason, and at this depth a raised arm reads as the shirt creasing rather than as a
         // shadow with nothing casting it.
-        detail.shade -= 0.08 * flank * between(v, 0.06, 0.42, soft: 0.16)
+        detail.shade -= 0.08 * flank * between(v, shirtV(14.8), shirtV(22.0), soft: shirtSpan(3.2))
+
+        // **The shoulder turning over.** The profile is 10.4 wide at z 28.4 and 8.6 by z 31.3, so
+        // there is a real corner up there now — but it faces almost straight up, into the one
+        // spotlight, and comes back as a flat bright field with the shoulder line invisible
+        // inside it. This is the far side of that corner going into shade, which is the only
+        // thing that says a shoulder has a top and a side.
+        detail.shade -= 0.07 * flank * between(v, shirtV(28.6), shirtV(31.4), soft: shirtSpan(1.4))
+
+        // **The back.** `u` near 1 is the spine, and the fold draws one mark on both sides of it —
+        // which is exactly the symmetry a pair of shoulder blades has. The groove down the middle
+        // and the two blades either side of it are the whole of what a back looks like, and this
+        // surface had nothing on it at all.
+        let acrossBack = between(v, shirtV(21.0), shirtV(30.5), soft: shirtSpan(2.4))
+        detail.shade -= 0.055 * line(u, at: 1, halfWidth: 0.085) * acrossBack
+        detail.shade += 0.035 * blob(u: u, v: v, atU: 0.80, atV: shirtV(27.6),
+                                     radiusU: 0.115, radiusV: shirtSpan(2.6))
+        detail.shade -= 0.045 * blob(u: u, v: v, atU: 0.80, atV: shirtV(24.4),
+                                     radiusU: 0.115, radiusV: shirtSpan(2.2))
 
         // Drape. A school shirt on a ten-year-old is not shrink-wrapped to him — it hangs off the
         // chest and gathers into soft vertical creases on the way to the hem. Two of them, wide
         // and shallow: `u` is folded, so each is drawn on both sides of the body, which is what a
         // garment hanging off two shoulders does anyway.
-        let hangs = between(v, 0.04, 0.60, soft: 0.22)
+        let hangs = between(v, shirtV(14.4), shirtV(25.6), soft: shirtSpan(4.4))
         detail.shade -= 0.045 * line(u, at: 0.33, halfWidth: 0.11) * hangs
         detail.shade -= 0.035 * line(u, at: 0.68, halfWidth: 0.10) * hangs
 

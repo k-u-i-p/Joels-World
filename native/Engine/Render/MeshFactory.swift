@@ -59,6 +59,60 @@ enum MeshFactory {
         lathe(profile: profile.map { SIMD2($0.radius, $0.y) }, radialSegments: radialSegments)
     }
 
+    /// **A lathe whose cross-section is allowed to change shape as it climbs**, not just size:
+    /// an ellipse per ring, with its two half-axes given separately.
+    ///
+    /// `revolved` plus a single `applyScale` — which is how the torso and the pelvis were both
+    /// built — can only produce **one** aspect ratio for the whole solid. Every ring is the same
+    /// ellipse scaled up and down, so a torso wide enough at the shoulders is necessarily deep
+    /// enough there too, and one thin enough at the waist is thin everywhere. That is a barrel,
+    /// and no amount of adjusting the silhouette in one plane fixes it, because the other plane
+    /// is following along multiplied by a constant.
+    ///
+    /// A body is not like that in the one place it matters most. Shoulders are **wide and
+    /// shallow** and a chest is **narrower and deep**, and the ratio between the two changes
+    /// more over the twenty units of a torso than the size does. So each ring carries both.
+    ///
+    /// `halfDepth` is on local **X** and `halfWidth` on local **Z**, which is the same pair
+    /// `applyScale(SIMD3(0.62, 1, 1.12))` used to act on — so a profile ported from the old form
+    /// is `(y, radius × 0.62, radius × 1.12)` and comes out identical. Winding, vertex order and
+    /// the shared seam all match `lathe`, because it is `lathe` with the radius made a function
+    /// of the angle.
+    static func revolvedElliptical(profile: [(y: Float, halfDepth: Float, halfWidth: Float)],
+                                   radialSegments: Int = 24) -> MeshData {
+        let segments = max(3, radialSegments)
+        var vertices: [MeshVertex] = []
+        vertices.reserveCapacity(profile.count * segments)
+
+        for (row, ring) in profile.enumerated() {
+            for segment in 0..<segments {
+                let phi = Float(segment) / Float(segments) * 2 * .pi
+                // `lathe` places (r sin φ, y, r cos φ); this is that with a different r per axis.
+                let position = SIMD3(ring.halfDepth * sin(phi), ring.y, ring.halfWidth * cos(phi))
+                vertices.append(MeshVertex(position: position, normal: .zero,
+                                           uv: SIMD2(Float(segment) / Float(segments),
+                                                     Float(row) / Float(max(profile.count - 1, 1)))))
+            }
+        }
+
+        var indices: [UInt32] = []
+        indices.reserveCapacity(max(profile.count - 1, 0) * segments * 6)
+        for row in 0..<max(profile.count - 1, 0) {
+            for segment in 0..<segments {
+                let next = (segment + 1) % segments
+                let a = UInt32(row * segments + segment)
+                let b = UInt32(row * segments + next)
+                let c = UInt32((row + 1) * segments + next)
+                let d = UInt32((row + 1) * segments + segment)
+                indices.append(contentsOf: [a, d, c, a, c, b])
+            }
+        }
+
+        var mesh = MeshData(vertices: vertices, indices: indices)
+        recomputeNormals(&mesh)
+        return mesh
+    }
+
     /// One limb segment: a shaft tapering from `radiusStart` at `−length/2` to `radiusEnd` at
     /// `+length/2`, with each end either domed *past* its joint or closed *at* it.
     ///

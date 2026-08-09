@@ -147,13 +147,54 @@ final class CharacterRenderer {
     /// A 1×1 white stand-in, so the fragment shader can always bind texture 0.
     private var whiteTexture: MTLTexture!
 
+    // MARK: - Imported characters
+
+    /// Bought, rigged models, keyed by asset path.
+    private let importedBodies: ImportedCharacterStore
+    /// One retargeter per model. `solve` is called once per character per pass and holds no
+    /// per-character state between calls, so a model needs only one.
+    private var retargeters: [String: HumanoidRetargeter] = [:]
+    /// Scratch for the imported skeleton's joint matrices, and the buffer they are uploaded in.
+    /// A bought rig has too many bones for `setVertexBytes`' 4 KB — see `ImportedCharacterBody`.
+    private var importedJoints: [Float4x4] = []
+    private var importedJointBuffer: MTLBuffer?
+
+    /// The model every character is drawn with, or nil for the procedural body.
+    ///
+    /// Set it and the rig, the gaits, the IK and every minigame carry on untouched — that is the
+    /// whole point of `HumanoidRig`. `JW_CHARACTER_MODEL` sets it without a rebuild, which is how
+    /// the character lab switches between the two.
+    var importedModelPath: String? {
+        didSet { if importedModelPath != oldValue { retargeters.removeAll() } }
+    }
+    /// Per-model profile, read from a `.rig.json` beside the model if it has one.
+    var importedProfile: HumanoidProfile = .standard
+
     /// Shared by the prop renderer, which needs the same "no texture here" placeholder.
     var fallbackTexture: MTLTexture { whiteTexture }
 
     init?(device: MTLDevice, models: ModelStore) {
         self.device = device
         self.models = models
+        self.importedBodies = ImportedCharacterStore(device: device)
         guard buildMeshes() else { return nil }
+
+        if let path = ProcessInfo.processInfo.environment["JW_CHARACTER_MODEL"], !path.isEmpty {
+            importedModelPath = path
+            importedProfile = Self.profile(besideModel: path)
+        }
+    }
+
+    /// Reads `<model>.rig.json` if the model has one. Everything in it is optional; a
+    /// Mixamo-named, Y-up, +Z-facing character needs no file at all.
+    static func profile(besideModel path: String) -> HumanoidProfile {
+        let sidecar = (path as NSString).deletingPathExtension + ".rig.json"
+        guard let url = AssetLocator.url(for: sidecar),
+              let data = try? Data(contentsOf: url),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        else { return .standard }
+        Log.render("Imported character: using profile '\(sidecar)'")
+        return HumanoidProfile(json: json)
     }
 
     // MARK: - Setup
@@ -170,8 +211,8 @@ final class CharacterRenderer {
         // Torso and pelvis are hand-authored silhouettes rather than squashed capsules: a
         // capsule cannot have a shoulder line and a waist, and without those a character is a
         // pill with a beautifully modelled head on top.
-        var torso = MeshFactory.revolved(profile: CharacterRig.torsoProfile, radialSegments: 24)
-        MeshFactory.applyScale(&torso, CharacterRig.torsoSquash)
+        let torso = MeshFactory.revolvedElliptical(profile: CharacterRig.torsoProfile,
+                                                   radialSegments: 28)
 
         var pelvis = MeshFactory.revolved(profile: CharacterRig.pelvisProfile, radialSegments: 24)
         MeshFactory.applyScale(&pelvis, CharacterRig.pelvisSquash)
@@ -494,7 +535,14 @@ final class CharacterRenderer {
         encoder.setFragmentTexture(clipTexture ?? whiteTexture, index: 1)
 
         let shadowPass = !includeProps
-        if !drawSkinnedBody(pose: pose, viewProjection: viewProjection,
+
+        // An imported character is the whole body — head, hair and shoes included — so when one
+        // draws, the three rigid models that dress the procedural rig are skipped with it.
+        let importedDrew = drawImportedBody(pose: pose, viewProjection: viewProjection,
+                                            encoder: encoder, shadowPass: shadowPass)
+
+        if !importedDrew,
+           !drawSkinnedBody(pose: pose, viewProjection: viewProjection,
                             encoder: encoder, shadowPass: shadowPass) {
             for (part, transform) in pose.parts {
                 if shadowPass && part.isJointFiller { continue }
@@ -506,13 +554,97 @@ final class CharacterRenderer {
             }
         }
 
-        drawHead(pose: pose, viewProjection: viewProjection, encoder: encoder)
-        drawShoes(pose: pose, viewProjection: viewProjection, encoder: encoder)
+        if !importedDrew {
+            drawHead(pose: pose, viewProjection: viewProjection, encoder: encoder)
+            drawShoes(pose: pose, viewProjection: viewProjection, encoder: encoder)
+        }
         drawHolding(pose: pose, viewProjection: viewProjection, encoder: encoder)
 
         if includeProps {
             drawProps(pose: pose, transparent: false, viewProjection: viewProjection, encoder: encoder)
         }
+    }
+
+    /// Draws a bought, rigged character in place of the procedural body, and returns `false` if
+    /// there is none set, it has not finished loading, or it failed.
+    ///
+    /// The pose it is handed is **the same pose the procedural body gets** — `CharacterRig` has
+    /// no idea any of this exists. `HumanoidRetargeter.solve` is the whole difference: it turns
+    /// the rig's per-`RigPart` transforms into one skinning matrix per joint of somebody else's
+    /// skeleton, keeping that skeleton's own proportions. See `HumanoidRig.swift`.
+    private func drawImportedBody(pose: RigPose,
+                                  viewProjection: Float4x4,
+                                  encoder: MTLRenderCommandEncoder,
+                                  shadowPass: Bool) -> Bool {
+        guard let path = importedModelPath, let pipelines else { return false }
+
+        guard let body = importedBodies.body(path) else {
+            // Not resident yet. Ask again — `request` is cheap once it is loading — and let the
+            // procedural body draw this frame, so a character never blinks out while it loads.
+            importedBodies.request(path: path, profile: importedProfile)
+            return false
+        }
+
+        let retargeter = retargeters[path] ?? {
+            let made = HumanoidRetargeter(skeleton: body.skeleton)
+            retargeters[path] = made
+            return made
+        }()
+        retargeter.solve(pose: pose, into: &importedJoints)
+
+        let byteLength = MemoryLayout<Float4x4>.stride * body.skeleton.jointCount
+        if importedJointBuffer == nil || importedJointBuffer!.length < byteLength {
+            importedJointBuffer = device.makeBuffer(length: byteLength, options: .storageModeShared)
+        }
+        guard let jointBuffer = importedJointBuffer else { return false }
+        importedJoints.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            jointBuffer.contents().copyMemory(from: base, byteCount: byteLength)
+        }
+
+        // The palette is still bound because the shared vertex function reads it, but nothing
+        // downstream uses it: `clothed: false` sends the fragment to its textured branch, where
+        // the colour is the model's own map times slot 0.
+        palette[0] = body.baseColor
+        palette[SkinnedBody.paletteCount] = SIMD4(body.roughness, body.metalness, 0, 0)
+
+        var uniforms = CharacterUniforms(
+            modelViewProjection: viewProjection,
+            model: matrix_identity_float4x4,
+            color: SIMD4(1, 1, 1, 1),
+            clipParams: SIMD4(pose.worldPivot.x, pose.worldPivot.y, clipMapSize.x, clipMapSize.y),
+            textured: body.baseColorTexture != nil,
+            unlit: false,
+            material: SurfaceMaterial(roughness: body.roughness, metalness: body.metalness),
+            clothed: false
+        )
+
+        encoder.setRenderPipelineState(shadowPass ? pipelines.shadowSkinned : pipelines.skinned)
+        encoder.setVertexBuffer(body.vertexBuffer, offset: 0, index: 0)
+        encoder.setVertexBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
+        encoder.setVertexBuffer(jointBuffer, offset: 0, index: 2)
+        if !shadowPass {
+            encoder.setVertexBytes(&palette,
+                                   length: MemoryLayout<SIMD4<Float>>.stride * SkinnedBody.paletteCount * 2,
+                                   index: 3)
+            encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
+            encoder.setFragmentTexture(body.baseColorTexture ?? whiteTexture, index: 0)
+            encoder.setFragmentTexture(whiteTexture, index: 3)
+        }
+        encoder.drawIndexedPrimitives(type: .triangle,
+                                      indexCount: body.indexCount,
+                                      indexType: .uint32,
+                                      indexBuffer: body.indexBuffer,
+                                      indexBufferOffset: 0)
+
+        encoder.setRenderPipelineState(shadowPass ? pipelines.shadowRigid : pipelines.rigid)
+        return true
+    }
+
+    /// The skeleton report for the model in use, for the lab to print.
+    var importedReport: String? {
+        guard let path = importedModelPath else { return nil }
+        return importedBodies.reports[path]
     }
 
     /// Draws the body as one skinned mesh, and returns `false` if it could not — either because

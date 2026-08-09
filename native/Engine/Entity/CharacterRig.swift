@@ -246,28 +246,83 @@ enum CharacterRig {
     // envelope, so a character still fits the doorways, nameplates and clip mask it always did.
     // Widen them and you will find the walls first.
 
-    /// Where the torso mesh is centred, and how it is squashed. Front-to-back is much thinner
-    /// than side-to-side, which is what stops a character reading as a barrel from overhead —
-    /// the angle almost every camera in this game looks from.
+    /// Where the torso mesh is centred. Its own y = 0 sits here, so a ring at y = 6.4 is at
+    /// rig z 26.4 — which is the arithmetic every number in `torsoProfile` was chosen by.
     static let torsoCentreZ: Float = 20
-    static let torsoSquash = SIMD3<Float>(0.62, 1, 1.12)
 
-    /// Shirt: hem, waist, chest and the slope up into the neck. Read bottom to top; the radius
-    /// is before `torsoSquash`, so the widest point comes out at 9.3 × 1.12 = 10.4 across.
-    static let torsoProfile: [(y: Float, radius: Float)] = [
-        (-6.4, 0.0),    // closed, and buried inside the pelvis
-        (-6.0, 7.2),
-        (-4.6, 8.0),    // hem — wider than the shorts underneath it, so it hangs over them
-        (-2.4, 7.9),    // waist — the narrowest point above the hips
-        ( 0.8, 8.4),
-        ( 4.0, 9.0),
-        ( 6.6, 9.3),    // chest, widest
-        ( 8.6, 9.2),
-        (10.2, 8.6),    // shoulder yoke
-        (11.4, 7.0),    // trapezius, sloping in
-        (12.5, 5.0),
-        (13.2, 3.6),    // neck root
-        (13.6, 0.0),    // closed, under the neck
+    /// **The shirt: hem, waist, chest, shoulder and the turn into the neck.**
+    ///
+    /// Read bottom to top. `halfDepth` is front-to-back and `halfWidth` side-to-side, both as
+    /// finished sizes — there is no squash applied afterwards any more, and that is the change
+    /// this profile exists for.
+    ///
+    /// **It used to be one radius per ring and a single `torsoSquash` of (0.62, 1, 1.12) over
+    /// the lot.** One aspect ratio for the whole torso is the reason these characters had no
+    /// shoulders: the widest the shirt could get at the top without also becoming a barrel
+    /// front-to-back was about 9.6 half-width, which is *less* than the deltoid standing 13.7
+    /// out beside it. So the top of the body domed away from the arm rather than reaching over
+    /// it, the arm's cap was the widest thing at its own height, and what a camera found was two
+    /// green balls bolted to the sides of an egg. A shoulder is not a ball on a body, it is the
+    /// body coming out to meet the arm, and a single squash cannot say that.
+    ///
+    /// So the shape now changes as it climbs — **wide and shallow at the shoulder, narrower and
+    /// deep at the chest, tucked in both ways at the waist**:
+    ///
+    /// | rig z | what | half-width | was |
+    /// |---|---|---|---|
+    /// | 26.4 | chest, deepest | 10.3 | 10.4 |
+    /// | 28.4 | shoulder, widest | 10.4 | ~10.3 |
+    /// | 30.0 | acromion — over the top of the deltoid | 10.2 | 9.6 |
+    /// | 31.3 | trapezius | 8.6 | 7.8 |
+    ///
+    /// The width at the widest point is deliberately **unchanged**: 10.4 is what the old
+    /// envelope note at the top of this section allows, and the doorways and the clip mask are
+    /// built to it. What moved is *where* the width is — up by about two units, so there is
+    /// finally some shoulder above the joint the arm hangs off at z 26 — and how deep the body
+    /// is at each height, which is what the old form could not vary at all.
+    ///
+    /// **The bottom of the shirt is open, and hangs 1.5 units lower than it did.** That is the
+    /// other half of this change, and it is what finally takes off the **black arrowhead at the
+    /// navel** — the hard dark chevron across every character's belly that sessions 3 and 4 both
+    /// went after and neither removed.
+    ///
+    /// It is not a shadow. Sampled off a render, those pixels come back (18, 27, 37) against a
+    /// shirt of (26, 128, 69): they are **shorts**, seen where the shorts stand outside the
+    /// shirt. The two are separate solids and neither knows about the other, so somewhere there
+    /// is a ring where they swap over — and the old pair swapped over while running *nearly
+    /// parallel*, a closing disc grazing a closing cone with under half a unit between them for
+    /// two units of height. A seam between two surfaces that near-tangent is not a line, it is a
+    /// region, and every wobble the skinning puts into either one pushes a piece of shorts out
+    /// through the shirt. That is the chevron, and no amount of shading fixes a surface that is
+    /// genuinely in front.
+    ///
+    /// So there is no closing dome any more. The shirt is a **tube whose bottom rim is simply
+    /// left open** at z 11.6, more than a unit inside the shorts, where nothing can see it — and
+    /// its wall runs steeply from there, crossing the shorts at about z 12.2 and standing over a
+    /// unit clear of them by z 12.8. One crossing, at a steep angle, with margin either side.
+    ///
+    /// Leaving it open costs nothing: the rim is buried in a solid, so its back faces are never
+    /// drawn and its hole never lets the shadow map through.
+    ///
+    /// ⚠️ **The profile's floor moved, so every `v` on the shirt moved.** They are written as rig
+    /// heights now rather than as fractions — see `ClothingAtlas.shirtV` — so this is the last
+    /// time that costs anything.
+    static let torsoProfile: [(y: Float, halfDepth: Float, halfWidth: Float)] = [
+        (-8.4,  3.7,  6.5),    // z 11.6 — the open rim, buried well inside the shorts
+        (-7.6,  4.5,  7.9),    // z 12.4 — crosses the shorts just below here
+        (-6.8,  4.95, 8.65),   // z 13.2 — and is a clear unit outside them by here
+        (-6.0,  5.15, 8.95),   // z 14.0 — the hem edge, and the widest the shirt gets down here
+        (-4.5,  5.05, 8.8),    // z 15.5
+        (-2.1,  4.8,  8.5),    // z 17.9 — waist, the narrowest point above the hips
+        ( 1.0,  5.1,  9.0),    // z 21.0
+        ( 4.0,  5.6,  9.8),    // z 24.0 — lower ribs
+        ( 6.4,  5.8, 10.3),    // z 26.4 — chest, the deepest ring front to back
+        ( 8.4,  5.5, 10.4),    // z 28.4 — shoulder, the widest ring
+        (10.0,  5.0, 10.2),    // z 30.0 — acromion: still wide, reaching out over the deltoid
+        (11.3,  4.3,  8.6),    // z 31.3 — trapezius, turning in
+        (12.3,  3.4,  6.2),    // z 32.3
+        (13.0,  2.9,  4.3),    // z 33.0 — neck root
+        (13.6,  0.0,  0.0),    // z 33.6 — closed, under the neck
     ]
 
     /// Shorts. Its own solid rather than a colour band on the torso, because the two want
@@ -1404,14 +1459,29 @@ enum CharacterRig {
         }
 
         // --- Shoes (`resolveInverseKinematics:1073-1078`, `loadSharedModels:86-89`) ---
-        // The shoe yaws to follow the shin's pitch; the model itself is rotated out of its
-        // Y-up export into the game's X-forward / Z-up frame.
+        //
+        // The shoe pitches to follow the shin, staying square to it the way an ankle with no
+        // joint of its own does; the model itself is rotated out of its Y-up export into the
+        // game's X-forward / Z-up frame.
+        //
+        // **The pitch used to read `shin.y`, which is sideways.** In this frame — the character's
+        // own, +X forward, +Y left, +Z up — a leg swinging fore and aft moves entirely in X and
+        // Z, so the old angle came out 0 for the whole of every gait and the shoes stayed dead
+        // level from heel strike to push-off. It only ever moved on the small sideways component
+        // a hip abduction leaves, which is a shoe rolling for no reason rather than pitching for
+        // a good one. The line reads as a faithful port of a three.js expression whose Y *was*
+        // up; here it is not.
+        //
+        // Square to the shin means the shin's own rotation away from vertical, applied backwards:
+        // `rotationY` takes +X down as its angle grows, and a shin leaning forward should take
+        // the toe *up*. Hence the negated X. Straight down is still 0, so a standing character's
+        // feet are flat, exactly as before.
         let leftShin = leftAnkle - leftKnee
         let rightShin = rightAnkle - rightKnee
         let leftShoeGroup = bodyPivot * Float4x4.translation(leftAnkle)
-            * Float4x4.rotationY(atan2(leftShin.y, -leftShin.z))
+            * Float4x4.rotationY(atan2(-leftShin.x, -leftShin.z))
         let rightShoeGroup = bodyPivot * Float4x4.translation(rightAnkle)
-            * Float4x4.rotationY(atan2(rightShin.y, -rightShin.z))
+            * Float4x4.rotationY(atan2(-rightShin.x, -rightShin.z))
 
         let shoeModelLocal = Float4x4.eulerXYZ(0, .pi / 2, .pi / 2)
             * Float4x4.scale(SIMD3(repeating: shoeScale))

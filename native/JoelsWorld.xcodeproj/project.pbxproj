@@ -543,20 +543,20 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A1000000000000000000053 /* Build configuration list for PBXNativeTarget "CharacterLab" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1000000000000000000066 /* Debug */,
-				A1000000000000000000067 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		A1000000000000000000051 /* Build configuration list for PBXProject "JoelsWorld" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1000000000000000000060 /* Debug */,
 				A1000000000000000000061 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1000000000000000000053 /* Build configuration list for PBXNativeTarget "CharacterLab" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000000000000000000066 /* Debug */,
+				A1000000000000000000067 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
