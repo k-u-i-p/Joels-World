@@ -54,10 +54,48 @@ struct GLTFPrimitive {
     var transmission: Float
 }
 
+/// One vertex of a skinned mesh. Carries the two attributes `MeshVertex` has no room for.
+struct GLTFSkinVertex {
+    var position: SIMD3<Float>
+    var normal: SIMD3<Float>
+    var uv: SIMD2<Float>
+    /// Indices into `GLTFSkinnedMesh.jointNames`.
+    var joints: SIMD4<UInt16>
+    /// How much each of `joints` moves this vertex. Renormalised to sum to 1 on load.
+    var weights: SIMD4<Float>
+}
+
+/// A skinned mesh and the skeleton that deforms it, both in the mesh's own space.
+///
+/// Unlike `GLTFPrimitive` **nothing is baked**. A skinned mesh's own node transform is ignored
+/// by the glTF spec — the joints define where the vertices go — so baking it would apply the
+/// file's root scale twice. The bind pose lives entirely in `inverseBind`: joint `j`'s bind
+/// world transform is `inverseBind[j].inverse`, in the same space as `vertices`. That holds
+/// even for this model, whose 52 joint nodes all carry an identity local transform and keep
+/// the whole rest pose in the inverse-bind matrices.
+struct GLTFSkinnedMesh {
+    var vertices: [GLTFSkinVertex]
+    var indices: [UInt32]
+    /// Joint node names, in the order `GLTFSkinVertex.joints` indexes them.
+    var jointNames: [String]
+    /// `bind⁻¹` per joint.
+    var inverseBind: [Float4x4]
+    /// Each joint's parent as an index into `jointNames`, or nil where the joint is a root of
+    /// the skin. Derived from the node hierarchy, not from the matrices.
+    var parents: [Int?]
+    var baseColorImage: Int?
+    var normalImage: Int?
+    var baseColor: SIMD4<Float>
+    var roughness: Float
+    var metalness: Float
+}
+
 struct GLTFAsset {
     var primitives: [GLTFPrimitive]
     /// Encoded image bytes (PNG/JPEG), indexed by the order textures reference them.
     var images: [Int: Data]
+    /// Skinned meshes, which take an entirely separate path — see `GLTFSkinnedMesh`.
+    var skinnedMeshes: [GLTFSkinnedMesh] = []
 }
 
 enum GLTFError: Error, CustomStringConvertible {
@@ -77,7 +115,8 @@ enum GLTFError: Error, CustomStringConvertible {
 }
 
 /// Minimal binary-glTF reader: geometry, node hierarchy, base-colour materials and embedded
-/// images. No skinning, animation or morph targets — see `GLTFPrimitive`.
+/// images, plus **skins** — see `GLTFSkinnedMesh`. No animation or morph targets: the character
+/// rig drives every skeleton in this game, so a file's own clips are of no use to us.
 enum GLTFLoader {
 
     // MARK: - Public entry point
@@ -109,6 +148,8 @@ enum GLTFLoader {
         }
 
         var primitives: [GLTFPrimitive] = []
+        var skinnedMeshes: [GLTFSkinnedMesh] = []
+        let skins = root["skins"] as? [[String: Any]] ?? []
 
         // Walk the scene graph so each primitive inherits its ancestors' transforms.
         let sceneIndex = root["scene"] as? Int ?? 0
@@ -126,6 +167,30 @@ enum GLTFLoader {
             let node = nodes[nodeIndex]
             let world = parent * localTransform(of: node)
             let name = (node["name"] as? String ?? "").lowercased()
+
+            // A skinned mesh takes the other path entirely: `world` is deliberately not passed,
+            // because the spec says a skinned mesh ignores its own node's transform.
+            if let meshIndex = node["mesh"] as? Int, meshes.indices.contains(meshIndex),
+               let skinIndex = node["skin"] as? Int, skins.indices.contains(skinIndex) {
+                for primitive in meshes[meshIndex]["primitives"] as? [[String: Any]] ?? [] {
+                    if let mode = primitive["mode"] as? Int, mode != 4 {
+                        Log.render("glTF: skipping skinned primitive with mode \(mode)")
+                        continue
+                    }
+                    if let parsed = buildSkinnedMesh(primitive,
+                                                     skin: skins[skinIndex],
+                                                     nodes: nodes,
+                                                     accessors: accessors,
+                                                     bufferViews: bufferViews,
+                                                     buffers: buffers,
+                                                     materials: materials,
+                                                     textures: textures) {
+                        skinnedMeshes.append(parsed)
+                    }
+                }
+                for child in node["children"] as? [Int] ?? [] { visit(child, parent: world) }
+                return
+            }
 
             if let meshIndex = node["mesh"] as? Int, meshes.indices.contains(meshIndex) {
                 let mesh = meshes[meshIndex]
@@ -164,7 +229,162 @@ enum GLTFLoader {
             }
         }
 
-        return GLTFAsset(primitives: primitives, images: images)
+        return GLTFAsset(primitives: primitives, images: images, skinnedMeshes: skinnedMeshes)
+    }
+
+    // MARK: - Skins
+
+    private static func buildSkinnedMesh(_ primitive: [String: Any],
+                                         skin: [String: Any],
+                                         nodes: [[String: Any]],
+                                         accessors: [[String: Any]],
+                                         bufferViews: [[String: Any]],
+                                         buffers: [Data],
+                                         materials: [[String: Any]],
+                                         textures: [[String: Any]]) -> GLTFSkinnedMesh? {
+        guard let attributes = primitive["attributes"] as? [String: Any],
+              let positionIndex = attributes["POSITION"] as? Int,
+              let positions = readAccessor(positionIndex, accessors: accessors,
+                                           bufferViews: bufferViews, buffers: buffers),
+              let jointIndex = attributes["JOINTS_0"] as? Int,
+              let jointData = readAccessor(jointIndex, accessors: accessors,
+                                           bufferViews: bufferViews, buffers: buffers),
+              let weightIndex = attributes["WEIGHTS_0"] as? Int,
+              let weightData = readAccessor(weightIndex, accessors: accessors,
+                                            bufferViews: bufferViews, buffers: buffers)
+        else {
+            Log.render("glTF: skinned primitive is missing POSITION, JOINTS_0 or WEIGHTS_0")
+            return nil
+        }
+
+        let count = positions.count / positions.componentsPerElement
+        guard count > 0 else { return nil }
+
+        if attributes["JOINTS_1"] != nil {
+            // Four influences is what the shader blends. A fifth would need a second vertex
+            // attribute and a second loop; no rig this game has met uses one.
+            Log.render("glTF: JOINTS_1 present and ignored — vertices with 5+ influences will deform loosely")
+        }
+
+        let jointNodes = skin["joints"] as? [Int] ?? []
+        guard !jointNodes.isEmpty else { return nil }
+
+        let jointNames = jointNodes.map { nodes.indices.contains($0)
+            ? (nodes[$0]["name"] as? String ?? "joint\($0)") : "joint\($0)" }
+
+        // Parents, from the node hierarchy rather than the matrices: a joint's parent is
+        // whichever joint lists it as a child. Joints whose parent is outside the skin (or
+        // absent) come back nil and are treated as roots.
+        var slotOfNode: [Int: Int] = [:]
+        for (slot, node) in jointNodes.enumerated() { slotOfNode[node] = slot }
+        var parents = [Int?](repeating: nil, count: jointNodes.count)
+        for (slot, node) in jointNodes.enumerated() {
+            guard nodes.indices.contains(node) else { continue }
+            for child in nodes[node]["children"] as? [Int] ?? [] {
+                if let childSlot = slotOfNode[child] { parents[childSlot] = slot }
+            }
+        }
+
+        // Inverse bind matrices. The spec allows the accessor to be absent, in which case every
+        // joint's inverse bind is the identity.
+        var inverseBind = [Float4x4](repeating: matrix_identity_float4x4, count: jointNodes.count)
+        if let ibmIndex = skin["inverseBindMatrices"] as? Int,
+           let ibm = readAccessor(ibmIndex, accessors: accessors,
+                                  bufferViews: bufferViews, buffers: buffers) {
+            for slot in 0..<min(jointNodes.count, ibm.count / 16) {
+                inverseBind[slot] = ibm.matrix4(at: slot)
+            }
+        }
+
+        var normals: AccessorData?
+        if let index = attributes["NORMAL"] as? Int {
+            normals = readAccessor(index, accessors: accessors, bufferViews: bufferViews, buffers: buffers)
+        }
+        var uvs: AccessorData?
+        if let index = attributes["TEXCOORD_0"] as? Int {
+            uvs = readAccessor(index, accessors: accessors, bufferViews: bufferViews, buffers: buffers)
+        }
+
+        var vertices: [GLTFSkinVertex] = []
+        vertices.reserveCapacity(count)
+
+        for i in 0..<count {
+            var normal = SIMD3<Float>(0, 0, 1)
+            if let normals, i * normals.componentsPerElement < normals.count {
+                let n = normals.vector3(at: i)
+                let length = simd_length(n)
+                normal = length > 1e-6 ? n / length : SIMD3(0, 0, 1)
+            }
+
+            var uv = SIMD2<Float>(0, 0)
+            if let uvs, i * uvs.componentsPerElement < uvs.count {
+                uv = uvs.vector2(at: i)
+            }
+
+            let rawJoints = jointData.vector4(at: i)
+            var weights = weightData.vector4(at: i)
+
+            // Exporters routinely leave weights summing to 0.998 or 1.002, and a normalised
+            // UNSIGNED_BYTE accessor cannot hit 1 exactly. Left alone that reads as a mesh that
+            // quietly shrinks towards the origin under animation.
+            let total = weights.x + weights.y + weights.z + weights.w
+            weights = total > 1e-5 ? weights / total : SIMD4(1, 0, 0, 0)
+
+            vertices.append(GLTFSkinVertex(
+                position: positions.vector3(at: i),
+                normal: normal,
+                uv: uv,
+                joints: SIMD4(UInt16(clamping: Int(rawJoints.x)), UInt16(clamping: Int(rawJoints.y)),
+                              UInt16(clamping: Int(rawJoints.z)), UInt16(clamping: Int(rawJoints.w))),
+                weights: weights))
+        }
+
+        var indices: [UInt32] = []
+        if let indexAccessor = primitive["indices"] as? Int,
+           let data = readAccessor(indexAccessor, accessors: accessors,
+                                   bufferViews: bufferViews, buffers: buffers) {
+            indices = data.asIndices()
+        } else {
+            indices = Array(0..<UInt32(count))
+        }
+
+        func imageSource(of reference: Any?) -> Int? {
+            guard let reference = reference as? [String: Any],
+                  let textureIndex = reference["index"] as? Int,
+                  textures.indices.contains(textureIndex)
+            else { return nil }
+            return textures[textureIndex]["source"] as? Int
+        }
+
+        var baseColor = SIMD4<Float>(1, 1, 1, 1)
+        var roughness: Float = 1
+        var metalness: Float = 1
+        var baseColorImage: Int?
+        var normalImage: Int?
+
+        if let materialIndex = primitive["material"] as? Int, materials.indices.contains(materialIndex) {
+            let material = materials[materialIndex]
+            if let pbr = material["pbrMetallicRoughness"] as? [String: Any] {
+                if let factor = pbr["baseColorFactor"] as? [Double], factor.count == 4 {
+                    baseColor = SIMD4(Float(factor[0]), Float(factor[1]), Float(factor[2]), Float(factor[3]))
+                }
+                if let factor = pbr["roughnessFactor"] as? Double { roughness = Float(factor) }
+                if let factor = pbr["metallicFactor"] as? Double { metalness = Float(factor) }
+                baseColorImage = imageSource(of: pbr["baseColorTexture"])
+            }
+            normalImage = imageSource(of: material["normalTexture"])
+        }
+
+        return GLTFSkinnedMesh(vertices: vertices,
+                               indices: indices,
+                               jointNames: jointNames,
+                               inverseBind: inverseBind,
+                               parents: parents,
+                               baseColorImage: baseColorImage,
+                               normalImage: normalImage,
+                               baseColor: baseColor,
+                               roughness: roughness,
+                               metalness: metalness)
     }
 
     // MARK: - Container
@@ -473,6 +693,22 @@ enum GLTFLoader {
             let base = index * componentsPerElement
             guard base + 2 < floats.count else { return .zero }
             return SIMD3(floats[base], floats[base + 1], floats[base + 2])
+        }
+
+        func vector4(at index: Int) -> SIMD4<Float> {
+            let base = index * componentsPerElement
+            guard base + 3 < floats.count else { return .zero }
+            return SIMD4(floats[base], floats[base + 1], floats[base + 2], floats[base + 3])
+        }
+
+        /// A MAT4 element. glTF stores matrices column-major, same as simd.
+        func matrix4(at index: Int) -> Float4x4 {
+            let base = index * componentsPerElement
+            guard base + 15 < floats.count else { return matrix_identity_float4x4 }
+            return Float4x4(columns: (SIMD4(floats[base], floats[base + 1], floats[base + 2], floats[base + 3]),
+                                      SIMD4(floats[base + 4], floats[base + 5], floats[base + 6], floats[base + 7]),
+                                      SIMD4(floats[base + 8], floats[base + 9], floats[base + 10], floats[base + 11]),
+                                      SIMD4(floats[base + 12], floats[base + 13], floats[base + 14], floats[base + 15])))
         }
 
         func asIndices() -> [UInt32] {
