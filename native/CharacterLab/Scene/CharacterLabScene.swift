@@ -366,13 +366,21 @@ final class CharacterLabScene: WorldRenderedMinigame {
         //
         // So the drop is scaled by `tan(pitch)` — the inverse of the term that produces it —
         // and `feetBelowCentre` then means what it says at any angle.
+        //
+        // **And it has to be taken along the camera's own axis, not along world −Y.** The drop
+        // is a move on the ground, and which way "down the screen" points on the ground depends
+        // on the yaw: at yaw 0 it is world −Y, but at the front view's π/2 it is world −X, and
+        // dropping along −Y there slides the subject *sideways* out of frame instead. That is
+        // exactly what it did — every view but `side` and `top` framed the character a fifth of
+        // the way in from the left edge, which read as the lab being unable to compose a shot.
         let visibleHeight = viewportHeight / camera.zoom
         let drop = Self.feetBelowCentre * visibleHeight * tan(camera.pitch)
-        // `Camera.update` applies a 15% drop of its own for the overworld's headroom; this is
-        // the whole drop, so its share is handed back.
+        let along = SIMD2(sin(camera.yaw), cos(camera.yaw)) * drop
+        // `Camera.update` applies a 15% drop of its own for the overworld's headroom; it applies
+        // it on world Y whatever the yaw, so its share is handed back on world Y alone.
         let focus = focusPoint
-        camera.update(playerX: focus.x,
-                      playerY: focus.y - drop + visibleHeight * 0.15,
+        camera.update(playerX: focus.x - along.x,
+                      playerY: focus.y - along.y + visibleHeight * 0.15,
                       viewport: viewport,
                       mapData: nil)
     }

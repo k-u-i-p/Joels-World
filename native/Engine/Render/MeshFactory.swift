@@ -118,6 +118,68 @@ enum MeshFactory {
         return lathe(profile: profile, radialSegments: radialSegments)
     }
 
+    /// Stitches a stack of rings into one closed surface, with a point at each end.
+    ///
+    /// **A lathe cannot describe a hand.** Everything else on this body is round about an axis,
+    /// and `revolved` is exactly the right tool for a torso or a leg; a hand is flat one way,
+    /// wide the other, and has four fingers cut into its far half. That is three things a single
+    /// radius per height cannot say. This is the same idea with the radius replaced by a whole
+    /// ring — the caller decides where every point of every ring goes, and this only joins them
+    /// up.
+    ///
+    /// Every ring must have the same number of points, wound the way `lathe` winds its own so
+    /// that a lofted part and a revolved one can sit in the same mesh without one of them being
+    /// inside-out. The caller's UVs are kept: a loft is used where the parameterisation *means*
+    /// something, which is the whole reason it is not a lathe.
+    ///
+    /// `capStart` and `capEnd` close the ends. Passing nil leaves a tube open, which is only
+    /// ever right when something else covers the hole.
+    static func loft(rings: [[MeshVertex]],
+                     capStart: MeshVertex? = nil,
+                     capEnd: MeshVertex? = nil) -> MeshData {
+        guard let segments = rings.first?.count, segments >= 3, rings.count >= 2,
+              rings.allSatisfy({ $0.count == segments }) else {
+            return MeshData(vertices: [], indices: [])
+        }
+
+        var vertices: [MeshVertex] = []
+        vertices.reserveCapacity(rings.count * segments + 2)
+        for ring in rings { vertices.append(contentsOf: ring) }
+
+        var indices: [UInt32] = []
+        for row in 0..<(rings.count - 1) {
+            let lower = row * segments, upper = (row + 1) * segments
+            for segment in 0..<segments {
+                let next = (segment + 1) % segments
+                let a = UInt32(lower + segment), b = UInt32(lower + next)
+                let c = UInt32(upper + next), d = UInt32(upper + segment)
+                indices.append(contentsOf: [a, d, c, a, c, b])
+            }
+        }
+
+        if let capStart {
+            let apex = UInt32(vertices.count)
+            vertices.append(capStart)
+            for segment in 0..<segments {
+                let next = (segment + 1) % segments
+                indices.append(contentsOf: [apex, UInt32(segment), UInt32(next)])
+            }
+        }
+        if let capEnd {
+            let apex = UInt32(vertices.count)
+            vertices.append(capEnd)
+            let last = (rings.count - 1) * segments
+            for segment in 0..<segments {
+                let next = (segment + 1) % segments
+                indices.append(contentsOf: [apex, UInt32(last + next), UInt32(last + segment)])
+            }
+        }
+
+        var mesh = MeshData(vertices: vertices, indices: indices)
+        recomputeNormals(&mesh)
+        return mesh
+    }
+
     /// Concatenates several meshes into one, so a shape made of parts costs one draw call.
     ///
     /// The character rig is drawn twice per character — scene and shadow map — and every part is

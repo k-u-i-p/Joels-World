@@ -282,37 +282,105 @@ final class CharacterRenderer {
         return whiteTexture != nil
     }
 
-    /// The right hand: a wrist, a palm, a finger block and a thumb, merged into one mesh.
+    /// **The right hand**: a lofted palm, four tapered fingers rooted inside it, and a thumb.
     ///
-    /// Ellipsoids rather than boxes, because everything else on this body is a lathe and a hard
-    /// edge in among them reads as a modelling mistake rather than as a knuckle. The thumb is
-    /// the one piece that has to be placed rather than scaled — it leaves the palm's plane, and
-    /// a scaled sphere cannot do that.
+    /// It was three ellipsoids and a capsule merged, which read as a bunch of bananas: three
+    /// closed surfaces pushed into each other, creasing wherever they crossed, and none of them
+    /// the shape of any part of a hand. The attempt after that made the whole hand one loft with
+    /// the fingers pressed into it as grooves, and the shape that came out was a **flipper** — a
+    /// ring tapering to nothing at the far end is a paddle whatever is grooved into it.
+    ///
+    /// So: a palm that is a loft, because a palm is one smooth flattened form and a lathe cannot
+    /// make one; and fingers that are separate solids, because four rounded tips at four
+    /// different heights is what a hand's silhouette *is*. Intersecting surfaces are not the
+    /// problem they were — a finger really does emerge from a palm and really does crease where
+    /// it does, and every root here is buried a unit and a half inside, so no crease lands
+    /// anywhere but at a knuckle.
+    ///
+    /// **The UVs are anatomical and they are kept.** `u` folds about the back: 0 down the middle
+    /// of the back of the hand, 0.5 at either edge, 1 down the middle of the palm — the same
+    /// fold the torso uses, and for the same reason (see `ClothingAtlas.uv`). Each finger folds
+    /// about its own centre line, so the underside of every finger is the shaded side. `v` runs
+    /// 0 at the buried wrist ring to 1 at `fingerReach`. `SkinnedBody` reads them straight
+    /// through: an angle round a ring is known where the ring is made and nowhere afterwards.
     static func buildHand() -> MeshData {
-        func blob(radii: SIMD3<Float>, at centre: SIMD3<Float>) -> MeshData {
-            var mesh = MeshFactory.sphere(radius: 1, widthSegments: 14, heightSegments: 12)
-            MeshFactory.applyScale(&mesh, radii)
-            return MeshFactory.translated(mesh, by: centre)
+        let hand = CharacterRig.Hand.self
+        let profile = hand.palmProfile
+        let firstY = profile.first?.y ?? 0
+        let span = max(hand.fingerReach - firstY, 1e-4)
+
+        /// Where a point in the hand's own space lands in the atlas. `centre` is the axis the
+        /// fold is taken about — the palm's is the middle of the hand, a finger's is its own.
+        func place(_ position: SIMD3<Float>, foldedAbout centre: Float) -> SIMD2<Float> {
+            // Measured from +X, the back of the hand, and folded so both edges arrive at 0.5.
+            var fromBack = abs(atan2(position.z - centre, position.x))
+            if fromBack > .pi { fromBack = 2 * .pi - fromBack }
+            return SIMD2(fromBack / .pi, min(max((position.y - firstY) / span, 0), 1))
         }
 
-        var thumb = MeshFactory.capsule(radius: CharacterRig.Hand.thumbRadius,
-                                        length: CharacterRig.Hand.thumbLength,
-                                        capSegments: 5, radialSegments: 10)
-        MeshFactory.applyRotation(&thumb, .rotationX(CharacterRig.Hand.thumbSplay))
-        // The capsule is centred on its own middle, so it has to be pushed half its length
-        // along the splayed axis before it starts at the root rather than through it.
-        let half = CharacterRig.Hand.thumbLength / 2
-        let along = SIMD3<Float>(0,
-                                 half * cos(CharacterRig.Hand.thumbSplay),
-                                 half * sin(CharacterRig.Hand.thumbSplay))
-        thumb = MeshFactory.translated(thumb, by: CharacterRig.Hand.thumbRoot + along)
+        var rings: [[MeshVertex]] = []
+        for ring in profile {
+            var points: [MeshVertex] = []
+            for segment in 0..<hand.radialSegments {
+                // The same winding `lathe` uses — angle 0 at +Z, turning towards +X — so a
+                // lofted part and a revolved one can share a mesh without one being inside-out.
+                let angle = Float(segment) / Float(hand.radialSegments) * 2 * .pi
+                let position = SIMD3(ring.through * sin(angle), ring.y, ring.across * cos(angle))
+                points.append(MeshVertex(position: position, normal: .zero,
+                                         uv: place(position, foldedAbout: 0)))
+            }
+            rings.append(points)
+        }
+        // No end caps: the first and last rings of the profile have no radius at all, so both
+        // ends are closed already.
+        var parts = [MeshFactory.loft(rings: rings)]
 
-        return MeshFactory.merge([
-            blob(radii: CharacterRig.Hand.wristRadii, at: CharacterRig.Hand.wristCentre),
-            blob(radii: CharacterRig.Hand.palmRadii, at: CharacterRig.Hand.palmCentre),
-            blob(radii: CharacterRig.Hand.fingersRadii, at: CharacterRig.Hand.fingersCentre),
-            thumb,
-        ])
+        // The fingers. Each is curled towards the palm and fanned out from the middle of the
+        // hand, in that order — the curl is about +Z and the fan about +X, and doing the fan
+        // first would carry the curl out of the plane it is meant to be in.
+        for finger in hand.fingers {
+            let curl = hand.fingerCurl
+            let spread = finger.across * hand.fingerSpread
+            var mesh = MeshFactory.limb(length: finger.length,
+                                        radiusStart: finger.radius,
+                                        radiusEnd: finger.radius * hand.fingerTaper,
+                                        radialSegments: hand.fingerSegments, capSegments: 4)
+            MeshFactory.applyRotation(&mesh, .rotationZ(curl))
+            MeshFactory.applyRotation(&mesh, .rotationX(spread))
+            let axis = SIMD3<Float>(-sin(curl), cos(curl) * cos(spread), cos(curl) * sin(spread))
+            let root = SIMD3<Float>(0, finger.root, finger.across)
+            mesh = MeshFactory.translated(mesh, by: root + axis * (finger.length / 2))
+            // `limb` writes a lathe's own parameterisation, which means nothing here. A finger
+            // folds about its own centre line, so its underside reads as its underside.
+            for index in mesh.vertices.indices {
+                mesh.vertices[index].uv = place(mesh.vertices[index].position,
+                                                foldedAbout: finger.across)
+            }
+            parts.append(mesh)
+        }
+
+        // The thumb: tapered, domed both ends, swung out of the palm's plane and then forward.
+        // Same order, and the same reason.
+        var thumb = MeshFactory.limb(length: hand.thumbLength,
+                                     radiusStart: hand.thumbRadiusRoot,
+                                     radiusEnd: hand.thumbRadiusTip,
+                                     radialSegments: 12, capSegments: 5)
+        MeshFactory.applyRotation(&thumb, .rotationZ(hand.thumbForward))
+        MeshFactory.applyRotation(&thumb, .rotationX(hand.thumbSplay))
+        // `limb` is centred on its own middle, so it is pushed half its length along the axis
+        // those two rotations left it pointing down, or it starts through the palm rather than
+        // at the root.
+        let thumbAxis = SIMD3<Float>(-sin(hand.thumbForward),
+                                     cos(hand.thumbForward) * cos(hand.thumbSplay),
+                                     cos(hand.thumbForward) * sin(hand.thumbSplay))
+        thumb = MeshFactory.translated(thumb, by: hand.thumbRoot + thumbAxis * (hand.thumbLength / 2))
+        for index in thumb.vertices.indices {
+            thumb.vertices[index].uv = place(thumb.vertices[index].position,
+                                             foldedAbout: hand.thumbRoot.z)
+        }
+        parts.append(thumb)
+
+        return MeshFactory.merge(parts)
     }
 
     /// Every geometry the emote table instantiates, with the constructor arguments and the

@@ -341,26 +341,106 @@ enum CharacterRig {
     /// domed forearm reaching a full radius past the wrist and a mitt too short to cover it,
     /// which came out as a bracelet with a thumb poking through the end.
     enum Hand {
-        /// Wrist. Flatter than the forearm is round, which is what a wrist is.
-        static let wristCentre = SIMD3<Float>(0, 0.1, 0)
-        static let wristRadii = SIMD3<Float>(1.95, 1.7, 2.3)
+        /// **The palm, as a stack of rings** — inside the forearm, the wrist, the heel, and the
+        /// dome that closes over the knuckles.
+        ///
+        /// It was three ellipsoids and a capsule merged, and it read as a bunch of bananas from
+        /// every angle: three closed surfaces pushed into each other leave a crease everywhere
+        /// they cross, and nothing about a stack of spheres says "hand".
+        ///
+        /// `through` is the half-thickness front to back — the palm's own axis, local X — and
+        /// `across` is the half-width over the knuckles, local Z. A palm is about 1.7 times as
+        /// wide as it is thick; the wrist is nearly round, because the forearm it butts onto is.
+        ///
+        /// The first ring is **inside the forearm**: the arm closes flush at the wrist plane
+        /// (`domeEnd: false`) and something has to fill the last of the tube, or a raised arm
+        /// shows daylight through the joint. Both ends close on a ring of no radius rather than
+        /// on an apex vertex, which `MeshFactory.loft` reads as "already closed".
+        /// **Where this crosses the forearm matters more than any other number here.** The arm
+        /// closes 0.7 short of the wrist plane (`SkinnedBody.appendArms`, `tipInset`), so it is a
+        /// blunt 2.38 at y −0.7 and nothing at 0. The palm has to be *inside* it below that and
+        /// *outside* it above, and the shorter the band the two share, the tidier the crease. It
+        /// crosses at about −0.2.
+        static let palmProfile: [(y: Float, through: Float, across: Float)] = [
+            (-2.30, 0.00, 0.00),    // closed
+            (-1.60, 1.30, 1.40),    // well inside the forearm
+            (-0.80, 2.00, 2.08),    // still inside it
+            (-0.25, 2.28, 2.38),    // and out through it
+            ( 0.30, 2.25, 2.40),    // the wrist
+            ( 1.30, 1.98, 2.38),    // the heel, flattening as it widens
+            ( 2.20, 1.65, 2.40),
+            ( 3.00, 1.45, 2.40),    // the knuckles — widest, and thinnest front to back
+            ( 3.40, 1.28, 2.20),
+            ( 3.70, 0.90, 1.60),    // the dome the fingers come out of
+            ( 3.90, 0.42, 0.80),
+            ( 4.00, 0.00, 0.00),    // closed
+        ]
 
-        /// Palm. Widest across the knuckles and thin front-to-back.
-        static let palmCentre = SIMD3<Float>(0, 2.2, 0.05)
-        static let palmRadii = SIMD3<Float>(1.7, 2.8, 2.65)
+        /// How many points go round each ring of the palm. The fingers use fewer.
+        static let radialSegments = 20
 
-        /// The four fingers, as one block. Modelling them separately at this scale buys nothing
-        /// but triangles: on the cameras this game is played from a finger is under a pixel.
-        static let fingersCentre = SIMD3<Float>(0, 4.9, 0.15)
-        static let fingersRadii = SIMD3<Float>(1.4, 2.0, 2.4)
+        // MARK: The fingers
 
-        /// Thumb. A capsule swung out of the palm's plane towards +Z, which is the whole point
-        /// of having a basis for the forearm rather than a direction.
-        static let thumbRadius: Float = 1.1
-        static let thumbLength: Float = 2.4
-        /// Radians about +X: tips the capsule's +Y axis towards +Z.
-        static let thumbSplay: Float = 0.9
-        static let thumbRoot = SIMD3<Float>(0.1, 1.6, 1.85)
+        /// **Four fingers, each its own tapered solid, rooted inside the palm.**
+        ///
+        /// The attempt before this cut them as grooves into one lofted mitt, and the shape that
+        /// came out was a flipper: a ring that tapers to nothing at the far end is a paddle, and
+        /// no depth of groove changes what the silhouette is doing. Four fingers of four
+        /// different lengths, ending in four rounded tips, is the shape — and the intersection
+        /// that made the old hand a bunch of bananas is not a problem here, because a finger
+        /// really does emerge from a palm and really does crease where it does. The roots are
+        /// buried a unit and a half inside, so the crease is never anywhere but at the knuckle.
+        ///
+        /// `across` is local Z, positive towards the thumb, so the first of these is the index.
+        /// `root` is where the finger's own axis starts, well inside the palm; `length` is the
+        /// shaft, before the domed ends add a radius at each.
+        ///
+        /// **They overlap on purpose.** Neighbouring centres are 1.10 apart and the radii add up
+        /// to 1.40, so each pair fuses along its length and what shows between them is a groove
+        /// rather than daylight. Four separate rods with air between them is a skeleton hand; the
+        /// fingers of a relaxed hand touch.
+        static let fingers: [(across: Float, root: Float, length: Float, radius: Float)] = [
+            ( 1.66, 2.30, 3.15, 0.70),  // index
+            ( 0.56, 2.50, 3.65, 0.72),  // middle — the longest
+            (-0.56, 2.45, 3.35, 0.70),  // ring
+            (-1.66, 2.25, 2.70, 0.63),  // little
+        ]
+        /// The tip's radius as a fraction of the root's.
+        static let fingerTaper: Float = 0.86
+        /// How many points go round a finger. They are half a unit across on a character 66
+        /// units tall; ten is already more than the silhouette can show.
+        static let fingerSegments = 10
+
+        /// **The curl.** Radians about +Z, which tips a finger towards −X — the palm side. A hand
+        /// at rest is not flat and its fingers are not straight; this is most of what stops the
+        /// hand reading as a rubber glove.
+        static let fingerCurl: Float = 0.34
+        /// How far the fingers fan apart, in radians per unit of `across`. Very little: enough
+        /// that the grooves between them open towards the tips, not enough to break the overlap.
+        static let fingerSpread: Float = 0.015
+        /// How far the fingertips reach, for the atlas's `v`. Not derived from the table above —
+        /// it is where the middle finger's tip lands once curl and spread have had their say, and
+        /// it only has to be close.
+        static let fingerReach: Float = 6.7
+
+        // MARK: The thumb
+
+        /// The thumb is the one piece that has to be placed rather than cut, because it leaves
+        /// the palm's plane — which is the whole point of the forearm carrying a basis rather
+        /// than a direction. Tapered, and rooted deep enough inside the palm that the seam where
+        /// the two surfaces cross is never outside the body.
+        /// The tip lands about a unit past the widest part of the palm and a unit in front of its
+        /// plane, which is where a relaxed thumb sits. Reaching further needs a longer thumb, not
+        /// a wider splay — past about 1.2 radians it stops being a thumb and becomes a spur.
+        static let thumbLength: Float = 2.6
+        static let thumbRadiusRoot: Float = 1.10
+        static let thumbRadiusTip: Float = 0.82
+        /// Radians about +X: tips the thumb's own +Y axis out towards +Z, the thumb side.
+        static let thumbSplay: Float = 1.05
+        /// Radians about +Z, applied first: tips it towards −X, the palm side, so it opposes the
+        /// fingers instead of lying in their plane.
+        static let thumbForward: Float = 0.45
+        static let thumbRoot = SIMD3<Float>(-0.30, 1.30, 1.60)
 
         /// **How far the hand is turned about the forearm**, on top of the basis the arm's
         /// bending normal gives it.

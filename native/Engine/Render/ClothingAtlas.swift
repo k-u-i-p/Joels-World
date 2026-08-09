@@ -7,13 +7,19 @@ import simd
 /// default — a vertex nobody thought about — comes out as bare palette colour rather than as a
 /// collar wrapped round somebody's hand.
 enum ClothingRegion: Int, CaseIterable {
-    /// Skin: the neck and the hands. Neutral everywhere, so these render exactly as they did
-    /// before there was a texture at all.
+    /// Neutral everywhere — bare palette colour. What a vertex nobody thought about gets.
     case blank = 0
     case torso
     case pelvis
     case arm
     case leg
+    /// Bare skin, both of them. They were `blank` for three sessions: skin has no garment on it,
+    /// so there was nothing for a *clothing* atlas to say. What they do have is **shape** that
+    /// the one spotlight cannot show — a hand's knuckles and the cup of its palm, and a neck
+    /// buried under the overhang of a very large head — and the red channel has been standing in
+    /// for absent light since session 3. That is the same job.
+    case hand
+    case neck
 }
 
 /// **The clothes, painted rather than modelled.**
@@ -196,7 +202,72 @@ enum ClothingAtlas {
         case .pelvis: return shorts(u: u, v: v)
         case .arm: return sleeve(u: u, v: v)
         case .leg: return legwear(u: u, v: v)
+        case .hand: return skinOfHand(u: u, v: v)
+        case .neck: return skinOfNeck(u: u, v: v)
         }
+    }
+
+    /// **The hand.** `v` = 0 at the wrist ring buried in the forearm and 1 at `fingerReach`, over
+    /// the nine and a half units the palm and the fingers span between them — so the wrist plane
+    /// is at 0.23 and the knuckles at 0.54. `u` folds about the **back**: 0 down the middle of
+    /// the back of the hand, 0.5 at either edge, 1 down the middle of the palm, and every finger
+    /// folds the same way about its own centre line. `CharacterRenderer.buildHand` writes those
+    /// UVs itself, because a ring's angle is known where the ring is made and nowhere afterwards.
+    ///
+    /// The fingers are modelled, so nothing here draws one. What it draws is what a single
+    /// spotlight and a flat ambient cannot: a palm is a cup, and it reads as one only if it is
+    /// darker than the back of the hand.
+    private static func skinOfHand(u: Float, v: Float) -> Detail {
+        var detail = Detail()
+
+        // The hand's cast shadow on itself, back to palm. Real, and worth about this much: the
+        // back of a hand faces the sky and the palm faces the ground, whichever way the arm is
+        // turned, so unlike the armpit wedge this one is not wrong when the pose changes. It runs
+        // out onto the undersides of the fingers, which is where it should go.
+        detail.shade -= 0.11 * rise(u, at: 0.60, over: 0.42)
+        // The cup of the palm, deepest just under the fingers where a hand hollows.
+        detail.shade -= 0.07 * rise(u, at: 0.78, over: 0.28) * between(v, 0.26, 0.52, soft: 0.11)
+
+        // The knuckles, on the back only: four soft rises, which the fold draws as two. The
+        // fingers are separate solids and the palm domes over shut beneath them, so the joint
+        // itself is smooth; this is the bone under it. Measured off the geometry — the middle
+        // pair sit at z ±0.57 over a back 1.42 deep, which is u 0.12, and the outer pair at
+        // ±1.70, which is 0.28.
+        for knuckle in [Float(0.12), 0.28] {
+            detail.shade += 0.05 * blob(u: u, v: v, atU: knuckle, atV: 0.545,
+                                        radiusU: 0.07, radiusV: 0.05)
+        }
+        // The two creases across the underside of the fingers. A ring at a fixed `v` crosses all
+        // four at once, which is near enough true of a hand with its fingers together.
+        let underside = rise(u, at: 0.56, over: 0.22)
+        detail.shade -= 0.07 * line(v, at: 0.685, halfWidth: 0.022) * underside
+        detail.shade -= 0.05 * line(v, at: 0.830, halfWidth: 0.018) * underside
+
+        // The wrist. The forearm butts onto this and is deliberately not blended across the join
+        // (`SkinnedBody.appendBody` — a blend there screws the wrist shut), so without a mark the
+        // seam is a hard edge between two flat fields of one colour. `sleeve` shades the arm's
+        // last tenth for the same reason; this is the other half of that pair.
+        detail.shade -= 0.10 * (1 - rise(v, at: 0.21, over: 0.10))
+        // Where the thumb leaves the palm. It reaches both edges, the fold being what it is, and
+        // the far edge is the heel of the hand, which is in a fold of its own.
+        detail.shade -= 0.06 * line(u, at: 0.5, halfWidth: 0.18) * between(v, 0.25, 0.42, soft: 0.09)
+        return detail
+    }
+
+    /// **The neck.** `v` = 0 where it leaves the shoulders and 1 where the head swallows it, over
+    /// the seven units of `CharacterRig.neckLength`. `u` is unused — the neck is a plain cylinder
+    /// and nothing about it is front-or-back at this size.
+    ///
+    /// These characters carry a big stylised head on a short neck (the collar's V is invisible
+    /// for exactly that reason — see `shirt`), so the top of the neck lives permanently under an
+    /// overhang and was coming out as bright as a cheek. This is the single mark that makes a
+    /// head sit *on* a body rather than float above one.
+    private static func skinOfNeck(u: Float, v: Float) -> Detail {
+        var detail = Detail()
+        detail.shade -= 0.26 * rise(v, at: 0.62, over: 0.55)
+        // And a little at the bottom, inside the collar.
+        detail.shade -= 0.08 * (1 - rise(v, at: 0.18, over: 0.16))
+        return detail
     }
 
     /// **The shirt.** `v` = 0 at the hem, 1 at the neck root, over the twenty units of

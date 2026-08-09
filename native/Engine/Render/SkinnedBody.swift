@@ -183,11 +183,16 @@ enum SkinnedBody {
                                         radiusBottom: CharacterRig.neckRadiusBottom,
                                         height: CharacterRig.neckLength,
                                         radialSegments: 16)
+        let neckHalf = CharacterRig.neckLength / 2
         append(neck, into: &out, bind: bind.bones[.neck] ?? matrix_identity_float4x4,
-               slot: .skin, region: .blank) { local, _ in
+               slot: .skin, region: .neck,
+               uv: { local, _ in
+                   // The cylinder stands on its own middle: 0 where it leaves the shoulders,
+                   // 1 where the head model swallows it.
+                   SIMD2(0.5, (local.y + neckHalf) / CharacterRig.neckLength)
+               }) { local, _ in
             var weights = SkinWeights()
-            let half = CharacterRig.neckLength / 2
-            weights.add(.torso, 0.5 * (1 - smoothstep((local.y + half) / half)))
+            weights.add(.torso, 0.5 * (1 - smoothstep((local.y + neckHalf) / neckHalf)))
             weights.fill(.neck)
             return weights
         }
@@ -199,12 +204,16 @@ enum SkinnedBody {
         // failure where a wrist screws shut. The wrist ring is small and sits inside the palm.
         let rightHand = CharacterRenderer.buildHand()
         let leftHand = MeshFactory.mirroredInX(rightHand)
+        //
+        // Both take the hand's own UVs. Mirroring in X is what makes the left hand a *left*
+        // hand — it swaps which face is the back and which is the palm — and the UVs travel with
+        // the vertices through that, so the palm's `u` still lands on the palm.
         append(rightHand, into: &out, bind: bind.bones[.rightHand] ?? matrix_identity_float4x4,
-               slot: .skin, region: .blank) { _, _ in
+               slot: .skin, region: .hand, keepsMeshUV: true) { _, _ in
             var weights = SkinWeights(); weights.fill(.rightHand); return weights
         }
         append(leftHand, into: &out, bind: bind.bones[.leftHand] ?? matrix_identity_float4x4,
-               slot: .skin, region: .blank) { _, _ in
+               slot: .skin, region: .hand, keepsMeshUV: true) { _, _ in
             var weights = SkinWeights(); weights.fill(.leftHand); return weights
         }
     }
@@ -250,9 +259,20 @@ enum SkinnedBody {
                                   radii: radii,
                                   bones: (bones.0, bones.1),
                                   anchor: (.torso, anchorWeight, 0.30),
-                                  // The wrist is the one limb end nothing covers, so it closes
-                                  // flush on the joint plane instead of doming past it.
-                                  tipInset: radii.tip * 0.9,
+                                  // The wrist closes flush on the joint plane instead of doming
+                                  // past it — a domed forearm reaches a full radius beyond the
+                                  // wrist and wears the hand like a bracelet.
+                                  //
+                                  // **0.30, down from 0.90.** The inset is how far short of the
+                                  // joint the tube stops being a tube, and at 0.9 that was 2.1
+                                  // units of tapering cone standing outside the wrist — more
+                                  // than the palm is wide, and far more than it could cover once
+                                  // the hand bone leans off the forearm's axis at all. What
+                                  // showed was the cone cutting out through the back of the palm
+                                  // as a dark lens. At 0.30 the arm ends bluntly 0.7 short of
+                                  // the joint, well inside the hand, and the two surfaces cross
+                                  // in one clean ring where a wrist creases anyway.
+                                  tipInset: radii.tip * 0.30,
                                   segments: (8, 8),
                                   blend: 0.42,
                                   capSteps: 5)
@@ -508,15 +528,21 @@ enum SkinnedBody {
     /// profile height like "the hem of the shirt" is legible, and once in bind space, which is
     /// where "nearer the left hip than the right" and "round the front" are.
     ///
-    /// The mesh's **own** UVs are thrown away. `MeshFactory.lathe` writes a plain revolve
-    /// parameterisation and says in as many words that the rig's flat-coloured materials never
-    /// read it; what the atlas needs is anatomical, so `uv` supplies it. `region: .blank` with the
-    /// default closure is the honest answer for anything that is skin.
+    /// The mesh's **own** UVs are thrown away by default. `MeshFactory.lathe` writes a plain
+    /// revolve parameterisation and says in as many words that the rig's flat-coloured materials
+    /// never read it; what the atlas needs is anatomical, so `uv` supplies it.
+    ///
+    /// `keepsMeshUV` is the exception, and there is exactly one: a **loft** is used where the
+    /// parameterisation means something, and the hand's does — `u` folds about the back of the
+    /// hand, which is a ring angle, and a ring angle is knowable where the ring is made and
+    /// nowhere afterwards. Recovering it from a position would mean inverting the grooves and the
+    /// curl.
     private static func append(_ mesh: MeshData,
                                into out: inout SkinMeshData,
                                bind: Float4x4,
                                slot: ColorSlot,
                                region: ClothingRegion,
+                               keepsMeshUV: Bool = false,
                                uv: (_ local: SIMD3<Float>, _ world: SIMD3<Float>) -> SIMD2<Float>
                                    = { _, _ in SIMD2(0.5, 0.5) },
                                weights: (_ local: SIMD3<Float>, _ world: SIMD3<Float>) -> SkinWeights) {
@@ -531,7 +557,7 @@ enum SkinnedBody {
             let placed = bind * SIMD4(vertex.position, 1)
             let world = SIMD3(placed.x, placed.y, placed.z)
             let (joints, packed) = weights(vertex.position, world).packed()
-            let placement = uv(vertex.position, world)
+            let placement = keepsMeshUV ? vertex.uv : uv(vertex.position, world)
             out.vertices.append(SkinVertex(position: world,
                                            normal: rotation * vertex.normal,
                                            weights: packed, joints: joints,
