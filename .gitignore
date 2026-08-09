@@ -39,6 +39,11 @@ log.txt
 server/original_images/*
 original_images/*
 
+# Parked art and source files — unused assets and the raw models/textures they
+# were built from. Kept on disk, deliberately out of the repo: TennisStadium
+# alone is 327 MB of FBX and PNG source.
+Misc/
+
 # Sessions
 server/sessions/
 
