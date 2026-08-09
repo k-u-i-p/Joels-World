@@ -1,20 +1,24 @@
-# Handoff — bought characters, part 3: closing the hand
+# Handoff — bought characters, part 3: the hands close and the feet come off the shin
 
 **Session 7.** Part 2 ([HANDOFF-imported-characters-part2.md](HANDOFF-imported-characters-part2.md))
-got the palm aimed and rolled correctly and left the fingers as the next job:
+left two things at the top of its "What is left", and this session did both — plus a bug in
+`CharacterRig` that the second one turned up.
 
-> **The fingers never close.** They ride the hand rigidly, which is what gives a bought model
-> articulated fingers for nothing, and it means a held racket sits in an open palm. The grip is in
-> the right place and at the right angle now; the fingers just do not curl around it. Curling them
-> needs a driver per finger, and the rig has none.
+> **The fingers never close.** … Curling them needs a driver per finger, and the rig has none.
+>
+> **The feet.** No `RigPart` reaches an ankle, so a foot rides the shin.
 
-They close now, and it turned out **not** to need a driver per finger.
+The fingers close, and it turned out **not** to need a driver per finger. The feet are driven now,
+by the one frame the pose already had at the ankle — which is where the `CharacterRig` bug was
+hiding.
 
-Zone note: `Engine/Entity/HumanoidRig.swift` and `Engine/Render/ImportedCharacterBody.swift` only —
-both red under [AGENTS.md](../AGENTS.md), both files part 1 added, and Ben asked for this work
-directly. Nothing else in the engine changed, `CharacterRig` included. `server/**` untouched.
+Zone note: `Engine/Entity/HumanoidRig.swift`, `Engine/Render/ImportedCharacterBody.swift` and nine
+lines of `Engine/Entity/CharacterRig.swift` — all red under [AGENTS.md](../AGENTS.md), and Ben
+asked for all three directly. `server/**` untouched.
 
 ---
+
+# The hands
 
 ## The rig does not need fifteen new bones. It needs one number.
 
@@ -98,14 +102,92 @@ grip test names the *part*, not the bone, and stays right if that anchor ever mo
 left-handed tennis player is what anyone intended is a separate question and not one this session
 touched.
 
+---
+
+# The feet
+
+## First, the shoe frame was not turning
+
+Part 2's plan for the feet was to drive them from `RigPose.leftShoeBox`, and its stated worry was
+that the engine's own shoe stays level in flight, so a foot driven from it would too.
+
+The shoe was staying level in rather more than flight. The frame is built in
+[CharacterRig.swift:1461](Engine/Entity/CharacterRig.swift:1461), and its pitch was
+
+```swift
+Float4x4.rotationY(atan2(leftShin.y, -leftShin.z))
+```
+
+**`shin.y` is sideways.** In this frame — the character's own, +X forward, +Y left, +Z up — a leg
+swinging fore and aft moves entirely in X and Z, so that angle came out **0 for the whole of every
+gait**. The shoes were dead level from heel strike to push-off, and the only thing that ever moved
+them was the small sideways component a hip abduction leaves, which is a shoe rolling for no
+reason rather than pitching for a good one. It reads exactly like a faithful port of a three.js
+expression whose Y *was* up; here it is not, and the comment above it — "the shoe yaws to follow
+the shin's pitch" — was describing something the code had never done.
+
+It reads `shin.x` now, negated: `rotationY` takes +X *down* as its angle grows, and a shin leaning
+forward should take the toe *up*. Straight down is still 0, so a standing character's feet are
+flat exactly as before, and everything that changed is inside a stride.
+
+This is the whole of the `CharacterRig` change, and it moves the **procedural** character too —
+that is what the `run` filmstrips below are for.
+
+## Then the foot could be driven by it
+
+`HumanoidBone.driver` used to be a `RigPart?`, and a foot has no part to name. It is a small enum
+now:
+
+```swift
+enum Driver { case limb(RigPart); case shoe(rigLeft: Bool) }
+```
+
+with one property that matters, `alongBone` — **which column of the driver's frame runs down the
+bone**. Every `RigPart` says +Y, because `IKSolver.segmentTransform` builds them that way. A shoe
+frame says **+X**, because the shoe box is 11 long in X and 5 tall in Z. That one number is the
+entire difference between the two kinds of driver; the aim, the roll and the forward kinematics
+underneath are the same code they were.
+
+The side inversion applies here like everywhere else — `leftShoeBox` is built from `leftAnkle`,
+and `CharacterRig` says in its own comment that `leftFoot` (y = −6) is the character's *right* —
+so `HumanoidBone.leftFoot` takes `shoe(rigLeft: false)`. **The side check catches this**: it now
+covers the feet too, using `RigBindPose.leftLeg.tip` (the ankle) since there is no bind-pose bone
+to look up for a shoe. Getting the sides backwards prints `MIRRORED` at load, which is how it was
+checked.
+
+## A foot needs a roll, and its landmark is easier than the thumb
+
+Aim alone would leave a foot spinning about its own length with whatever the shin carried in —
+an ankle that turns the sole outward through a stride. So a foot takes a roll, the second bone to
+do so after the hand, and the landmark is far easier to find than a thumb:
+
+- **On the rig**, it is +Z of the shoe frame, out of the top of the shoe.
+- **On the model**, it is *up*, full stop. A humanoid is rigged standing on flat ground, so the top
+  of its foot in the bind pose is engine +Z, and no bone hunting is needed at all.
+
+Squaring that against the bone axis matters more here than it did for the thumb: most foot bones
+run forward **and down**, so an unsquared "up" would re-aim the foot rather than roll it.
+
+Toes stay undriven and ride the foot, which is what a toe does.
+
+## What it looks like
+
+Side-on through a sprint, the imported character's feet and the procedural character's shoes now
+pitch together frame for frame — trailing foot toe-down through the drive, leading foot coming
+through level. Front-on standing, both soles are flat and square, no roll.
+
+**What it still does not do** is what part 2 warned about, and the warning was right: this is a
+rigid ankle, so the foot stays square to the shin rather than flattening out to meet the ground.
+It is level when the shin is vertical, which is most of a planted stance, and it does not know the
+difference between a foot on the floor and a foot in the air. A real ankle needs the gait to say
+when the foot is planted, and that is a `CharacterRig` job, not a retargeting one.
+
+---
+
 ## What is left
 
-- **The feet.** Unchanged from parts 1 and 2, and worth reading part 2's note on it before
-  starting: the material is there in `RigPose.leftShoeBox`, and so is the argument against, which
-  is that the engine's own shoe stays level in flight and a foot driven from it would too. Looking
-  at the shoe frame this session, it is level in rather more than flight — `atan2(shin.y, -shin.z)`
-  reads the shin's *sideways* component, not its pitch, so a leg swinging fore and aft turns that
-  frame not at all. That is a `CharacterRig` question, not an imported-character one.
+- **The ankle does not flatten to the ground.** See just above — the foot is square to the shin,
+  which is a rigid ankle and not a real one.
 - **Fingers do not adduct.** They close, but they stay fanned as the bind pose splayed them; a real
   grip brings them together as well as round. Another table if it ever matters.
 - **Nothing curls a hand except holding something.** A pocket, a fist thrown in an emote, a hand
@@ -128,10 +210,24 @@ JW_CHARACTER_MODEL=models/characters/stylized_boy.glb "$APP" \
   -labnogrid -labnoruler -labshot /tmp/grip.png
 ```
 
-**`emote-tennis` is the take**, because it is the only one that puts anything in a hand, and
-`threeQuarter` is the view — the hand is small in frame, so crop to it rather than squinting.
-`stand` front-on is the other one to look at, for the relaxed hand rather than the closed one.
+**`emote-tennis` is the take** for the hand, because it is the only one that puts anything in a
+hand, and `threeQuarter` is the view — the hand is small in frame, so crop to it rather than
+squinting. `stand` front-on is the other one, for the relaxed hand rather than the closed one.
+
+**`run` side-on is the take for the feet**, and run it *both* ways — with `JW_CHARACTER_MODEL` and
+without:
+
+```bash
+"$APP" -labtake run -labview side -labwidth 3 -labsize 900 900 \
+  -labnogrid -labnoruler -labsheet /tmp/run.png -labframes 4
+```
+
+The imported character's feet and the procedural character's shoes should pitch **the same way in
+the same frame**. They are driven by the same expression now, so if they disagree, one of the two
+sides of that is wrong.
 
 Both schemes build. This session's pictures: `emote-tennis` three-quarter before and after side by
 side (open splayed palm against a closed fist round the handle), the same take front, back and
-side, and `stand` front-on with both hands hanging with a natural curl instead of flat.
+side, `stand` front-on with both hands hanging with a natural curl instead of flat, `run`
+filmstrips side-on for both characters, the same frame of each cropped to the feet, and `stand`
+front-on cropped to two flat, square soles.

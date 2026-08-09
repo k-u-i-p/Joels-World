@@ -1,7 +1,9 @@
 # Handoff — bought characters, part 2: the hands, and which side they are on
 
-> **Read [part 3](HANDOFF-imported-characters-part3.md) after this one.** It takes the fingers off
-> "What is left" below — and they turned out not to need a driver each.
+> **Read [part 3](HANDOFF-imported-characters-part3.md) after this one.** It takes both the fingers
+> and the feet off "What is left" below — the fingers turned out not to need a driver each, and the
+> feet turned up a bug in `CharacterRig`: the shoe frame's pitch was reading the shin's *sideways*
+> component, so it had never turned at all.
 
 **Session 6.** Part 1 ([HANDOFF-imported-characters.md](HANDOFF-imported-characters.md)) got a
 bought, rigged glTF character standing, walking and running on our own movement code. This session

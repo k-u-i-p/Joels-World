@@ -62,6 +62,41 @@ enum HumanoidBone: String, CaseIterable {
         }
     }
 
+    /// What aims this bone.
+    ///
+    /// Nearly everything is a `RigPart`, and every `RigPart` transform has its **+Y along the
+    /// bone** — `IKSolver.segmentTransform` builds the limbs that way and the torso, pelvis and
+    /// neck take a `rotationX(π/2)` to match.
+    ///
+    /// The feet are not, because **no `RigPart` reaches an ankle**: the engine's leg IK ends at
+    /// the ankle and the shoe is a separate GLB standing on it. What the pose does carry is a
+    /// frame for that shoe, and it is a perfectly good frame — `RigPose.leftShoeBox` sits at the
+    /// ankle with **+X along the foot** and +Z out of the top of it. So a foot is driven by the
+    /// shoe rather than by a part, and the only thing that makes it a special case is which
+    /// column of the frame runs down the bone.
+    enum Driver: Hashable {
+        /// A rig part, +Y along the bone.
+        case limb(RigPart)
+        /// `RigPose.leftShoeBox` / `rightShoeBox`, +X along the foot. Named for the **rig's**
+        /// sides, like `RigPart` and unlike `HumanoidBone` — see the note on `driver`.
+        case shoe(rigLeft: Bool)
+
+        /// Which column of the driver's frame points down the bone.
+        var alongBone: Int {
+            switch self {
+            case .limb: return 1
+            case .shoe: return 0
+            }
+        }
+
+        /// The rig part, for the two places that want one: the side check, which compares against
+        /// a bind-pose bone, and the grip, which asks which hand is holding something.
+        var part: RigPart? {
+            if case let .limb(part) = self { return part }
+            return nil
+        }
+    }
+
     /// Which `RigPart`'s transform aims this bone, if any.
     ///
     /// Bones with no driver are not left behind — they ride their parent rigidly, which is
@@ -76,36 +111,38 @@ enum HumanoidBone: String, CaseIterable {
     /// Pairing them by name puts the model's left arm on the rig's right one and mirrors the
     /// whole character, which a symmetric walk hides completely and a wave gives away
     /// immediately: the boy waved with the wrong hand.
-    var driver: RigPart? {
+    var driver: Driver? {
         switch self {
-        case .hips: return .pelvis
+        case .hips: return .limb(.pelvis)
         // The engine has one torso bone and a bought rig usually has three. Aiming all three at
         // the same target makes the spine straight rather than stacked, which is what the one
         // torso bone means anyway.
-        case .spine, .spine1, .spine2: return .torso
-        case .neck, .head: return .neck
+        case .spine, .spine1, .spine2: return .limb(.torso)
+        case .neck, .head: return .limb(.neck)
         // **Not** the shoulder part, tempting as the name is. That part is a deltoid ball
         // aligned *down the humerus*, and a bought rig's `LeftShoulder` is the clavicle — a bone
         // that runs sideways from the spine. Aiming a clavicle down the arm swings the whole
         // shoulder girdle inward and buries the arm in the chest. The clavicle rides the spine,
         // which is very nearly what a real one does.
         case .leftShoulder: return nil
-        case .leftUpperArm: return .rightUpperArm
-        case .leftLowerArm: return .rightLowerArm
-        case .leftHand: return .rightHand
+        case .leftUpperArm: return .limb(.rightUpperArm)
+        case .leftLowerArm: return .limb(.rightLowerArm)
+        case .leftHand: return .limb(.rightHand)
         case .rightShoulder: return nil    // see `leftShoulder`
-        case .rightUpperArm: return .leftUpperArm
-        case .rightLowerArm: return .leftLowerArm
-        case .rightHand: return .leftHand
-        case .leftUpperLeg: return .rightUpperLeg
-        case .leftLowerLeg: return .rightLowerLeg
-        case .rightUpperLeg: return .leftUpperLeg
-        case .rightLowerLeg: return .leftLowerLeg
-        // No `RigPart` reaches the feet: the engine's ankle is the end of the leg IK and the
-        // shoe is a separate GLB sitting on it. A bought model's foot rides the shin, which
-        // points the toes as the shin swings — right for a walk, and the reason a run's
-        // foot-plant looks stiffer here than the rest of the body does.
-        case .leftFoot, .leftToes, .rightFoot, .rightToes: return nil
+        case .rightUpperArm: return .limb(.leftUpperArm)
+        case .rightLowerArm: return .limb(.leftLowerArm)
+        case .rightHand: return .limb(.leftHand)
+        case .leftUpperLeg: return .limb(.rightUpperLeg)
+        case .leftLowerLeg: return .limb(.rightLowerLeg)
+        case .rightUpperLeg: return .limb(.leftUpperLeg)
+        case .rightLowerLeg: return .limb(.leftLowerLeg)
+        // The shoe frames, and the same side inversion as everything above: `leftShoeBox` is
+        // built from `leftAnkle`, and `CharacterRig` says so itself — "local +Y is the
+        // character's left, so `leftFoot` (y = −6) is the character's *right* foot".
+        case .leftFoot: return .shoe(rigLeft: false)
+        case .rightFoot: return .shoe(rigLeft: true)
+        // Toes ride the foot, which is what a toe does.
+        case .leftToes, .rightToes: return nil
         }
     }
 
@@ -148,11 +185,18 @@ enum HumanoidBone: String, CaseIterable {
     ///   and the `Hand.restRoll` quarter-turn is already inside the part transform, so a model's
     ///   thumb lands exactly where the engine's own does.
     ///
+    /// The **foot** has one too, and an easier one: *up*. Its driver is a shoe frame, whose +Z is
+    /// out of the top of the shoe, and the model's own answer needs no landmark hunting at all —
+    /// a humanoid is rigged standing on flat ground, so the top of its foot in the bind pose is
+    /// engine +Z. Aim alone would leave a foot rolling with whatever the shin carried in, which
+    /// is an ankle that turns the sole outward through a stride.
+    ///
     /// Nothing else on a humanoid has a landmark this clean, which is why nothing else takes a
-    /// roll. A spine has no thumb.
+    /// roll. A spine has no thumb and no sole.
     var rollTarget: SIMD3<Float>? {
         switch self {
         case .leftHand, .rightHand: return SIMD3(0, 0, 1)
+        case .leftFoot, .rightFoot: return SIMD3(0, 0, 1)
         default: return nil
         }
     }
@@ -618,18 +662,31 @@ final class HumanoidSkeleton {
         // the other half — where this axis is turned to face each frame.
         var rollOut = [SIMD3<Float>](repeating: .zero, count: count)
         for index in 0..<count {
-            guard let bone = bones[index], bone.rollTarget != nil,
-                  let thumb = children(of: index).first(where: {
-                      HumanoidNaming.isThumb(mesh.jointNames[$0])
-                  })
-            else { continue }
-            let toThumb = position(of: thumb) - position(of: index)
-            let local = bindWorld[index].orthonormalRotation.transpose * toThumb
+            guard let bone = bones[index], bone.rollTarget != nil else { continue }
+
+            /// The landmark, in **world** bind space. Two bones want one and they find it two
+            /// different ways: a hand measures its own thumb, and a foot does not have to measure
+            /// anything, because a humanoid is rigged standing on flat ground and so the top of
+            /// its foot at bind is simply up.
+            let landmark: SIMD3<Float>
+            switch bone {
+            case .leftFoot, .rightFoot:
+                landmark = SIMD3(0, 0, 1)
+            default:
+                guard let thumb = children(of: index).first(where: {
+                    HumanoidNaming.isThumb(mesh.jointNames[$0])
+                }) else { continue }
+                landmark = position(of: thumb) - position(of: index)
+            }
+
+            let local = bindWorld[index].orthonormalRotation.transpose * landmark
             // Square it up against the bone's own length. The two have to be exactly
             // perpendicular for the roll to be a roll: `HumanoidRetargeter` turns this axis onto
             // its target with the same shortest arc it aims a bone with, and a shortest arc
             // between two vectors already square to the bone is a rotation about the bone and
-            // nothing else. A thumb that is 20° forward of the palm would otherwise re-aim it.
+            // nothing else. A thumb that is 20° forward of the palm would otherwise re-aim it,
+            // and a foot bone that runs forward *and down* — most of them do — would otherwise
+            // be re-aimed by its own sole.
             let axis = axesOut[index]
             let perpendicular = local - axis * simd_dot(local, axis)
             if simd_length(perpendicular) > 1e-4 { rollOut[index] = simd_normalize(perpendicular) }
@@ -688,7 +745,7 @@ final class HumanoidSkeleton {
             curlOut[index] = simd_normalize(bindWorld[index].orthonormalRotation.transpose * worldAxis)
             restOut[index] = angleRest
             gripOut[index] = angleGrip
-            partOut[index] = handBone.driver
+            partOut[index] = handBone.driver?.part
             curled.insert(handBone)
         }
         curlAxis = curlOut
@@ -708,12 +765,22 @@ final class HumanoidSkeleton {
         //
         // Both sides of the comparison are rest poses about the character's own centre line, so
         // the sign of Y is all it takes. Bones near the middle say nothing and are left out.
+        //
+        // The feet are in it too, and they have to be: their driver is a shoe frame rather than a
+        // `RigPart`, so there is no bind-pose bone to look up — but `RigBindPose` carries each
+        // leg's three joints, and the tip of one is the ankle the shoe stands on.
         var swapped: [HumanoidBone] = []
         for bone in HumanoidBone.allCases {
-            guard let index = found[bone], let part = bone.driver,
-                  let rest = Self.engineBind.bones[part] else { continue }
+            guard let index = found[bone], let driver = bone.driver else { continue }
+            let rig: Float
+            switch driver {
+            case let .limb(part):
+                guard let rest = Self.engineBind.bones[part] else { continue }
+                rig = rest.columns.3.y
+            case let .shoe(rigLeft):
+                rig = rigLeft ? Self.engineBind.leftLeg.tip.y : Self.engineBind.rightLeg.tip.y
+            }
             let model = position(of: index).y
-            let rig = rest.columns.3.y
             guard abs(model) > 1, abs(rig) > 1 else { continue }
             if (model < 0) != (rig < 0) { swapped.append(bone) }
         }
@@ -731,13 +798,19 @@ final class HumanoidSkeleton {
         for bone in HumanoidBone.allCases {
             if let index = matched[bone] {
                 var note = bone.driver == nil ? "  (rides its parent)" : ""
-                if bone.rollTarget != nil {
-                    // Worth a line of its own: a hand with no thumb bone under it still draws,
-                    // it just hangs at whatever roll the forearm carries it to — which is the
-                    // exact symptom this measurement exists to cure, and impossible to tell from
-                    // a bad measurement by looking.
+                if case .shoe = bone.driver { note = "  (driven by the shoe frame)" }
+                switch bone {
+                // Worth a line of its own: a hand with no thumb bone under it still draws, it
+                // just hangs at whatever roll the forearm carries it to — which is the exact
+                // symptom this measurement exists to cure, and impossible to tell from a bad
+                // measurement by looking.
+                case .leftHand, .rightHand:
                     note += rollAxis[index] == .zero ? "  (no thumb — palm rides the forearm)"
                                                      : "  (palm rolled by its thumb)"
+                case .leftFoot, .rightFoot:
+                    note += rollAxis[index] == .zero ? "  (sole not found — foot rides the shin)"
+                                                     : "  (sole levelled by the shoe)"
+                default: break
                 }
                 lines.append("  \(bone.rawValue) ← \(jointNames[index])" + note)
             } else {
@@ -771,7 +844,7 @@ final class HumanoidSkeleton {
 final class HumanoidRetargeter {
     private let skeleton: HumanoidSkeleton
     private var worldTransforms: [Float4x4]
-    private var driverRotations = [RigPart: simd_float3x3]()
+    private var driverRotations = [HumanoidBone.Driver: simd_float3x3]()
     private var driverOrigins = [RigPart: SIMD3<Float>]()
 
     /// The rest orientation of a `CharacterRig` part that stands upright: `rotationX(π/2)`, which
@@ -789,10 +862,14 @@ final class HumanoidRetargeter {
         driverRotations.removeAll(keepingCapacity: true)
         driverOrigins.removeAll(keepingCapacity: true)
         for (part, transform) in pose.parts {
-            driverRotations[part] = transform.orthonormalRotation
+            driverRotations[.limb(part)] = transform.orthonormalRotation
             let origin = transform.columns.3
             driverOrigins[part] = SIMD3(origin.x, origin.y, origin.z)
         }
+        // The two frames that are not parts. `CharacterRig` hands these over separately because
+        // the shoe is a separate model rather than a bone of the body — see `HumanoidBone.Driver`.
+        driverRotations[.shoe(rigLeft: true)] = pose.leftShoeBox.orthonormalRotation
+        driverRotations[.shoe(rigLeft: false)] = pose.rightShoeBox.orthonormalRotation
 
         // The character's own placement. Everything `CharacterRig` emits already carries the
         // world position, heading and map scale, so the root joint can be read straight off the
@@ -836,8 +913,11 @@ final class HumanoidRetargeter {
             var rotation = inherited.orthonormalRotation
             var origin = SIMD3(inherited.columns.3.x, inherited.columns.3.y, inherited.columns.3.z)
 
-            if let bone = skeleton.bone[index], let part = bone.driver,
-               let driver = driverRotations[part] {
+            if let bone = skeleton.bone[index], let key = bone.driver,
+               let driver = driverRotations[key] {
+
+                // Which column runs down the bone: +Y for a rig part, +X for a shoe frame.
+                let alongBone = driver[key.alongBone]
 
                 if skeleton.parents[index] == nil {
                     // The root takes the driver whole: its roll *is* which way the character is
@@ -850,7 +930,7 @@ final class HumanoidRetargeter {
                     // Aim the bone: the smallest rotation taking where it currently points onto
                     // where the rig says it should point. Smallest matters — anything larger
                     // spins the mesh about its own long axis for no reason.
-                    let target = simd_normalize(SIMD3(driver.columns.1.x, driver.columns.1.y, driver.columns.1.z))
+                    let target = simd_normalize(alongBone)
                     let current = simd_normalize(rotation * skeleton.boneAxis[index])
                     rotation = Self.shortestArc(from: current, to: target) * rotation
 
