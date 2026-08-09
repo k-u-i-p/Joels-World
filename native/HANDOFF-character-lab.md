@@ -41,7 +41,7 @@ space plays and pauses · ←→ step a frame, ⇧ ten · `[` `]` change take ·
 clipboard. That is the intended way to work: find the frame by hand, then ask for it again from a
 script.
 
-**Headless** — four things it will write and quit:
+**Headless** — three things it will write and quit:
 
 ```bash
 # One frame, side on, three seconds into the walk
@@ -53,16 +53,13 @@ script.
 # One frame of all 31 takes, five pupils each — the whole character system at a glance
 "$APP" -labtake all -labcast school -labsheet /tmp/all.png -labsize 520 380
 
-# The clothing atlas, with its three channels split out
-"$APP" -labatlas /tmp/atlas.png
-
 # The numbers: foot contact, hip bounce, lean, travel, per take
 "$APP" -labreport /tmp/lab.json
 ```
 
 Every flag is listed with its shape in
 [CharacterLabArguments.swift](CharacterLab/UI/CharacterLabArguments.swift).
-The last two need neither a window nor a GPU: `main.swift` runs them and exits before an app is
+`-labreport` needs neither a window nor a GPU: `main.swift` runs it and exits before an app is
 put on screen, which is why `-labreport` is a fifth-of-a-second command.
 `-labquitafter <s>` runs the window for a while, prints what it ended up showing and quits, which
 is how the interactive half gets smoke-tested from a script.
@@ -75,7 +72,7 @@ is how the interactive half gets smoke-tested from a script.
 
 `CharacterLabScene` is a `WorldRenderedMinigame` — the same seam the 3D tennis court goes through.
 It hands the renderer a cast, some ground and a camera, and gets the actual rigs, the actual
-clothing atlas, the actual spotlight, shadow map and SSAO for free.
+bought model, the actual spotlight, shadow map and SSAO for free.
 
 A separate viewer with its own shaders would have been easier to write and worthless within a
 month: the first thing it would stop catching is a change to the renderer it was written to check.
@@ -118,7 +115,7 @@ does not. That single change is the difference between a contact sheet and a wal
 | `…/CharacterLabReport.swift` | The measurements, and `strideWindow`. No Metal — it poses the rig itself |
 | `CharacterLab/UI/CharacterLabViewController.swift` | The Metal surface, the readout, the keys, the capture runs |
 | `…/CharacterLabControlsView.swift` | The sidebar |
-| `…/CharacterLabCapture.swift` | Frames into a captioned sheet; the atlas into a channel-split PNG |
+| `…/CharacterLabCapture.swift` | Frames into a captioned sheet |
 | `…/CharacterLabArguments.swift` | Every launch flag |
 | `…/CharacterLabWindowController.swift` | The window, and the no-sidebar layout a capture uses |
 | `MacShared/MacControls.swift` | `AdminUI` and friends — the AppKit helpers both Mac apps use. Moved here from the editor rather than copied |

@@ -1,5 +1,10 @@
 # Handoff — bought characters, part 3: the hands close and the feet come off the shin
 
+> **Read [part 4](HANDOFF-imported-characters-part4.md) after this one.** It takes the top item
+> off "What is left" below — and finds that the shin pitch this session added had been putting the
+> toe of every *standing* shoe 2.7 units under the floor, unseen because a foot's pitch is
+> invisible from the front. Part 4 also removes the procedural character entirely.
+
 **Session 7.** Part 2 ([HANDOFF-imported-characters-part2.md](HANDOFF-imported-characters-part2.md))
 left two things at the top of its "What is left", and this session did both — plus a bug in
 `CharacterRig` that the second one turned up.

@@ -88,11 +88,18 @@ It is the right place to check anything about how a character looks or moves, an
 strip of pictures out on its own: see
 [HANDOFF-character-lab.md](native/HANDOFF-character-lab.md).
 
-**How the characters themselves are built** — the skinned body, the school uniform painted onto it
-rather than modelled, the hands, and where each number lives — is four handoffs starting at
-[HANDOFF-skinned-characters.md](native/HANDOFF-skinned-characters.md).
-[Part 4](native/HANDOFF-skinned-characters-part4.md) is the most recent, and its "What is left"
-is the list to pick the next job off.
+**How the characters themselves work** — a **bought, rigged model**, driven by our own walk cycle,
+IK and emotes — is four handoffs starting at
+[HANDOFF-imported-characters.md](native/HANDOFF-imported-characters.md).
+[Part 4](native/HANDOFF-imported-characters-part4.md) is the most recent, and its "What is left"
+is the list to pick the next job off. Its biggest item: **every pupil is currently the same boy**,
+because there is one model, and the fix is a model per character.
+
+Four earlier handoffs starting at
+[HANDOFF-skinned-characters.md](native/HANDOFF-skinned-characters.md) describe the character we
+used to *generate* in Swift — the skinned body, the uniform painted onto it, the hands. **That
+character was removed** in part 4 above. Read them for the reasoning, not for the code; the code
+is only in `git log` now.
 
 **A new minigame is the single best thing to build here**, because it feeds the badge loop
 directly. Copy how tennis works: a map in `data/maps.json` marked as a minigame, a

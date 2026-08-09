@@ -104,7 +104,7 @@ cd native && xcodebuild -project JoelsWorld.xcodeproj -scheme CharacterLab -dest
 ```
 
 It also writes what it shows, which is how a change gets checked without a person at the keyboard —
-a captioned filmstrip spanning one stride, a contact sheet of every take, the clothing atlas split
+a captioned filmstrip spanning one stride, a contact sheet of every take, the numbers split
 into its channels, or a JSON table of foot contact and hip bounce:
 
 ```bash
