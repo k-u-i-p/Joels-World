@@ -274,15 +274,24 @@ enum CharacterRig {
     /// different silhouettes: hips flare where a waist tucks in.
     static let pelvisCentreZ: Float = 11
     static let pelvisSquash = SIMD3<Float>(0.62, 1, 1.10)
+    /// **Do not take the top of this up to meet the shirt.** It is tempting — the shirt hangs a
+    /// clear unit and a half off it and the gap between them is the black crescent this profile
+    /// used to be blamed for. But the torso closes from 7.2 to nothing over four tenths of a
+    /// unit, so its underside is very nearly a flat disc, and a pelvis ring run up close under
+    /// that disc crosses it at a glancing angle: the two surfaces interpenetrate in a jagged band
+    /// that flickers as the waist twists, which is worse than the shadow. It was tried. The
+    /// crescent is dealt with in `ClothingAtlas.shorts` instead, where it can be lit rather than
+    /// filled.
     static let pelvisProfile: [(y: Float, radius: Float)] = [
         (-6.2, 0.0),
         (-5.6, 6.2),    // where the thighs leave
         (-4.0, 7.4),
         (-1.4, 8.0),    // hip, widest
-        ( 1.2, 7.6),
-        ( 3.2, 6.6),
-        ( 4.4, 5.0),    // tucks in under the hem rather than pushing through it
-        ( 5.0, 0.0),    // closed, under the shirt
+        ( 1.0, 7.5),
+        ( 1.8, 5.7),
+        ( 2.4, 3.4),    // dives away from the shirt's closing disc
+        ( 3.2, 1.8),
+        ( 4.0, 0.0),    // closed, under the shirt
     ]
 
     /// Neck: a short taper from the shoulders up into the head model, which swallows the top of

@@ -104,14 +104,18 @@ enum ClothingAtlas {
     ///
     /// Nothing in the geometry says this — the shirt and the shorts are two separate lathes and
     /// neither knows about the other — so it is worked out from where they sit. Both stand on the
-    /// body pivot, the shirt's at `torsoCentreZ` 20 and the shorts' at `pelvisCentreZ` 11, and the
-    /// shirt closes at its own y −6.4, which is rig z 13.6, with its last full ring at 14.0. Rig z
-    /// 14.0 is the shorts' y 3.0, and their profile runs −6.2…5.0, so: (3.0 + 6.2) / 11.2 = 0.82.
+    /// body pivot, the shirt's at `torsoCentreZ` 20 and the shorts' at `pelvisCentreZ` 11.
     ///
-    /// **Move this if either lathe moves.** Above it the shorts are inside the shirt and painted
-    /// nearly black; below it they come out of a cast shadow. Both are wrong by the same amount if
-    /// this is wrong, which at least makes the error easy to see.
-    static let shirtHem: Float = 0.82
+    /// It is where the two **surfaces cross**, which is not where either of them ends. Both
+    /// squash their X by the same 0.62, so the crossing is simply where their raw radii are
+    /// equal: the shirt climbs 0 → 7.2 between its own y −6.4 and −6.0, the shorts fall away from
+    /// 5.7 at their y 1.8, and the two meet at about 2.6 each, at rig z 13.7. That is the shorts'
+    /// y 2.7 on a profile running −6.2…4.0, so: (2.7 + 6.2) / 10.2 = 0.873.
+    ///
+    /// **Move this if either lathe moves.** Above it the shorts are inside the shirt; below it
+    /// they come out of a cast shadow. Both are wrong by the same amount if this is wrong, which
+    /// at least makes the error easy to see.
+    static let shirtHem: Float = 0.873
 
     /// Turns a region-local `(u, v)` into a texture coordinate.
     ///
@@ -365,8 +369,10 @@ enum ClothingAtlas {
     }
 
     /// **The shorts.** `v` = 0 where the thighs leave, 1 at the top, under the shirt hem — the
-    /// eleven units of `CharacterRig.pelvisProfile`. Only the bottom half is ever visible; the
-    /// rest is inside the shirt.
+    /// **10.2** units of `CharacterRig.pelvisProfile`, which was 11.2 until the top of that
+    /// profile was pulled in to stop it pushing through the shirt. Every `v` below was multiplied
+    /// by 11.2/10.2 when it did, so each mark stayed on the same seam of the same garment. If
+    /// that profile's floor or ceiling moves again, they all move again.
     private static func shorts(u: Float, v: Float) -> Detail {
         var detail = Detail()
 
@@ -380,21 +386,39 @@ enum ClothingAtlas {
         // throws a shadow on them, and a shadow is the same shadow whatever colour it falls on.
         //
         // Two marks. The cast shadow, deepest where the hem crosses and easing out over about
-        // three units of shorts below it; then everything above the hem, which is *inside* the
-        // shirt and should be nearly black.
-        detail.shade -= 0.30 * rise(v, at: shirtHem - 0.17, over: 0.30)
-        detail.shade -= 0.13 * rise(v, at: shirtHem - 0.01, over: 0.05)
+        // three units of shorts below it; then everything above the hem, which is inside the
+        // shirt.
+        //
+        // **0.18 and 0.05, down from 0.30 and 0.13.** The two of them together took the shade to
+        // 0.07 — a multiplier of 0.14 — on the top of the shorts, on the argument that nothing
+        // could see it. Something can: the shirt hangs about a unit clear of the shorts and a
+        // camera anywhere below the hem looks straight into the gap, where the spotlight is
+        // already blocked and only the flat ambient reaches. Multiplying an ambient-lit surface
+        // by 0.14 is how a shadow under a hem became a **black crescent across the belly** —
+        // easily the loudest wrong thing on the character, and drawn there on purpose by a
+        // number chosen for a surface that was assumed hidden. The shadow is real and stays; it
+        // is now a shadow rather than a hole.
+        detail.shade -= 0.18 * rise(v, at: shirtHem - 0.19, over: 0.33)
+        detail.shade -= 0.05 * rise(v, at: shirtHem - 0.01, over: 0.055)
+        // And then the pocket itself is **lit**, which is the opposite of everything else in this
+        // file and is the honest thing to do. The gap under the hem gets no spotlight and no
+        // bounce, because there is no bounce in this scene at all; a real one would fill it with
+        // light off the shorts and the shirt lining, and without that it goes to flat ambient and
+        // reads as a hole rather than as a shadow. This is that missing bounce, put back by hand
+        // in the same band the shadow above occupies — a shadow with a floor to it instead of one
+        // that runs to nothing.
+        detail.shade += 0.09 * between(v, shirtHem - 0.22, shirtHem + 0.02, soft: 0.11)
 
         // The turn-up at the bottom of the leg, and the stitch line holding it.
-        detail.shade -= 0.11 * between(v, 0.03, 0.13, soft: 0.015)
-        detail.shade -= 0.10 * line(v, at: 0.15, halfWidth: 0.008)
+        detail.shade -= 0.11 * between(v, 0.033, 0.143, soft: 0.016)
+        detail.shade -= 0.10 * line(v, at: 0.165, halfWidth: 0.009)
         // The side seam, at the hip — u = 0.5 is a quarter turn from the front, and the fold
         // means the one line is drawn on both hips.
         detail.shade -= 0.11 * line(u, at: 0.5, halfWidth: 0.014)
         // The fly, front centre and only as far up as the shirt.
-        detail.shade -= 0.09 * line(u, at: 0, halfWidth: 0.045) * between(v, 0.05, 0.44, soft: 0.05)
+        detail.shade -= 0.09 * line(u, at: 0, halfWidth: 0.045) * between(v, 0.055, 0.483, soft: 0.055)
         // The same drape the shirt has, on the part of the shorts that hangs free of the hip.
-        detail.shade -= 0.045 * line(u, at: 0.27, halfWidth: 0.10) * between(v, 0.02, 0.38, soft: 0.14)
+        detail.shade -= 0.045 * line(u, at: 0.27, halfWidth: 0.10) * between(v, 0.022, 0.417, soft: 0.154)
 
         detail.shade += cloth(u: u, v: v, seed: 2)
         return detail
