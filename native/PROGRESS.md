@@ -1595,7 +1595,9 @@ the same thing, and an unmodulated factor is much more wrong than no emission.
 
 A scan of all 40 models found **9 images across 7 models** that `MTKTextureLoader` refuses.
 Only `desk.glb`'s is in a slot the renderer samples; the rest are occlusion, metallic-roughness
-and normal maps, which this renderer does not read.
+and normal maps, which this renderer does not read **for a rigid model**. (Skinned characters
+read their normal map now — see [HANDOFF-imported-characters-part6.md](HANDOFF-imported-characters-part6.md).
+`ModelStore` still ignores all three.)
 
 #### Verified by pixel diff, on device
 

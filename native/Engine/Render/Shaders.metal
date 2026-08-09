@@ -40,6 +40,9 @@ struct SkinVertex {
     float2 uv;
     float  colorSlot;
     float  pad;
+    /// Tangent frame for the normal map: xyz along +u, w the UV shell's handedness. Last in the
+    /// struct because the eighty bytes above it already line up field-for-field with Swift's.
+    float4 tangent;
 };
 
 // MARK: - Shared per-pass state
@@ -316,6 +319,10 @@ struct CharacterInOut {
     float4 tint;
     /// x = roughness, y = metalness.
     float2 surfaceParams;
+    /// The tangent frame, skinned along with the normal. `xyz` is zero for a draw that has no
+    /// frame — every rigid one, and any skinned mesh whose UVs could not give one — which is the
+    /// fragment shader's cue to light off the geometric normal alone.
+    float4 tangent;
 };
 
 vertex CharacterInOut characterVertex(uint vertexID [[vertex_id]],
@@ -331,6 +338,9 @@ vertex CharacterInOut characterVertex(uint vertexID [[vertex_id]],
     out.worldPosition = (uniforms.model * local).xyz;
     out.tint = uniforms.color;
     out.surfaceParams = uniforms.flags.zw;
+    // A rigid mesh carries no tangents — `MeshVertex` has nowhere to put them — so it never
+    // takes the normal-mapped branch. Props and the map are lit off their geometry as before.
+    out.tangent = float4(0.0);
     return out;
 }
 
@@ -354,18 +364,27 @@ vertex CharacterInOut characterSkinnedVertex(uint vertexID [[vertex_id]],
 
     float3 position = float3(0.0);
     float3 normal = float3(0.0);
+    // The tangent is skinned by the same blend as the normal. It has to be: it is a direction
+    // lying in the surface, so an elbow that bends without carrying its tangent round would keep
+    // lighting its normal map as though the arm were still straight.
+    float3 tangent = float3(0.0);
     for (uint i = 0; i < 4; i++) {
         float weight = v.weights[i];
         if (weight <= 0.0) { continue; }
         float4x4 bone = joints[uint(v.joints[i])];
+        float3x3 rotation = float3x3(bone[0].xyz, bone[1].xyz, bone[2].xyz);
         position += weight * (bone * float4(v.position, 1.0)).xyz;
-        normal += weight * (float3x3(bone[0].xyz, bone[1].xyz, bone[2].xyz) * v.normal);
+        normal += weight * (rotation * v.normal);
+        tangent += weight * (rotation * v.tangent.xyz);
     }
 
     uint slot = uint(v.colorSlot);
     CharacterInOut out;
     out.position = uniforms.modelViewProjection * float4(position, 1.0);
     out.normal = normalize(normal);
+    // Left un-normalised where there was no frame to start with, so it stays zero and the
+    // fragment shader can tell the difference.
+    out.tangent = float4(tangent, v.tangent.w);
     out.uv = v.uv;
     out.worldPosition = position;
     // The palette holds the colours first and the roughness/metalness pairs after them.
@@ -381,6 +400,7 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
                                     texture2d<float> clipMap [[texture(1)]],
                                     depth2d<float> shadowMap [[texture(2)]],
                                     texture2d<float> emissiveMap [[texture(3)]],
+                                    texture2d<float> normalMap [[texture(4)]],
                                     sampler baseSampler [[sampler(0)]],
                                     sampler clipSampler [[sampler(1)]],
                                     sampler shadowSampler [[sampler(2)]])
@@ -435,6 +455,36 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
     }
 
     float3 normal = normalize(in.normal);
+
+    // **Normal mapping.** The mesh gives one normal per vertex, so a smooth arm is a smooth arm:
+    // the folds of a sleeve, the seam of a shoe and the strands of hair are all painted into the
+    // base colour and lit as though flat. The map supplies the missing detail — per *fragment*,
+    // as a direction in tangent space — and the frame interpolated from the vertices is what
+    // carries it into world space, so it turns with the character and bends with the skinning.
+    //
+    // Guarded on the tangent as well as the flag: a rigid draw shares this fragment shader and
+    // has no frame at all, and with the map unbound-but-sampled it would light off noise.
+    if (uniforms.surface.y > 0.5 && dot(in.tangent.xyz, in.tangent.xyz) > 1e-8) {
+        // Gram-Schmidt again, because interpolating three perpendicular tangents across a
+        // triangle does not give a perpendicular one.
+        float3 tangent = in.tangent.xyz - normal * dot(normal, in.tangent.xyz);
+        float lengthT = length(tangent);
+        if (lengthT > 1e-5) {
+            tangent /= lengthT;
+            // `w` mirrors the frame where the UV shell is mirrored — which is how the left and
+            // right of a character share one half of the atlas without the bumps inverting.
+            float3 bitangent = cross(normal, tangent) * (in.tangent.w < 0.0 ? -1.0 : 1.0);
+
+            // The map is stored around 0.5 with no sRGB curve — see `ImportedCharacterStore`.
+            float3 mapped = normalMap.sample(baseSampler, in.uv).xyz * 2.0 - 1.0;
+            // `normalTexture.scale`, applied to x and y only, exactly as three.js's `normalScale`
+            // does: it leans the perturbation towards or away from the geometric normal rather
+            // than scaling the vector.
+            mapped.xy *= uniforms.surface.z;
+
+            normal = normalize(tangent * mapped.x + bitangent * mapped.y + normal * mapped.z);
+        }
+    }
 
     SceneOut out;
     if (uniforms.flags.y > 0.5) {

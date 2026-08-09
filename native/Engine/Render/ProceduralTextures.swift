@@ -121,4 +121,24 @@ enum ProceduralTextures {
                         withBytes: &white, bytesPerRow: 4)
         return texture
     }
+
+    /// A 1×1 flat normal map — the stand-in bound at texture 4 for every draw that has no map of
+    /// its own, because `characterFragment` declares the slot and Metal wants every declared
+    /// texture bound.
+    ///
+    /// `(128, 128, 255)` decodes to (0, 0, 1): straight along the surface normal, perturbing
+    /// nothing. The white stand-in would decode to (1, 1, 1) and tilt every fragment 45° towards
+    /// the corner, so this one is worth the four bytes — it makes the flag that gates the sample
+    /// an optimisation rather than the only thing standing between a prop and bad lighting.
+    static func makeFlatNormalTexture(device: MTLDevice) -> MTLTexture? {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm,
+                                                                  width: 1, height: 1,
+                                                                  mipmapped: false)
+        descriptor.usage = .shaderRead
+        guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
+        var flat: [UInt8] = [128, 128, 255, 255]
+        texture.replace(region: MTLRegionMake2D(0, 0, 1, 1), mipmapLevel: 0,
+                        withBytes: &flat, bytesPerRow: 4)
+        return texture
+    }
 }

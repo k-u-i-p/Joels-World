@@ -63,6 +63,11 @@ struct GLTFSkinVertex {
     var joints: SIMD4<UInt16>
     /// How much each of `joints` moves this vertex. Renormalised to sum to 1 on load.
     var weights: SIMD4<Float>
+    /// Tangent frame for the normal map: `xyz` the surface tangent along +u, `w` the handedness
+    /// that turns it into a bitangent (`cross(normal, tangent) * w`). glTF's `TANGENT` attribute
+    /// exactly, and generated from the UVs when the file has none — which is four of the five
+    /// characters. `xyz` is zero only where a mesh has no UVs at all to derive one from.
+    var tangent: SIMD4<Float> = .zero
 }
 
 /// A skinned mesh and the skeleton that deforms it, both in the mesh's own space.
@@ -85,6 +90,12 @@ struct GLTFSkinnedMesh {
     var parents: [Int?]
     var baseColorImage: Int?
     var normalImage: Int?
+    /// `normalTexture.scale`, which three.js reads into `normalScale`. It multiplies the map's
+    /// x and y before the frame is rebuilt, so 0 is a flat surface and 1 the map as authored.
+    var normalScale: Float = 1
+    /// Whether the tangents came from the file's `TANGENT` attribute or were generated here.
+    /// Only worth knowing when a normal map looks wrong — see `GLTFLoader.generateTangents`.
+    var authoredTangents: Bool = false
     var baseColor: SIMD4<Float>
     var roughness: Float
     var metalness: Float
@@ -324,6 +335,14 @@ enum GLTFLoader {
             uvs = fallback
         }
 
+        // `TANGENT` is optional in glTF and an exporter only writes it when it feels like it:
+        // `stylized_boy.glb` has one, the four family models do not, and all five carry a normal
+        // map. So it is read when present and derived from the UVs below when it is not.
+        var tangents: AccessorData?
+        if let index = attributes["TANGENT"] as? Int {
+            tangents = readAccessor(index, accessors: accessors, bufferViews: bufferViews, buffers: buffers)
+        }
+
         var vertices: [GLTFSkinVertex] = []
         vertices.reserveCapacity(count)
 
@@ -349,13 +368,25 @@ enum GLTFLoader {
             let total = weights.x + weights.y + weights.z + weights.w
             weights = total > 1e-5 ? weights / total : SIMD4(1, 0, 0, 0)
 
+            var tangent = SIMD4<Float>.zero
+            if let tangents, i * tangents.componentsPerElement < tangents.count {
+                let t = tangents.vector4(at: i)
+                let length = simd_length(SIMD3(t.x, t.y, t.z))
+                // A zero-length authored tangent is no frame at all; the generator below is not
+                // run in that case, so it stays zero and the shader falls back to the normal.
+                if length > 1e-6 {
+                    tangent = SIMD4(t.x / length, t.y / length, t.z / length, t.w < 0 ? -1 : 1)
+                }
+            }
+
             vertices.append(GLTFSkinVertex(
                 position: positions.vector3(at: i),
                 normal: normal,
                 uv: uv,
                 joints: SIMD4(UInt16(clamping: Int(rawJoints.x)), UInt16(clamping: Int(rawJoints.y)),
                               UInt16(clamping: Int(rawJoints.z)), UInt16(clamping: Int(rawJoints.w))),
-                weights: weights))
+                weights: weights,
+                tangent: tangent))
         }
 
         var indices: [UInt32] = []
@@ -365,6 +396,10 @@ enum GLTFLoader {
             indices = data.asIndices()
         } else {
             indices = Array(0..<UInt32(count))
+        }
+
+        if tangents == nil {
+            generateTangents(vertices: &vertices, indices: indices)
         }
 
         func imageSource(of reference: Any?) -> Int? {
@@ -380,6 +415,7 @@ enum GLTFLoader {
         var metalness: Float = 1
         var baseColorImage: Int?
         var normalImage: Int?
+        var normalScale: Float = 1
 
         if let materialIndex = primitive["material"] as? Int, materials.indices.contains(materialIndex) {
             let material = materials[materialIndex]
@@ -391,7 +427,15 @@ enum GLTFLoader {
                 if let factor = pbr["metallicFactor"] as? Double { metalness = Float(factor) }
                 baseColorImage = imageSource(of: pbr["baseColorTexture"])
             }
-            normalImage = imageSource(of: material["normalTexture"])
+            if let normal = material["normalTexture"] as? [String: Any] {
+                normalImage = imageSource(of: normal)
+                if let scale = normal["scale"] as? Double { normalScale = Float(scale) }
+                // Both maps are sampled with the one interpolated UV, so a normal map on a
+                // different `texCoord` from the base colour would silently sample the wrong set.
+                if let texCoord = normal["texCoord"] as? Int, texCoord != 0 {
+                    Log.render("glTF: normalTexture wants TEXCOORD_\(texCoord); only set 0 is sampled")
+                }
+            }
         }
 
         return GLTFSkinnedMesh(vertices: vertices,
@@ -401,9 +445,76 @@ enum GLTFLoader {
                                parents: parents,
                                baseColorImage: baseColorImage,
                                normalImage: normalImage,
+                               normalScale: normalScale,
+                               authoredTangents: tangents != nil,
                                baseColor: baseColor,
                                roughness: roughness,
                                metalness: metalness)
+    }
+
+    /// **Tangents from the UVs**, for the four characters whose exporter wrote none.
+    ///
+    /// A normal map stores its perturbation in *tangent space* — a frame in which +x runs along
+    /// increasing u across the surface, +y along increasing v, and +z is the geometric normal.
+    /// Without that frame the map cannot be applied at all: there is nothing to say which way
+    /// "right" is on the skin of the arm.
+    ///
+    /// The frame is recovered per triangle by solving the two edges against their UV deltas, then
+    /// averaged at each vertex so it varies smoothly rather than faceting, and finally made
+    /// perpendicular to the vertex normal (Gram–Schmidt) because the averaged tangent generally
+    /// is not. `w` records whether the UV shell is mirrored, which is how the left arm can share
+    /// the right arm's patch of the atlas without its bumps coming out inside-out.
+    ///
+    /// This is the standard Lengyel construction rather than MikkTSpace. It differs from
+    /// MikkTSpace where a mesh has hard UV seams that also share vertices; a character atlas
+    /// splits vertices at its seams, so the two agree here.
+    private static func generateTangents(vertices: inout [GLTFSkinVertex], indices: [UInt32]) {
+        var tangentSum = [SIMD3<Float>](repeating: .zero, count: vertices.count)
+        var bitangentSum = [SIMD3<Float>](repeating: .zero, count: vertices.count)
+
+        var i = 0
+        while i + 2 < indices.count {
+            let a = Int(indices[i]), b = Int(indices[i + 1]), c = Int(indices[i + 2])
+            i += 3
+            guard a < vertices.count, b < vertices.count, c < vertices.count else { continue }
+
+            let edge1 = vertices[b].position - vertices[a].position
+            let edge2 = vertices[c].position - vertices[a].position
+            let deltaUV1 = vertices[b].uv - vertices[a].uv
+            let deltaUV2 = vertices[c].uv - vertices[a].uv
+
+            // A degenerate triangle in UV space (a seam collapsed to a point, or an unwrapped
+            // face) has no frame to give; its vertices take theirs from their other triangles.
+            let determinant = deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y
+            guard abs(determinant) > 1e-12 else { continue }
+            let r = 1 / determinant
+
+            let tangent = (edge1 * deltaUV2.y - edge2 * deltaUV1.y) * r
+            let bitangent = (edge2 * deltaUV1.x - edge1 * deltaUV2.x) * r
+
+            for index in [a, b, c] {
+                tangentSum[index] += tangent
+                bitangentSum[index] += bitangent
+            }
+        }
+
+        for index in vertices.indices {
+            let normal = vertices[index].normal
+            var tangent = tangentSum[index] - normal * simd_dot(normal, tangentSum[index])
+            let length = simd_length(tangent)
+
+            if length > 1e-6 {
+                tangent /= length
+            } else {
+                // No usable UV frame here. Any tangent perpendicular to the normal keeps the
+                // basis valid; a flat region of the map then perturbs nothing, which is right.
+                let axis = abs(normal.x) < 0.9 ? SIMD3<Float>(1, 0, 0) : SIMD3<Float>(0, 1, 0)
+                tangent = simd_normalize(simd_cross(axis, normal))
+            }
+
+            let handedness: Float = simd_dot(simd_cross(normal, tangent), bitangentSum[index]) < 0 ? -1 : 1
+            vertices[index].tangent = SIMD4(tangent, handedness)
+        }
     }
 
     // MARK: - Container

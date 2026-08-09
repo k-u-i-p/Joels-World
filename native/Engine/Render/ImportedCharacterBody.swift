@@ -24,6 +24,12 @@ struct SkinVertex {
     /// own texture — the slot exists because the shared vertex descriptor has the field.
     var colorSlot: Float
     var pad: Float = 0
+    /// The normal map's tangent frame: `xyz` along +u, `w` the handedness. **It goes last on
+    /// purpose.** `pad` above is what makes the first five fields land on the same offsets in
+    /// Swift and Metal; a `float4` is 16-byte aligned in both languages, and 80 — the size of the
+    /// struct without it — is a multiple of 16, so appending it keeps that agreement rather than
+    /// shifting every field after it.
+    var tangent: SIMD4<Float> = .zero
 }
 
 /// A bought, rigged character: its mesh on the GPU and the skeleton `HumanoidRetargeter` aims.
@@ -46,6 +52,10 @@ final class ImportedCharacterBody {
     let jointNames: [String]
 
     let baseColorTexture: MTLTexture?
+    /// The model's tangent-space normal map, if it has one. All five characters do.
+    let normalTexture: MTLTexture?
+    /// `normalTexture.scale` from the material — how hard the map is applied.
+    let normalScale: Float
     let baseColor: SIMD4<Float>
     let roughness: Float
     let metalness: Float
@@ -57,7 +67,8 @@ final class ImportedCharacterBody {
     init?(device: MTLDevice,
           mesh: GLTFSkinnedMesh,
           skeleton: HumanoidSkeleton,
-          baseColorTexture: MTLTexture?) {
+          baseColorTexture: MTLTexture?,
+          normalTexture: MTLTexture?) {
         guard !mesh.vertices.isEmpty, !mesh.indices.isEmpty else { return nil }
 
         // Into engine space, and into the layout the existing skinned pipeline expects.
@@ -69,6 +80,15 @@ final class ImportedCharacterBody {
         for vertex in mesh.vertices {
             let position = normalize * SIMD4(vertex.position, 1)
             let normal = simd_normalize(normalMatrix * vertex.normal)
+            // A tangent is a direction *along* the surface, so it rotates with the mesh like the
+            // normal does. Handedness is a property of the UV shell, not of the space, so it
+            // rides through untouched. A zero tangent means the mesh had no frame to give and
+            // must stay zero — normalising it would make it NaN, and a NaN normal turns the
+            // whole character black.
+            let rawTangent = SIMD3(vertex.tangent.x, vertex.tangent.y, vertex.tangent.z)
+            let tangent = simd_length(rawTangent) > 1e-6
+                ? simd_normalize(normalMatrix * rawTangent)
+                : SIMD3<Float>.zero
             vertices.append(SkinVertex(
                 position: SIMD3(position.x, position.y, position.z),
                 normal: normal,
@@ -80,7 +100,8 @@ final class ImportedCharacterBody {
                 uv: vertex.uv,
                 // No colour slot: an imported character's colour is its own texture, and
                 // `clothed: false` is what stops the palette being consulted at all.
-                colorSlot: 0))
+                colorSlot: 0,
+                tangent: SIMD4(tangent, vertex.tangent.w)))
         }
 
         guard let vertexBuffer = device.makeBuffer(bytes: vertices,
@@ -97,6 +118,8 @@ final class ImportedCharacterBody {
         self.skeleton = skeleton
         self.jointNames = mesh.jointNames
         self.baseColorTexture = baseColorTexture
+        self.normalTexture = normalTexture
+        self.normalScale = mesh.normalScale
         self.baseColor = mesh.baseColor
         self.roughness = mesh.roughness
         self.metalness = mesh.metalness
@@ -180,11 +203,28 @@ final class ImportedCharacterStore {
                     }
                 }
 
+                // **The normal map is loaded with sRGB off**, unlike the base colour above. It
+                // does not hold a colour: its three channels are the x, y and z of a direction,
+                // encoded linearly around 0.5. Decoding them as sRGB bends every one of those
+                // numbers towards zero, which tilts the whole surface away from the light — a
+                // character who looks dirty rather than bumpy, with no obvious cause.
+                var normalTexture: MTLTexture?
+                if let imageIndex = mesh.normalImage, let bytes = asset.images[imageIndex] {
+                    normalTexture = (try? self.textureLoader.newTexture(
+                        data: bytes, options: [.SRGB: false, .generateMipmaps: true]))
+                        ?? ImageDecoder.texture(from: bytes, device: self.device,
+                                                flipped: false, srgb: false)
+                    if normalTexture == nil {
+                        Log.render("Imported character '\(path)': normal map failed to decode")
+                    }
+                }
+
                 self.loading.remove(path)
                 guard let body = ImportedCharacterBody(device: self.device,
                                                        mesh: mesh,
                                                        skeleton: skeleton,
-                                                       baseColorTexture: texture) else {
+                                                       baseColorTexture: texture,
+                                                       normalTexture: normalTexture) else {
                     self.failed.insert(path)
                     Log.render("Imported character '\(path)': could not build GPU buffers")
                     return
@@ -198,6 +238,13 @@ final class ImportedCharacterStore {
                            + "\(skeleton.jointCount) joints, "
                            + "\(skeleton.matched.count)/\(HumanoidBone.allCases.count) bones matched, "
                            + "parsed in \(Int(elapsed)) ms")
+                Log.render("  normal map: "
+                           + (body.normalTexture == nil
+                              ? "none — lit off the geometry alone"
+                              : String(format: "%d×%d, scale %.2f, tangents %@",
+                                       body.normalTexture!.width, body.normalTexture!.height,
+                                       body.normalScale,
+                                       mesh.authoredTangents ? "from the file" : "generated from the UVs")))
                 Log.render(String(format: "  scale ×%.3f — %.3f file units tall → %.1f engine units; "
                                   + "rig hip height %.1f",
                                   skeleton.normalizeScale, skeleton.measuredHeight,

@@ -521,6 +521,10 @@ final class Renderer: NSObject, MTKViewDelegate {
         encoder.setFragmentBytes(&scene, length: MemoryLayout<SceneUniforms>.stride, index: 2)
         encoder.setFragmentTexture(shadowTexture, index: 2)
         encoder.setFragmentSamplerState(shadowSamplerState, index: 2)
+        // `characterFragment` declares a normal map at texture 4 and Metal wants every declared
+        // texture bound. Only a character supplies a real one — it rebinds per draw; this flat
+        // stand-in covers props, scene primitives and the frames before a model is resident.
+        encoder.setFragmentTexture(characters.fallbackNormalTexture, index: 4)
 
         let viewProjection = state.camera.viewProjection
         let chunks = state.map.visibleChunks(camera: state.camera)

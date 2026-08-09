@@ -18,8 +18,9 @@ struct CharacterUniforms {
     /// xyz = dielectric F0, w = specular intensity (three.js's `specularF90` before the
     /// metalness mix). The defaults (0.04, 1) are what `MeshStandardMaterial` hard-codes.
     var specular: SIMD4<Float>
-    /// x = transmission, yzw unused. `y` used to say the clothing atlas was bound at texture 0;
-    /// the clothing atlas dressed the procedural body and went with it.
+    /// x = transmission, y = a tangent-space normal map is bound at texture 4, z = its
+    /// `normalTexture.scale`, w unused. `y` used to say the clothing atlas was bound at texture
+    /// 0; the clothing atlas dressed the procedural body and went with it.
     var surface: SIMD4<Float>
 }
 
@@ -59,7 +60,9 @@ extension CharacterUniforms {
          textured: Bool,
          unlit: Bool,
          material: SurfaceMaterial,
-         emissiveTextured: Bool = false) {
+         emissiveTextured: Bool = false,
+         normalTextured: Bool = false,
+         normalScale: Float = 1) {
         let extensions = material.extensions
         self.init(modelViewProjection: modelViewProjection,
                   model: model,
@@ -69,7 +72,7 @@ extension CharacterUniforms {
                                material.roughness, material.metalness),
                   emissive: SIMD4(extensions.emissive, emissiveTextured ? 1 : 0),
                   specular: SIMD4(extensions.specularF0, extensions.specularIntensity),
-                  surface: SIMD4(extensions.transmission, 0, 0, 0))
+                  surface: SIMD4(extensions.transmission, normalTextured ? 1 : 0, normalScale, 0))
     }
 }
 
@@ -130,6 +133,8 @@ final class CharacterRenderer {
 
     /// A 1×1 white stand-in, so the fragment shader can always bind texture 0.
     private var whiteTexture: MTLTexture!
+    /// A 1×1 flat normal, for texture 4 on every draw without a map of its own.
+    private var flatNormalTexture: MTLTexture!
 
     // MARK: - Imported characters
 
@@ -186,6 +191,9 @@ final class CharacterRenderer {
 
     /// Shared by the prop renderer, which needs the same "no texture here" placeholder.
     var fallbackTexture: MTLTexture { whiteTexture }
+    /// The same, for the normal-map slot — props and scene primitives carry no tangents and so
+    /// never sample it, but the shader declares it and Metal wants it bound.
+    var fallbackNormalTexture: MTLTexture { flatNormalTexture }
 
     init?(device: MTLDevice, models: ModelStore) {
         self.device = device
@@ -235,9 +243,10 @@ final class CharacterRenderer {
 
         shadowTexture = ProceduralTextures.makeShadowTexture(device: device)
         whiteTexture = ProceduralTextures.makeWhiteTexture(device: device)
+        flatNormalTexture = ProceduralTextures.makeFlatNormalTexture(device: device)
         buildPropMeshes()
         heartTexture = ProceduralTextures.makeHeartTexture(device: device)
-        return whiteTexture != nil
+        return whiteTexture != nil && flatNormalTexture != nil
     }
 
     private func buildPropMeshes() {
@@ -455,7 +464,9 @@ final class CharacterRenderer {
             clipParams: SIMD4(pose.worldPivot.x, pose.worldPivot.y, clipMapSize.x, clipMapSize.y),
             textured: body.baseColorTexture != nil,
             unlit: false,
-            material: SurfaceMaterial(roughness: body.roughness, metalness: body.metalness)
+            material: SurfaceMaterial(roughness: body.roughness, metalness: body.metalness),
+            normalTextured: body.normalTexture != nil,
+            normalScale: body.normalScale
         )
 
         encoder.setRenderPipelineState(shadowPass ? pipelines.shadowSkinned : pipelines.skinned)
@@ -469,6 +480,7 @@ final class CharacterRenderer {
             encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
             encoder.setFragmentTexture(body.baseColorTexture ?? whiteTexture, index: 0)
             encoder.setFragmentTexture(whiteTexture, index: 3)
+            encoder.setFragmentTexture(body.normalTexture ?? flatNormalTexture, index: 4)
         }
         encoder.drawIndexedPrimitives(type: .triangle,
                                       indexCount: body.indexCount,
@@ -575,6 +587,7 @@ final class CharacterRenderer {
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
         encoder.setFragmentTexture(texture ?? whiteTexture, index: 0)
         encoder.setFragmentTexture(emissiveTexture ?? whiteTexture, index: 3)
+        encoder.setFragmentTexture(flatNormalTexture, index: 4)
         encoder.drawIndexedPrimitives(type: .triangle,
                                       indexCount: mesh.indexCount,
                                       indexType: .uint32,

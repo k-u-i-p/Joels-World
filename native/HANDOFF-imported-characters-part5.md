@@ -144,8 +144,9 @@ All three schemes build: `CharacterLab`, `JoelsWorld` (iOS simulator) and `Joels
   `model`, so anything the server invents falls back to the default. Out of bounds here, and
   harmless.
 - **The ankle does not roll through a stance**, fingers do not adduct, nothing curls a hand except
-  holding something, normal maps are ignored, and the model's limb lengths win over the rig's.
+  holding something, and the model's limb lengths win over the rig's.
   All unchanged from parts 3 and 4.
+  (*Normal maps were on this list too. Part 6 did them.*)
 
 ## Checking it
 

@@ -89,10 +89,11 @@ strip of pictures out on its own: see
 [HANDOFF-character-lab.md](native/HANDOFF-character-lab.md).
 
 **How the characters themselves work** — a **bought, rigged model**, driven by our own walk cycle,
-IK and emotes — is five handoffs starting at
+IK and emotes — is six handoffs starting at
 [HANDOFF-imported-characters.md](native/HANDOFF-imported-characters.md).
-[Part 5](native/HANDOFF-imported-characters-part5.md) is the most recent, and its "What is left"
-is the list to pick the next job off.
+[Part 6](native/HANDOFF-imported-characters-part6.md) is the most recent — the characters read
+their normal maps now — and [part 5](native/HANDOFF-imported-characters-part5.md)'s "What is left"
+is still the list to pick the next job off.
 
 **There are five characters now** — `boy`, `girl`, `man`, `woman` and `stylized_boy`. Which one an
 NPC wears is one word in `npc.json`, which makes it a green-zone change:
