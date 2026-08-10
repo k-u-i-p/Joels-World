@@ -25,6 +25,7 @@ enum CharacterLabCast {
         case solo
         case school
         case models
+        case staff
         case extremes
 
         var title: String {
@@ -32,6 +33,7 @@ enum CharacterLabCast {
             case .solo: return "One pupil"
             case .school: return "Five from Junior Campus"
             case .models: return "One of every model"
+            case .staff: return "Pupils and staff, at the sizes npc.json gives them"
             case .extremes: return "Awkward colours and sizes"
             }
         }
@@ -47,8 +49,79 @@ enum CharacterLabCast {
             return schoolPupils()
         case .models:
             return everyModel()
+        case .staff:
+            return staffAndPupils()
         case .extremes:
             return extremes()
+        }
+    }
+
+    /// One character per catalogue entry, identical in every other way.
+    ///
+    /// **Same `width` and `height` for all five on purpose.** A model is scaled to the rig's hip
+    /// height on load, so this is the lineup that shows what each one's *own* proportions do with
+    /// that — a long-legged adult and a short-legged child both stand hip-high to the same line,
+    /// and how much taller that leaves the adult's head is the model's own answer, not a number
+    /// anybody typed. Give them the sizes the game gives a teacher and a pupil and you would be
+    /// photographing `npc.json` instead.
+    private static func everyModel() -> [GameCharacter] {
+        CharacterModels.all.enumerated().map { index, entry in
+            var character = pupil()
+            character.id = labId(index)
+            character.name = entry.title
+            character.model = entry.key
+            return character
+        }
+    }
+
+    /// **A pupil and a teacher standing next to each other, at the sizes `npc.json` gives them.**
+    ///
+    /// The one cast where `width` and `height` are allowed to differ down the row, and the reason
+    /// it exists: `.models` deliberately holds them equal so a model's own proportions show, and
+    /// `.school` only picks pupils, so between them the lab could photograph every character in
+    /// the game and never once draw a grown-up beside a child. That is exactly the shot in which
+    /// a teacher at `height` 70 was visibly a stretched pupil for two sessions — see
+    /// `HumanoidRetargeter.solve`, where the flesh is now scaled with the skeleton.
+    ///
+    /// Sizes are the ones the data actually holds, so this shot goes stale on purpose whenever
+    /// somebody edits them.
+    private static func staffAndPupils() -> [GameCharacter] {
+        func make(_ index: Int, _ name: String, _ model: String,
+                  _ width: Double, _ height: Double) -> GameCharacter {
+            var character = pupil()
+            character.id = labId(index)
+            character.name = name
+            character.model = model
+            character.width = width
+            character.height = height
+            character.hide_nameplate = false
+            return character
+        }
+
+        return [
+            make(0, "Pupil", "boy", 40, 40),
+            make(1, "Pupil", "girl", 40, 40),
+            make(2, "Mrs Cook", "woman", 18, 63),
+            make(3, "Mr Ferguson", "man", 50, 64),
+            make(4, "Mr Hardy", "man", 52, 68),
+        ]
+    }
+
+    /// The same model in each outfit `tools/characters/make_outfits.py` has written, plus the
+    /// one it was sold in at the head of the line.
+    ///
+    /// This is the check that an outfit is a *texture* and nothing else: every character here
+    /// shares one mesh, one skeleton and one normal map, and the only thing that differs down
+    /// the row is which base colour map got bound. `JW_CHARACTER_MODEL` picks which model wears
+    /// them, so it is one command per model to see the whole wardrobe.
+    private static func everyOutfit() -> [GameCharacter] {
+        let names: [String?] = [nil, "red", "blue", "green", "yellow", "ginger"]
+        return names.enumerated().map { index, outfit in
+            var character = pupil()
+            character.id = labId(index)
+            character.name = outfit ?? "As sold"
+            character.outfit = outfit
+            return character
         }
     }
 
