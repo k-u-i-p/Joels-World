@@ -283,6 +283,9 @@ final class Tennis3DGame: WorldRenderedMinigame {
                 strideLength: Tuning.strideLength))
             // The court is measured in metres, not in school corridors: a character the motor
             // would happily call "arrived" at 4 units away is a third of a metre off the ball.
+            // Which body this side wears, so `CharacterMotor.localToWorld` folds in the height
+            // this character actually rides at. See `CharacterMotor.model`.
+            motor.model = appearance.model
             motor.arrivalRadius = Tennis3DCourt.metres(0.12)
             motor.arrivalGain = 4.5
             // A swing throws the hand thirty units in a tenth of a second, and the ball is hit
@@ -712,13 +715,13 @@ final class Tennis3DGame: WorldRenderedMinigame {
     /// this camera angle.
     var playerStrikeLift: Double {
         guard let intercept = idealIntercept() else { return 0 }
-        return lift(forBallHeight: intercept.z)
+        return lift(forBallHeight: intercept.z, for: player)
     }
 
     /// How high off the court a tap should be read at: the height the strings pass through.
     /// A finger aiming at a marker floating a metre up is not aiming at the ground under it —
     /// from this camera those are more than half a metre apart.
-    var playerContactHeight: Double { headHeight(lift: playerStrikeLift) }
+    var playerContactHeight: Double { headHeight(lift: playerStrikeLift, of: player) }
 
     /// A tap or a drag, already converted to a point on the court — **where the feet go**.
     ///

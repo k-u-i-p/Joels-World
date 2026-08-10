@@ -394,6 +394,133 @@ enum Grip {
     }
 }
 
+// MARK: - What a foot measures
+
+/// **How big a character's shoe is**, in engine units about its own ankle joint.
+///
+/// `CharacterRig.shoeFrame` needs four numbers to keep a sole off the floor — how far the sole
+/// hangs below the ankle, how far the toe and heel reach either side of it, and how wide it is.
+/// Those numbers used to be constants measured off `slip_on_shoes.glb`, which was the right
+/// answer while the engine *drew* that shoe on a procedural body. It stopped being the right
+/// answer the moment a bought model arrived wearing its own: nothing draws the slip-on any more,
+/// and a family of five has feet from 2.9 to 7.0 deep against the slip-on's 4.5.
+///
+/// So the slip-on's numbers stay as `slipOn` — the fallback for the frames before a model has
+/// landed, and for anything that has no model at all — and a loaded model publishes its own.
+///
+/// A shoe on its own turned out to be half an answer; see `WornLeg` for the other half.
+struct FootShape {
+    /// The lowest point of the sole, below the ankle joint.
+    var soleBelowAnkle: Float
+    /// How far the toe reaches in front of the ankle, and the heel behind it. A foot's ankle is
+    /// not in the middle of it, and a pitched foot's lowest corner depends on which end is down.
+    var toeAheadOfAnkle: Float
+    var heelBehindAnkle: Float
+    /// Half the width across the sole, for the corner a banked character stands on.
+    var halfWidth: Float
+
+    /// `slip_on_shoes.glb` at `CharacterRig.shoeScale`, which is what every character was sized
+    /// by until models started carrying their own feet.
+    static let slipOn = FootShape(soleBelowAnkle: 9.001 * 0.50,
+                                  toeAheadOfAnkle: 21.54 * 0.50,
+                                  heelBehindAnkle: 6.62 * 0.50,
+                                  halfWidth: 6.6 * 0.50)
+}
+
+/// **The leg the character is actually wearing** — two bone lengths and the shoe on the end.
+///
+/// `FootShape` fixed half of a bug and left the other half standing, and the half it left is the
+/// bigger one. The rig poses an *abstract* leg — `CharacterRig.thighBone` 14.4 and `shinBone`
+/// 11.6 — and every number that decides where the floor is was derived from it:
+/// `bodyPivotHeight` (how high the character rides), `groundContactSink` (how far the pelvis
+/// drops to plant the lower foot) and the ankle handed to `shoeFrame` (which pitch keeps the sole
+/// out of the ground).
+///
+/// **Nothing draws that leg.** `HumanoidRetargeter` walks the *model's* bones: it takes the
+/// direction the rig's thigh points and steps the model's own thigh length along it, then the
+/// same for the shin. So the drawn ankle is at `hip + modelThigh·d₁ + modelShin·d₂`, and the rig
+/// was computing the floor for `hip + 14.4·d₁ + 11.6·d₂`. On this cast the two are between 0.9
+/// and 3.8 units apart, which is most of a shoe, and it is why every bought character stood about
+/// a unit and a quarter off the ground with its sole in fresh air.
+///
+/// The models are not to blame and neither is the scale: `ScaleMode.hips` sizes a model so its
+/// **straight** hip-to-sole matches `engineHipHeight`, which is the rig's hip height with its
+/// knee **bent** at rest. Two different poses, one number, and a model whose leg bones then come
+/// out about 5% short of the rig's. A chunky child with a deep shoe (the son's sole is 7.0 below
+/// his ankle against the slip-on's 4.5) loses more of his leg to the shoe than the rig ever did.
+///
+/// So the rig stops guessing and asks. Every place that used to reason about the floor in
+/// `thighBone`/`shinBone`/`slipOn` now reasons in these, and `WornLeg.rig` — the old constants —
+/// is what it falls back to for the few frames before the `.glb` lands.
+struct WornLeg {
+    /// Hip to knee and knee to ankle, in engine units, as the retargeter will walk them.
+    let thigh: Float
+    let shin: Float
+    /// The shoe on the end of it.
+    let foot: FootShape
+
+    /// **Rig-local height of the drawn ankle with the legs at rest.** The rig's own answer is
+    /// `neutralLeftFoot.z + ankleLift`; a worn leg's is wherever its own two bones end up along
+    /// the same two directions, which is the whole of the bug this type exists for.
+    let restAnkleZ: Float
+
+    /// **How high the body pivot has to ride** for this leg to stand its own sole `footSink`
+    /// under the floor. The old `CharacterRig.bodyPivotHeight` is exactly this for `.rig`.
+    let rideHeight: Float
+
+    /// Hip to ankle with the knee straight — the longest this leg reaches.
+    var reach: Float { thigh + shin }
+
+    /// Derived once, at load, because both numbers cost a two-bone solve and a walking crowd
+    /// would otherwise pay for them twice per character per frame.
+    init(thigh: Float, shin: Float, foot: FootShape) {
+        self.thigh = thigh
+        self.shin = shin
+        self.foot = foot
+        let rest = CharacterRig.wornAnkle(hip: CharacterRig.leftHip,
+                                          foot: CharacterRig.neutralLeftFoot,
+                                          bendNormal: CharacterRig.legBendNormalLeft,
+                                          thigh: thigh, shin: shin)
+        restAnkleZ = rest.z
+        rideHeight = foot.soleBelowAnkle - CharacterRig.footSink - rest.z
+    }
+
+    /// **The rig's own abstract leg**, which is what every character was posed as until models
+    /// started carrying their own. The fallback while a model is still being read off disk, and
+    /// the answer for anything with no model at all.
+    static let rig = WornLeg(thigh: CharacterRig.thighBone,
+                             shin: CharacterRig.shinBone,
+                             foot: .slipOn)
+}
+
+/// **Worn legs by model path**, filled in as models load.
+///
+/// `CharacterRig.pose` runs in the entity layer and needs a leg before it can place a foot; the
+/// measurement lives on `HumanoidSkeleton`, which only exists once the `.glb` has been parsed in
+/// the render layer. Rather than thread a model through every pose signature — the pose already
+/// carries the path, and the store is already a cache keyed by it — the skeleton publishes here
+/// and the rig looks up.
+///
+/// **Main thread only.** `ImportedCharacterStore` parses on a background queue and publishes its
+/// results back on the main queue; posing happens there too. Nothing here is synchronised, and
+/// nothing needs to be as long as that stays true.
+enum WornLegs {
+    private static var byPath: [String: WornLeg] = [:]
+
+    static func publish(_ leg: WornLeg, for path: String) { byPath[path] = leg }
+
+    /// The rig's own leg until the model lands. A character is a shadow blob for those few frames
+    /// anyway, and falling back to the old constants makes every correction below a no-op rather
+    /// than a guess.
+    static func leg(for path: String?) -> WornLeg {
+        guard let path, let leg = byPath[path] else { return .rig }
+        return leg
+    }
+
+    /// Just the shoe, for the two callers that only ever wanted that.
+    static func shape(for path: String?) -> FootShape { leg(for: path).foot }
+}
+
 // MARK: - The retargeted skeleton
 
 /// A bought skeleton, measured once and turned into everything `solve` needs per frame.
@@ -420,6 +547,17 @@ final class HumanoidSkeleton {
     /// bones whose spin about their own length is worth carrying across — today the hands, where
     /// it points at the thumb. `.zero` for every bone that inherits its parent's roll.
     let rollAxis: [SIMD3<Float>]
+    /// **Where a bone points at bind, in the driver's frame** — the direction `solve` aims it at
+    /// when the driver is at rest, instead of taking a column of the driver straight off.
+    /// `.zero` for every joint that wants the plain column. See `driverAim` in the initialiser.
+    let driverAim: [SIMD3<Float>]
+    /// This model's own shoe, measured off its mesh. `nil` if no foot matched, which also means
+    /// nothing is aiming a shoe frame at it.
+    let footShape: FootShape?
+    /// **This model's own leg**, bones and shoe together — what `CharacterRig` reasons about the
+    /// floor with. `nil` if either foot or either leg bone is missing, in which case the rig
+    /// keeps its own abstract leg and the character stands where it always did.
+    let wornLeg: WornLeg?
     let jointCount: Int
     /// Height the mesh measured, in the file's own units, before scaling.
     let measuredHeight: Float
@@ -655,6 +793,148 @@ final class HumanoidSkeleton {
             axesOut[index] = simd_normalize(bindWorld[index].orthonormalRotation.transpose * direction)
         }
         boneAxis = axesOut
+
+        // --- Aim targets ---
+        //
+        // **A foot is not aimed at a column of its driver, and that was the toe-up bug.**
+        //
+        // Every other bone is: `Driver.alongBone` names the column that runs down the bone, and
+        // the aim turns the bone onto it. That works because a rig part's +Y and a model bone's
+        // long axis mean the same thing — *down the limb*.
+        //
+        // The shoe frame's +X does not mean that. It was built for `slip_on_shoes.glb`, a shoe
+        // whose origin sat at the ankle with its length running **horizontally** through it, so
+        // +X is "along the sole" — and it is still exactly the right frame for the *sole*, which
+        // is why `shoeFrame` reasons in it. But the bone the frame now drives is a real skeleton's
+        // foot, which runs from the ankle **down and forward to the ball of the foot**: 35° on
+        // `mother`, 47° on `son`. Aiming that bone at a horizontal axis rotates the whole foot up
+        // by its own declination, and every character stood with the heel down and the toe in the
+        // air — a shape you have to see from the side, which is not the view a flat sole was
+        // checked in.
+        //
+        // So a foot names the direction it points **at bind** instead, held in the driver's frame.
+        // When the frame is level, the aim reproduces the bind pose exactly and the sole is flat;
+        // when `shoeFrame` pitches the frame, the whole foot pitches with it by the same angle.
+        // The model's own toe-out splay survives too, which a single column never had room for.
+        //
+        // It reproduces bind however `boneAxis` was arrived at — including the fallbacks for a
+        // foot with no toe joint — because both sides of the aim are measured off the same pose.
+        var aimOut = [SIMD3<Float>](repeating: .zero, count: count)
+        for index in 0..<count {
+            guard let bone = bones[index], case .shoe = bone.driver else { continue }
+            let direction = bindWorld[index].orthonormalRotation * axesOut[index]
+            guard simd_length(direction) > 1e-5 else { continue }
+            aimOut[index] = simd_normalize(direction)
+        }
+        driverAim = aimOut
+
+        // --- What the shoe measures ---
+        //
+        // The four numbers `CharacterRig.shoeFrame` needs to keep a sole off the floor, taken off
+        // this model's own mesh rather than off the slip-on GLB nothing draws any more. See
+        // `FootShape`.
+        //
+        // **Which vertices are the shoe**: the ones this foot owns. A vertex bound more than half
+        // to the ankle, the toe, or anything under them is flesh that moves with the foot and
+        // nothing else — which on a shod character is the shoe, and on a bare one is the foot.
+        // Either way it is the thing that meets the floor, which is what the number is for.
+        //
+        // **Both feet averaged into one shape.** They differ by under 2% on all five models, and
+        // one shape sidesteps the left/right inversion between `RigPart` and `HumanoidBone` that
+        // has caught this file twice — see the note on `driver`. A character with genuinely odd
+        // feet would want two, and would have to get the sides right to deserve them.
+        //
+        // Measured in world-aligned engine axes rather than the ankle's own frame, because that
+        // is the frame `shoeFrame` reasons in: a humanoid is rigged standing flat on the ground
+        // facing +X, so at bind the sole is level and forward is +X.
+        var descendsFromFoot = [Bool](repeating: false, count: count)
+        for index in order {
+            if let bone = bones[index], case .shoe = bone.driver { descendsFromFoot[index] = true }
+            else if let parent = mesh.parents[index] { descendsFromFoot[index] = descendsFromFoot[parent] }
+        }
+
+        var shapes: [FootShape] = []
+        for foot in [HumanoidBone.leftFoot, .rightFoot] {
+            guard let footIndex = found[foot] else { continue }
+            // This foot's own chain: the ankle and everything hanging off it, but not the other
+            // foot's — `descendsFromFoot` is true for both, so the walk is repeated per side.
+            var chain: Set<Int> = []
+            for index in order {
+                if index == footIndex { chain.insert(index) }
+                else if let parent = mesh.parents[index], chain.contains(parent) { chain.insert(index) }
+            }
+
+            let ankle = position(of: footIndex)
+            var soleBelow = -Float.greatestFiniteMagnitude
+            var toeAhead = -Float.greatestFiniteMagnitude
+            var heelBehind = -Float.greatestFiniteMagnitude
+            var halfWidth: Float = 0
+            var owned = 0
+
+            for vertex in mesh.vertices {
+                var weight: Float = 0
+                for lane in 0..<4 where chain.contains(Int(vertex.joints[lane])) {
+                    weight += vertex.weights[lane]
+                }
+                guard weight > 0.5 else { continue }
+                owned += 1
+                let world = normalize * SIMD4(vertex.position, 1)
+                let relative = SIMD3(world.x, world.y, world.z) - ankle
+                soleBelow = max(soleBelow, -relative.z)
+                toeAhead = max(toeAhead, relative.x)
+                heelBehind = max(heelBehind, -relative.x)
+                halfWidth = max(halfWidth, abs(relative.y))
+            }
+
+            // A foot with almost no vertices of its own is a rig whose weights we have misread,
+            // and a measurement off a handful of them is worse than the fallback.
+            guard owned >= 20, soleBelow > 0, toeAhead > 0 else { continue }
+            shapes.append(FootShape(soleBelowAnkle: soleBelow,
+                                    toeAheadOfAnkle: toeAhead,
+                                    heelBehindAnkle: max(heelBehind, 0),
+                                    halfWidth: max(halfWidth, 0.1)))
+        }
+
+        if shapes.isEmpty {
+            footShape = nil
+        } else {
+            let n = Float(shapes.count)
+            footShape = FootShape(
+                soleBelowAnkle: shapes.reduce(0) { $0 + $1.soleBelowAnkle } / n,
+                toeAheadOfAnkle: shapes.reduce(0) { $0 + $1.toeAheadOfAnkle } / n,
+                heelBehindAnkle: shapes.reduce(0) { $0 + $1.heelBehindAnkle } / n,
+                halfWidth: shapes.reduce(0) { $0 + $1.halfWidth } / n)
+        }
+
+        // --- What the leg measures ---
+        //
+        // Hip to knee and knee to ankle, in the same normalised engine units the retargeter will
+        // step along them in — which is the whole point: these are not a description of the
+        // model, they are exactly the two numbers `solve` uses to decide where the drawn ankle
+        // lands. See `WornLeg` for why the rig needs them.
+        //
+        // Both legs averaged, for the same reason the feet are: the sides differ by a rounding
+        // error on every model here, and one leg sidesteps the left/right inversion between
+        // `RigPart` and `HumanoidBone`.
+        func boneLength(_ from: HumanoidBone, _ to: HumanoidBone) -> Float? {
+            guard let a = found[from], let b = found[to] else { return nil }
+            let length = simd_length(position(of: b) - position(of: a))
+            return length > 1e-4 ? length : nil
+        }
+        let thighs = [boneLength(.leftUpperLeg, .leftLowerLeg),
+                      boneLength(.rightUpperLeg, .rightLowerLeg)].compactMap { $0 }
+        let shins = [boneLength(.leftLowerLeg, .leftFoot),
+                     boneLength(.rightLowerLeg, .rightFoot)].compactMap { $0 }
+
+        if let footShape, !thighs.isEmpty, !shins.isEmpty {
+            wornLeg = WornLeg(thigh: thighs.reduce(0, +) / Float(thighs.count),
+                              shin: shins.reduce(0, +) / Float(shins.count),
+                              foot: footShape)
+        } else {
+            // A leg this could not measure is a leg the rig must not try to correct for: a wrong
+            // ride height is worse than the old one, because it is confidently wrong.
+            wornLeg = nil
+        }
 
         // --- Roll axes ---
         // Measured the same way and for the same reason: a direction taken off the bind pose,
@@ -930,7 +1210,12 @@ final class HumanoidRetargeter {
                     // Aim the bone: the smallest rotation taking where it currently points onto
                     // where the rig says it should point. Smallest matters — anything larger
                     // spins the mesh about its own long axis for no reason.
-                    let target = simd_normalize(alongBone)
+                    //
+                    // A bone with a `driverAim` names that direction in the driver's own frame
+                    // rather than borrowing a column of it. Only the feet do; see `driverAim`.
+                    let aim = skeleton.driverAim[index]
+                    let target = aim == .zero ? simd_normalize(alongBone)
+                                              : simd_normalize(driver * aim)
                     let current = simd_normalize(rotation * skeleton.boneAxis[index])
                     rotation = Self.shortestArc(from: current, to: target) * rotation
 

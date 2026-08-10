@@ -58,6 +58,10 @@ struct RigPose {
     /// what made every pupil the same boy.
     var model: String = CharacterModels.defaultPath
 
+    /// Which recolour of `model`'s texture to draw, from `npc.json`'s `outfit`. `nil` is the one
+    /// the model came in. See `GameCharacter.outfit`.
+    var outfit: String?
+
     /// The head *group* — the frame props parented to the head inherit, including its
     /// non-uniform scale. It used to be the placement of a head GLB as well; the bought model
     /// brings its own head, so this is only an anchor now.
@@ -186,16 +190,65 @@ enum CharacterRig {
     /// accident, which is where "the feet look planted" came from.
     static let footSink: Float = 0.4
 
-    /// How high the body pivot stands off the ground. Every local coordinate in this file is
-    /// measured from it, so anything converting a rig-local point into world space adds it back.
+    /// How high the body pivot stands off the ground **wearing the rig's own abstract leg**.
+    /// Every local coordinate in this file is measured from it, so anything converting a rig-local
+    /// point into world space adds it back.
     ///
     /// **Derived, not chosen.** It used to be a flat 15.5, which meant that changing a bone
     /// length or a shoe scale left the character hovering or buried and the only way to find out
     /// was to look. It is now whatever puts the sole of the shoe `footSink` under the floor with
     /// the legs at rest, so the three things that decide it — leg length, shoe size and sink —
     /// are each a number with a name and none of them can be changed alone and be wrong.
-    static let bodyPivotHeight: Float =
-        shoeSoleBelowAnkle * shoeScale - footSink - (neutralLeftFoot.z + ankleLift)
+    ///
+    /// **It is not the height a bought character stands at.** That is `WornLeg.rideHeight`, off
+    /// the leg the character is actually wearing, and it is between 1.2 and 1.5 units lower —
+    /// see `WornLeg` for why. This stays because it is still the honest answer for the rig's own
+    /// geometry, and because a dozen callers that have nothing to do with feet (the camera, the
+    /// self-test's hip height, `RigRuntime`'s starting value) want a constant.
+    static let bodyPivotHeight: Float = WornLeg.rig.rideHeight
+
+    /// **Where the ankle that gets drawn actually lands.**
+    ///
+    /// The rig solves its own leg — `thighBone` to the knee, `shinBone` to the ankle — and
+    /// `HumanoidRetargeter` then throws the lengths away and keeps the *directions*: it steps the
+    /// model's own thigh along the first and the model's own shin along the second. So this is
+    /// what the player sees, and `wornAnkle` is that same walk, done in the rig's frame where the
+    /// floor logic can use it. For `WornLeg.rig` it returns the rig's own ankle unchanged, which
+    /// is what makes every correction downstream a no-op until a model lands.
+    static func wornAnkle(hip: SIMD3<Float>,
+                          foot: SIMD3<Float>,
+                          bendNormal: SIMD3<Float>,
+                          thigh: Float,
+                          shin: Float) -> SIMD3<Float> {
+        var ankle = foot
+        ankle.z += ankleLift
+        let knee = IKSolver.solve(start: hip, end: &ankle,
+                                  l1: thighBone, l2: shinBone, bendingNormal: bendNormal)
+        return wornAnkle(hip: hip, knee: knee, ankle: ankle, thigh: thigh, shin: shin)
+    }
+
+    /// The same, off a chain the caller has already solved — which `pose` has, by the time it
+    /// needs to know where to pitch a shoe.
+    static func wornAnkle(hip: SIMD3<Float>,
+                          knee: SIMD3<Float>,
+                          ankle: SIMD3<Float>,
+                          thigh: Float,
+                          shin: Float) -> SIMD3<Float> {
+        func unit(_ vector: SIMD3<Float>) -> SIMD3<Float>? {
+            let length = simd_length(vector)
+            return length > 1e-5 ? vector / length : nil
+        }
+        // A collapsed chain has no directions to walk down, and the rig's own ankle is a better
+        // answer than a NaN.
+        guard let thighDirection = unit(knee - hip),
+              let shinDirection = unit(ankle - knee) else { return ankle }
+        return hip + thighDirection * thigh + shinDirection * shin
+    }
+
+    /// The bending normals, needed by `WornLeg` to solve the rest pose. Named rather than
+    /// `private` for that one caller.
+    static var legBendNormalLeft: SIMD3<Float> { bendNormalLegL }
+    static var legBendNormalRight: SIMD3<Float> { bendNormalLegR }
 
     // Joint anchors, from `buildSkeletonRig`. Public because `CharacterMotor` measures a limb's
     // reach from them — an arm can only get so far from the shoulder it hangs off.
@@ -506,8 +559,21 @@ enum CharacterRig {
     /// `cos(2·phase) × 0.5` in the walk cycle, which is the same shape and the same phase by
     /// coincidence rather than by derivation: the geometry produces about a unit of drop at a
     /// full-throttle stride and nothing at mid-stance, on its own.
-    static func groundContactSink(leftFoot: SIMD3<Float>, rightFoot: SIMD3<Float>) -> Float {
-        min(max(min(leftFoot.z, rightFoot.z) - neutralLeftFoot.z, -3), 3)
+    /// **Measured on the foot that is drawn**, not on the rig's own. The two rise off the floor
+    /// by different amounts over a stride, because they hang off different bone lengths — a leg
+    /// with a shorter shin sweeps a shallower arc — so sinking the body by the rig's number left
+    /// a bought character's sole scuffing at mid-stance and floating at the ends. See `WornLeg`.
+    ///
+    /// `leg` defaults to the rig's own, which reproduces the old arithmetic exactly: the worn
+    /// ankle is then the rig's ankle, and the `ankleLift` in both terms cancels.
+    static func groundContactSink(leftFoot: SIMD3<Float>,
+                                  rightFoot: SIMD3<Float>,
+                                  leg: WornLeg = .rig) -> Float {
+        let left = wornAnkle(hip: leftHip, foot: leftFoot,
+                             bendNormal: bendNormalLegL, thigh: leg.thigh, shin: leg.shin)
+        let right = wornAnkle(hip: rightHip, foot: rightFoot,
+                              bendNormal: bendNormalLegR, thigh: leg.thigh, shin: leg.shin)
+        return min(max(min(left.z, right.z) - leg.restAnkleZ, -3), 3)
     }
 
     /// **One foot's world frame: pitched to follow the shin, and stopped by the floor.**
@@ -546,7 +612,10 @@ enum CharacterRig {
     /// a hard turn are all already in it. The bank is the one term that does not depend on the
     /// pitch — tipping sideways lowers a corner by an amount no amount of pitching recovers — so
     /// it comes in as a constant drop, taken on the worse side.
-    static func shoeFrame(ankle: SIMD3<Float>, shin: SIMD3<Float>, bodyPivot: Float4x4) -> Float4x4 {
+    static func shoeFrame(ankle: SIMD3<Float>,
+                          shin: SIMD3<Float>,
+                          bodyPivot: Float4x4,
+                          foot: FootShape = .slipOn) -> Float4x4 {
         let base = bodyPivot * Float4x4.translation(ankle)
         let rigid = atan2(-shin.x, -shin.z)
 
@@ -556,9 +625,9 @@ enum CharacterRig {
         let alongZ = base.columns.0.z, upZ = base.columns.2.z
         let level = atan2(alongZ, upZ)
 
-        let sole = -shoeSoleBelowAnkle * shoeScale
+        let sole = -foot.soleBelowAnkle
         let originZ = base.columns.3.z
-        let bankDrop = -abs(shoeHalfWidth * shoeScale * base.columns.1.z)
+        let bankDrop = -abs(foot.halfWidth * base.columns.1.z)
         // A corner at `along` sits at `originZ + bankDrop + radius · cos(θ − phase)`, which is
         // the whole of the geometry: one sinusoid per corner, and the floor is a line across it.
         let wanted = -footSink - originZ - bankDrop
@@ -583,7 +652,7 @@ enum CharacterRig {
         // shin's own pitch to level. The clamp is what makes a candidate on the far side of
         // `rigid` — a corner that pitching away from level would never have helped — a no-op.
         var pitch = rigid
-        for along in [shoeToeAheadOfAnkle * shoeScale, -shoeHeelBehindAnkle * shoeScale] {
+        for along in [foot.toeAheadOfAnkle, -foot.heelBehindAnkle] {
             let candidate = cleared(along: along)
             pitch = level >= rigid ? min(level, max(pitch, candidate))
                                    : max(level, min(pitch, candidate))
@@ -604,17 +673,32 @@ enum CharacterRig {
     /// Four corners rather than two, because the body pivot banks as well as pitches and a tipped
     /// foot's lowest point is a corner of the sole, not a point on its centre line. The frame
     /// carries the character's scale, so the corners come out in world units for free.
-    static func soleClearance(_ shoeBox: Float4x4) -> Float {
-        let sole = -shoeSoleBelowAnkle * shoeScale
-        let halfWidth = shoeHalfWidth * shoeScale
+    static func soleClearance(_ shoeBox: Float4x4, foot: FootShape = .slipOn) -> Float {
+        let sole = -foot.soleBelowAnkle
+        let halfWidth = foot.halfWidth
         var lowest = Float.greatestFiniteMagnitude
-        for along in [shoeToeAheadOfAnkle * shoeScale, -shoeHeelBehindAnkle * shoeScale] {
+        for along in [foot.toeAheadOfAnkle, -foot.heelBehindAnkle] {
             for across in [halfWidth, -halfWidth] {
                 let corner = shoeBox * SIMD4<Float>(along, across, sole, 1)
                 lowest = min(lowest, corner.z)
             }
         }
         return lowest
+    }
+
+    /// **How far the toe is above the heel**, in world units, for one shoe frame. Zero is a flat
+    /// sole; positive is toe-up, negative is toe-down.
+    ///
+    /// `soleClearance` answers "is the foot on the floor" and cannot answer "is it *flat* on the
+    /// floor" — a character standing on its heels with its toes in the air scores exactly as well
+    /// as one standing properly, because both have a lowest corner at `-footSink`. That is a
+    /// distinction worth a number: a foot's pitch is invisible from the front, which is the view
+    /// a flat sole keeps being checked in.
+    static func soleTilt(_ shoeBox: Float4x4, foot: FootShape = .slipOn) -> Float {
+        let sole = -foot.soleBelowAnkle
+        let toe = shoeBox * SIMD4<Float>(foot.toeAheadOfAnkle, 0, sole, 1)
+        let heel = shoeBox * SIMD4<Float>(-foot.heelBehindAnkle, 0, sole, 1)
+        return toe.z - heel.z
     }
 
     // MARK: - Appearance
@@ -675,6 +759,14 @@ enum CharacterRig {
                      override: RigOverride? = nil) -> RigPose {
         var pose = RigPose(colors: colors(for: character))
         pose.model = CharacterModels.path(for: character.model)
+        pose.outfit = character.outfit
+
+        // **The leg this character is wearing**, which is what every question about the floor
+        // below is answered in: how high to ride, how far to sink to plant the lower foot, and
+        // which pitch keeps the sole out of the ground. `WornLeg.rig` — the rig's own bones and
+        // the slip-on — until the `.glb` lands, so the first few frames pose exactly as they
+        // always did. See `WornLeg`.
+        let worn = WornLegs.leg(for: pose.model)
 
         // --- Root transform (`ensureThreeSetup` + `drawCharacter:1220`) ---
         let baseScale = Float(mapCharacterScale)
@@ -769,7 +861,7 @@ enum CharacterRig {
             // correction below, which lands the same shape and the same phase out of the
             // geometry. What is left is the part a run does that a walk does not: leave the
             // ground.
-            runtime.bodyPivotPosition.z = bodyPivotHeight
+            runtime.bodyPivotPosition.z = worn.rideHeight
                 + cos(legTimer * 2) * run * 1.8 * effort
             runtime.bodyPivotPosition.x = cos(legTimer * 2) * 1.0 * effort
 
@@ -837,7 +929,7 @@ enum CharacterRig {
             // Standing *and* not posed by an emote. When an emote is running the JS leaves the
             // body pivot wherever the emote put it, so a `wave` that started mid-stride keeps
             // the last frame's walk bob until it ends.
-            runtime.bodyPivotPosition.z = bodyPivotHeight
+            runtime.bodyPivotPosition.z = worn.rideHeight
             runtime.bodyPivotPosition.x = 0
 
             // applyIdleSway (`characters.js:1003-1013`), in the joints rather than in the hand
@@ -988,7 +1080,9 @@ enum CharacterRig {
         // stops the character floating up it is the pelvis dropping, exactly as a person's does.
         // Scaled back as the run comes in, because a sprint genuinely does leave the ground and
         // pinning the lower foot to the floor would take the flight phase away.
-        runtime.bodyPivotPosition.z -= groundContactSink(leftFoot: leftFoot, rightFoot: rightFoot)
+        runtime.bodyPivotPosition.z -= groundContactSink(leftFoot: leftFoot,
+                                                        rightFoot: rightFoot,
+                                                        leg: worn)
             * (1 - run * 0.35)
 
         // A turn is led from the pelvis and the chest catches up, so the waist twists *against*
@@ -1300,10 +1394,26 @@ enum CharacterRig {
         // knee, which leaves the shin leaning 0.222 rad *back* and put the toe of every standing
         // shoe 2.7 units under the floor. Nothing caught it because a foot's pitch is invisible
         // from the front, which is the view a flat sole was checked in.
+        //
+        // **And the shoe being kept off the floor is the model's own.** `FootShape.slipOn` until
+        // the `.glb` lands — see `WornLegs` — and after that a foot measured off the mesh that
+        // is actually drawn, which on this cast runs from 2.9 deep to 7.0.
+        //
+        // **And it is pitched about the ankle the model draws, not the one the rig solved.** The
+        // shoe frame's whole job is to know how far the sole is from the floor, and it was being
+        // handed a height that on this cast is up to 3.8 units out — most of a shoe — while being
+        // handed the model's own foot depth to measure against it. Two frames, one sum. A foot
+        // told it was buried when it was in the air winds its pitch back to level and takes the
+        // heel strike and the push-off out of the stride with it. See `WornLeg`.
+        let foot = worn.foot
         let leftShin = leftAnkle - leftKnee
         let rightShin = rightAnkle - rightKnee
-        let leftShoeGroup = shoeFrame(ankle: leftAnkle, shin: leftShin, bodyPivot: bodyPivot)
-        let rightShoeGroup = shoeFrame(ankle: rightAnkle, shin: rightShin, bodyPivot: bodyPivot)
+        let leftShoeAnkle = wornAnkle(hip: leftHip, knee: leftKnee, ankle: leftAnkle,
+                                      thigh: worn.thigh, shin: worn.shin)
+        let rightShoeAnkle = wornAnkle(hip: rightHip, knee: rightKnee, ankle: rightAnkle,
+                                       thigh: worn.thigh, shin: worn.shin)
+        let leftShoeGroup = shoeFrame(ankle: leftShoeAnkle, shin: leftShin, bodyPivot: bodyPivot, foot: foot)
+        let rightShoeGroup = shoeFrame(ankle: rightShoeAnkle, shin: rightShin, bodyPivot: bodyPivot, foot: foot)
 
         pose.leftShoeBox = leftShoeGroup
         pose.rightShoeBox = rightShoeGroup

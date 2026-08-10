@@ -25,10 +25,13 @@ extension Tennis3DGame {
     /// Turns a point in a character's own frame into world space.
     ///
     /// Local axes are the rig's: **+X forward, +Y the character's left, +Z up**, with the origin
-    /// at the feet. The rig's body pivot sits `CharacterRig.bodyPivotHeight` up, and that offset
-    /// is folded in here so callers can write shoulder and hand positions straight out of
-    /// `CharacterRig`. **Do not write that height out as a number anywhere** — see `headHeight`,
-    /// which did, and cost this game a session's worth of near misses for it.
+    /// at the feet. The body pivot's height is folded in here so callers can write shoulder and
+    /// hand positions straight out of `CharacterRig`. **Do not write that height out as a number
+    /// anywhere** — see `headHeight`, which did, and cost this game a session's worth of near
+    /// misses for it, twice.
+    ///
+    /// That height is `CharacterMotor.rideHeight` and is **per character**, not the constant it
+    /// used to be: a bought model stands on its own legs, and they are not the rig's.
     func worldPoint(local: SIMD3<Double>, of side: Side) -> SIMD3<Double> {
         side.motor.localToWorld(local)
     }
@@ -110,7 +113,7 @@ extension Tennis3DGame {
     /// The offset is computed from the same contact pose the swing actually uses, rotated by the
     /// heading they will be facing — which is always the net.
     func stance(toMeet meeting: SIMD3<Double>, for side: Side) -> (x: Double, y: Double) {
-        let offset = contactHeadWorldOffset(for: side, lift: lift(forBallHeight: meeting.z))
+        let offset = contactHeadWorldOffset(for: side, lift: lift(forBallHeight: meeting.z, for: side))
         return (x: meeting.x - offset.x, y: meeting.y - offset.y)
     }
 
@@ -153,13 +156,19 @@ extension Tennis3DGame {
     /// size, on low balls, which is the same fingerprint as last time. Reading the constant is
     /// the fix, and it is the fourth handoff in a row to be written about two pieces of code
     /// disagreeing about where the strings are.
-    func headHeight(lift: Double) -> Double {
-        contactHeadLocal(lift: lift).z + Double(CharacterRig.bodyPivotHeight)
+    /// **And a fifth time, avoided rather than paid for.** `bodyPivotHeight` stopped being the
+    /// height a character stands at when the rig started riding at the worn model's own
+    /// `WornLeg.rideHeight` — 1.2 to 1.5 units lower, 0.05 m, an eighth of the sweet spot. Same
+    /// two pieces of code, same disagreement, same fingerprint in the log. So this asks the motor
+    /// for the number rather than reading a constant that used to be it: `side.motor.rideHeight`
+    /// is by construction the one `worldPoint` folds in, because `worldPoint` is that motor.
+    func headHeight(lift: Double, of side: Side) -> Double {
+        contactHeadLocal(lift: lift).z + side.motor.rideHeight
     }
 
     /// Where the strings pass on the plain waist-high stroke. The height everything falls back
     /// to when there is no particular ball to play.
-    var contactHeadHeight: Double { headHeight(lift: 0) }
+    func contactHeadHeight(of side: Side) -> Double { headHeight(lift: 0, of: side) }
 
     /// **The lift that puts the strings on a ball at `height`.**
     ///
@@ -173,14 +182,14 @@ extension Tennis3DGame {
     /// trigger, the choreography and the marker all call it, which is the point: the last three
     /// handoffs each contain a bug that was two pieces of code disagreeing about where the strings
     /// were, and every one of them was two copies of a sum like this one.
-    func lift(forBallHeight height: Double) -> Double {
+    func lift(forBallHeight height: Double, for side: Side) -> Double {
         var low = -Tuning.strikeLiftDown
         var high = Tuning.strikeLiftUp
-        if height <= headHeight(lift: low) { return low }
-        if height >= headHeight(lift: high) { return high }
+        if height <= headHeight(lift: low, of: side) { return low }
+        if height >= headHeight(lift: high, of: side) { return high }
         for _ in 0..<12 {
             let middle = (low + high) / 2
-            if headHeight(lift: middle) < height { low = middle } else { high = middle }
+            if headHeight(lift: middle, of: side) < height { low = middle } else { high = middle }
         }
         return (low + high) / 2
     }
@@ -216,8 +225,8 @@ extension Tennis3DGame {
     /// a full stroke fired at a ball the strings were never going to reach.
     func strikeBand(for side: Side) -> (low: Double, high: Double) {
         let tolerance = verticalReach(for: side)
-        return (low: headHeight(lift: -Tuning.strikeLiftDown) - tolerance,
-                high: headHeight(lift: Tuning.strikeLiftUp) + tolerance)
+        return (low: headHeight(lift: -Tuning.strikeLiftDown, of: side) - tolerance,
+                high: headHeight(lift: Tuning.strikeLiftUp, of: side) + tolerance)
     }
 
     /// The racket head at the timed strike, in the character's own frame. Derived from the
@@ -609,7 +618,7 @@ extension Tennis3DGame {
             // The racket head shifts a little as the stroke rises, so the offset is asked for at
             // the lift this ball will actually be played at.
             let headOffset = contactHeadWorldOffset(for: side,
-                                                    lift: lift(forBallHeight: position.z))
+                                                    lift: lift(forBallHeight: position.z, for: side))
             let standing = predictedStandingPosition(of: side, after: elapsed) + headOffset
             let distance = hypot(position.x - standing.x, position.y - standing.y)
             if distance <= reach { return (elapsed, position.z) }
@@ -644,7 +653,7 @@ extension Tennis3DGame {
         // **The one moment the height of the stroke is decided.** Everything after this reads
         // `swing.lift`: the poses the arm animates through, the head the contact test sweeps,
         // and the racket the renderer draws.
-        swing.lift = ballHeight.map { lift(forBallHeight: $0) } ?? 0
+        swing.lift = ballHeight.map { lift(forBallHeight: $0, for: side) } ?? 0
 
         // Backhand when the ball is on the far side of the body from the racket arm. The racket
         // hangs off local +Y, so a ball at negative local Y has to be crossed to.

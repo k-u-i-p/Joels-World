@@ -413,7 +413,7 @@ extension Tennis3DGame {
         // Every height the swing can be lifted to, which is the same band `timeUntilInReach`
         // fires in — see the note on `strikeBand`. `contactHeight` is still the *comfortable*
         // height, and the cost below still prefers it; it is no longer the only one.
-        let contactHeight = contactHeadHeight
+        let contactHeight = contactHeadHeight(of: side)
         let band = strikeBand(for: side)
 
         // The first playable moment is usually not the useful one, and pointing at it was

@@ -14,6 +14,45 @@ import simd
 /// same fixed sub-step, so a report can be produced with no window and no GPU at all.
 enum CharacterLabReport {
 
+    /// **Measure the models before measuring the takes.**
+    ///
+    /// A report poses the rig and never draws it, which is the point — no window, no GPU, runs on
+    /// a build machine. But `CharacterRig` asks `WornLegs` which leg the character is wearing, and
+    /// `WornLegs` is filled in by `ImportedCharacterStore` as it uploads a model to the GPU. No
+    /// draw, no upload, no leg: every take measured against `WornLeg.rig` — the rig's own abstract
+    /// bones and a slip-on shoe nothing has worn since part 4 — and the numbers came out *the
+    /// same for all five characters*, which is exactly what a foot report cannot afford to be.
+    ///
+    /// So the report does the half of the load it actually needs. `GLTFLoader.load` and
+    /// `HumanoidSkeleton.init` are both plain CPU: the parse, the bone matching, the foot
+    /// measurement and the leg measurement all happen with no Metal anywhere near them. Only the
+    /// vertex buffers and the textures need a device, and a number does not need those.
+    ///
+    /// Cheap enough to do unconditionally — five files, parsed once per process.
+    /// - Parameter models: the catalogue, plus whatever `JW_CHARACTER_MODEL` names — a model being
+    ///   tried out for the first time is not in the catalogue yet, and it is exactly the one a
+    ///   report is being run about.
+    static func warmUp(models: [String] = CharacterModels.all.map(\.path)
+                        + [CharacterModels.defaultPath]
+                        + [CharacterModels.override].compactMap { $0 }) {
+        for path in Set(models) {
+            guard let url = AssetLocator.url(for: path),
+                  let data = try? Data(contentsOf: url, options: .mappedIfSafe),
+                  let asset = try? GLTFLoader.load(data: data),
+                  let mesh = asset.skinnedMeshes.first
+            else {
+                Log.render("Report: '\(path)' would not parse — measured as the rig's own leg")
+                continue
+            }
+            let skeleton = HumanoidSkeleton(mesh: mesh, profile: .standard)
+            guard let leg = skeleton.wornLeg else {
+                Log.render("Report: '\(path)' has no measurable leg — measured as the rig's own")
+                continue
+            }
+            WornLegs.publish(leg, for: path)
+        }
+    }
+
     /// One posed instant.
     struct Sample: Codable {
         var t: Double
@@ -40,6 +79,12 @@ enum CharacterLabReport {
         var rightSole: Double
         var lowestSole: Double
 
+        /// **Toe height minus heel height**, per shoe, in world units. Zero is a sole flat on the
+        /// floor; positive is a character up on its heels, negative is up on its toes. See
+        /// `CharacterRig.soleTilt` for why a clearance on its own could not say.
+        var leftTilt: Double
+        var rightTilt: Double
+
         /// Hip, head and hands, in world units above the floor. Enough to see a bounce, a
         /// crouch or an arm swing without a picture.
         var hip: Double
@@ -55,6 +100,10 @@ enum CharacterLabReport {
         var worstFootFloat: Double
         /// The deepest a sole went under the floor. `CharacterRig.footSink` is 0.4 by design.
         var deepestFootSink: Double
+        /// **The most either sole was tilted while it was on the floor**, toe against heel, in
+        /// world units. A planted foot should be flat, so this is near zero on a grounded take;
+        /// a foot in the air is allowed any pitch it likes and is not counted.
+        var worstPlantedTilt: Double
         /// How high the character got off the ground.
         var maxHeight: Double
         /// How far they travelled, in metres, and how fast on average.
@@ -129,7 +178,8 @@ enum CharacterLabReport {
     static func measureAll(cast: CharacterLabCast.Kind = .solo,
                            speedScale: Double = 1,
                            samples: Int = 48) -> [TakeReport] {
-        CharacterLabTake.all.map {
+        warmUp()
+        return CharacterLabTake.all.map {
             measure(take: $0, cast: cast, speedScale: speedScale, samples: samples)
         }
     }
@@ -203,10 +253,11 @@ enum CharacterLabReport {
             // digest exists to be stops being one.
             let id = report.id.count >= 16 ? report.id
                 : report.id.padding(toLength: 16, withPad: " ", startingAt: 0)
-            return String(format: "%@ float %5.2f  sink %5.2f  height %5.1f  hip range %4.1f  %5.1f m at %5.0f u/s",
+            return String(format: "%@ float %5.2f  sink %5.2f  tilt %5.2f  height %5.1f  hip range %4.1f  %5.1f m at %5.0f u/s",
                    id,
                    report.summary.worstFootFloat,
                    report.summary.deepestFootSink,
+                   report.summary.worstPlantedTilt,
                    report.summary.maxHeight,
                    report.summary.hipRange,
                    report.summary.travelledMetres,
@@ -226,8 +277,19 @@ enum CharacterLabReport {
         // a level foot only — which was every foot the rig produced until the shoe learned to
         // pitch. A toe-down foot's toe is lower than that answer by most of a shoe, and the whole
         // point of measuring a sole is to catch exactly that. See `CharacterRig.soleClearance`.
-        let left = Double(CharacterRig.soleClearance(pose.leftShoeBox))
-        let right = Double(CharacterRig.soleClearance(pose.rightShoeBox))
+        //
+        // **Against the model's own shoe**, which is the other half of the same point: measuring
+        // a bought character's sole with the slip-on's depth was a number that could not be wrong,
+        // because it never looked at the thing on the floor. See `FootShape`.
+        //
+        // That claim was false for a whole session, and silently. `shape(for:)` answers off
+        // `WornLegs`, which is filled in by the **render** layer as models load — and a report
+        // loads nothing, so every model measured as the slip-on and all five came back with
+        // identical numbers to the centimetre. Nothing said so; the digest just looked stable.
+        // `warmUp` below is what makes the lookup mean something. See `CharacterLabReport.warmUp`.
+        let foot = WornLegs.shape(for: pose.model)
+        let left = Double(CharacterRig.soleClearance(pose.leftShoeBox, foot: foot))
+        let right = Double(CharacterRig.soleClearance(pose.rightShoeBox, foot: foot))
 
         return Sample(t: t,
                       x: subject.motor.x,
@@ -246,6 +308,8 @@ enum CharacterLabReport {
                       leftSole: left,
                       rightSole: right,
                       lowestSole: min(left, right),
+                      leftTilt: Double(CharacterRig.soleTilt(pose.leftShoeBox, foot: foot)),
+                      rightTilt: Double(CharacterRig.soleTilt(pose.rightShoeBox, foot: foot)),
                       hip: partHeight(pose, .pelvis),
                       head: height(pose.headTransform),
                       leftHand: partHeight(pose, .leftHand),
@@ -257,9 +321,22 @@ enum CharacterLabReport {
                                   seconds: Double) -> Summary {
         let soles = samples.map(\.lowestSole)
         let hips = samples.map(\.hip)
+        // Only a foot that is actually *down* has an opinion about being flat, and down means
+        // under the floor: `shoeFrame` sinks a planted sole by `footSink`, so anything at or below
+        // half of that is taking weight and anything above it is swinging. A looser threshold
+        // reads the idle weight-shift — a foot a unit up, tilted, on its way somewhere — as a
+        // character standing crooked, which is how this number first lied about `stand`.
+        let planted = -Double(CharacterRig.footSink) / 2
+        let plantedTilts = samples.flatMap { sample -> [Double] in
+            var tilts: [Double] = []
+            if sample.leftSole <= planted { tilts.append(abs(sample.leftTilt)) }
+            if sample.rightSole <= planted { tilts.append(abs(sample.rightTilt)) }
+            return tilts
+        }
         return Summary(
             worstFootFloat: soles.max() ?? 0,
             deepestFootSink: soles.min() ?? 0,
+            worstPlantedTilt: plantedTilts.max() ?? 0,
             maxHeight: samples.map(\.z).max() ?? 0,
             travelledMetres: travelled / CharacterLabScene.unitsPerMetre,
             averageSpeed: seconds > 0 ? travelled / seconds : 0,

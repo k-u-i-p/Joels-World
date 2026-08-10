@@ -89,11 +89,15 @@ strip of pictures out on its own: see
 [HANDOFF-character-lab.md](native/HANDOFF-character-lab.md).
 
 **How the characters themselves work** — a **bought, rigged model**, driven by our own walk cycle,
-IK and emotes — is six handoffs starting at
+IK and emotes — is seven handoffs starting at
 [HANDOFF-imported-characters.md](native/HANDOFF-imported-characters.md).
-[Part 6](native/HANDOFF-imported-characters-part6.md) is the most recent — the characters read
-their normal maps now — and [part 5](native/HANDOFF-imported-characters-part5.md)'s "What is left"
-is still the list to pick the next job off.
+[Part 7](native/HANDOFF-imported-characters-part7.md) is the most recent — every character stands
+on its **own** legs now, rather than on the abstract ones the rig poses — and
+[part 5](native/HANDOFF-imported-characters-part5.md)'s "What is left" is still the list to pick
+the next job off.
+
+**If a character looks like it is floating or sunk, read part 7 first.** The rig and the model have
+different leg bones, and everything that decides where the floor is goes through `WornLeg`.
 
 **There are five characters now** — `boy`, `girl`, `man`, `woman` and `stylized_boy`. Which one an
 NPC wears is one word in `npc.json`, which makes it a green-zone change:

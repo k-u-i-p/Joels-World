@@ -181,10 +181,9 @@ final class CharacterRenderer {
     /// `npc.json` by `CharacterModels`, and everything below — the body store, the retargeters,
     /// the profiles — is keyed by it.
     ///
-    /// This stays because a *tool* still wants a single answer: `JW_CHARACTER_MODEL=<path>` draws
-    /// the whole cast with one model, which is how a sixth model gets a first look without
-    /// touching the catalogue or any data.
-    var modelOverride: String?
+    /// `JW_CHARACTER_MODEL` used to be read here and applied at draw time. It is
+    /// `CharacterModels.override` now, resolved where the pose is built — see the note there for
+    /// what a draw-time swap was quietly doing to every measurement the lab took.
 
     /// Per-model profile, read once from a `.rig.json` beside each model if it has one.
     private var profiles: [String: HumanoidProfile] = [:]
@@ -201,8 +200,6 @@ final class CharacterRenderer {
         self.importedBodies = ImportedCharacterStore(device: device)
         guard buildMeshes() else { return nil }
 
-        let override = ProcessInfo.processInfo.environment["JW_CHARACTER_MODEL"]
-        if let override, !override.isEmpty { modelOverride = override }
     }
 
     /// The profile for a model, read from disk the first time it is asked for.
@@ -424,7 +421,7 @@ final class CharacterRenderer {
                                   encoder: MTLRenderCommandEncoder,
                                   shadowPass: Bool) -> Bool {
         guard let pipelines else { return false }
-        let path = modelOverride ?? pose.model
+        let path = pose.model
 
         guard let body = importedBodies.body(path) else {
             // Not resident yet. Ask again — `request` is cheap once it is loading — and draw
@@ -478,7 +475,10 @@ final class CharacterRenderer {
                                    length: MemoryLayout<SIMD4<Float>>.stride * Self.paletteCount * 2,
                                    index: 3)
             encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
-            encoder.setFragmentTexture(body.baseColorTexture ?? whiteTexture, index: 0)
+            // The outfit's texture if this character is wearing one and it has landed, and the
+            // model's own otherwise — an outfit is one texture swapped on a shared mesh.
+            let outfit = importedBodies.outfitTexture(model: path, outfit: pose.outfit)
+            encoder.setFragmentTexture(outfit ?? body.baseColorTexture ?? whiteTexture, index: 0)
             encoder.setFragmentTexture(whiteTexture, index: 3)
             encoder.setFragmentTexture(body.normalTexture ?? flatNormalTexture, index: 4)
         }
@@ -546,7 +546,8 @@ final class CharacterRenderer {
                      material: SurfaceMaterial(group: group),
                      pivot: pose.worldPivot,
                      viewProjection: viewProjection, encoder: encoder,
-                     masked: false, emissiveTexture: group.emissiveTexture)
+                     masked: false, emissiveTexture: group.emissiveTexture,
+                     normalTexture: group.normalTexture, normalScale: group.normalScale)
         }
     }
 
@@ -568,7 +569,9 @@ final class CharacterRenderer {
                           viewProjection: Float4x4,
                           encoder: MTLRenderCommandEncoder,
                           masked: Bool = true,
-                          emissiveTexture: MTLTexture? = nil) {
+                          emissiveTexture: MTLTexture? = nil,
+                          normalTexture: MTLTexture? = nil,
+                          normalScale: Float = 1) {
         // A zero map size switches the clip-mask raymarch off for this draw.
         let mapSize = masked ? clipMapSize : SIMD2<Float>(0, 0)
         var uniforms = CharacterUniforms(
@@ -579,7 +582,9 @@ final class CharacterRenderer {
             textured: texture != nil,
             unlit: unlit,
             material: material,
-            emissiveTextured: emissiveTexture != nil
+            emissiveTextured: emissiveTexture != nil,
+            normalTextured: normalTexture != nil,
+            normalScale: normalScale
         )
 
         encoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
@@ -587,7 +592,7 @@ final class CharacterRenderer {
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
         encoder.setFragmentTexture(texture ?? whiteTexture, index: 0)
         encoder.setFragmentTexture(emissiveTexture ?? whiteTexture, index: 3)
-        encoder.setFragmentTexture(flatNormalTexture, index: 4)
+        encoder.setFragmentTexture(normalTexture ?? flatNormalTexture, index: 4)
         encoder.drawIndexedPrimitives(type: .triangle,
                                       indexCount: mesh.indexCount,
                                       indexType: .uint32,

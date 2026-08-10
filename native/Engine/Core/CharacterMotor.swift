@@ -55,6 +55,25 @@ final class CharacterMotor {
     /// goes through a request and a `step`.
     private(set) var body = LocomotionState()
 
+    /// **Which model this character wears**, as `npc.json` writes it, or `nil` for the rig's own
+    /// abstract body.
+    ///
+    /// It is here for one reason: `localToWorld` folds in how high the body pivot stands, and a
+    /// bought character does not stand at `CharacterRig.bodyPivotHeight` — it stands at its own
+    /// `WornLeg.rideHeight`, between 1.2 and 1.5 units lower, because its legs are not the rig's.
+    /// A motor that did not know would put the racket a centimetre and a half above where it is
+    /// drawn, which is the fifth time two pieces of code would have disagreed about where the
+    /// strings are. See the note on `Tennis3DGame.headHeight`.
+    var model: String? {
+        didSet { modelPath = model.map { CharacterModels.path(for: $0) } }
+    }
+    private var modelPath: String?
+
+    /// How high this character's body pivot stands. A dictionary lookup, so it is read once per
+    /// call rather than cached — `localToWorld` is not on a hot path, and a cache would go stale
+    /// in the frames between a character appearing and its `.glb` finishing loading.
+    var rideHeight: Double { Double(WornLegs.leg(for: modelPath).rideHeight) }
+
     /// Height off the ground. Real, integrated, and the thing `GameCharacter.z` is drawn at.
     private(set) var z: Double = 0
     /// Vertical velocity, world units per second, positive up.
@@ -477,16 +496,20 @@ final class CharacterMotor {
 
     // MARK: - Frames
 
-    /// Turns a point in the character's own frame into world space, Y-down. The rig's body pivot
-    /// stands 15.5 units off the ground and that offset is folded in, so a caller can write
-    /// shoulder and hand positions straight out of `CharacterRig`.
+    /// Turns a point in the character's own frame into world space, Y-down. The body pivot's
+    /// height off the ground is folded in, so a caller can write shoulder and hand positions
+    /// straight out of `CharacterRig`.
+    ///
+    /// **That height is the one this character actually rides at** — `rideHeight`, off the model
+    /// it is wearing — and not `CharacterRig.bodyPivotHeight`, which is the rig's own abstract
+    /// answer and is what `CharacterRig.pose` stopped using the moment a model landed.
     func localToWorld(_ local: SIMD3<Double>) -> SIMD3<Double> {
         let radians = body.facing * .pi / 180
         let cosine = cos(radians)
         let sine = sin(radians)
         return SIMD3(body.x + local.x * cosine + local.y * sine,
                      body.y + local.x * sine - local.y * cosine,
-                     z + local.z + Double(CharacterRig.bodyPivotHeight))
+                     z + local.z + rideHeight)
     }
 
     func localToWorld(_ local: SIMD3<Float>) -> SIMD3<Double> {

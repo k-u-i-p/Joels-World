@@ -150,6 +150,64 @@ final class ImportedCharacterStore {
     func body(_ path: String) -> ImportedCharacterBody? { bodies[path] }
     func hasFailed(_ path: String) -> Bool { failed.contains(path) }
 
+    // MARK: - Outfits
+
+    /// One texture per model-and-outfit, shared by every character wearing it.
+    private var outfits: [String: MTLTexture] = [:]
+    private var outfitsLoading: Set<String> = []
+    private var outfitsMissing: Set<String> = []
+
+    /// **The base colour map for a character in a named outfit**, or `nil` to draw the model's
+    /// own — which is also the answer while the file is still being read, and the answer for a
+    /// name that has no file.
+    ///
+    /// The mesh, the skeleton and the normal map are all shared: an outfit changes one texture
+    /// and nothing else, so a corridor of differently dressed pupils is still one vertex buffer.
+    /// It does cost a 2048² texture each, so the set in `make_outfits.py` is deliberately short.
+    func outfitTexture(model: String, outfit: String?) -> MTLTexture? {
+        guard let outfit, !outfit.isEmpty else { return nil }
+        // `models/characters/son.glb` + `red` → `models/characters/outfits/son_red.jpg`
+        let stem = (model as NSString).deletingPathExtension
+        let name = (stem as NSString).lastPathComponent
+        let path = "models/characters/outfits/\(name)_\(outfit).jpg"
+
+        if let texture = outfits[path] { return texture }
+        guard !outfitsMissing.contains(path), !outfitsLoading.contains(path) else { return nil }
+        outfitsLoading.insert(path)
+
+        guard let url = AssetLocator.url(for: path) else {
+            outfitsLoading.remove(path)
+            outfitsMissing.insert(path)
+            Log.render("Outfit '\(outfit)' for '\(name)': no \(path) — wearing the model's own")
+            return nil
+        }
+
+        parseQueue.async { [weak self] in
+            guard let self, let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
+                DispatchQueue.main.async {
+                    self?.outfitsLoading.remove(path)
+                    self?.outfitsMissing.insert(path)
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                self.outfitsLoading.remove(path)
+                // Same rules as the base colour it replaces: sRGB on, no vertical flip.
+                let texture = (try? self.textureLoader.newTexture(
+                    data: data, options: [.SRGB: true, .generateMipmaps: true]))
+                    ?? ImageDecoder.texture(from: data, device: self.device, flipped: false)
+                guard let texture else {
+                    self.outfitsMissing.insert(path)
+                    Log.render("Outfit '\(outfit)' for '\(name)': \(path) failed to decode")
+                    return
+                }
+                self.outfits[path] = texture
+                Log.render("Outfit '\(outfit)' for '\(name)': \(texture.width)×\(texture.height)")
+            }
+        }
+        return nil
+    }
+
     /// Fire-and-forget, called every frame until the model turns up — same contract as
     /// `ModelStore.request`.
     func request(path: String, profile: HumanoidProfile = .standard) {
@@ -187,6 +245,7 @@ final class ImportedCharacterStore {
             }
 
             let skeleton = HumanoidSkeleton(mesh: mesh, profile: profile)
+
             let elapsed = (CFAbsoluteTimeGetCurrent() - started) * 1000
 
             DispatchQueue.main.async {
@@ -219,6 +278,13 @@ final class ImportedCharacterStore {
                     }
                 }
 
+                // **Before the body**, so a pose built the same frame the model lands already has
+                // the right leg under it rather than the rig's own. See `WornLegs` for why this
+                // is a registry rather than an argument.
+                if let leg = skeleton.wornLeg {
+                    WornLegs.publish(leg, for: path)
+                }
+
                 self.loading.remove(path)
                 guard let body = ImportedCharacterBody(device: self.device,
                                                        mesh: mesh,
@@ -238,6 +304,31 @@ final class ImportedCharacterStore {
                            + "\(skeleton.jointCount) joints, "
                            + "\(skeleton.matched.count)/\(HumanoidBone.allCases.count) bones matched, "
                            + "parsed in \(Int(elapsed)) ms")
+                if let shape = skeleton.footShape {
+                    Log.render(String(format: "  shoe: sole %.2f below the ankle, toe %.2f ahead, "
+                                      + "heel %.2f behind, %.2f half-width "
+                                      + "(the slip-on this used to assume: %.2f / %.2f / %.2f / %.2f)",
+                                      shape.soleBelowAnkle, shape.toeAheadOfAnkle,
+                                      shape.heelBehindAnkle, shape.halfWidth,
+                                      FootShape.slipOn.soleBelowAnkle, FootShape.slipOn.toeAheadOfAnkle,
+                                      FootShape.slipOn.heelBehindAnkle, FootShape.slipOn.halfWidth))
+                } else {
+                    Log.render("  shoe: no foot matched — standing on the slip-on's measurements")
+                }
+                // The leg, and the ride height that falls out of it. This is the line to read
+                // first when a character stands wrong: `ride` is how far `CharacterRig` had to
+                // drop this model to put its own sole on the floor, and a big number there means
+                // the model's legs are a long way from the rig's. See `WornLeg`.
+                if let leg = skeleton.wornLeg {
+                    Log.render(String(format: "  leg: thigh %.2f, shin %.2f (the rig's own: "
+                                      + "%.2f / %.2f) — rides %+.2f against the rig's %.2f",
+                                      leg.thigh, leg.shin,
+                                      WornLeg.rig.thigh, WornLeg.rig.shin,
+                                      leg.rideHeight - CharacterRig.bodyPivotHeight,
+                                      CharacterRig.bodyPivotHeight))
+                } else {
+                    Log.render("  leg: not measured — riding at the rig's own height")
+                }
                 Log.render("  normal map: "
                            + (body.normalTexture == nil
                               ? "none — lit off the geometry alone"

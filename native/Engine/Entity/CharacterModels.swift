@@ -60,8 +60,25 @@ enum CharacterModels {
 
     static var defaultPath: String { byKey[defaultKey]!.path }
 
+    /// **One model for the whole cast**, from `JW_CHARACTER_MODEL`. How a sixth model gets a
+    /// first look without touching this catalogue or any data.
+    ///
+    /// **It belongs here rather than in the renderer**, which is where it used to live. A draw-time
+    /// swap changes the body on screen and leaves `RigPose.model` saying something else — and the
+    /// pose is what `WornLegs` is keyed by, so the rig would ride at the boy's height, sink by his
+    /// leg and pitch his shoe while the woman was drawn standing in it. Every lab picture taken of
+    /// a model other than the default was of a character posed as a different one, and the report
+    /// could not see the flag at all. Resolving it in the one function both sides call makes that
+    /// impossible to say twice.
+    static let override: String? = {
+        let value = ProcessInfo.processInfo.environment["JW_CHARACTER_MODEL"]
+        guard let value, !value.isEmpty else { return nil }
+        return value
+    }()
+
     /// Resolves whatever `npc.json` said into an asset path.
     static func path(for model: String?) -> String {
+        if let override { return override }
         guard let model, !model.isEmpty else { return defaultPath }
         if let entry = byKey[model] { return entry.path }
         // A path written out in full, for a model that has no table entry yet.
