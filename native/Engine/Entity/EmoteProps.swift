@@ -24,7 +24,14 @@ enum PropMesh: CaseIterable {
     case tearLarge      // SphereGeometry(2, 6, 6)
     case tearSmall      // SphereGeometry(1.5, 4, 4)
     case tennisBall     // SphereGeometry(2, 20, 20)
-    case rugbyBall      // SphereGeometry(3.5, 12, 12).scale(1.5, 1, 1)
+    /// A prolate spheroid 14 long by 9 across — a real ball's 30 cm by 19 cm against a **pupil**,
+    /// who is the one who plays with it. The JS built it
+    /// `SphereGeometry(3.5, 12, 12).scale(1.5, 1, 1)`, the same shape sized for the abstract rig
+    /// rather than for the model wearing it, and it came out the size of an egg.
+    ///
+    /// One mesh serves the whole cast, so it is a little generous in a teacher's hands while the
+    /// grown-ups are drawn shorter than the children.
+    case rugbyBall
     case ripple         // TorusGeometry(5, 0.5, 4, 16).rotateX(π/2)
     case zBarFlat       // BoxGeometry(4, 1, 1)   — the top and bottom of a 'Z'
     case zBarDiagonal   // BoxGeometry(1, 4, 1)   — its middle stroke
@@ -35,6 +42,60 @@ enum PropMesh: CaseIterable {
     var isSprite: Bool { self == .heart }
 }
 
+/// **How a character is carrying something.**
+///
+/// There are two answers and the difference between them is real, so the engine is told which
+/// rather than left to guess. Both of them mean the same two things: the thing rides the hands
+/// that are on it, so moving a hand moves it; and those hands *close round it*, rather than
+/// leaving a flat palm for it to hang in the middle of.
+///
+/// Everything a character carries goes through this — the model named by `RigPose.holding` and
+/// every prop mesh an emote appends. Before it existed, a racket closed the fingers and a rugby
+/// ball did not, because closing them was wired to the model rather than to the act of holding.
+enum Hold {
+    /// **One hand closes round it.** It rides that hand's frame — +Y out to the fingertips, +Z the
+    /// thumb side — so it swings and rolls with the wrist. What a racket, a fork or a pen wants.
+    case oneHand(Side)
+
+    /// **Both hands cup it.** It stands at the midpoint of the two hand anchors, turned with the
+    /// body rather than with either wrist, and both sets of fingers close. A ball held between two
+    /// palms has no reason to tip when one of them does.
+    ///
+    /// Its `local` is therefore in readable body axes — +X forward, +Y the character's left — and
+    /// still follows the IK, because the *midpoint* is what moves.
+    case bothHands
+
+    /// **`right` is `rightHandTarget`, `rightHandAnchor` and `RigPart.rightHand`** — the same side
+    /// the rest of the rig calls right. By the naming inversion in `HumanoidBone.driver` that is
+    /// the character's visible *left*; this stays wrong in the same direction as everything else
+    /// on purpose, so a hold and a hand target that say "right" are the same hand.
+    enum Side {
+        case left, right
+    }
+
+    /// **The grip is at the anchor**, and a prop meant to be held wants `local` at or near the
+    /// origin.
+    ///
+    /// `RigPose.holdingTransform` places the tennis racket there with no offset at all and it is
+    /// gripped correctly, which makes it the one measured answer to where a bought model's fist
+    /// closes. The hand-tuned offsets the JS carried — `t(0, 0, 4)` for a knife, `t(0, 0, 5)` for
+    /// a pen — put those props four and five units to the **thumb side** of it, which read as
+    /// resting on the open mitt the rig used to draw and reads as floating beside a closed fist.
+    ///
+    /// A two-handed hold is the case where distance from the anchor still matters, and it is
+    /// about the *hand targets* rather than the prop: a palm reaches a few units past its own
+    /// wrist, so two hands aimed at the width of a ball meet inside it. `rugby` opens them to the
+    /// ball's half length plus that reach.
+
+    /// The hands this hold closes.
+    var hands: [Side] {
+        switch self {
+        case .oneHand(let side): return [side]
+        case .bothHands: return [.left, .right]
+        }
+    }
+}
+
 /// Which node in the rig hierarchy a prop hangs off. The JS picks one per prop, and the choice
 /// matters — `.head` inherits the head group's 0.65/0.65/0.7 scale, `.meshGroup` inherits the
 /// character's yaw but not the body pivot's pitch, and `.world` is unparented entirely so
@@ -42,9 +103,9 @@ enum PropMesh: CaseIterable {
 enum PropAnchor {
     /// `rig.head` — the head group, *including* its non-uniform scale.
     case head
-    /// `rig.lHand` / `rig.rHand` — the hand sphere, which tracks the IK target and the
-    /// forearm's orientation, so a held prop is only placed once the IK has resolved.
-    case leftHand, rightHand
+    /// **Carried**, by the hand or hands the `Hold` names — placed once the IK has resolved, and
+    /// gripped. This is the only way to put a prop in a hand; see `Hold`.
+    case held(Hold)
     /// `rig.bodyPivot` — moves with the emote's body translation and pitch.
     case bodyPivot
     /// `rig.emotePropsDirectional` and `rig.meshGroup` are the same transform: the character's

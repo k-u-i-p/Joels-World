@@ -50,6 +50,7 @@ enum CharacterLabReport {
                 continue
             }
             WornLegs.publish(leg, for: path)
+            if let arm = skeleton.wornArm { WornArms.publish(arm, for: path) }
             skeletons[path] = skeleton
             if CharacterLabArguments.wantsSkeletonReport {
                 Log.render("--- \(path) ---\n" + skeleton.describe(jointNames: mesh.jointNames))

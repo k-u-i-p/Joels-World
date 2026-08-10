@@ -284,6 +284,9 @@ final class ImportedCharacterStore {
                 if let leg = skeleton.wornLeg {
                     WornLegs.publish(leg, for: path)
                 }
+                if let arm = skeleton.wornArm {
+                    WornArms.publish(arm, for: path)
+                }
 
                 self.loading.remove(path)
                 guard let body = ImportedCharacterBody(device: self.device,

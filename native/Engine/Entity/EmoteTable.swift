@@ -204,9 +204,11 @@ extension Emotes {
                 rig.rightHandTarget = SIMD3(10, 16 - bringToMouth * 16, 12 + bringToMouth * 24)
 
                 // The apple rides in the hand, so it inherits the forearm's orientation.
-                rig.props.append(PropDraw(mesh: .apple, anchor: .rightHand, local: t(0, 0, 0),
+                rig.props.append(PropDraw(mesh: .apple, anchor: .held(.oneHand(.right)),
+                                          local: t(0, 0, 0),
                                           color: appleRed, roughness: 0.5))
-                rig.props.append(PropDraw(mesh: .appleStem, anchor: .rightHand, local: t(0, 0, 3.5),
+                rig.props.append(PropDraw(mesh: .appleStem, anchor: .held(.oneHand(.right)),
+                                          local: t(0, 0, 3.5),
                                           color: stemGreen))
 
                 guard bringToMouth > 0.8 else { return }
@@ -246,9 +248,15 @@ extension Emotes {
                                           color: porcelain, roughness: 0.3))
                 rig.props.append(PropDraw(mesh: .steak, anchor: .meshGroup, local: t(22, 0, 2.1),
                                           color: steakPurple, roughness: 0.8))
-                rig.props.append(PropDraw(mesh: .cutlery, anchor: .rightHand, local: t(0, 0, 4),
+                // **In the fist, not four units to the thumb side of it.** `t(0, 0, 4)` was the
+                // JS, and it put a knife on top of the open mitt the rig used to draw — which
+                // read as "resting in the palm" only while the palm was flat. A hand that closes
+                // grips at its own origin, the way the racket does.
+                rig.props.append(PropDraw(mesh: .cutlery, anchor: .held(.oneHand(.right)),
+                                          local: t(0, 0, 0),
                                           color: steel))
-                rig.props.append(PropDraw(mesh: .cutlery, anchor: .leftHand, local: t(0, 0, 4),
+                rig.props.append(PropDraw(mesh: .cutlery, anchor: .held(.oneHand(.left)),
+                                          local: t(0, 0, 0),
                                           color: steel))
 
                 if armMove > 0 {
@@ -278,8 +286,10 @@ extension Emotes {
 
                 rig.props.append(PropDraw(mesh: .book, anchor: .bodyPivot, local: t(25, 0, 20),
                                           color: porcelain, roughness: 0.9))
-                rig.props.append(PropDraw(mesh: .pen, anchor: .rightHand,
-                                          local: t(0, 0, 5) * .rotationX(.pi / 4),
+                // Gripped at the hand's own origin — see the cutlery in `lunch` for why the JS's
+                // five units to the thumb side had to go.
+                rig.props.append(PropDraw(mesh: .pen, anchor: .held(.oneHand(.right)),
+                                          local: .rotationX(.pi / 4),
                                           color: waterBlue))
 
                 rig.rightHandTarget = SIMD3(19 + armMoveX, 4 + armMoveY, 22)
@@ -558,6 +568,7 @@ extension Emotes {
             sound: nil,
             pose: { rig, ctx in
                 rig.holding = "tennis_racket"
+                rig.holdingHold = .oneHand(.right)
 
                 rig.bodyPivotPosition.z = CharacterRig.bodyPivotHeight
                 rig.leftFootTarget = SIMD3(-2, -8, groundedFoot)
@@ -587,11 +598,26 @@ extension Emotes {
             messageWhenNear: "{name} passed the ball to {target_name}!",
             sound: nil,
             pose: { rig, _ in
-                rig.rightHandTarget = SIMD3(12, 5, 12)
-                rig.leftHandTarget = SIMD3(12, -5, 12)
+                // **A hand target is the wrist, not the palm.** The JS asked for `±5`, which is
+                // the ball's own half-width: right for the mitt the rig used to draw, and wrong
+                // for a bought model, whose palm reaches about five units past its wrist and so
+                // ends up inside the ball with its opposite number. `±12` is the ball's half
+                // length plus that reach, which stands a palm on each end with the fingers
+                // curling over it.
+                rig.rightHandTarget = SIMD3(13, 11, 15)
+                rig.leftHandTarget = SIMD3(13, -11, 15)
 
-                rig.props.append(PropDraw(mesh: .rugbyBall, anchor: .meshGroup,
-                                          local: t(10, 0, 12) * .rotationX(.pi / 2),
+                // **The ball hangs off the hands, not off a spot in front of the body.** It used
+                // to be anchored to `meshGroup` at `z = 12`, which is 12 above the *floor* rather
+                // than 12 above the hips: the character cupped his hands at his waist round a
+                // ball by his ankles. `.betweenHands` is the midpoint of the two hand anchors, so
+                // move a hand and the ball goes with it.
+                //
+                // `rotationZ` lays the long axis across the body, palm to palm — the tips of a
+                // 15.5-long ball land at ±7.75, which is where the two hands are. It reads as a
+                // rugby ball rather than an egg from the overworld's near-overhead camera, too.
+                rig.props.append(PropDraw(mesh: .rugbyBall, anchor: .held(.bothHands),
+                                          local: .rotationZ(.pi / 2),
                                           color: rugbyWhite))
             }
         ),

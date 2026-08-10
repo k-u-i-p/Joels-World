@@ -32,12 +32,18 @@ struct RigMutation {
 
     var props: [PropDraw] = []
 
-    /// `c.holding` — the model to put in the right hand. Only `tennis` sets it.
+    /// `c.holding` — the model to carry. Only `tennis` sets it.
     var holding: String?
+
+    /// **How that model is carried.** A racket is a one-hand hold, which is what it always was;
+    /// saying so is what lets something else be carried in both. Ignored while `holding` is nil.
+    var holdingHold: Hold = .oneHand(.right)
 
     /// An extra rotation for the held model, in the hand's own frame. The overworld leaves it
     /// nil and the racket simply points along the forearm, as it always has; the 3D tennis game
     /// uses it to roll the strings towards the ball on contact.
+    ///
+    /// A `.bothHands` hold has no forearm to be in the frame of, so this turns it in body axes.
     var holdingRotation: SIMD3<Float>?
 }
 

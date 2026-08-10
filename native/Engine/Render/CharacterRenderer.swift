@@ -282,8 +282,11 @@ final class CharacterRenderer {
             .tearLarge: MeshFactory.sphere(radius: 2, widthSegments: 6, heightSegments: 6),
             .tearSmall: MeshFactory.sphere(radius: 1.5, widthSegments: 4, heightSegments: 4),
             .tennisBall: MeshFactory.sphere(radius: 2, widthSegments: 20, heightSegments: 20),
-            .rugbyBall: scaled(MeshFactory.sphere(radius: 3.5, widthSegments: 12, heightSegments: 12),
-                               SIMD3(1.5, 1, 1)),
+            // **Bigger than the JS, on purpose** — see `PropMesh.rugbyBall`. A bought pupil is
+            // getting on for eighty engine units tall where the abstract rig it is posed from is
+            // about sixty, so a ball built to the rig's scale reads as a golf ball in its hands.
+            .rugbyBall: scaled(MeshFactory.sphere(radius: 4.5, widthSegments: 20, heightSegments: 16),
+                               SIMD3(1.55, 1, 1)),
             .ripple: rotated(MeshFactory.torus(radius: 5, tube: 0.5,
                                                radialSegments: 4, tubularSegments: 16),
                              .rotationX(.pi / 2)),

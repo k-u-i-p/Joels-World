@@ -493,6 +493,44 @@ struct WornLeg {
                              foot: .slipOn)
 }
 
+/// **The arm a character is actually wearing** — `WornLeg`'s twin, for the same reason and by the
+/// same arithmetic.
+///
+/// The retargeter treats an arm exactly as it treats a leg: it keeps the directions the rig's
+/// upper arm and forearm point in and steps the **model's own** bone lengths along them. So the
+/// wrist you can see is at `shoulder + modelUpper·d₁ + modelFore·d₂`, and the rig's hand anchor is
+/// at `shoulder + 8.5·d₁ + 8.5·d₂`.
+///
+/// For a leg that discrepancy was a character floating. For an arm it is **a held thing floating
+/// next to the hand** — and it is worst where the arm is folded, because the two chains diverge
+/// fastest there. A fork at a mouth was a hand's length from the fist; a racket at arm's length
+/// was barely off, which is why only the one pose ever looked wrong enough to notice.
+///
+/// Only `Hold` uses it. The rig's own hand *parts* stay exactly where they were: the retargeter
+/// reads their directions and does its own stepping, so correcting them here would apply the
+/// correction twice.
+struct WornArm {
+    /// Shoulder to elbow and elbow to wrist, in engine units, as the retargeter will walk them.
+    let upper: Float
+    let fore: Float
+
+    /// **The rig's own abstract arm.** Both bones are `armBone`, and every correction built on
+    /// this is arithmetically a no-op — which is what a character with no model yet gets.
+    static let rig = WornArm(upper: CharacterRig.armBone, fore: CharacterRig.armBone)
+}
+
+/// **Worn arms by model path.** See `WornLegs` — same registry, same main-thread rule.
+enum WornArms {
+    private static var byPath: [String: WornArm] = [:]
+
+    static func publish(_ arm: WornArm, for path: String) { byPath[path] = arm }
+
+    static func arm(for path: String?) -> WornArm {
+        guard let path, let arm = byPath[path] else { return .rig }
+        return arm
+    }
+}
+
 /// **Worn legs by model path**, filled in as models load.
 ///
 /// `CharacterRig.pose` runs in the entity layer and needs a leg before it can place a foot; the
@@ -577,6 +615,10 @@ final class HumanoidSkeleton {
     /// floor with. `nil` if either foot or either leg bone is missing, in which case the rig
     /// keeps its own abstract leg and the character stands where it always did.
     let wornLeg: WornLeg?
+    /// **This model's own arm** — what `Hold` places a carried thing with. `nil` if either arm
+    /// bone is missing, in which case the rig keeps its own and a held prop sits where it always
+    /// did. See `WornArm`.
+    let wornArm: WornArm?
     let jointCount: Int
     /// Height the mesh measured, in the file's own units, before scaling.
     let measuredHeight: Float
@@ -976,6 +1018,18 @@ final class HumanoidSkeleton {
         let shins = [boneLength(.leftLowerLeg, .leftFoot),
                      boneLength(.rightLowerLeg, .rightFoot)].compactMap { $0 }
 
+        // The arm, measured the same way and for the same reason — see `WornArm`.
+        let uppers = [boneLength(.leftUpperArm, .leftLowerArm),
+                      boneLength(.rightUpperArm, .rightLowerArm)].compactMap { $0 }
+        let forearms = [boneLength(.leftLowerArm, .leftHand),
+                        boneLength(.rightLowerArm, .rightHand)].compactMap { $0 }
+        if !uppers.isEmpty, !forearms.isEmpty {
+            wornArm = WornArm(upper: uppers.reduce(0, +) / Float(uppers.count),
+                              fore: forearms.reduce(0, +) / Float(forearms.count))
+        } else {
+            wornArm = nil
+        }
+
         if let footShape, !thighs.isEmpty, !shins.isEmpty {
             wornLeg = WornLeg(thigh: thighs.reduce(0, +) / Float(thighs.count),
                               shin: shins.reduce(0, +) / Float(shins.count),
@@ -1215,18 +1269,25 @@ final class HumanoidRetargeter {
         let scale = characterScale > 1e-5 ? characterScale : 1
         lastScale = scale
 
-        // Which hand, if any, is closed round something this frame.
+        // Which hands are closed round something this frame.
+        //
+        // **`CharacterRig.pose` has already worked this out**, from every `Hold` the pose used —
+        // the model in `holding` and each `.held` prop. It used to be derived here as "`holding`
+        // is set, so the character's left is gripping", which was right about the racket and
+        // silent about everything an emote carries: an apple, a fork, a pen and a rugby ball all
+        // sat in a flat open palm.
         //
         // **`RigPart.rightHand` is the character's left** — the naming inversion in
-        // `HumanoidBone.driver` again — and that is the hand a racket goes in:
-        // `CharacterRig.pose` composes `holdingTransform` off `rightHandAnchor`. So the part is
-        // named here rather than the bone, and it stays right if that anchor ever moves.
+        // `HumanoidBone.driver` — and `Hold.Side.right` is deliberately wrong the same way, so the
+        // two agree.
         //
         // **It snaps rather than blends, on purpose.** The prop it is closing around appears and
         // disappears in one frame — a racket is drawn only while `pose.holding` is set — so a
         // hand that took a quarter of a second to close would be gripping air on the way in and
         // clutching nothing on the way out. `solve` has no timestep to smooth over anyway.
-        let holdingPart: RigPart? = pose.holding != nil ? .rightHand : nil
+        let gripping: Set<RigPart> = Set(pose.gripped.map { side in
+            side == .right ? RigPart.rightHand : RigPart.leftHand
+        })
 
         for index in skeleton.order {
             let localRest = skeleton.localBind[index]
@@ -1316,7 +1377,7 @@ final class HumanoidRetargeter {
             // `order`, is what makes the bends compound down the finger for free: a joint's
             // children have not been visited yet and will inherit this rotation as their rest.
             if skeleton.curlAxis[index] != .zero {
-                let closed = holdingPart != nil && skeleton.curlHandPart[index] == holdingPart
+                let closed = skeleton.curlHandPart[index].map(gripping.contains) ?? false
                 let angle = closed ? skeleton.curlGrip[index] : skeleton.curlRest[index]
                 if angle != 0 {
                     let axis = simd_normalize(rotation * skeleton.curlAxis[index])

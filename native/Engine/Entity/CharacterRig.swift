@@ -82,10 +82,19 @@ struct RigPose {
     /// Emote props for this frame, with `worldTransform` already composed.
     var props: [PropDraw] = []
 
-    /// `HOLDABLE_OBJECTS` key and the transform its model is drawn with — the racket rides in
-    /// the right hand (`characters.js:1176-1207`).
+    /// `HOLDABLE_OBJECTS` key and the transform its model is drawn with — placed by whichever
+    /// `Hold` the mutation asked for (`characters.js:1176-1207`).
     var holding: String?
     var holdingTransform = matrix_identity_float4x4
+
+    /// **Which hands have something in them this frame**, gathered from every `Hold` the pose
+    /// used — the model in `holding` and each `.held` prop alike.
+    ///
+    /// `HumanoidRetargeter` closes the fingers of these and no others. It used to close the
+    /// character's left whenever `holding` was set, which meant a racket was gripped and an emote's
+    /// own apple, fork, pen or ball was not: they hung in a flat open palm, and the rugby ball was
+    /// large enough that both hands disappeared inside it.
+    var gripped: Set<Hold.Side> = []
 }
 
 /// A two-bone limb's three joints, in whatever space the caller asked for.
@@ -225,6 +234,22 @@ enum CharacterRig {
         let knee = IKSolver.solve(start: hip, end: &ankle,
                                   l1: thighBone, l2: shinBone, bendingNormal: bendNormal)
         return wornAnkle(hip: hip, knee: knee, ankle: ankle, thigh: thigh, shin: shin)
+    }
+
+    /// **Where the wrist that gets drawn actually lands** — `wornAnkle` for the arm.
+    ///
+    /// Same walk: the retargeter keeps the two directions the rig's arm points in and steps the
+    /// model's own bones along them, so a hand anchor built on `armBone` is not where the fist
+    /// is. The gap is small with the arm out straight and a whole hand's length with it folded,
+    /// which is why a racket at arm's length looked held and a fork at a mouth did not.
+    ///
+    /// `pose` has already solved the elbow by the time it needs this, so it passes it in.
+    static func wornWrist(shoulder: SIMD3<Float>,
+                          elbow: SIMD3<Float>,
+                          wrist: SIMD3<Float>,
+                          arm: WornArm) -> SIMD3<Float> {
+        wornAnkle(hip: shoulder, knee: elbow, ankle: wrist,
+                  thigh: arm.upper, shin: arm.fore)
     }
 
     /// The same, off a chain the caller has already solved — which `pose` has, by the time it
@@ -767,6 +792,7 @@ enum CharacterRig {
         // the slip-on — until the `.glb` lands, so the first few frames pose exactly as they
         // always did. See `WornLeg`.
         let worn = WornLegs.leg(for: pose.model)
+        let wornArm = WornArms.arm(for: pose.model)
 
         // --- Root transform (`ensureThreeSetup` + `drawCharacter:1220`) ---
         let baseScale = Float(mapCharacterScale)
@@ -1325,13 +1351,52 @@ enum CharacterRig {
         pose.parts.append((.leftHand, leftHandAnchor * handRoll))
         pose.parts.append((.rightHand, rightHandAnchor * handRoll))
 
+        // --- Holding ---
+        //
+        // **One function, whatever is being carried.** A `Hold` is resolved to a frame here and
+        // nowhere else, so the model named by `holding` and an emote's own prop meshes are placed
+        // by the same rule and grip the same hands. See `Hold`.
+        // **The wrist the model draws, not the one the rig asked for.** `leftHandAnchor` is where
+        // the arm IK ended, and the retargeter then walks the model's own two arm bones down the
+        // same directions and finishes somewhere else — a little short with the arm straight, a
+        // whole hand's length short with it folded. `WornArm` is the leg fix from part 7 applied
+        // to the arm; without it a fork at a mouth floats beside the fist.
+        let heldLeftHand = chest
+            * Float4x4.translation(wornWrist(shoulder: leftShoulder, elbow: leftElbow,
+                                             wrist: leftHandChest, arm: wornArm))
+            * leftForearmRotation
+        let heldRightHand = chest
+            * Float4x4.translation(wornWrist(shoulder: rightShoulder, elbow: rightElbow,
+                                             wrist: rightHandChest, arm: wornArm))
+            * rightForearmRotation
+
+        func frame(for hold: Hold) -> Float4x4 {
+            switch hold {
+            case .oneHand(.left): return heldLeftHand
+            case .oneHand(.right): return heldRightHand
+            case .bothHands:
+                // The chest's rotation and scale, standing at the midpoint of the two hands: it
+                // follows the IK without inheriting either wrist's roll.
+                var midpoint = chest
+                let left = heldLeftHand.columns.3, right = heldRightHand.columns.3
+                midpoint.columns.3 = SIMD4((left.x + right.x) / 2,
+                                           (left.y + right.y) / 2,
+                                           (left.z + right.z) / 2,
+                                           1)
+                return midpoint
+            }
+        }
+
         // --- Held model (`characters.js:1184-1206`) ---
         // `HOLDABLE_OBJECTS.tennis_racket` is offset (0,0,0), unrotated, scaled 3×.
         if pose.holding != nil {
             let twist = mutation.holdingRotation.map {
                 Float4x4.eulerXYZ($0.x, $0.y, $0.z)
             } ?? matrix_identity_float4x4
-            pose.holdingTransform = rightHandAnchor * twist * Float4x4.scale(SIMD3(repeating: 3))
+            pose.holdingTransform = frame(for: mutation.holdingHold)
+                * twist
+                * Float4x4.scale(SIMD3(repeating: 3))
+            pose.gripped.formUnion(mutation.holdingHold.hands)
         }
 
         // --- Emote props ---
@@ -1342,8 +1407,9 @@ enum CharacterRig {
             let anchor: Float4x4
             switch pose.props[index].anchor {
             case .head: anchor = headAnchor
-            case .leftHand: anchor = leftHandAnchor
-            case .rightHand: anchor = rightHandAnchor
+            case .held(let hold):
+                anchor = frame(for: hold)
+                pose.gripped.formUnion(hold.hands)
             case .bodyPivot: anchor = bodyPivot
             case .meshGroup: anchor = meshGroup
             case .world: anchor = matrix_identity_float4x4
