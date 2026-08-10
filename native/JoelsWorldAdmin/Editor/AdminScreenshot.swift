@@ -28,6 +28,13 @@ enum AdminScreenshot {
     /// headless shot is taken from straight overhead, which is the one angle that cannot show
     /// whether a character has a collar, a knee or an elbow. Applied once at launch, so they
     /// compose with the keys rather than replacing them.
+    /// `-nooverlays` — start with the editor's boxes and rings switched off, so a scripted shot
+    /// shows the world the way the game draws it. View ▸ Show Overlays (⌘O) is the same switch
+    /// by hand.
+    static var startsWithOverlaysHidden: Bool {
+        ProcessInfo.processInfo.arguments.contains("-nooverlays")
+    }
+
     static var cameraPitch: Double? { argument("-campitch").flatMap(Double.init) }
     static var cameraYaw: Double? { argument("-camyaw").flatMap(Double.init) }
     static var cameraZoom: Double? { argument("-camzoom").flatMap(Double.init) }

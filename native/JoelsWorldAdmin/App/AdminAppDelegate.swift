@@ -44,6 +44,20 @@ final class AdminAppDelegate: NSObject, NSApplicationDelegate {
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
+        // ⌘O is free here — this app has nothing to open — and "O for overlays" is easier to
+        // remember than the modifier pile-up the unused shortcuts would need. The action has no
+        // target: AppKit walks the responder chain to `AdminMapViewController`, which also ticks
+        // the item in `validateMenuItem`.
+        let viewMenuItem = NSMenuItem()
+        let viewMenu = NSMenu(title: "View")
+        let overlaysItem = viewMenu.addItem(
+            withTitle: "Show Overlays",
+            action: #selector(AdminMapViewController.toggleEditorOverlays(_:)),
+            keyEquivalent: "o")
+        overlaysItem.state = .on
+        viewMenuItem.submenu = viewMenu
+        mainMenu.addItem(viewMenuItem)
+
         let windowMenuItem = NSMenuItem()
         let windowMenu = NSMenu(title: "Window")
         windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.miniaturize(_:)), keyEquivalent: "m")

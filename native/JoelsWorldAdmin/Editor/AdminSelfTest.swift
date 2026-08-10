@@ -30,6 +30,7 @@ final class AdminSelfTest {
 
     func run() {
         schedule(1.0) { self.reportInitialState() }
+        schedule(1.1) { self.testOverlaySwitch() }
         schedule(1.2) { self.testGameUIIsClickable() }
         schedule(1.3) { self.testChatFeedAlignment() }
         schedule(1.5) { self.testObjectSelectAndDrag() }
@@ -80,6 +81,31 @@ final class AdminSelfTest {
             }
         }
         log("baselined \(baselines.count) files (\(baselines.values.map(\.count).reduce(0, +)) bytes)")
+    }
+
+    /// View ▸ Show Overlays (⌘O), driven the way the menu drives it.
+    ///
+    /// The menu item has no target and relies on the responder chain finding an object that
+    /// answers `toggleEditorOverlays:`. When nothing does, AppKit simply greys the item out —
+    /// there is no error, no log line, and the shortcut goes quiet. So the lookup is asked for
+    /// explicitly, and then the switch is worked through whatever it found.
+    private func testOverlaySwitch() {
+        let action = #selector(AdminMapViewController.toggleEditorOverlays(_:))
+        let item = NSMenuItem(title: "Show Overlays", action: action, keyEquivalent: "o")
+        guard let target = NSApp.target(forAction: action, to: nil, from: item) as? NSObject else {
+            return log("overlay switch: FAIL: nothing in the responder chain answers \(action) — " +
+                       "the menu item is greyed out")
+        }
+
+        let before = map.showsOverlays
+        target.perform(action, with: item)
+        let flipped = map.showsOverlays
+        target.perform(action, with: item)
+        let restored = map.showsOverlays
+
+        log("overlay switch: \(type(of: target)) answers the menu; " +
+            "\(before) → \(flipped) → \(restored)" +
+            (flipped == !before && restored == before ? "" : "  FAIL: the switch did not toggle"))
     }
 
     /// The game's UI floats over the map, and the map view used to answer for every point in

@@ -12,6 +12,8 @@ final class AdminSidebarView: NSView {
     private var hostField: ValueField!
     private var mapPopUp: ActionPopUpButton!
 
+    private var overlaysCheckbox: NSButton!
+
     private let objectInspector = ObjectInspectorView()
     private let npcInspector = NPCInspectorView()
     private let eventEditor = EventEditorView()
@@ -98,6 +100,13 @@ final class AdminSidebarView: NSView {
             self?.session?.state.setSimulateNPCs(!frozen)
         }
 
+        // Also View ▸ Show Overlays (⌘O). Off, the map is drawn the way the game draws it —
+        // the only way to see whether a wall sits where the art says it should, since the
+        // box for that wall is otherwise painted straight over it.
+        overlaysCheckbox = AdminUI.checkbox("Show overlays", checked: true) { [weak self] shown in
+            self?.map?.setOverlaysVisible(shown)
+        }
+
         for view in [AdminUI.sectionTitle("Server"),
                      AdminUI.row("Host", [hostField]),
                      connectButton,
@@ -107,6 +116,7 @@ final class AdminSidebarView: NSView {
                      mapPopUp as NSView,
                      cursorLabel,
                      freezeNPCs,
+                     overlaysCheckbox as NSView,
                      createRow,
                      separator(),
                      objectInspector,
@@ -143,6 +153,11 @@ final class AdminSidebarView: NSView {
     func setStatus(_ status: String) {
         statusLabel.stringValue = status
         statusLabel.textColor = status.hasPrefix("⚠︎") ? .systemRed : .secondaryLabelColor
+    }
+
+    /// Follows the menu item, so the two controls never disagree about what is on screen.
+    func setOverlaysVisible(_ visible: Bool) {
+        overlaysCheckbox.state = visible ? .on : .off
     }
 
     func setCursor(x: Double, y: Double) {

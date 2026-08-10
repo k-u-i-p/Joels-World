@@ -52,8 +52,31 @@ final class AdminRootViewController: NSSplitViewController {
         mapController.onCursorMoved = { [weak self] x, y in
             self?.sidebar.setCursor(x: x, y: y)
         }
+        mapController.onOverlayVisibilityChanged = { [weak self] visible in
+            self?.sidebar.setOverlaysVisible(visible)
+        }
+        // The map's view loads before this wiring exists, so `-nooverlays` has already been
+        // applied by now and the checkbox has to be caught up rather than told.
+        sidebar.setOverlaysVisible(mapController.showsOverlays)
 
         session.connect()
+    }
+}
+
+/// ⌘O with the keyboard in an inspector field.
+///
+/// The responder chain from a sidebar text field runs up its own column and reaches this
+/// controller without ever passing the map's, so the map controller's copy of the action is out
+/// of reach and the menu item would be greyed out mid-edit. Answering here too puts it back.
+extension AdminRootViewController: NSMenuItemValidation {
+    @objc func toggleEditorOverlays(_ sender: Any?) {
+        mapController.setOverlaysVisible(!mapController.showsOverlays)
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        guard menuItem.action == #selector(toggleEditorOverlays(_:)) else { return true }
+        menuItem.state = mapController.showsOverlays ? .on : .off
+        return true
     }
 }
 

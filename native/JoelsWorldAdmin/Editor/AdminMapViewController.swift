@@ -26,6 +26,9 @@ final class AdminMapViewController: NSViewController {
     /// fields track the shape on screen.
     var onSelectedEntityChanged: (() -> Void)?
     var onCursorMoved: ((Double, Double) -> Void)?
+    /// Raised when the overlay switch is flipped from the menu, so the sidebar's checkbox
+    /// follows it rather than lying about the state.
+    var onOverlayVisibilityChanged: ((Bool) -> Void)?
 
     private(set) var selection = EditorSelection()
 
@@ -82,6 +85,7 @@ final class AdminMapViewController: NSViewController {
 
         overlay.frame = view.bounds
         overlay.autoresizingMask = [.width, .height]
+        overlay.showsEditorMarkup = !AdminScreenshot.startsWithOverlaysHidden
         view.addSubview(overlay)
 
         installGameUI()
@@ -257,6 +261,26 @@ final class AdminMapViewController: NSViewController {
 
     var chatRowWidths: [CGFloat] { hud.chatRowWidths }
 
+    // MARK: - Showing and hiding the editor's overlays
+
+    /// Whether the boxes and rings are drawn over the map. The state lives here rather than on
+    /// the view because two controls read it — the sidebar checkbox and the View menu — and
+    /// they have to agree.
+    var showsOverlays: Bool { overlay.showsEditorMarkup }
+
+    func setOverlaysVisible(_ visible: Bool) {
+        guard overlay.showsEditorMarkup != visible else { return }
+        overlay.showsEditorMarkup = visible
+        onOverlayVisibilityChanged?(visible)
+    }
+
+    /// **View ▸ Show Overlays (⌘O).** Reached through the responder chain: this controller sits
+    /// between the editor view — which is first responder while the map has the keyboard — and
+    /// the window, so a menu item with no target finds it here.
+    @objc func toggleEditorOverlays(_ sender: Any?) {
+        setOverlaysVisible(!showsOverlays)
+    }
+
     private func presentFatal(_ message: String) {
         let label = NSTextField(labelWithString: message)
         label.frame = view.bounds
@@ -418,6 +442,18 @@ final class AdminMapViewController: NSViewController {
     func syncSelectedNPC(_ message: (GameCharacter) -> AdminMessage) {
         guard let npc = selectedNPC else { return }
         session.send(message(npc))
+    }
+}
+
+// MARK: - Menu state
+
+/// The tick beside View ▸ Show Overlays. AppKit asks whichever responder answers the action,
+/// which is this controller.
+extension AdminMapViewController: NSMenuItemValidation {
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        guard menuItem.action == #selector(toggleEditorOverlays(_:)) else { return true }
+        menuItem.state = showsOverlays ? .on : .off
+        return true
     }
 }
 

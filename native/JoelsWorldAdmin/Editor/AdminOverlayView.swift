@@ -30,6 +30,21 @@ final class AdminOverlayView: NSView {
         didSet { needsDisplay = true }
     }
 
+    /// Whether the editor's own markup — the object boxes, the selected NPC's rings, its patrol
+    /// route and the resize handle — is drawn.
+    ///
+    /// Turned off, the map looks the way the game shows it, which is the only way to judge
+    /// whether a wall lines up with the building art behind it: with the boxes up, a red
+    /// rectangle covers the very thing you are checking it against.
+    ///
+    /// Two things stay on deliberately. The nameplates and speech bubbles are the *game's*
+    /// overlay, not the editor's — the phone draws those too. And a dropped tracing image is
+    /// the reference you would be comparing the clean map against, so hiding it with the boxes
+    /// would defeat the purpose of the switch.
+    var showsEditorMarkup = true {
+        didSet { needsDisplay = true }
+    }
+
     /// Screen coordinates run Y-down here, matching the canvas the JS draws into and the
     /// output of `Camera.project`.
     override var isFlipped: Bool { true }
@@ -47,14 +62,16 @@ final class AdminOverlayView: NSView {
 
         drawBackgroundImage(in: ctx, screenPoint: screenPoint)
 
-        for object in snapshot.objects {
-            draw(object: object, in: ctx, screenPoint: screenPoint)
-        }
+        if showsEditorMarkup {
+            for object in snapshot.objects {
+                draw(object: object, in: ctx, screenPoint: screenPoint)
+            }
 
-        drawWaypointRoute(in: ctx, screenPoint: screenPoint)
+            drawWaypointRoute(in: ctx, screenPoint: screenPoint)
 
-        for npc in snapshot.npcs where snapshot.selection.npcId == npc.id {
-            draw(npc: npc, in: ctx, screenPoint: screenPoint)
+            for npc in snapshot.npcs where snapshot.selection.npcId == npc.id {
+                draw(npc: npc, in: ctx, screenPoint: screenPoint)
+            }
         }
 
         // Last, so a bubble is never buried under an object box.
