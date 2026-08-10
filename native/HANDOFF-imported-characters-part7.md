@@ -88,6 +88,68 @@ exactly as well as one standing properly, because both have a lowest corner at �
 `tilt` column now (`CharacterRig.soleTilt`), toe height minus heel height, counted only while the
 foot is actually down.
 
+## The second half: the toes were still in the air
+
+Everything above landed, the report read `float -0.40` and `tilt` near zero on all five, and the
+shoes were **still visibly pointing up in the game**. They were. Both numbers were measuring
+`RigPose.leftShoeBox` — the frame the rig *hands* the retargeter. A report built on it can say the
+rig asked for a flat foot on the floor and stay perfectly silent while the retargeter draws it
+pointing at the sky.
+
+So `HumanoidSkeleton` now keeps `solePoints` — two real vertices per foot, the lowest in the front
+half of the sole and the lowest in the back half, held in the foot joint's own frame — and
+`HumanoidRetargeter.drawnSole()` skins them through the solved joint the way the GPU skins the mesh
+around them. The report carries both, and the digest prints them as `DRAWN`. That is the number
+that cannot lie, and the first time it ran it said:
+
+```
+son     stand   float -0.40  tilt 0.06   |   DRAWN float  +0.01  tilt +2.80
+```
+
+**+2.80 units of toe-up on a flat request, constant in every take.** About 11°, which is what the
+picture had been showing all along.
+
+### The roll was re-aiming the bone
+
+`HumanoidBone.rollTarget` for a foot is `(0, 0, 1)` — the shoe frame's up — and `solve` turned the
+foot's measured `rollAxis` onto it with a shortest arc. The load-time half of that pair is squared
+up against the bone first, and the comment there says exactly why:
+
+> a shortest arc between two vectors already square to the bone is a rotation about the bone and
+> nothing else
+
+**Only one side was square.** The other was `rollTarget` straight off the driver. For a hand that is
+harmless — the target is +Z of the hand part and the bone is aimed at its +Y, already perpendicular.
+For a foot it is not, because **a foot bone runs forward and down**: the son's ankle-to-toe is 34°
+below horizontal, and the shoe frame's up is square to the *shoe*, not to that bone. So the arc that
+was meant to level the sole re-aimed the foot by most of that angle, every frame, on every model —
+by however steeply that model's foot bone happened to point.
+
+One projection fixes it, in `solve`'s roll branch: square `want` up against the direction the bone
+was just aimed at, then take the arc. Hands are unaffected by construction, because for them the
+projection removes nothing.
+
+| | drawn tilt before | after |
+|---|---|---|
+| son | +2.80 | +0.06 |
+| mother | +0.13 | +0.01 |
+| daughter | not measured | +0.13 |
+| father | not measured | +0.13 |
+| stylized_boy | not measured | +0.33 |
+
+Only the two were measured before the fix — the son because he was the one in the complaint, the
+mother because she was the counter-example that showed it was per model rather than universal. The
+other three were measured after only. If the size of the *before* matters for the other three,
+revert the projection in `solve` and re-run `-labreport`; do not read it off this table.
+
+And the drawn sole went from `+0.01` to `-0.30` — on the floor rather than a third of a shoe above
+it, because a foot tilted toe-up lifts its own lowest point.
+
+**The lesson worth keeping**: every measurement in this engine except `drawnSole()` describes what
+the rig *intends*. Two sessions in a row have now shipped a "verified" fix whose verification could
+not observe the thing being fixed. If a number about a character's appearance does not come from
+the posed mesh, it is evidence about the rig, not about the character.
+
 ## Tennis
 
 `CharacterMotor.localToWorld` folded in `CharacterRig.bodyPivotHeight`, and tennis's `headHeight`
@@ -119,9 +181,13 @@ for m in son daughter father mother stylized_boy; do
 done
 ```
 
-`stand` and `walk` should read `float -0.40` on all five — the sole planted at exactly `footSink`
-— with `tilt` near zero and **different numbers in the other columns per model**, which is the
-thing that was impossible before `warmUp`.
+Read the **`DRAWN`** pair first — those come off the posed mesh. `stand` should be about
+`-0.30` with a tilt under `0.35` on all five: the sole on the floor and flat. The `float`/`sink`/
+`tilt` columns to their left describe what the rig asked for, which is worth knowing and is not the
+same question — see "the toes were still in the air" above.
+
+`-labbones` prints each model's matched skeleton alongside the report, which is the quickest way in
+when a limb is drawn at an orientation the rig did not ask for.
 
 Then look at one:
 
@@ -136,6 +202,11 @@ The 129 checks in `LocomotionSelfTest` still pass — they assert against the ri
 which is unchanged, so they say nothing about a worn model. That is what the report is for.
 
 ## Still not done
+
+- **Nothing measures the drawn *hand*.** `drawnSole` exists because the feet needed it; the same
+  blind spot applies to every other limb, and the roll fix above touched the hands' code path even
+  though it is a no-op for them by construction. A racket that comes out rolled would be invisible
+  to every number here.
 
 - **`RigRuntime.bodyPivotPosition` starts at `CharacterRig.bodyPivotHeight`.** The first walking or
   standing frame replaces it with the worn ride height, but a character that spawns *mid-emote*

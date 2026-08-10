@@ -521,6 +521,15 @@ enum WornLegs {
     static func shape(for path: String?) -> FootShape { leg(for: path).foot }
 }
 
+/// Where one foot's sole is, as two points that ride the joint. See `HumanoidSkeleton.solePoints`.
+struct SolePoints {
+    /// Index of the foot joint these are held in the frame of.
+    let joint: Int
+    /// Lowest point of the front half of the sole and of the back half, in that joint's frame.
+    let toe: SIMD3<Float>
+    let heel: SIMD3<Float>
+}
+
 // MARK: - The retargeted skeleton
 
 /// A bought skeleton, measured once and turned into everything `solve` needs per frame.
@@ -551,6 +560,16 @@ final class HumanoidSkeleton {
     /// when the driver is at rest, instead of taking a column of the driver straight off.
     /// `.zero` for every joint that wants the plain column. See `driverAim` in the initialiser.
     let driverAim: [SIMD3<Float>]
+    /// **Two points on each sole**, in that foot joint's own bind-local frame: the lowest vertex
+    /// in the front half of the foot and the lowest in the back half.
+    ///
+    /// These exist because everything else here describes what the rig *intends*.
+    /// `CharacterRig.soleClearance` and `soleTilt` measure `RigPose.leftShoeBox`, which is the
+    /// frame the rig hands the retargeter — and a report built on it can only say the rig asked
+    /// for a flat foot, never that it got one. Skinning two real vertices through the solved joint
+    /// says where the shoe actually is. See `HumanoidRetargeter.drawnSole`.
+    let solePoints: [SolePoints]
+
     /// This model's own shoe, measured off its mesh. `nil` if no foot matched, which also means
     /// nothing is aiming a shoe frame at it.
     let footShape: FootShape?
@@ -854,6 +873,7 @@ final class HumanoidSkeleton {
         }
 
         var shapes: [FootShape] = []
+        var soles: [SolePoints] = []
         for foot in [HumanoidBone.leftFoot, .rightFoot] {
             guard let footIndex = found[foot] else { continue }
             // This foot's own chain: the ankle and everything hanging off it, but not the other
@@ -871,6 +891,14 @@ final class HumanoidSkeleton {
             var halfWidth: Float = 0
             var owned = 0
 
+            // **The two ends of the sole, kept as actual vertices**, so the drawn foot can be
+            // measured rather than inferred. `FootShape` is four extents that a *frame* is
+            // reasoned about; these are points on the mesh, and putting them through the solved
+            // joint says where the shoe really ended up. See `HumanoidSkeleton.solePoints`.
+            var lowestToe = SIMD3<Float>.zero, lowestHeel = SIMD3<Float>.zero
+            var toeDepth = Float.greatestFiniteMagnitude
+            var heelDepth = Float.greatestFiniteMagnitude
+
             for vertex in mesh.vertices {
                 var weight: Float = 0
                 for lane in 0..<4 where chain.contains(Int(vertex.joints[lane])) {
@@ -879,11 +907,18 @@ final class HumanoidSkeleton {
                 guard weight > 0.5 else { continue }
                 owned += 1
                 let world = normalize * SIMD4(vertex.position, 1)
-                let relative = SIMD3(world.x, world.y, world.z) - ankle
+                let point = SIMD3(world.x, world.y, world.z)
+                let relative = point - ankle
                 soleBelow = max(soleBelow, -relative.z)
                 toeAhead = max(toeAhead, relative.x)
                 heelBehind = max(heelBehind, -relative.x)
                 halfWidth = max(halfWidth, abs(relative.y))
+
+                // The lowest vertex in the front half of the foot and the lowest in the back
+                // half: the ball of the sole and the back of the heel, which is the pair a person
+                // stands on and the pair a tilt is visible in.
+                if relative.x > 0, relative.z < toeDepth { toeDepth = relative.z; lowestToe = point }
+                if relative.x <= 0, relative.z < heelDepth { heelDepth = relative.z; lowestHeel = point }
             }
 
             // A foot with almost no vertices of its own is a rig whose weights we have misread,
@@ -893,7 +928,22 @@ final class HumanoidSkeleton {
                                     toeAheadOfAnkle: toeAhead,
                                     heelBehindAnkle: max(heelBehind, 0),
                                     halfWidth: max(halfWidth, 0.1)))
+
+            // Held in the foot joint's **own** frame, so posing the joint carries them with it —
+            // which is exactly how a vertex bound entirely to that joint is skinned.
+            let intoJoint = bindWorld[footIndex].inverse
+            func local(_ point: SIMD3<Float>) -> SIMD3<Float> {
+                let result = intoJoint * SIMD4(point, 1)
+                return SIMD3(result.x, result.y, result.z)
+            }
+            if toeDepth < .greatestFiniteMagnitude, heelDepth < .greatestFiniteMagnitude {
+                soles.append(SolePoints(joint: footIndex,
+                                        toe: local(lowestToe),
+                                        heel: local(lowestHeel)))
+            }
         }
+
+        solePoints = soles
 
         if shapes.isEmpty {
             footShape = nil
@@ -1126,6 +1176,9 @@ final class HumanoidRetargeter {
     private var worldTransforms: [Float4x4]
     private var driverRotations = [HumanoidBone.Driver: simd_float3x3]()
     private var driverOrigins = [RigPart: SIMD3<Float>]()
+    /// The character scale the last `solve` ran at. `worldTransforms` carries bone offsets scaled
+    /// by it, so anything reading a point *in* a joint's frame has to scale it the same way.
+    private var lastScale: Float = 1
 
     /// The rest orientation of a `CharacterRig` part that stands upright: `rotationX(π/2)`, which
     /// is what the torso, pelvis and neck are built with so their lathe's +Y points up the body.
@@ -1160,6 +1213,7 @@ final class HumanoidRetargeter {
             ?? matrix_identity_float4x4
         let characterScale = simd_length(SIMD3(rootPart.columns.0.x, rootPart.columns.0.y, rootPart.columns.0.z))
         let scale = characterScale > 1e-5 ? characterScale : 1
+        lastScale = scale
 
         // Which hand, if any, is closed round something this frame.
         //
@@ -1230,9 +1284,29 @@ final class HumanoidRetargeter {
                     // and the aim above puts `boneAxis` exactly on `target`, while `rollTarget`
                     // is square to the driver's own +Y by construction.
                     if let rollTarget = bone.rollTarget, skeleton.rollAxis[index] != .zero {
-                        let want = simd_normalize(driver * rollTarget)
-                        let have = simd_normalize(rotation * skeleton.rollAxis[index])
-                        rotation = Self.shortestArc(from: have, to: want) * rotation
+                        // **Squared up against the direction the bone was just aimed at**, the
+                        // same way `rollAxis` was squared up against the bone at load — and for
+                        // the same reason, which the comment there states and this line did not
+                        // honour: *a shortest arc between two vectors already square to the bone
+                        // is a rotation about the bone and nothing else.* Only one side of the arc
+                        // was square. The other was `rollTarget` straight off the driver.
+                        //
+                        // For a hand that was harmless — `rollTarget` is +Z of the hand part and
+                        // the bone is aimed at its +Y, so the two are already perpendicular. For a
+                        // foot it was not, because a foot bone runs forward **and down**: the
+                        // son's ankle-to-toe is 34° below horizontal, and the shoe frame's up is
+                        // square to the *shoe*, not to that. So the arc that was meant to level
+                        // the sole re-aimed the bone by most of that angle, and every model with a
+                        // steeply angled foot bone was drawn standing with its toes in the air —
+                        // 2.8 units of toe-up on the boy, none of which the rig had asked for and
+                        // none of which anything measuring `RigPose.leftShoeBox` could see.
+                        let wanted = driver * rollTarget
+                        let square = wanted - target * simd_dot(wanted, target)
+                        if simd_length(square) > 1e-4 {
+                            let want = simd_normalize(square)
+                            let have = simd_normalize(rotation * skeleton.rollAxis[index])
+                            rotation = Self.shortestArc(from: have, to: want) * rotation
+                        }
                     }
                 }
             }
@@ -1260,6 +1334,26 @@ final class HumanoidRetargeter {
         }
         for index in 0..<skeleton.jointCount {
             out[index] = worldTransforms[index] * skeleton.inverseBind[index]
+        }
+    }
+
+    /// **Where each drawn sole ended up**, after the last `solve` — one entry per foot, world
+    /// space, `toe` and `heel` being the two points `HumanoidSkeleton.solePoints` measured.
+    ///
+    /// This is the only honest answer to "is the shoe flat on the floor". Every other number in
+    /// this engine measures `RigPose.leftShoeBox`, which is what the rig *asked* the retargeter
+    /// for; this is what the retargeter did with it, skinned through the joint the way the GPU
+    /// will skin the mesh around it. A level shoe frame that comes out here as a tilted sole is a
+    /// retargeting bug, and nothing built on the shoe box could ever have said so.
+    func drawnSole() -> [(toe: SIMD3<Float>, heel: SIMD3<Float>)] {
+        skeleton.solePoints.compactMap { sole in
+            guard sole.joint < worldTransforms.count else { return nil }
+            let joint = worldTransforms[sole.joint]
+            func place(_ point: SIMD3<Float>) -> SIMD3<Float> {
+                let world = joint * SIMD4(point * lastScale, 1)
+                return SIMD3(world.x, world.y, world.z)
+            }
+            return (toe: place(sole.toe), heel: place(sole.heel))
         }
     }
 

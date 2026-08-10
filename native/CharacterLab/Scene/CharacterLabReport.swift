@@ -50,7 +50,42 @@ enum CharacterLabReport {
                 continue
             }
             WornLegs.publish(leg, for: path)
+            skeletons[path] = skeleton
+            if CharacterLabArguments.wantsSkeletonReport {
+                Log.render("--- \(path) ---\n" + skeleton.describe(jointNames: mesh.jointNames))
+            }
         }
+    }
+
+    /// The parsed skeletons `warmUp` built, so the drawn foot can be measured as well as the
+    /// intended one. See `drawn(_:model:)`.
+    private static var skeletons: [String: HumanoidSkeleton] = [:]
+    private static var retargeters: [String: HumanoidRetargeter] = [:]
+    private static var jointScratch: [Float4x4] = []
+
+    /// **Where this pose's shoes actually ended up**, by running the same retargeter the renderer
+    /// runs and skinning two points of each sole through it.
+    ///
+    /// The rest of this file measures `RigPose.leftShoeBox` — the frame the rig *hands* the
+    /// retargeter. That is worth measuring and it is not the same question: a report built on it
+    /// says the rig asked for a flat foot on the floor, and stays silent if the retargeter then
+    /// draws it pointing at the sky. Which is what it was doing.
+    static func drawn(_ pose: RigPose) -> (lowest: Double, tilt: Double)? {
+        guard let skeleton = skeletons[pose.model] else { return nil }
+        let retargeter = retargeters[pose.model] ?? {
+            let made = HumanoidRetargeter(skeleton: skeleton)
+            retargeters[pose.model] = made
+            return made
+        }()
+        retargeter.solve(pose: pose, into: &jointScratch)
+        let soles = retargeter.drawnSole()
+        guard !soles.isEmpty else { return nil }
+
+        // The foot that is down decides both numbers: the lowest point of either sole, and how
+        // far *that* foot's toe is above its own heel.
+        let lower = soles.min { min($0.toe.z, $0.heel.z) < min($1.toe.z, $1.heel.z) ? true : false }!
+        return (lowest: Double(min(lower.toe.z, lower.heel.z)),
+                tilt: Double(lower.toe.z - lower.heel.z))
     }
 
     /// One posed instant.
@@ -85,6 +120,12 @@ enum CharacterLabReport {
         var leftTilt: Double
         var rightTilt: Double
 
+        /// **The same two numbers off the mesh that gets drawn**, via `drawn(_:)`: the lowest
+        /// point of the lower shoe and how far its toe is above its own heel. Everything above is
+        /// what the rig asked for; these are what it got. `nil` if the model has not been parsed.
+        var drawnSole: Double?
+        var drawnTilt: Double?
+
         /// Hip, head and hands, in world units above the floor. Enough to see a bounce, a
         /// crouch or an arm swing without a picture.
         var hip: Double
@@ -104,6 +145,11 @@ enum CharacterLabReport {
         /// world units. A planted foot should be flat, so this is near zero on a grounded take;
         /// a foot in the air is allowed any pitch it likes and is not counted.
         var worstPlantedTilt: Double
+        /// **The drawn sole**, the two numbers that matter measured off the mesh rather than off
+        /// the frame the rig handed the retargeter. `worstDrawnFloat` is the lower shoe at its
+        /// most airborne; `worstDrawnTilt` is how far from flat it got while it was down.
+        var worstDrawnFloat: Double
+        var worstDrawnTilt: Double
         /// How high the character got off the ground.
         var maxHeight: Double
         /// How far they travelled, in metres, and how fast on average.
@@ -253,12 +299,13 @@ enum CharacterLabReport {
             // digest exists to be stops being one.
             let id = report.id.count >= 16 ? report.id
                 : report.id.padding(toLength: 16, withPad: " ", startingAt: 0)
-            return String(format: "%@ float %5.2f  sink %5.2f  tilt %5.2f  height %5.1f  hip range %4.1f  %5.1f m at %5.0f u/s",
+            return String(format: "%@ float %5.2f  sink %5.2f  tilt %5.2f  |  DRAWN float %6.2f  tilt %6.2f  |  hip range %4.1f  %5.1f m at %5.0f u/s",
                    id,
                    report.summary.worstFootFloat,
                    report.summary.deepestFootSink,
                    report.summary.worstPlantedTilt,
-                   report.summary.maxHeight,
+                   report.summary.worstDrawnFloat,
+                   report.summary.worstDrawnTilt,
                    report.summary.hipRange,
                    report.summary.travelledMetres,
                    report.summary.averageSpeed)
@@ -288,6 +335,7 @@ enum CharacterLabReport {
         // identical numbers to the centimetre. Nothing said so; the digest just looked stable.
         // `warmUp` below is what makes the lookup mean something. See `CharacterLabReport.warmUp`.
         let foot = WornLegs.shape(for: pose.model)
+        let drawn = drawn(pose)
         let left = Double(CharacterRig.soleClearance(pose.leftShoeBox, foot: foot))
         let right = Double(CharacterRig.soleClearance(pose.rightShoeBox, foot: foot))
 
@@ -310,6 +358,8 @@ enum CharacterLabReport {
                       lowestSole: min(left, right),
                       leftTilt: Double(CharacterRig.soleTilt(pose.leftShoeBox, foot: foot)),
                       rightTilt: Double(CharacterRig.soleTilt(pose.rightShoeBox, foot: foot)),
+                      drawnSole: drawn?.lowest,
+                      drawnTilt: drawn?.tilt,
                       hip: partHeight(pose, .pelvis),
                       head: height(pose.headTransform),
                       leftHand: partHeight(pose, .leftHand),
@@ -337,6 +387,12 @@ enum CharacterLabReport {
             worstFootFloat: soles.max() ?? 0,
             deepestFootSink: soles.min() ?? 0,
             worstPlantedTilt: plantedTilts.max() ?? 0,
+            worstDrawnFloat: samples.compactMap(\.drawnSole).max() ?? 0,
+            worstDrawnTilt: samples.compactMap { sample in
+                guard let sole = sample.drawnSole, let tilt = sample.drawnTilt,
+                      sole <= planted else { return nil }
+                return abs(tilt)
+            }.max() ?? 0,
             maxHeight: samples.map(\.z).max() ?? 0,
             travelledMetres: travelled / CharacterLabScene.unitsPerMetre,
             averageSpeed: seconds > 0 ? travelled / seconds : 0,

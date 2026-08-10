@@ -57,6 +57,11 @@ enum CharacterLabArguments {
     static var sheetPath: String? { value("-labsheet") }
     /// Frames in a filmstrip. Ignored by `-labtake all`, which uses one per take.
     static var sheetFrames: Int { number("-labframes").map { Int($0) } ?? 8 }
+    /// `-labbones` — print each model's matched skeleton alongside a report. One line per
+    /// canonical bone, saying which joint of the file it found and whether it took a roll — which
+    /// is the quickest way in when a limb is drawn at an orientation the rig did not ask for.
+    static var wantsSkeletonReport: Bool { flag("-labbones") }
+
     /// `-labreport <path>` — measurements as JSON, then quit. No GPU needed.
     static var reportPath: String? { value("-labreport") }
     /// How many instants each take is sampled at in a report.
