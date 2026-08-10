@@ -1332,8 +1332,34 @@ final class HumanoidRetargeter {
         if out.count < skeleton.jointCount {
             out = [Float4x4](repeating: matrix_identity_float4x4, count: skeleton.jointCount)
         }
+
+        // **The flesh is scaled here and nowhere else, and it has to be.**
+        //
+        // `worldTransforms` is deliberately rigid — a rotation and an origin, no scale — because
+        // every aim, roll and curl above is a rotation and a scale in the middle of them would
+        // have to be divided back out at each step. The character's size lives in the *bone
+        // offsets* instead: `localRest.columns.3` is multiplied by `scale` on the way down the
+        // tree, so a teacher's joints stand `scale` times further apart than a pupil's.
+        //
+        // That spreads the skeleton and leaves the mesh behind. A skinning matrix of
+        // `jointWorld × bind⁻¹` carries a vertex to `origin + rotation · (v − bindPosition)`:
+        // the offset from the joint is whatever it was in the file, so the head, the hands and
+        // the shoes are drawn at the model's own size no matter how far apart their joints have
+        // been pushed. Everything in between — an arm, a shin, a torso — is stretched to span the
+        // gap, because that is all linear blend skinning can do. At `scale` 1 the two agree and
+        // nothing is wrong, which is why every pupil looked right: a pupil is `height` 40 on a map
+        // whose `character_scale` is 1. A teacher at 70 is `scale` 1.75, and 1.75 is exactly how
+        // wrong she looked — a stretched, noodle-limbed figure with a child's head and a child's
+        // feet on the end of it. Detention and the Main Building scale *everyone* by 4 and 2.5.
+        //
+        // Scaling the offset by the same `scale` the bones were spread by is the whole fix:
+        // `jointWorld × S × bind⁻¹` puts the vertex at `origin + rotation · scale · (v − bind)`.
+        // The mesh then grows with the skeleton and the model keeps its own proportions at every
+        // size — which is what `characterSkinnedVertex` has always claimed in its header, and
+        // what `drawnSole` has always assumed by scaling its sole points by `lastScale`.
+        let flesh = Float4x4.scale(SIMD3(repeating: scale))
         for index in 0..<skeleton.jointCount {
-            out[index] = worldTransforms[index] * skeleton.inverseBind[index]
+            out[index] = worldTransforms[index] * flesh * skeleton.inverseBind[index]
         }
     }
 
