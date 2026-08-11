@@ -71,6 +71,7 @@ final class BadgesDialogView: PanelDialogView {
         ("tower defence", "🏰", "Tower Defence"),
         ("detention", "🚫", "Detention"),
         ("school rush", "🎒", "School Rush"),
+        ("football", "⚽", "Football"),
     ]
 
     private var rows: [EmoteRowView] = []

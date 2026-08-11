@@ -24,16 +24,23 @@ A top-down multiplayer school. You play a pupil at St Peters. The loop:
 
 **Play minigames → win badges → graduate (or escape) from school.**
 
-The seven badges are fixed in code today —
+The badges are fixed in code today —
 [MenuDialogs.swift:63](native/JoelsWorld/UI/MenuDialogs.swift:63): rugby, tennis, swimming,
-tig, good friend, tower defence, detention. Only **tennis** is actually winnable so far
-([Tennis3DGame+Rules.swift:215](native/Engine/World/Minigames/Tennis3D/Tennis3DGame+Rules.swift:215)).
+tig, good friend, tower defence, detention, school rush, football. **Three of the nine are
+actually winnable**: tennis
+([Tennis3DGame+Rules.swift:215](native/Engine/World/Minigames/Tennis3D/Tennis3DGame+Rules.swift:215)),
+School Rush at 400 m, and football by winning a match 3–x.
+
 Tennis is the 3D rebuild now; the old 2D one is still in the tree behind `-tennis2d`. Seven handoff
 notes explain how it works, starting at
 [HANDOFF-tennis3d.md](native/HANDOFF-tennis3d.md) — read them before changing it.
 [Part 7](native/HANDOFF-tennis3d-part7.md) is the most recent — the court stands in a stadium now —
 and [part 6](native/HANDOFF-tennis3d-part6.md)'s "Read this before you start a measured run"
 section will save you an afternoon.
+
+**Football** is the newest, and the shortest read: one handoff,
+[HANDOFF-football.md](native/HANDOFF-football.md). Five a side, first to three, and — unlike the
+others — a whole team of AI on your side as well as against you.
 
 The rest of the storyline is **not written yet**. Graduation and escape are the goal, but how
 you get there is open. If Joel invents story, that's the point — it's his game. Write it down

@@ -31,6 +31,8 @@ final class GameDebugHarness {
     private var tennis3DHitTestTimer: Timer?
     private var schoolRushDemoTimer: Timer?
     private var schoolRushTraceTimer: Timer?
+    private var footballDemoTimer: Timer?
+    private var footballTraceTimer: Timer?
     /// True once `-tennis3ddrag` has sent its `.began`, so every tick after it is a `.changed` —
     /// which is what makes it a drag rather than a stream of separate grabs.
     private var tennis3DDragInProgress = false
@@ -102,6 +104,11 @@ final class GameDebugHarness {
             startSchoolRushTrace(game)
             startExitTimer { [weak game] in game?.requestExit() }
         }
+        if let game = minigame as? FootballGame {
+            startFootballDemo(game)
+            startFootballTrace(game)
+            startExitTimer { [weak game] in game?.requestExit() }
+        }
         if let game = minigame as? Tennis3DGame {
             start3DTennisDemo(game)
             start3DTennisTapDemo(game)
@@ -115,11 +122,14 @@ final class GameDebugHarness {
     func minigameDidEnd() {
         for timer in [tennisDemoTimer, tennisExitTimer, tennis3DDemoTimer, tennis3DTapTimer,
                       tennis3DDragTimer, tennis3DHitTestTimer, tennis3DTraceTimer,
-                      schoolRushDemoTimer, schoolRushTraceTimer] {
+                      schoolRushDemoTimer, schoolRushTraceTimer,
+                      footballDemoTimer, footballTraceTimer] {
             timer?.invalidate()
         }
         schoolRushDemoTimer = nil
         schoolRushTraceTimer = nil
+        footballDemoTimer = nil
+        footballTraceTimer = nil
         tennisDemoTimer = nil
         tennisExitTimer = nil
         tennis3DDemoTimer = nil
@@ -164,6 +174,42 @@ final class GameDebugHarness {
     private func startSchoolRushTrace(_ game: SchoolRushGame) {
         guard WalkTest.tracesSchoolRush, schoolRushTraceTimer == nil else { return }
         schoolRushTraceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            Log.world(game.debugTraceLine)
+        }
+    }
+
+    /// `-footballdemo`: plays your side of the match without a thumb.
+    ///
+    /// It drives `setMoveInput` and `kick()` — the two things the stick and the button drive —
+    /// so what it proves is that the controls work, not merely that the simulation does. Twenty
+    /// times a second, and it presses Play again once at full time so the panel's button is
+    /// exercised too.
+    private func startFootballDemo(_ game: FootballGame) {
+        guard WalkTest.playsFootball, footballDemoTimer == nil else { return }
+        Log.world("-footballdemo: playing your side")
+        // **The demo owns the stick from here.** `FootballView.step()` writes the on-screen
+        // joystick into the game on every rendered frame, and the joystick reads zero because
+        // nothing is touching it — so without this the demo's input was overwritten sixty times a
+        // second and the player it was driving simply stood there.
+        game.debugDrivesInput = true
+        var hasRestarted = false
+
+        footballDemoTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak game] _ in
+            guard let game else { return }
+            game.debugStep()
+
+            if game.phase == .over, !hasRestarted {
+                hasRestarted = true
+                Log.world("-footballdemo: full time — restarting in 4 s to check the panel")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { game.restartMatch() }
+            }
+        }
+    }
+
+    private func startFootballTrace(_ game: FootballGame) {
+        guard WalkTest.tracesFootball, footballTraceTimer == nil else { return }
+        footballTraceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak game] _ in
+            guard let game else { return }
             Log.world(game.debugTraceLine)
         }
     }

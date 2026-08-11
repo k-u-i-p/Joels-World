@@ -105,6 +105,17 @@ final class WalkTest {
         argument("-map").flatMap(Int.init)
     }
 
+    /// `-footballdemo` plays your side of a football match without a thumb: it chases the ball
+    /// and kicks it, through the same `setMoveInput` and `kick()` a stick and a button reach.
+    static var playsFootball: Bool {
+        ProcessInfo.processInfo.arguments.contains("-footballdemo")
+    }
+
+    /// `-footballtrace` logs one line a second: the score, who has the ball and where it is.
+    static var tracesFootball: Bool {
+        ProcessInfo.processInfo.arguments.contains("-footballtrace")
+    }
+
     /// `-schoolrushdemo` plays School Rush without a thumb: it jumps the jumpable and swerves
     /// round the rest, which is the only way `simctl` can find out whether the controls work.
     static var playsSchoolRush: Bool {

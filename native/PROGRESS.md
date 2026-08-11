@@ -1692,3 +1692,69 @@ and the NPC inspector's new rotation field reading 70.
   before/after of this pass diffed two pictures of the overlay. Use the iOS build and
   `xcrun simctl io booted screenshot`.
 - `xcodebuild` has to run from `native/`; the project is not at the repository root.
+
+## Football (2026-08-11)
+
+The third minigame, and the first with a whole AI team on the player's side: five a side, red
+against blue, first to three, on a 50 × 34 m pitch. Map 6, trigger id 91 on the big green pitch in
+the middle of the junior campus, badge `football`. The map record carries
+`"character_scale": 1.5`, so the players are drawn half again as big as they are in the school —
+which is the whole of how "make the players bigger" was done.
+
+Four new files under `Engine/World/Minigames/Football/` and `JoelsWorld/UI/Minigames/`, plus the
+usual wiring: a `MinigameKind` case, a branch in `GameState.startMinigame`, a `FootballView` in
+`GameViewController`, and a ninth badge in `MenuDialogs`. The whole design and every number that
+had to be re-derived is in [HANDOFF-football.md](HANDOFF-football.md).
+
+Two things from it are worth repeating here because they are not football-specific:
+
+- **A kick weighted as `distance / time` overshoots by a factor of three** once there is rolling
+  friction in the physics. The launch speed that *arrives* is `√(v_end² + 2·a·d)`. Anything else
+  in this engine that throws a ball at a target on the ground has the same problem waiting.
+- **The "sky" at the top of a minigame frame is usually the edge of the ground plane**, not the
+  horizon. Football's surround only reached eight metres past the boards and spent a third of
+  every frame on the clear colour.
+
+### Verified behaviour (local server, `-footballdemo -footballtrace`)
+
+`simctl` cannot inject touches, so `-footballdemo` drives `setMoveInput` and `kick()` — the same
+two entry points the thumbstick and the button reach — and `-footballtrace` logs a line a second.
+Full matches played out end to end: goals detected at both ends, the score advancing, full time
+at three, and the demo pressing Play again to check the panel leaves a playable match behind.
+
+**Map 6 does not exist on the deployed server**, which validates map changes against its own copy
+of `data/maps.json`. On production the change is refused and nothing happens; testing was against
+`PORT=8099 node server.js` with `-host localhost:8099`. It needs a deploy, which is Ben's call.
+
+### Football: control that follows the ball (2026-08-11, later)
+
+Joel: *"Control should automatically pass to the blue player closest to the ball, like FIFA. Make
+the pitch bigger again but keep it zoomed in."*
+
+Both done. `FootballGame.updateControl(dt:)` hands the stick to whichever blue outfielder is
+nearest the ball — and to whoever wins it, the instant they do — with a distance margin and a
+cooldown so two players a hair apart do not trade you back and forth. The pitch went back to
+72 × 46 m while the camera stayed put at a fixed 32 m of frame, which is what makes "bigger but
+still zoomed in" a coherent request rather than a contradiction: pitch size and camera distance
+are independent, and everything positional is normalised into team space.
+
+Three bugs came out of it, two of them the game's and one of them mine:
+
+- **Nobody had to start outside the centre circle.** The defending midfielder's slot put him 3.4 m
+  from the ball and between the taker and the goal. Blue kicks off at the start and after every
+  goal conceded, so blue lost the ball inside a second at every restart, all match, every match.
+- **The pass-to-the-human bonus inverted.** Worth having when the stick was bolted to one
+  midfielder; a bug once control follows the ball, because the player you are driving is by
+  construction the one nearest it — i.e. the shortest, most backwards pass available. Removed:
+  auto-switching already delivers what the bonus was for, since every pass is now a pass to you.
+- **`FootballView.step()` writes the on-screen joystick into the game every rendered frame**, and
+  an untouched joystick reads zero — so `-footballdemo`'s twenty-times-a-second input was
+  overwritten at sixty, and the player it was driving stood still. Blue had been playing four
+  against five in *every measured match to date*, and once control followed the ball the statue
+  was always blue's nearest player to it. Three straight 0–3s and a long hunt for an AI asymmetry
+  that did not exist. **A harness that shares an input path with the UI has to win it explicitly**
+  — `FootballGame.debugDrivesInput`, set by `-footballdemo`.
+
+With that fixed the same bot won 3–0 and claimed the badge, which is the first end-to-end
+confirmation of the badge path: `minigameAwardBadge` → `sendAwardBadge` → `Claiming badge:
+football` in the log.

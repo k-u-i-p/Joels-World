@@ -120,6 +120,8 @@ enum MinigameKind: String {
     case tennis3d
     /// The endless runner. Three lanes, a jump, and a school path that never stops.
     case schoolrush
+    /// Ten a side, red against blue, first to three.
+    case football
 
     /// `mapData.import` is a module URL — `/src/minigames/tennis3d.js`.
     init?(importPath: String) {

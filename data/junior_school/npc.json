@@ -78,7 +78,8 @@
     "pants_color": "#2c3e50",
     "arm_color": "#e74c3c",
     "shoe_color": "#5e3a1f",
-    "z": 0
+    "z": 0,
+    "outfit": "red"
   },
   {
     "id": 3,
@@ -107,7 +108,8 @@
     "pants_color": "#2c3e50",
     "arm_color": "#2ecc71",
     "shoe_color": "#111111",
-    "z": 0
+    "z": 0,
+    "outfit": "green"
   },
   {
     "id": 4,
@@ -136,7 +138,8 @@
     "pants_color": "#2c3e50",
     "arm_color": "#e67e22",
     "shoe_color": "#5e3a1f",
-    "z": 0
+    "z": 0,
+    "outfit": "green"
   },
   {
     "id": 5,
@@ -165,7 +168,8 @@
     "pants_color": "#2c3e50",
     "arm_color": "#9b59b6",
     "shoe_color": "#111111",
-    "z": 0
+    "z": 0,
+    "outfit": "blue"
   },
   {
     "id": 7,
@@ -314,7 +318,8 @@
     "pants_color": "#2c3e50",
     "arm_color": "#e67e22",
     "shoe_color": "#5e3a1f",
-    "z": 0
+    "z": 0,
+    "outfit": "yellow"
   },
   {
     "id": 11,
@@ -341,7 +346,8 @@
     "shirt_color": "#3498db",
     "pants_color": "#2c3e50",
     "arm_color": "#3498db",
-    "z": 0
+    "z": 0,
+    "outfit": "blue"
   },
   {
     "id": 12,
@@ -367,7 +373,8 @@
     "shirt_color": "#ff6251",
     "pants_color": "#2c3e50",
     "arm_color": "#669c35",
-    "z": 0
+    "z": 0,
+    "outfit": "ginger"
   },
   {
     "id": 13,
@@ -393,7 +400,8 @@
     "shirt_color": "#3498db",
     "pants_color": "#2c3e50",
     "arm_color": "#3498db",
-    "z": 0
+    "z": 0,
+    "outfit": "blue"
   },
   {
     "id": 14,
@@ -450,7 +458,8 @@
     "shirt_color": "#e74c3c",
     "pants_color": "#2c3e50",
     "arm_color": "#e74c3c",
-    "z": 0
+    "z": 0,
+    "outfit": "red"
   },
   {
     "id": 16,
@@ -479,7 +488,8 @@
     "shirt_color": "#e74c3c",
     "pants_color": "#2c3e50",
     "arm_color": "#e74c3c",
-    "z": 0
+    "z": 0,
+    "outfit": "red"
   },
   {
     "id": 17,
@@ -507,7 +517,8 @@
     "shirt_color": "#2ecc71",
     "pants_color": "#2c3e50",
     "arm_color": "#2ecc71",
-    "z": 0
+    "z": 0,
+    "outfit": "green"
   },
   {
     "id": 18,
@@ -535,7 +546,8 @@
     "shirt_color": "#9b59b6",
     "pants_color": "#2c3e50",
     "arm_color": "#9b59b6",
-    "z": 0
+    "z": 0,
+    "outfit": "blue"
   },
   {
     "id": 19,
@@ -601,134 +613,6 @@
     "shirt_color": "#bdc3c7",
     "pants_color": "#95a5a6",
     "arm_color": "#bdc3c7",
-    "z": 0
-  },
-  {
-    "id": 21,
-    "name": "Divorced Dad",
-    "x": 254,
-    "y": -1618,
-    "width": 40,
-    "height": 63,
-    "rotation": 70,
-    "gender": "male",
-    "model": "man",
-    "on_enter": [
-      {
-        "avatar": "avatars/divorce_school_dad.png",
-        "say": [
-          "Where do I go?",
-          "She took everything!",
-          "Uff... Never get married.",
-          "I have my weekend custody and a half-eaten sandwich.",
-          "Does anyone know how to assemble a bunk bed?",
-          "I bought a sports car to feel alive again.",
-          "Found her on Hinge... 10 years younger!"
-        ]
-      }
-    ],
-    "interaction_radius": 150,
-    "on_exit": [],
-    "hide_nameplate": true,
-    "head": "male_hair_messy",
-    "shirt_color": "#bdc3c7",
-    "pants_color": "#95a5a6",
-    "arm_color": "#bdc3c7",
-    "z": 0
-  },
-  {
-    "id": 23,
-    "name": "Dowdy School Mum",
-    "x": 674,
-    "y": -1304,
-    "width": 40,
-    "height": 63,
-    "rotation": 180,
-    "gender": "female",
-    "model": "woman",
-    "on_enter": [
-      {
-        "avatar": "avatars/dowdy_school_mum.png",
-        "say": [
-          "I've forgotten Arthur's games bag again!",
-          "I'm wearing pyjamas under this coat.",
-          "I think I left the iron on... oh dear.",
-          "Does reheating stale pizza count as cooking?"
-        ]
-      }
-    ],
-    "interaction_radius": 150,
-    "on_exit": [],
-    "hide_nameplate": true,
-    "head": "female_hair_messy",
-    "hair_color": "#4d4028",
-    "shirt_color": "#aaaaaa",
-    "pants_color": "#95a5a6",
-    "arm_color": "#bdc3c7",
-    "z": 0
-  },
-  {
-    "id": 24,
-    "name": "Hot School Mum",
-    "x": 666,
-    "y": -1385,
-    "width": 40,
-    "height": 63,
-    "rotation": 160,
-    "gender": "female",
-    "model": "woman",
-    "on_enter": [
-      {
-        "avatar": "avatars/hot_school_mum.png",
-        "say": [
-          "She's such a bitch!",
-          "Skiing in Verbier next week!",
-          "Yes! Girls spa day!",
-          "My activewear costs more than my car.",
-          "I only drink alkaline water harvested from a glacier.",
-          "Do you like my new Range Rover?"
-        ]
-      }
-    ],
-    "interaction_radius": 150,
-    "on_exit": [],
-    "hide_nameplate": true,
-    "head": "female_hair_long",
-    "hair_color": "#ca9c1b",
-    "shirt_color": "#4f7a28",
-    "pants_color": "#95a5a6",
-    "arm_color": "#4f7a28",
-    "z": 0
-  },
-  {
-    "id": 25,
-    "name": "Hot School Mum",
-    "x": 595,
-    "y": -1440,
-    "width": 40,
-    "height": 63,
-    "rotation": 85,
-    "gender": "female",
-    "model": "woman",
-    "on_enter": [
-      {
-        "avatar": "avatars/hot_school_mum_2.png",
-        "say": [
-          "Can you tell I've had botox?",
-          "I physically cannot frown right now.",
-          "My lips have their own postcode.",
-          "I told my surgeon to just surprise me."
-        ]
-      }
-    ],
-    "interaction_radius": 150,
-    "on_exit": [],
-    "hide_nameplate": true,
-    "head": "female_hair_ponytail",
-    "hair_color": "#4f3920",
-    "shirt_color": "#263e0f",
-    "pants_color": "#001e57",
-    "arm_color": "#4f5503",
     "z": 0
   }
 ]

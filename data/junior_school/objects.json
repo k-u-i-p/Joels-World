@@ -330,6 +330,26 @@
           "type": "change_map",
           "map": 5
         }
+  },
+  {
+    "id": 91,
+    "name": "Football",
+    "shape": "rect",
+    "x": -361,
+    "y": 811,
+    "width": 1700,
+    "length": 1050,
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "description": "Play football? Five a side, first to three.",
+          "type": "change_map",
+          "map": 6
+        }
+      }
+    ],
+    "rotation": 14
       }
     ]
   }

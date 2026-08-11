@@ -105,6 +105,8 @@ extension GameViewController: GameStateDelegate {
             tennis3d.present(game: game)
         } else if let game = minigame as? SchoolRushGame {
             schoolRush.present(game: game)
+        } else if let game = minigame as? FootballGame {
+            football.present(game: game)
         }
         #if DEBUG
         debug.minigameDidStart(minigame)
@@ -118,6 +120,7 @@ extension GameViewController: GameStateDelegate {
         tennis.dismiss()
         tennis3d.dismiss()
         schoolRush.dismiss()
+        football.dismiss()
         buttons.setMinigameMode(false)
         setButtonBarOutOfPlay(false)
         joystick.isHidden = false

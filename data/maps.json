@@ -169,5 +169,12 @@
     "name": "School Rush",
     "import": "/src/minigames/schoolrush.js",
     "default_zoom": 1
+  },
+  {
+    "id": 6,
+    "name": "Football",
+    "import": "/src/minigames/football.js",
+    "default_zoom": 1,
+    "character_scale": 1.95
   }
 ]
