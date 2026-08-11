@@ -163,5 +163,11 @@
     "name": "Tennis",
     "import": "/src/minigames/tennis3d.js",
     "default_zoom": 1
+  },
+  {
+    "id": 5,
+    "name": "School Rush",
+    "import": "/src/minigames/schoolrush.js",
+    "default_zoom": 1
   }
 ]

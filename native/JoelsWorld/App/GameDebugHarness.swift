@@ -29,6 +29,8 @@ final class GameDebugHarness {
     private var tennis3DTapTimer: Timer?
     private var tennis3DDragTimer: Timer?
     private var tennis3DHitTestTimer: Timer?
+    private var schoolRushDemoTimer: Timer?
+    private var schoolRushTraceTimer: Timer?
     /// True once `-tennis3ddrag` has sent its `.began`, so every tick after it is a `.changed` —
     /// which is what makes it a drag rather than a stream of separate grabs.
     private var tennis3DDragInProgress = false
@@ -95,6 +97,11 @@ final class GameDebugHarness {
             startTennisDemo(game)
             startExitTimer { [weak game] in game?.requestExit() }
         }
+        if let game = minigame as? SchoolRushGame {
+            startSchoolRushDemo(game)
+            startSchoolRushTrace(game)
+            startExitTimer { [weak game] in game?.requestExit() }
+        }
         if let game = minigame as? Tennis3DGame {
             start3DTennisDemo(game)
             start3DTennisTapDemo(game)
@@ -107,9 +114,12 @@ final class GameDebugHarness {
 
     func minigameDidEnd() {
         for timer in [tennisDemoTimer, tennisExitTimer, tennis3DDemoTimer, tennis3DTapTimer,
-                      tennis3DDragTimer, tennis3DHitTestTimer, tennis3DTraceTimer] {
+                      tennis3DDragTimer, tennis3DHitTestTimer, tennis3DTraceTimer,
+                      schoolRushDemoTimer, schoolRushTraceTimer] {
             timer?.invalidate()
         }
+        schoolRushDemoTimer = nil
+        schoolRushTraceTimer = nil
         tennisDemoTimer = nil
         tennisExitTimer = nil
         tennis3DDemoTimer = nil
@@ -119,6 +129,43 @@ final class GameDebugHarness {
         tennis3DTraceTimer = nil
         tennis3DHasRestarted = false
         tennis3DDragInProgress = false
+    }
+
+    /// `-schoolrushdemo`: runs the course on its own.
+    ///
+    /// It presses exactly what a thumb presses — `jump()` and `changeLane(by:)` — so what this
+    /// proves is that the controls work, not merely that the simulation does. Twenty times a
+    /// second, which is quicker than a person and slow enough that a decision is still a
+    /// decision. It restarts once when the run ends, to show the panel's Run again button leaves
+    /// the game in a state that can be played.
+    private func startSchoolRushDemo(_ game: SchoolRushGame) {
+        guard WalkTest.playsSchoolRush, schoolRushDemoTimer == nil else { return }
+        Log.world("-schoolrushdemo: running the course")
+        var hasRestarted = false
+
+        schoolRushDemoTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            switch game.debugNextAction() {
+            case .carryOn:
+                break
+            case .jump:
+                game.jump()
+            case let .moveTo(lane):
+                game.changeLane(by: lane > game.lane ? 1 : -1)
+            }
+
+            if game.phase == .over, !hasRestarted, game.speedInMetresPerSecond < 0.5 {
+                hasRestarted = true
+                Log.world("-schoolrushdemo: run over — restarting in 3 s to check the panel")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { game.restartRun() }
+            }
+        }
+    }
+
+    private func startSchoolRushTrace(_ game: SchoolRushGame) {
+        guard WalkTest.tracesSchoolRush, schoolRushTraceTimer == nil else { return }
+        schoolRushTraceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            Log.world(game.debugTraceLine)
+        }
     }
 
     private func startTennisDemo(_ game: TennisGame) {

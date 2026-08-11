@@ -118,6 +118,8 @@ enum MinigameKind: String {
     case tennis
     /// The rebuild: real engine, real rigs, real physics.
     case tennis3d
+    /// The endless runner. Three lanes, a jump, and a school path that never stops.
+    case schoolrush
 
     /// `mapData.import` is a module URL — `/src/minigames/tennis3d.js`.
     init?(importPath: String) {
@@ -139,6 +141,11 @@ protocol MinigameHost: AnyObject {
     /// holds an audio handle.
     func minigamePlayEffect(path: String, volume: Double, rate: Double)
     func minigameStopBackground()
+    /// **The footstep loop.** The overworld drives this off the player's own gait; a minigame has
+    /// to ask, because during one the overworld player is not moving at all. Without it a
+    /// character sprinting flat out for ten minutes makes no sound at all, which is the single
+    /// most obvious thing missing from a running game.
+    func minigameSetFootsteps(active: Bool, isRunning: Bool)
 }
 
 extension MinigameHost {

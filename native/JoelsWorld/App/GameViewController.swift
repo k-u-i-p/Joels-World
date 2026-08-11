@@ -32,6 +32,7 @@ final class GameViewController: UIViewController {
     private let disconnectDialog = DisconnectDialogView()
     let tennis = TennisView()
     let tennis3d = Tennis3DView()
+    let schoolRush = SchoolRushView()
 
     #if DEBUG
     private(set) lazy var debug = GameDebugHarness(host: self)
@@ -115,7 +116,7 @@ final class GameViewController: UIViewController {
 
     private func setupOverlays() {
         // Bottom to top: world, the 2D minigame surface, nameplates, controls, HUD, dialogs.
-        for subview in [tennis, tennis3d, overlay, joystick, buttons, hud, minimap,
+        for subview in [tennis, tennis3d, schoolRush, overlay, joystick, buttons, hud, minimap,
                         emotesDialog, badgesDialog, helpDialog, dialog, rejectedOverlay,
                         disconnectDialog, lobby] as [UIView] {
             subview.translatesAutoresizingMaskIntoConstraints = false
@@ -159,6 +160,7 @@ final class GameViewController: UIViewController {
             switch self?.state.minigame {
             case let game as TennisGame: game.requestExit()
             case let game as Tennis3DGame: game.requestExit()
+            case let game as SchoolRushGame: game.requestExit()
             default: break
             }
         }
@@ -190,7 +192,7 @@ final class GameViewController: UIViewController {
         constraints += [buttonsBottomConstraint].compactMap { $0 }
 
         // Everything else is a full-screen layer.
-        for subview in [tennis, tennis3d, overlay, hud, minimap, emotesDialog,
+        for subview in [tennis, tennis3d, schoolRush, overlay, hud, minimap, emotesDialog,
                         badgesDialog, helpDialog, dialog, rejectedOverlay, disconnectDialog,
                         lobby] as [UIView] {
             constraints += [
@@ -251,6 +253,7 @@ final class GameViewController: UIViewController {
         // and its nameplates stay off, so there is nothing else to do this frame.
         if state.worldRenderedMinigame != nil {
             tennis3d.step()
+            schoolRush.step()
             return
         }
 

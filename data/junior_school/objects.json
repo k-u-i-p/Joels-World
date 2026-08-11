@@ -313,5 +313,24 @@
     "scale": 30,
     "name": "Air Con",
     "rotation": 178
+  },
+  {
+    "id": 90,
+    "name": "School Rush",
+    "shape": "rect",
+    "x": -900,
+    "y": 750,
+    "width": 400,
+    "length": 400,
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "description": "Race down the school path?",
+          "type": "change_map",
+          "map": 5
+        }
+      }
+    ]
   }
 ]

@@ -57,8 +57,10 @@ final class EmotesDialogView: PanelDialogView {
 
 // MARK: - Badges
 
-/// `#badges-dialog`. The seven badges are authored in `index.html:168-213`, not served, so
-/// the list is hard-coded here too.
+/// `#badges-dialog`. The badges are authored in `index.html:168-213`, not served, so the
+/// list is hard-coded here too. The eighth, School Rush, is the first one this build added —
+/// the server stores whatever id it is sent, so a new badge is a line here and a call to
+/// `minigameAwardBadge` in the game that awards it.
 final class BadgesDialogView: PanelDialogView {
     private static let badges: [(id: String, icon: String, title: String)] = [
         ("rugby", "🏉", "Rugby"),
@@ -68,6 +70,7 @@ final class BadgesDialogView: PanelDialogView {
         ("good friend", "🫂", "Good Friend"),
         ("tower defence", "🏰", "Tower Defence"),
         ("detention", "🚫", "Detention"),
+        ("school rush", "🎒", "School Rush"),
     ]
 
     private var rows: [EmoteRowView] = []

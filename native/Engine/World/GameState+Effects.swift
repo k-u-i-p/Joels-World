@@ -71,4 +71,8 @@ extension GameState: MinigameHost {
     func minigameStopBackground() {
         delegate?.gameStateStopBackgroundSound()
     }
+
+    func minigameSetFootsteps(active: Bool, isRunning: Bool) {
+        delegate?.gameStateSetWalkingAudio(active: active, isRunning: isRunning)
+    }
 }

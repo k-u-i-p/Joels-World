@@ -105,6 +105,17 @@ final class WalkTest {
         argument("-map").flatMap(Int.init)
     }
 
+    /// `-schoolrushdemo` plays School Rush without a thumb: it jumps the jumpable and swerves
+    /// round the rest, which is the only way `simctl` can find out whether the controls work.
+    static var playsSchoolRush: Bool {
+        ProcessInfo.processInfo.arguments.contains("-schoolrushdemo")
+    }
+
+    /// `-schoolrushtrace` logs one line a second: distance, lane, pace, lives and what is next.
+    static var tracesSchoolRush: Bool {
+        ProcessInfo.processInfo.arguments.contains("-schoolrushtrace")
+    }
+
     /// `-tennistrace` logs the state of a tennis point once a second: the ball, the serve
     /// state, where each racket is and what each player is aiming at.
     static var tracesTennis: Bool {

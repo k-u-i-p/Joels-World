@@ -103,6 +103,8 @@ extension GameViewController: GameStateDelegate {
             // Nothing to hide the world behind: this one *is* the world, drawn by the same
             // renderer as the school. Only the score furniture comes up.
             tennis3d.present(game: game)
+        } else if let game = minigame as? SchoolRushGame {
+            schoolRush.present(game: game)
         }
         #if DEBUG
         debug.minigameDidStart(minigame)
@@ -115,6 +117,7 @@ extension GameViewController: GameStateDelegate {
         #endif
         tennis.dismiss()
         tennis3d.dismiss()
+        schoolRush.dismiss()
         buttons.setMinigameMode(false)
         setButtonBarOutOfPlay(false)
         joystick.isHidden = false
