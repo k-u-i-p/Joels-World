@@ -39,7 +39,8 @@ and [part 6](native/HANDOFF-tennis3d-part6.md)'s "Read this before you start a m
 section will save you an afternoon.
 
 **Five Nights at St Peters** is the newest — Joel's own idea. You are the night guard, the
-children are trying to escape, and you block the doors. One handoff,
+children are trying to escape, and there is **one door** out — on CAM 7, with seven seconds to
+shut it once somebody reaches it. One handoff,
 [HANDOFF-fivenights.md](native/HANDOFF-fivenights.md), and read the last section of it first:
 **the map is in the app but not on the server yet**, so the door on the campus needs a deploy
 before anyone but a developer can get in. Until then it is `-fivenights` on the simulator.

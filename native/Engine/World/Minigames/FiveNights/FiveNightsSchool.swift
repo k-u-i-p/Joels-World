@@ -50,7 +50,7 @@ enum FiveNightsSchool {
         case westCorridor
         case diningHall
         case playground
-        case eastCorridor
+        case mainEntrance
     }
 
     /// Where a room is and how big, in **metres**, centred on the office at the origin.
@@ -69,7 +69,7 @@ enum FiveNightsSchool {
         switch room {
         case .office:        return Plan(name: "Security Office", x: 0, y: 0, width: 7.5, length: 6)
         case .westCorridor:  return Plan(name: "West Corridor", x: -10.5, y: 0, width: 11, length: 3.6)
-        case .eastCorridor:  return Plan(name: "East Corridor", x: 10.5, y: 0, width: 11, length: 3.6)
+        case .mainEntrance:  return Plan(name: "Main Entrance", x: 11, y: 0, width: 12, length: 4.6)
         case .classroom:     return Plan(name: "Classroom", x: -21, y: -8, width: 10, length: 9)
         case .toilets:       return Plan(name: "Toilets", x: -21, y: 8, width: 10, length: 9)
         case .diningHall:    return Plan(name: "Dining Hall", x: 21, y: -8, width: 11, length: 9)
@@ -81,7 +81,7 @@ enum FiveNightsSchool {
     /// The rooms with a camera in them, in the order they are numbered on the monitor. The office
     /// is not one of them — you are sitting in it.
     static let cameras: [Room] = [
-        .assemblyHall, .classroom, .toilets, .westCorridor, .diningHall, .playground, .eastCorridor,
+        .assemblyHall, .classroom, .toilets, .westCorridor, .diningHall, .playground, .mainEntrance,
     ]
 
     static func cameraNumber(of room: Room) -> Int {
@@ -127,6 +127,13 @@ enum FiveNightsSchool {
     /// Wider is further away; this is the only thing that decides how big a child looks.
     static func view(of room: Room) -> (x: Double, y: Double, widthMetres: Double) {
         let p = plan(room)
+        // **CAM 7 is framed on the door, not on the room.** Centred like the others, the front
+        // doors sat half off the right-hand edge of the picture — and the front doors are the
+        // only thing on that camera anybody needs to see. So it looks down the last two thirds
+        // of the hall instead, tight enough that a child standing at them is unmistakable.
+        if room == .mainEntrance {
+            return (metres(p.x + 2.6), metres(p.y), p.width)
+        }
         return (metres(p.x), metres(p.y), p.width + 4)
     }
 
@@ -181,6 +188,11 @@ enum FiveNightsSchool {
     /// The toilet block: tile blue below, cracked white above.
     private static let tileColor = parseHexColor("#2c5566")
     private static let porcelainColor = parseHexColor("#9aa0a0")
+    /// The glass in the front doors: filthy, but still glass.
+    private static let glassColor = parseHexColor("#3c4f52")
+    /// The street outside, seen through them. The brightest thing in the game, on purpose —
+    /// it is what everybody in the building is walking towards.
+    private static let outsideColor = parseHexColor("#6f7f9a")
     private static let whiteboardColor = parseHexColor("#8d9285")
     private static let screenColor = parseHexColor("#39c1a3")
     private static let shutterColor = parseHexColor("#6a7078")
@@ -213,7 +225,7 @@ enum FiveNightsSchool {
         var out: [ScenePrimitive] = []
         buildOffice(&out)
         buildCorridor(.west, into: &out)
-        buildCorridor(.east, into: &out)
+        buildMainEntrance(&out)
         buildClassroom(&out)
         buildToilets(&out)
         buildDiningHall(&out)
@@ -278,7 +290,7 @@ enum FiveNightsSchool {
         // Broken chairs: a seat on the floor and a bent leg beside it. Three thin boxes is not a
         // chair, but a flat plate at an angle with a stick across it is unmistakably the remains
         // of one from a camera three metres up.
-        for _ in 0..<(room == .office || room == .westCorridor || room == .eastCorridor ? 1 : 2) {
+        for _ in 0..<(room == .office || room == .westCorridor || room == .mainEntrance ? 1 : 2) {
             let x = p.x + random.range(-halfW, halfW)
             let y = p.y + random.range(-halfL, halfL)
             let spin = random.range(0, .pi)
@@ -342,9 +354,9 @@ enum FiveNightsSchool {
             // as a missing piece of wall.
             out.append(box(x: x, y: 0, z0: 2.05, sizeX: 0.25, sizeY: 1.8, height: 0.35,
                            color: wallColor))
-            // And a sign over it. Green is the only colour in the building, so this is where the
-            // eye goes — which is where the trouble comes from.
-            out.append(contentsOf: exitSign(x: x + side.sign * 0.4, y: 0))
+            // A running-man sign over the east doorway, pointing the way everybody is trying to
+            // go. Green is the only colour in the building, so this is where the eye goes.
+            if side == .east { out.append(contentsOf: exitSign(x: x + 0.4, y: 0)) }
         }
         // The near side is a rail, so the camera can see over it into the room.
         out.append(box(x: 0, y: halfL, z0: 0, sizeX: p.width, sizeY: 0.25, height: 0.4,
@@ -376,7 +388,7 @@ enum FiveNightsSchool {
     // MARK: The corridors
 
     private static func buildCorridor(_ side: Side, into out: inout [ScenePrimitive]) {
-        let room: Room = side == .west ? .westCorridor : .eastCorridor
+        let room: Room = side == .west ? .westCorridor : .mainEntrance
         let p = plan(room)
         let halfL = p.length / 2
 
@@ -407,6 +419,65 @@ enum FiveNightsSchool {
         // And a bin at the far end, so the eye has something to catch on.
         out.append(cylinder(x: p.x + side.sign * 4.2, y: 1.0, z0: 0, radius: 0.3, height: 0.9,
                             color: metalColor))
+    }
+
+    /// **The main entrance, and the only door in the school that matters.**
+    ///
+    /// This is CAM 7 and the whole game points at it: every child's route ends here, and there
+    /// are the front doors out onto the street.
+    ///
+    /// **They are in the far wall, not the end wall**, and that is not a decorative choice. Every
+    /// camera in this game looks down −Y from above, so anything standing in a wall that runs
+    /// north-south is seen edge-on — the first version put these doors in the end wall and they
+    /// came out as a two-pixel sliver with a child hidden behind them. In the far wall they face
+    /// the camera square on, which is the whole job of CAM 7.
+    private static func buildMainEntrance(_ out: inout [ScenePrimitive]) {
+        let p = plan(.mainEntrance)
+        let halfW = p.width / 2, halfL = p.length / 2
+        let doorX = p.x + 3.0
+        let wallY = p.y - halfL
+
+        out.append(floor(x: p.x, y: p.y, width: p.width, length: p.length,
+                         color: corridorFloorColor))
+        out.append(wallAlongY(x: p.x + halfW, fromY: p.y - halfL, toY: p.y + halfL, height: 2.6))
+        out.append(box(x: p.x, y: p.y + halfL, z0: 0, sizeX: p.width, sizeY: 0.25, height: 0.4,
+                       color: railColor))
+
+        // The far wall, with the doorway cut out of it.
+        out.append(wallAlongX(fromX: p.x - halfW, toX: doorX - 1.5, y: wallY, height: 2.6))
+        out.append(wallAlongX(fromX: doorX + 1.5, toX: p.x + halfW, y: wallY, height: 2.6))
+        out.append(box(x: doorX, y: wallY, z0: 2.2, sizeX: 3.0, sizeY: 0.3, height: 0.4,
+                       color: wallColor))
+
+        // The night outside, first, so everything else stands in front of it. It is the one
+        // bright thing in the building and the reason the room reads as a way out.
+        out.append(patch(x: doorX, y: wallY - 1.4, size: 3.0, color: outsideColor,
+                         opacity: 0.55, z: 0.02))
+
+        // The doors themselves: two leaves of dirty glass in a frame, with a push bar across
+        // each. They never move — a child who reaches them walks straight through unless the
+        // shutter is down.
+        for leaf in [-0.72, 0.72] {
+            out.append(box(x: doorX + leaf, y: wallY, z0: 0.05, sizeX: 1.34, sizeY: 0.12,
+                           height: 2.1, color: glassColor, castsShadow: false))
+            out.append(box(x: doorX + leaf, y: wallY + 0.12, z0: 1.0, sizeX: 1.1, sizeY: 0.1,
+                           height: 0.08, color: metalColor, castsShadow: false))
+        }
+        out.append(contentsOf: exitSign(x: doorX, y: wallY + 0.4))
+
+        // Reception: a desk to one side, a noticeboard, and a bin knocked over.
+        out.append(box(x: p.x - 3.4, y: p.y + 1.2, z0: 0, sizeX: 2.6, sizeY: 0.8, height: 0.95,
+                       color: woodColor))
+        out.append(box(x: p.x - 1.0, y: wallY + 0.2, z0: 1.0, sizeX: 2.4, sizeY: 0.1,
+                       height: 1.1, color: boardFrameColor))
+        out.append(cylinder(x: doorX + 2.4, y: p.y + 1.2, z0: 0.15, radius: 0.3, height: 0.9,
+                            color: rustColor))
+        // And the lockers, along the near half of the far wall.
+        for index in 0..<3 {
+            let x = p.x - halfW + 1.2 + Double(index) * 1.6
+            out.append(box(x: x, y: wallY + 0.55, z0: 0, sizeX: 1.0, sizeY: 0.45,
+                           height: 1.9, color: lockerColors[(index + 2) % lockerColors.count]))
+        }
     }
 
     // MARK: The rooms off them
@@ -722,40 +793,41 @@ enum FiveNightsSchool {
     /// It is drawn at every position rather than only when shut: a shutter hanging above the
     /// doorway is what tells you the door is open and could be closed, and watching it come down
     /// is most of the satisfaction of pressing the button.
-    /// It is dressed as one of the school's own green fire doors rather than as a warehouse
-    /// shutter — the vent grille and the handle are two extra boxes and they are what make it
-    /// read as a door somebody could open from the other side.
-    static func shutter(_ side: Side, closed: Double) -> [ScenePrimitive] {
-        let x = side.sign * (plan(.office).width / 2)
-        let travel = 2.05
+    /// **The security shutter over the front doors.** `closed` is 0 fully up and 1 fully down,
+    /// so it can be caught halfway — and halfway is not shut, which is the point of the seven
+    /// seconds you get.
+    ///
+    /// A school really does have one of these over its main entrance, which is why this is the
+    /// door the whole game is about: there is no second way out, and no lights to check, because
+    /// everything you need to know is on CAM 7 if you look at it.
+    static func mainDoor(closed: Double) -> [ScenePrimitive] {
+        let p = plan(.mainEntrance)
+        let doorX = p.x + 3.0
+        // **On the inside face of the wall, not the outside.** Every camera looks at this room
+        // from the south, so a shutter hung on the street side sits behind 2.6 m of wall and is
+        // invisible from the only angle anybody ever sees it — which is exactly how the first
+        // version of this looked: the button said DOOR SHUT and the picture said nothing.
+        let y = p.y - p.length / 2 + 0.26
+        let travel = 2.3
         let z0 = travel - closed * travel
         return [
-            box(x: x, y: 0, z0: z0, sizeX: 0.3, sizeY: 1.8, height: 2.0,
-                color: doorColor, castsShadow: true),
-            // The vent grille, low down, and the handle.
-            box(x: x, y: 0, z0: z0 + 0.35, sizeX: 0.34, sizeY: 0.7, height: 0.22,
+            box(x: doorX, y: y, z0: z0, sizeX: 3.0, sizeY: 0.22, height: 2.25,
+                color: shutterColor, castsShadow: true),
+            // The corrugations, three ribs across it, so it reads as a roller shutter rather
+            // than as a slab dropped in a doorway.
+            box(x: doorX, y: y + 0.13, z0: z0 + 0.5, sizeX: 3.0, sizeY: 0.06, height: 0.1,
                 color: metalColor, castsShadow: false),
-            box(x: x, y: side.sign * -0.6, z0: z0 + 1.05, sizeX: 0.38, sizeY: 0.1, height: 0.08,
-                color: shutterColor, castsShadow: false),
-            // A yellow stripe along the bottom edge, so the door reads at a glance in a dark room.
-            box(x: x, y: 0, z0: z0, sizeX: 0.34, sizeY: 1.8, height: 0.12,
+            box(x: doorX, y: y + 0.13, z0: z0 + 1.1, sizeX: 3.0, sizeY: 0.06, height: 0.1,
+                color: metalColor, castsShadow: false),
+            box(x: doorX, y: y + 0.13, z0: z0 + 1.7, sizeX: 3.0, sizeY: 0.06, height: 0.1,
+                color: metalColor, castsShadow: false),
+            // A yellow stripe along the bottom edge, so a shutter on its way down is obvious in
+            // a dark room and on a green camera.
+            box(x: doorX, y: y, z0: z0, sizeX: 3.0, sizeY: 0.26, height: 0.14,
                 color: lightColor, unlit: true, castsShadow: false),
         ]
     }
 
-    /// The doorway light: a patch of floor outside the door, lit. The only way to see whether
-    /// somebody is standing there.
-    static func doorwayLight(_ side: Side) -> [ScenePrimitive] {
-        let position = doorway(side)
-        return [
-            ScenePrimitive(
-                shape: .plane(width: Float(metres(3.0)), height: Float(metres(3.0))),
-                transform: Float4x4.translation(SIMD3(Float(position.x), Float(-position.y),
-                                                      Float(metres(0.02)))),
-                color: lightColor,
-                opacity: 0.55,
-                unlit: true,
-                castsShadow: false),
-        ]
-    }
+    /// Just inside the front doors: where a child stands during their seven seconds.
+    static let exitSpot = (x: metres(14.0), y: metres(-1.2))
 }

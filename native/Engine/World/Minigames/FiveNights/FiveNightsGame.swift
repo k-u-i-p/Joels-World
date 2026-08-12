@@ -2,30 +2,35 @@ import Foundation
 import simd
 
 /// **Five Nights at St Peters** — you are the night security guard, and five children who never
-/// went home are trying to get past you and out of the school.
+/// went home are trying to get out of the building.
 ///
-/// You sit in the security office. Two corridors lead into it, one from each side, and each has a
-/// roller shutter you can drop. A monitor shows seven cameras. The children creep room by room
-/// towards you, and if one reaches an open doorway and you have not shut it, they slip past and
-/// out of the front gate — night over. Survive from 12 AM to 6 AM and you have kept the school
-/// full. Do it five nights running and you get the badge.
+/// There is **one door**. It is the school's front entrance, at the far end of the main entrance
+/// hall, and you can see it on **CAM 7**. You sit in the security office with a monitor and a
+/// button that drops the shutter over that door, and nothing else. No office doors, no torch, no
+/// second way out — one door, seven cameras, and a battery.
 ///
-/// The catch, which is the whole game: **everything you can do to see or stop them costs power,
-/// and when the power runs out the shutters go up on their own.** Shut both doors and sit there
-/// safe and you are in the dark by 4 AM.
+/// A child works their way room by room towards the entrance hall. When one of them steps up to
+/// the front doors you have **seven seconds**. Get the shutter down inside that and they give up,
+/// bang on it and go back a couple of rooms. Miss it and they are out of the gate and gone, and
+/// the school is a pupil short in the morning. Nobody is ever hurt in this game — the thing you
+/// lose is a child off the register.
+///
+/// Survive 12 AM to 6 AM five nights running and the badge is yours.
+///
+/// The catch, which is the whole game: **the shutter and the monitor both eat power, and when the
+/// power dies the shutter goes up on its own.** Leaving it shut all night is not a strategy; it
+/// is a slower way of losing.
 ///
 /// Three rules make the children more than a timer:
 ///
-/// - **A child you are watching does not move.** The monitor is not just information — pointing
-///   it at the corridor somebody is in freezes them there. It is also the reason you cannot just
-///   leave it up: it draws power like a closed door.
+/// - **A child you are watching does not move.** Pointing the monitor at somebody freezes them
+///   where they stand — including in the entrance hall, one step from the door. That is what the
+///   cameras are *for*, and it is why you cannot simply leave the monitor down.
 /// - **Sneaky Sam is the opposite.** He charges up whenever nobody is looking at the playground,
-///   and when he is full he runs — and a runner does not queue politely at the door.
-/// - **Being blocked costs them.** A child who finds a shut door waits, gives up, and goes back
-///   a couple of rooms. That is what a shut door buys: not safety, distance.
-/// - **Balloon Barry is meant to get in.** He is the fifth child and the only one who does not
-///   end the night — he sits in the office, laughs, and takes your doorway lights away for
-///   twenty seconds while the other four keep coming. See `letBarryIn`.
+///   and when he is full he goes straight to the entrance. Checking CAM 6 is the only brake.
+/// - **Balloon Barry is meant to get in.** He is not trying to escape; he is trying to be a
+///   nuisance. He walks into the office, pulls the fuse on the camera system, and for fifteen
+///   seconds you have no monitor at all — while the other four keep walking. See `letBarryIn`.
 ///
 /// Structurally this is `SchoolRushGame`'s twin — a `WorldRenderedMinigame` that hands the
 /// renderer a cast, a pile of boxes and a camera every frame. The difference is that the world
@@ -33,7 +38,6 @@ import simd
 /// instead of following anybody.
 final class FiveNightsGame: WorldRenderedMinigame {
 
-    typealias Side = FiveNightsSchool.Side
     typealias Room = FiveNightsSchool.Room
 
     // MARK: - Tuning
@@ -45,34 +49,39 @@ final class FiveNightsGame: WorldRenderedMinigame {
         static let hourSeconds: Double = 20
         static let hoursInNight = 6
 
-        /// Power, in per cent per second. `base` is the office lights and the monitor bank you
-        /// cannot turn off; every shut door, lit doorway and raised monitor adds `perDevice`.
-        ///
-        /// The numbers are chosen so that **doing nothing uses about a third of a night** and
-        /// **two doors plus the camera runs out just before 5 AM**. That gap is the game.
-        static let drainBase: Double = 0.28
-        static let drainPerDevice: Double = 0.30
+        /// **Seven seconds from stepping up to the door to being through it.** Joel's number, and
+        /// it is the one dial that does not move between nights: what changes as the nights go on
+        /// is how often somebody is standing there, not how long you get.
+        static let exitWait: Double = 7
 
-        /// How long a shutter takes to travel, in seconds. Long enough to see, short enough that
-        /// pressing the button at the last moment still works.
-        static let doorTravel: Double = 0.35
+        /// Power, in per cent per second. `base` is the office and the monitor bank you cannot
+        /// turn off; the shutter and the raised monitor add `perDevice` each.
+        ///
+        /// Chosen so that **doing nothing uses about a third of a night**, **the shutter left
+        /// down all night just barely runs out**, and **the shutter and the monitor together die
+        /// at about 4 AM**. That gap is the game.
+        static let drainBase: Double = 0.30
+        static let drainPerDevice: Double = 0.45
+
+        /// How long the shutter takes to travel, in seconds. It is a big one, so it is not quick
+        /// — but it is comfortably inside the seven seconds if you start it when you should.
+        static let doorTravel: Double = 0.9
 
         /// How often each child rolls to move. Their rolls are staggered so they do not all move
         /// on the same beat.
         static let moveInterval: Double = 5.0
 
-        /// How long a child stands at a shut door before giving up.
+        /// How long a child stands at a shut shutter before giving up.
         static let doorGiveUp: Double = 3.0
         /// How far back down their route giving up sends them.
         static let retreatRooms = 2
 
-        /// The blackout: how long after the power dies before somebody finds you.
+        /// The blackout: how long after the power dies before somebody simply walks out.
         static let blackoutGrace: Double = 10
 
-        /// How long Balloon Barry stays once he is in, with your lights in his pocket. Twenty
-        /// seconds is one whole in-game hour — long enough to be a real problem, short enough
-        /// that it is not simply the end of the night by another name.
-        static let barryVisit: Double = 20
+        /// How long Balloon Barry has your camera system for. Fifteen seconds is most of an
+        /// in-game hour of not being able to see anything at all.
+        static let barryVisit: Double = 15
 
         /// The badge, and the night that earns it.
         static let nights = 5
@@ -84,8 +93,8 @@ final class FiveNightsGame: WorldRenderedMinigame {
     enum Phase {
         /// A night in progress.
         case onDuty
-        /// A child got in. The camera is in their face and the panel is up.
-        case caught
+        /// Somebody got out of the front door. The camera is on them and the panel is up.
+        case escaped
         /// 6 AM. The bell went and the badge, if this was night five, is claimed.
         case survived
     }
@@ -94,23 +103,21 @@ final class FiveNightsGame: WorldRenderedMinigame {
 
     // MARK: - The children
 
-    /// One child, and everything about where they are on their way to you.
+    /// One child, and where they are on their way to the front door.
     ///
     /// `stage` indexes `route`: while it is inside the array the child is standing in that room,
-    /// `route.count` means they are in the office doorway, and anything past that means they are
-    /// through it and you have lost.
+    /// and `route.count` means they have taken the last step — up to the front doors for the four
+    /// who are escaping, into the office for Barry.
     struct Kid {
         var name: String
         var model: String
         var outfit: String
-        /// Which door they come to.
-        var side: Side
-        /// The rooms they walk through, in order, ending in the corridor outside their door.
+        /// The rooms they walk through, in order. The last one is the entrance hall — except for
+        /// Barry, whose last one is the corridor outside the office.
         var route: [Room]
-        /// Sneaky Sam. See the class comment — he charges instead of rolling, and he does not
-        /// wait at the door.
+        /// Sneaky Sam. He charges instead of rolling; see `stepSprinter`.
         var sprinter: Bool = false
-        /// Balloon Barry. Getting in does not lose the night — see `letBarryIn`.
+        /// Balloon Barry. He is not escaping — see `letBarryIn`.
         var distractor: Bool = false
 
         /// How likely a roll is to move them, out of 20. Set per night.
@@ -119,35 +126,36 @@ final class FiveNightsGame: WorldRenderedMinigame {
         var stage: Int = 0
         /// Seconds until this child's next roll.
         var timer: Double = 0
-        /// How long they have stood at a shut door.
+        /// How long they have stood at a shut shutter.
         var blockedFor: Double = 0
-        /// How long they have stood at an open one. This is your reaction window.
-        var breachFor: Double = 0
+        /// How long they have been at the front doors. This is the seven seconds.
+        var atDoorFor: Double = 0
         /// The sprinter's charge, in seconds of not being watched.
         var charge: Double = 0
 
-        var character: GameCharacter = GameCharacter(id: 0, name: nil)
+        var character: GameCharacter = GameCharacter(id: 0, name: nil, width: 40, height: 40)
 
-        var atDoor: Bool { stage == route.count }
-        var isIn: Bool { stage > route.count }
+        /// Taken the last step of their route: at the front doors, or in the office for Barry.
+        var isAtEnd: Bool { stage == route.count }
+        /// Out of the building.
+        var isThrough: Bool { stage > route.count }
         var room: Room? { stage < route.count ? route[stage] : nil }
     }
 
     private(set) var kids: [Kid] = []
 
-    /// The five of them: three up the west side and two up the east, the way the original splits
-    /// its cast between the two doors.
+    /// The five of them. Four routes to the front door, and Barry.
     private static func cast() -> [Kid] {
         [
-            Kid(name: "Mad Millie", model: "girl", outfit: "red", side: .west,
-                route: [.assemblyHall, .classroom, .westCorridor]),
-            Kid(name: "Big Ryan", model: "boy", outfit: "blue", side: .east,
-                route: [.assemblyHall, .diningHall, .eastCorridor]),
-            Kid(name: "Tilda", model: "girl", outfit: "green", side: .west,
-                route: [.assemblyHall, .toilets, .westCorridor]),
-            Kid(name: "Sneaky Sam", model: "stylized_boy", outfit: "yellow", side: .east,
-                route: [.playground, .eastCorridor], sprinter: true),
-            Kid(name: "Balloon Barry", model: "boy", outfit: "ginger", side: .west,
+            Kid(name: "Mad Millie", model: "girl", outfit: "red",
+                route: [.assemblyHall, .classroom, .westCorridor, .mainEntrance]),
+            Kid(name: "Big Ryan", model: "boy", outfit: "blue",
+                route: [.assemblyHall, .diningHall, .mainEntrance]),
+            Kid(name: "Tilda", model: "girl", outfit: "green",
+                route: [.assemblyHall, .toilets, .westCorridor, .mainEntrance]),
+            Kid(name: "Sneaky Sam", model: "stylized_boy", outfit: "yellow",
+                route: [.playground, .mainEntrance], sprinter: true),
+            Kid(name: "Balloon Barry", model: "boy", outfit: "ginger",
                 route: [.assemblyHall, .classroom, .westCorridor], distractor: true),
         ]
     }
@@ -155,11 +163,11 @@ final class FiveNightsGame: WorldRenderedMinigame {
     /// How hard each of the five tries, night by night, out of 20.
     ///
     /// Night one is deliberately nearly empty: two children, moving slowly, so the first two
-    /// minutes are spent learning what the buttons do rather than losing. Night five is four
+    /// minutes are spent learning what the two buttons do rather than losing. Night five is four
     /// children who barely stop, plus Barry.
     ///
-    /// The fifth column is Balloon Barry, and it is high from the start on purpose: he is meant
-    /// to get in. He costs you your lights, not your night.
+    /// **This table is the difficulty**, now that the seven seconds never change. A child rolling
+    /// at 14/20 every five seconds is in the entrance hall inside half a minute.
     private static let aggressionByNight: [[Int]] = [
         [4, 3, 0, 0, 6],
         [6, 5, 3, 2, 8],
@@ -168,10 +176,7 @@ final class FiveNightsGame: WorldRenderedMinigame {
         [14, 13, 12, 11, 14],
     ]
 
-    /// How long you have to shut the door once somebody is standing in the doorway. Shrinks as
-    /// the nights go on, which is most of what makes night five night five.
-    private static let breachWindowByNight: [Double] = [6.0, 5.0, 4.5, 4.0, 3.5]
-    /// How long Sam charges for before he runs, when nobody is watching the playground.
+    /// How long Sam charges for before he moves, when nobody is watching the playground.
     private static let sprintChargeByNight: [Double] = [16, 13, 11, 9, 7.5]
 
     // MARK: - State
@@ -181,11 +186,11 @@ final class FiveNightsGame: WorldRenderedMinigame {
     private(set) var elapsed: Double = 0
     private(set) var power: Double = 100
 
-    /// Where each shutter actually is: 0 fully up, 1 fully down. Eased, so it can be caught
-    /// halfway — a door that is 0.6 of the way down already blocks.
-    private var shutterPosition: [Side: Double] = [.west: 0, .east: 0]
-    private var shutterTarget: [Side: Double] = [.west: 0, .east: 0]
-    private var lightsOn: [Side: Bool] = [.west: false, .east: false]
+    /// Where the shutter actually is: 0 fully up, 1 fully down. Eased, so it can be caught
+    /// halfway — and halfway does not stop anybody.
+    private(set) var mainDoorPosition: Double = 0
+    /// Where the button says it should be.
+    private(set) var mainDoorClosed = false
 
     private(set) var tabletUp = false
     private(set) var currentCam: Room = .assemblyHall
@@ -194,21 +199,19 @@ final class FiveNightsGame: WorldRenderedMinigame {
 
     private(set) var powerOut = false
     private var blackoutFor: Double = 0
-    /// Who got in, for the panel and for the shot the camera ends on.
-    private(set) var caughtBy: Kid?
+    /// Who got out, for the panel and for the shot the camera ends on.
+    private(set) var escapee: Kid?
 
     /// **Balloon Barry's visit.** Seconds left of it, and which slot in the cast he is, so he can
     /// be drawn standing in the office grinning at you.
     ///
-    /// He is the one child getting in does not end the night for. What he does instead is worse
-    /// in the moment: he sits on the desk and pulls the fuse for the doorway lights, so for
-    /// twenty seconds you cannot see who is standing at either door — and Millie and Tilda are
-    /// still coming. He is a distraction in the exact sense the original means it: nothing about
-    /// him hurts you, and everything about him makes you take your eye off what does.
+    /// Nothing he does hurts you directly, and everything he does makes you take your eye off
+    /// what does: while he is in, the whole camera system is dead.
     private(set) var barryFor: Double = 0
     private var barryIndex: Int?
-    /// True while the doorway lights are out. The light buttons do nothing and say so.
-    var lightsBroken: Bool { barryFor > 0 }
+
+    /// True while Barry has the fuse: no monitor, and the button says so.
+    var camerasBroken: Bool { barryFor > 0 }
 
     private var random = DeterministicRandom(seed: 5)
     private var active = false
@@ -247,27 +250,33 @@ final class FiveNightsGame: WorldRenderedMinigame {
         min(1, elapsed / (Double(Tuning.hoursInNight) * Tuning.hourSeconds))
     }
 
-    func doorClosed(_ side: Side) -> Bool { (shutterTarget[side] ?? 0) > 0.5 }
-    func doorPosition(_ side: Side) -> Double { shutterPosition[side] ?? 0 }
-    func lightOn(_ side: Side) -> Bool { lightsOn[side] ?? false }
-
-    /// A shutter is a door once it is most of the way down. Anything less and a child walks under
+    /// A shutter is a door once it is most of the way down. Anything less and a child ducks under
     /// it — which is fair, and is why the travel time matters.
-    private func blocks(_ side: Side) -> Bool { (shutterPosition[side] ?? 0) > 0.6 }
+    private var doorBlocks: Bool { mainDoorPosition > 0.75 }
 
     /// How many bars the usage meter shows: one for being awake, plus one per thing switched on.
     /// Straight out of the original, where it is the only warning you get.
     var usageBars: Int {
         var bars = 1
-        for side in [Side.west, .east] {
-            if doorClosed(side) { bars += 1 }
-            if lightOn(side) { bars += 1 }
-        }
+        if mainDoorClosed { bars += 1 }
         if tabletUp { bars += 1 }
-        // He is sitting on the desk pressing everything. It shows on the meter.
-        if lightsBroken { bars += 1 }
+        if camerasBroken { bars += 1 }
         return bars
     }
+
+    /// **Seconds left before whoever is at the front doors is through them**, or nil when nobody
+    /// is there.
+    ///
+    /// The HUD only shows the number while the monitor is actually pointed at CAM 7 — see
+    /// `FiveNightsView`. Everywhere else you get the bang on the door and the banner, and you
+    /// have to decide whether to spend the power looking.
+    var exitCountdown: Double? {
+        guard let kid = kids.first(where: { $0.isAtEnd && !$0.distractor }) else { return nil }
+        return max(0, Tuning.exitWait - kid.atDoorFor)
+    }
+
+    /// Whether the monitor is up and pointed at the front door.
+    var watchingExit: Bool { tabletUp && !camerasBroken && currentCam == .mainEntrance }
 
     var cameraName: String { FiveNightsSchool.plan(currentCam).name }
     var cameraNumber: Int { FiveNightsSchool.cameraNumber(of: currentCam) }
@@ -277,7 +286,7 @@ final class FiveNightsGame: WorldRenderedMinigame {
     init(host: MinigameHost, npcs: [GameCharacter], myCharacter: GameCharacter?) {
         self.host = host
         // `npcs` and `myCharacter` are what the map happened to be carrying. This game's cast is
-        // four named children rather than a crowd, and the guard is the camera rather than a
+        // five named children rather than a crowd, and the guard is the camera rather than a
         // body, so neither is used — the parameters are here because every minigame is built
         // the same way (`GameState.startMinigame`).
         _ = npcs
@@ -298,21 +307,20 @@ final class FiveNightsGame: WorldRenderedMinigame {
     /// Everything a fresh night resets.
     func beginNight(_ number: Int) {
         night = min(Tuning.nights, max(1, number))
-        random.reseed(0x5F_1_9_47 &+ UInt64(night) &* 6247 &+ UInt64(elapsed * 1000))
+        random.reseed(0x5F_1_9_47 &+ UInt64(night) &* 6247 &+ UInt64(max(0, elapsed) * 1000))
 
         elapsed = 0
         power = 100
         powerOut = false
         blackoutFor = 0
-        caughtBy = nil
+        escapee = nil
         barryFor = 0
         barryIndex = nil
         phase = .onDuty
         tabletUp = false
         currentCam = .assemblyHall
-        shutterPosition = [.west: 0, .east: 0]
-        shutterTarget = [.west: 0, .east: 0]
-        lightsOn = [.west: false, .east: false]
+        mainDoorPosition = 0
+        mainDoorClosed = false
         badgeClaimed = false
 
         let aggression = Self.aggressionByNight[night - 1]
@@ -320,12 +328,13 @@ final class FiveNightsGame: WorldRenderedMinigame {
             var kid = template
             kid.aggression = aggression[index]
             kid.stage = 0
-            // Staggered, so four children never roll on the same frame and arrive in a lump.
-            kid.timer = Tuning.moveInterval * (0.4 + 0.25 * Double(index))
+            // Staggered, so five children never roll on the same frame and arrive in a lump.
+            kid.timer = Tuning.moveInterval * (0.4 + 0.2 * Double(index))
             kid.blockedFor = 0
-            kid.breachFor = 0
+            kid.atDoorFor = 0
             kid.charge = 0
-            kid.character = GameCharacter(id: 9300 + index, name: kid.name)
+            kid.character = GameCharacter(id: 9300 + index, name: kid.name,
+                                          width: 40, height: 40)
             kid.character.model = kid.model
             kid.character.outfit = kid.outfit
             kid.character.hide_nameplate = true
@@ -334,7 +343,7 @@ final class FiveNightsGame: WorldRenderedMinigame {
             return kid
         }
 
-        announce("NIGHT \(night)", subtitle: "12 AM · keep them in", duration: 2.6)
+        announce("NIGHT \(night)", subtitle: "12 AM · nobody leaves", duration: 2.6)
         host.minigamePlayEffect(path: "/media/school_bell.mp3", volume: 0.25)
         onPresentationChanged?()
     }
@@ -353,31 +362,23 @@ final class FiveNightsGame: WorldRenderedMinigame {
 
     // MARK: - Controls
 
-    func toggleDoor(_ side: Side) {
+    /// **The one button that matters.** Everything else in this game is information.
+    func toggleMainDoor() {
         guard phase == .onDuty, !powerOut else { return }
-        let closing = !doorClosed(side)
-        shutterTarget[side] = closing ? 1 : 0
+        mainDoorClosed.toggle()
         // A roller shutter, played back deep: `clap` at two-fifths speed is a very passable
         // clang, and it is already in the bundle.
-        host.minigamePlayEffect(path: "/media/clap.mp3", volume: 0.5, rate: closing ? 0.4 : 0.7)
-        onPresentationChanged?()
-    }
-
-    func toggleLight(_ side: Side) {
-        guard phase == .onDuty, !powerOut else { return }
-        guard !lightsBroken else {
-            announce("CLICK. CLICK.", subtitle: "Barry has the light switch", duration: 1.4)
-            return
-        }
-        lightsOn[side] = !(lightsOn[side] ?? false)
-        // Only one light at a time — pressing one turns the other off. It halves the power a
-        // careless player can burn and it makes checking a door a decision.
-        if lightsOn[side] == true { lightsOn[side.other] = false }
+        host.minigamePlayEffect(path: "/media/clap.mp3", volume: 0.55,
+                                rate: mainDoorClosed ? 0.4 : 0.7)
         onPresentationChanged?()
     }
 
     func setTablet(_ up: Bool) {
         guard phase == .onDuty, !powerOut else { return }
+        guard !camerasBroken else {
+            announce("NO SIGNAL", subtitle: "Barry has pulled the camera fuse", duration: 1.4)
+            return
+        }
         guard tabletUp != up else { return }
         tabletUp = up
         camFlashToken += 1
@@ -386,7 +387,7 @@ final class FiveNightsGame: WorldRenderedMinigame {
     }
 
     func selectCam(_ room: Room) {
-        guard phase == .onDuty, !powerOut, tabletUp else { return }
+        guard phase == .onDuty, !powerOut, tabletUp, !camerasBroken else { return }
         guard currentCam != room else { return }
         currentCam = room
         camFlashToken += 1
@@ -409,7 +410,7 @@ final class FiveNightsGame: WorldRenderedMinigame {
             if announcement == nil { onPresentationChanged?() }
         }
 
-        stepShutters(dt: dt)
+        stepDoor(dt: dt)
 
         guard phase == .onDuty else { return }
 
@@ -422,19 +423,16 @@ final class FiveNightsGame: WorldRenderedMinigame {
         stepBlackout(dt: dt)
     }
 
-    /// The shutters ease rather than snap, in seconds so a 120 Hz display does not close them
+    /// The shutter eases rather than snaps, in seconds so a 120 Hz display does not close it
     /// twice as fast.
-    private func stepShutters(dt: Double) {
-        for side in [Side.west, .east] {
-            let target = shutterTarget[side] ?? 0
-            let position = shutterPosition[side] ?? 0
-            guard abs(target - position) > 0.001 else {
-                shutterPosition[side] = target
-                continue
-            }
-            let step = dt / Tuning.doorTravel
-            shutterPosition[side] = position + max(-step, min(step, target - position))
+    private func stepDoor(dt: Double) {
+        let target: Double = mainDoorClosed ? 1 : 0
+        guard abs(target - mainDoorPosition) > 0.001 else {
+            mainDoorPosition = target
+            return
         }
+        let step = dt / Tuning.doorTravel
+        mainDoorPosition += max(-step, min(step, target - mainDoorPosition))
     }
 
     private func stepClock(dt: Double) {
@@ -453,39 +451,43 @@ final class FiveNightsGame: WorldRenderedMinigame {
         power -= (Tuning.drainBase + Tuning.drainPerDevice * Double(usageBars - 1)) * dt
         guard power <= 0 else { return }
 
-        // The lights go out, the shutters roll up on their own, and the monitor dies. Whatever
-        // was on the other side of those doors is now simply on its way in.
+        // The monitor dies and the shutter rolls up on its own. Whoever was on the other side of
+        // it is now simply on their way out.
         power = 0
         powerOut = true
         tabletUp = false
-        lightsOn = [.west: false, .east: false]
-        shutterTarget = [.west: 0, .east: 0]
+        mainDoorClosed = false
         blackoutFor = 0
-        announce("POWER OUT", subtitle: "The shutters are going up", duration: 3)
+        announce("POWER OUT", subtitle: "The shutter is going up", duration: 3)
         host.minigamePlayEffect(path: "/media/fail.mp3", volume: 0.5)
         host.minigamePlayEffect(path: "/media/violin.mp3", volume: 0.4)
         onPresentationChanged?()
     }
 
     /// In the dark there is nothing to do but hope the bell goes first. Ten seconds, and then
-    /// whoever was closest walks in.
+    /// whoever was closest to the door walks out of it.
     private func stepBlackout(dt: Double) {
         guard powerOut, phase == .onDuty else { return }
         blackoutFor += dt
         guard blackoutFor >= Tuning.blackoutGrace else { return }
-        let index = kids.indices.max(by: { kids[$0].stage < kids[$1].stage }) ?? 0
-        caught(by: index)
+        let escapers = kids.indices.filter { !kids[$0].distractor }
+        let index = escapers.max(by: { kids[$0].stage < kids[$1].stage }) ?? 0
+        escaped(index)
     }
 
     // MARK: - One child
 
     private func stepKid(_ index: Int, dt: Double) {
-        // Already at the doorway: this is the part with the timer on it.
-        if kids[index].atDoor {
-            stepKidAtDoor(index, dt: dt)
+        // Already taken the last step: the seven seconds, or Barry's way in.
+        if kids[index].isAtEnd {
+            if kids[index].distractor {
+                letBarryIn(index)
+            } else {
+                stepKidAtDoor(index, dt: dt)
+            }
             return
         }
-        guard !kids[index].isIn else { return }
+        guard !kids[index].isThrough else { return }
 
         if kids[index].sprinter {
             stepSprinter(index, dt: dt)
@@ -506,8 +508,8 @@ final class FiveNightsGame: WorldRenderedMinigame {
     }
 
     /// Sam does not roll. He fills up whenever nobody is looking at him, and when he is full he
-    /// moves — which means the only way to keep him back is to check the playground, and the only
-    /// cost of checking the playground is the power it burns.
+    /// moves — which means the only thing that holds him back is checking the playground, and the
+    /// only cost of checking the playground is the power it burns.
     private func stepSprinter(_ index: Int, dt: Double) {
         guard kids[index].aggression > 0 else { return }
         if isWatched(kids[index].room) {
@@ -516,8 +518,7 @@ final class FiveNightsGame: WorldRenderedMinigame {
             return
         }
         kids[index].charge += dt
-        let full = Self.sprintChargeByNight[night - 1]
-        guard kids[index].charge >= full else { return }
+        guard kids[index].charge >= Self.sprintChargeByNight[night - 1] else { return }
         kids[index].charge = 0
         advance(index)
         // Footsteps, so his one warning is a sound rather than nothing at all.
@@ -526,66 +527,66 @@ final class FiveNightsGame: WorldRenderedMinigame {
 
     private func advance(_ index: Int) {
         kids[index].stage += 1
-        if kids[index].atDoor {
+        if kids[index].isAtEnd, !kids[index].distractor {
             kids[index].blockedFor = 0
-            kids[index].breachFor = 0
-            // A knock at the door. You are meant to hear this and check the light.
-            host.minigamePlayEffect(path: "/media/clap.mp3", volume: 0.35, rate: 0.8)
+            kids[index].atDoorFor = 0
+            // **The one warning you always get.** A bang on the front doors and a banner: you are
+            // told somebody is there, and never told how long you have unless you look at CAM 7.
+            host.minigamePlayEffect(path: "/media/clap.mp3", volume: 0.45, rate: 0.75)
+            announce("SOMEBODY IS AT THE MAIN DOOR", subtitle: "Shut it", duration: 2.2)
         }
         onPresentationChanged?()
     }
 
+    /// **The seven seconds.** From here it is only about whether the shutter comes down.
     private func stepKidAtDoor(_ index: Int, dt: Double) {
-        let side = kids[index].side
-
-        if blocks(side) {
-            kids[index].breachFor = 0
+        if doorBlocks {
+            kids[index].atDoorFor = 0
             kids[index].blockedFor += dt
             guard kids[index].blockedFor >= Tuning.doorGiveUp else { return }
-            // Gave up. A bang on the shutter, and back down the corridor — that is what the door
-            // actually buys you.
+            // Gave up. A bang on the shutter, and back down the school — that is what the door
+            // actually buys you: not safety, distance.
+            let name = kids[index].name
             kids[index].blockedFor = 0
             kids[index].stage = max(0, kids[index].route.count - 1 - Tuning.retreatRooms)
             kids[index].timer = Tuning.moveInterval
             kids[index].charge = 0
             host.minigamePlayEffect(path: "/media/buzzer.mp3", volume: 0.3, rate: 1.6)
-            announce("BANG!", subtitle: "Somebody gave up on the \(side.label.lowercased()) door",
-                     duration: 1.8)
+            announce("BANG!", subtitle: "\(name) gave up on the shutter", duration: 1.8)
             onPresentationChanged?()
             return
         }
 
         kids[index].blockedFor = 0
-        kids[index].breachFor += dt
-        // The sprinter does not queue. Everybody else gives you the night's window.
-        let window = kids[index].sprinter
-            ? min(2.5, Self.breachWindowByNight[night - 1] * 0.6)
-            : Self.breachWindowByNight[night - 1]
-        guard kids[index].breachFor >= window else { return }
-        if kids[index].distractor {
-            letBarryIn(index)
-            return
-        }
+        kids[index].atDoorFor += dt
+        guard kids[index].atDoorFor >= Tuning.exitWait else { return }
         kids[index].stage += 1
-        caught(by: index)
+        escaped(index)
     }
 
-    /// **Barry gets in, and the night carries on.** He goes straight back to the start of his
-    /// own route afterwards, so he can do it again — which he will.
+    /// Whether the monitor is up and pointed at this room. A child who has stepped up to the
+    /// front doors is past the point where being watched stops them.
+    private func isWatched(_ room: Room?) -> Bool {
+        guard tabletUp, !camerasBroken, let room else { return false }
+        return room == currentCam
+    }
+
+    /// **Barry gets in, and the night carries on.** He goes straight back to the start of his own
+    /// route afterwards, so he can do it again — which he will.
     private func letBarryIn(_ index: Int) {
+        guard barryFor <= 0 else { return }
         barryFor = Tuning.barryVisit
         barryIndex = index
         kids[index].stage = 0
         kids[index].timer = Tuning.moveInterval * 2
-        kids[index].breachFor = 0
-        lightsOn = [.west: false, .east: false]
-        Log.world("[FiveNights] Balloon Barry is in — lights out for \(Int(Tuning.barryVisit)) s")
+        tabletUp = false
+        Log.world("[FiveNights] Balloon Barry is in — no cameras for \(Int(Tuning.barryVisit)) s")
         host.minigamePlayEffect(path: "/media/laugh.mp3", volume: 0.55)
-        announce("BALLOON BARRY IS IN", subtitle: "He has got the doorway lights", duration: 2.4)
+        announce("BALLOON BARRY IS IN", subtitle: "He has pulled the camera fuse", duration: 2.4)
         onPresentationChanged?()
     }
 
-    /// His twenty seconds, and the laugh every few of them so you cannot forget he is there.
+    /// His fifteen seconds, and the laugh every few of them so you cannot forget he is there.
     private func stepBarry(dt: Double) {
         guard barryFor > 0 else { return }
         let before = barryFor
@@ -597,26 +598,19 @@ final class FiveNightsGame: WorldRenderedMinigame {
         guard barryFor <= 0 else { return }
         barryFor = 0
         barryIndex = nil
-        announce("The lights are back", duration: 1.4)
+        announce("The cameras are back", duration: 1.4)
         onPresentationChanged?()
-    }
-
-    /// Whether the monitor is up and pointed at this room. `nil` — a child in a doorway — is
-    /// never watched, which is the point of the doorway lights.
-    private func isWatched(_ room: Room?) -> Bool {
-        guard tabletUp, let room else { return false }
-        return room == currentCam
     }
 
     // MARK: - Ending a night
 
-    private func caught(by index: Int) {
+    private func escaped(_ index: Int) {
         guard phase == .onDuty else { return }
-        phase = .caught
-        caughtBy = kids[index]
+        phase = .escaped
+        escapee = kids[index]
         barryFor = 0
         barryIndex = nil
-        Log.world("[FiveNights] Night \(night): \(kids[index].name) got past at \(clockText)")
+        Log.world("[FiveNights] Night \(night): \(kids[index].name) got out at \(clockText)")
         host.minigamePlayEffect(path: "/media/laugh.mp3", volume: 0.7)
         host.minigamePlayEffect(path: "/media/buzzer.mp3", volume: 0.5)
         host.minigameStopBackground()
@@ -651,14 +645,13 @@ final class FiveNightsGame: WorldRenderedMinigame {
         onPresentationChanged?()
     }
 
-    /// The title on the end-of-night panel.
     /// **Nothing in this game hurts anybody**, and the words on screen are where that is decided.
-    /// A child who reaches the office has not caught you — they have got past you and out of the
-    /// front gate, and the night is lost because the school is one pupil short in the morning.
+    /// A child who reaches the front door has not caught you — they have got out, and the night
+    /// is lost because the school is one pupil short in the morning.
     var endTitle: String {
         switch phase {
         case .survived: return night >= Tuning.nights ? "6 AM — BADGE!" : "6 AM"
-        case .caught: return powerOut ? "Lights out" : "One got out!"
+        case .escaped: return powerOut ? "Lights out" : "One got out!"
         case .onDuty: return ""
         }
     }
@@ -671,12 +664,11 @@ final class FiveNightsGame: WorldRenderedMinigame {
                 ? "Five nights at St Peters. Nobody escaped. The badge is yours."
                 : "Night \(night + 1) is harder.")
             return lines.joined(separator: "\n")
-        case .caught:
-            let name = caughtBy?.name ?? "Somebody"
+        case .escaped:
+            let name = escapee?.name ?? "Somebody"
             var lines = powerOut
-                ? ["The power died at \(clockText) and \(name) strolled straight out."]
-                : ["\(name) slipped past the \(caughtBy?.side.label.lowercased() ?? "") door "
-                    + "at \(clockText) and legged it home."]
+                ? ["The power died at \(clockText), the shutter went up, and \(name) strolled out."]
+                : ["\(name) got through the main door at \(clockText) and legged it home."]
             lines.append("One pupil short in the morning. Try night \(night) again.")
             return lines.joined(separator: "\n")
         case .onDuty:
@@ -688,24 +680,21 @@ final class FiveNightsGame: WorldRenderedMinigame {
 
     // MARK: - Scene
 
-    /// Only what you could actually see is drawn. On the monitor that is the room the feed is
-    /// pointed at; in the office it is whichever doorway you have the light on; and when you have
-    /// been caught it is the one person left to look at.
+    /// Only what you could actually see is drawn: whoever is in the room the monitor is pointed
+    /// at, Barry when he is sitting in your office, and — once — the one who got out.
     var sceneCharacters: [MinigameCharacter] {
-        if phase == .caught, var kid = caughtBy {
-            kid.character.x = FiveNightsSchool.officeFloor.x
-            kid.character.y = FiveNightsSchool.officeFloor.y
-            kid.character.rotation = 90
+        if phase == .escaped, var kid = escapee {
+            kid.character.x = FiveNightsSchool.exitSpot.x
+            kid.character.y = FiveNightsSchool.exitSpot.y
+            kid.character.rotation = 270
             return [MinigameCharacter(character: kid.character, gait: .still)]
         }
 
         var out: [MinigameCharacter] = []
-        // Two children in one room would stand in the same spot, so each takes the slot of its
-        // own place in the cast.
         for (index, kid) in kids.enumerated() {
             var character = kid.character
-            // Barry, in the office, on the desk, in plain sight — he is the only child you can
-            // see without a light, because being seen is the entire point of him.
+            // Barry, in the office, in plain sight — the only child you ever see without the
+            // monitor, because being seen is the entire point of him.
             if index == barryIndex, barryFor > 0 {
                 character.x = FiveNightsSchool.barryPerch.x
                 character.y = FiveNightsSchool.barryPerch.y
@@ -713,24 +702,22 @@ final class FiveNightsGame: WorldRenderedMinigame {
                 out.append(MinigameCharacter(character: character, gait: .still))
                 continue
             }
-            if kid.isIn {
-                character.x = FiveNightsSchool.officeFloor.x
-                character.y = FiveNightsSchool.officeFloor.y
-            } else if kid.atDoor {
-                // In the doorway you are invisible unless the light is on. That is the whole
-                // reason the light button exists.
-                guard !tabletUp, lightOn(kid.side) else { continue }
-                let spot = FiveNightsSchool.doorway(kid.side)
-                character.x = spot.x
-                character.y = spot.y
-            } else if let room = kid.room, tabletUp, room == currentCam {
+            guard tabletUp, !camerasBroken else { continue }
+
+            if kid.isAtEnd, !kid.distractor {
+                // At the front doors, facing them — visible on CAM 7 and nowhere else.
+                guard currentCam == .mainEntrance else { continue }
+                character.x = FiveNightsSchool.exitSpot.x
+                character.y = FiveNightsSchool.exitSpot.y
+                character.rotation = 270
+            } else if let room = kid.room, room == currentCam {
                 let spot = FiveNightsSchool.slot(room, index: index)
                 character.x = spot.x
                 character.y = spot.y
+                character.rotation = 90
             } else {
                 continue
             }
-            character.rotation = 90
             out.append(MinigameCharacter(character: character, gait: .still))
         }
         return out
@@ -743,20 +730,13 @@ final class FiveNightsGame: WorldRenderedMinigame {
     }
 
     var scenePrimitives: [ScenePrimitive] {
-        var out = FiveNightsSchool.building
-        for side in [Side.west, .east] {
-            out.append(contentsOf: FiveNightsSchool.shutter(side, closed: doorPosition(side)))
-            if lightOn(side) {
-                out.append(contentsOf: FiveNightsSchool.doorwayLight(side))
-            }
-        }
-        return out
+        FiveNightsSchool.building + FiveNightsSchool.mainDoor(closed: mainDoorPosition)
     }
 
     // MARK: - Camera
 
     /// Three shots, and it cuts between them rather than panning: the office, whichever feed is
-    /// up, and — once — a child's face.
+    /// up, and — once — the one who got out, framed in the doorway they went through.
     ///
     /// A cut rather than a pan is deliberate. The monitor in the original does not glide from
     /// camera to camera, it snaps with a burst of static, and a camera that eased across the
@@ -772,20 +752,21 @@ final class FiveNightsGame: WorldRenderedMinigame {
         var pitch: Double
 
         switch phase {
-        case .caught:
-            // Right in their face, from just above eye level.
-            focusX = FiveNightsSchool.officeFloor.x
-            focusY = FiveNightsSchool.officeFloor.y
+        case .escaped:
+            // Right in their face, on their way out of the door.
+            focusX = FiveNightsSchool.exitSpot.x
+            focusY = FiveNightsSchool.exitSpot.y
             width = 2.4
             pitch = 1.30
         case .onDuty, .survived:
-            if tabletUp {
+            if tabletUp, !camerasBroken {
                 let view = FiveNightsSchool.view(of: currentCam)
                 focusX = view.x
                 focusY = view.y
                 width = view.widthMetres
-                // Corridors are long and thin; a little more tip shows the length of them.
-                pitch = currentCam == .westCorridor || currentCam == .eastCorridor ? 1.10 : 0.98
+                // The corridor and the entrance hall are long and thin; a little more tip shows
+                // the length of them, and the front doors at the end.
+                pitch = currentCam == .westCorridor || currentCam == .mainEntrance ? 1.10 : 0.98
             } else {
                 focusX = FiveNightsSchool.officeView.x
                 focusY = FiveNightsSchool.officeView.y

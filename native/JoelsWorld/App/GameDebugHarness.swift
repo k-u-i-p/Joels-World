@@ -84,9 +84,9 @@ final class GameDebugHarness {
         return true
     }
 
-    /// `-fivenightsdemo`: flips through all seven cameras, then the doorway lights, three
-    /// seconds apiece. `simctl` cannot press a button, so this is the only way to photograph a
-    /// feed other than the one the night opens on.
+    /// `-fivenightsdemo`: flips through all seven cameras, then the office, then drops the
+    /// shutter and looks at it, three seconds apiece. `simctl` cannot press a button, so this is
+    /// the only way to photograph a feed other than the one the night opens on.
     private func startFiveNightsDemo(_ game: FiveNightsGame) {
         guard ProcessInfo.processInfo.arguments.contains("-fivenightsdemo") else { return }
         var step = 0
@@ -100,12 +100,14 @@ final class GameDebugHarness {
                 Log.world("-fivenightsdemo: CAM \(step + 1) — \(FiveNightsSchool.plan(cameras[step]).name)")
             } else if step == cameras.count {
                 game.setTablet(false)
-                game.toggleLight(.west)
-                Log.world("-fivenightsdemo: office, west light")
+                Log.world("-fivenightsdemo: back to the office")
             } else if step == cameras.count + 1 {
-                game.toggleDoor(.west)
-                game.toggleDoor(.east)
-                Log.world("-fivenightsdemo: both doors shut")
+                game.toggleMainDoor()
+                Log.world("-fivenightsdemo: main door shut")
+            } else if step == cameras.count + 2 {
+                game.setTablet(true)
+                game.selectCam(.mainEntrance)
+                Log.world("-fivenightsdemo: CAM 7 with the shutter down")
             } else {
                 step = -1
             }

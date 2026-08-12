@@ -29,11 +29,15 @@ final class FiveNightsView: UIView {
     /// the only warning you get that you are burning the night.
     private var usageBlocks: [UIView] = []
 
-    private let westDoorButton = FiveNightsView.controlButton("WEST DOOR")
-    private let westLightButton = FiveNightsView.controlButton("LIGHT")
-    private let eastDoorButton = FiveNightsView.controlButton("EAST DOOR")
-    private let eastLightButton = FiveNightsView.controlButton("LIGHT")
+    /// **The two buttons the whole game is played with.** There is one door in this school and
+    /// one monitor, so there are two buttons: everything else on screen is information.
+    private let mainDoorButton = FiveNightsView.controlButton("MAIN DOOR")
     private let camerasButton = FiveNightsView.controlButton("CAMERAS")
+
+    /// The seven seconds, counted down in the middle of the picture — **only while the monitor is
+    /// actually pointed at CAM 7.** Off it you get the bang and the banner and nothing else, which
+    /// is what makes looking worth the power.
+    private let countdownLabel = UILabel()
 
     private let camBar = UIStackView()
     private var camButtons: [(button: UIButton, room: FiveNightsSchool.Room)] = []
@@ -243,16 +247,14 @@ final class FiveNightsView: UIView {
     private var clockFillWidth: NSLayoutConstraint!
 
     private func buildControls() {
-        westDoorButton.addTarget(self, action: #selector(westDoorTapped), for: .touchUpInside)
-        westLightButton.addTarget(self, action: #selector(westLightTapped), for: .touchUpInside)
-        eastDoorButton.addTarget(self, action: #selector(eastDoorTapped), for: .touchUpInside)
-        eastLightButton.addTarget(self, action: #selector(eastLightTapped), for: .touchUpInside)
+        mainDoorButton.addTarget(self, action: #selector(mainDoorTapped), for: .touchUpInside)
         camerasButton.addTarget(self, action: #selector(camerasTapped), for: .touchUpInside)
+        for button in [mainDoorButton, camerasButton] { addSubview(button) }
 
-        for button in [westDoorButton, westLightButton, eastDoorButton, eastLightButton,
-                       camerasButton] {
-            addSubview(button)
-        }
+        style(countdownLabel, size: 54, color: Theme.danger, weight: .heavy)
+        countdownLabel.textAlignment = .center
+        countdownLabel.alpha = 0
+        addSubview(countdownLabel)
     }
 
     /// The channel buttons, in the order the rooms are numbered. Hidden until the monitor is up.
@@ -338,14 +340,14 @@ final class FiveNightsView: UIView {
         style(hint, size: 12, color: Theme.textMuted, weight: .semibold)
         hint.textAlignment = .center
         hint.numberOfLines = 0
-        hint.text = "Shut a door to block them · the light shows who is outside · "
-            + "watching a room on camera freezes whoever is in it"
+        hint.text = "One door out, on CAM 7 · when somebody reaches it you have 7 seconds · "
+            + "watching a room freezes whoever is in it, but the cameras cost power"
         addSubview(hint)
     }
 
     private func layoutEverything() {
-        for view in [statusPanel, westDoorButton, westLightButton, eastDoorButton, eastLightButton,
-                     camerasButton, camBar, bannerPanel, overPanel, hint, scanlines, staticFlash,
+        for view in [statusPanel, mainDoorButton, camerasButton, countdownLabel,
+                     camBar, bannerPanel, overPanel, hint, scanlines, staticFlash,
                      nightVision, vignette, recDot, stampLabel, camLabel] as [UIView] {
             view.translatesAutoresizingMaskIntoConstraints = false
         }
@@ -365,29 +367,27 @@ final class FiveNightsView: UIView {
             recDot.widthAnchor.constraint(equalToConstant: 8),
             recDot.heightAnchor.constraint(equalToConstant: 8),
 
-            // Bottom-left: the west pair. Bottom-right: the east pair. The two doors are on the
-            // two sides of the screen they are on in the world, which is the only arrangement a
-            // player does not have to think about.
-            westLightButton.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 14),
-            westLightButton.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -14),
-            westDoorButton.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 14),
-            westDoorButton.bottomAnchor.constraint(equalTo: westLightButton.topAnchor,
-                                                   constant: -8),
+            // **The door button is the big one, on the left, where a thumb already is.** The
+            // monitor sits beside it. Two buttons and nothing else along the bottom, because
+            // there are only two things you can do.
+            mainDoorButton.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 14),
+            mainDoorButton.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -14),
+            mainDoorButton.heightAnchor.constraint(equalToConstant: 60),
+            mainDoorButton.widthAnchor.constraint(equalToConstant: 168),
 
-            eastLightButton.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -14),
-            eastLightButton.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -14),
-            eastDoorButton.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -14),
-            eastDoorButton.bottomAnchor.constraint(equalTo: eastLightButton.topAnchor,
-                                                   constant: -8),
-
-            camerasButton.centerXAnchor.constraint(equalTo: centerXAnchor),
+            camerasButton.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -14),
             camerasButton.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -14),
+            camerasButton.heightAnchor.constraint(equalToConstant: 60),
+            camerasButton.widthAnchor.constraint(equalToConstant: 140),
+
+            countdownLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
+            countdownLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -120),
 
             // **Above the door buttons, not beside them.** Seven channels centred on the same
             // row as two 104-point door buttons is 280 points of stack in whatever is left of a
             // portrait screen, and the first build had "CAM 1" sitting on top of "WEST DOOR".
             camBar.centerXAnchor.constraint(equalTo: centerXAnchor),
-            camBar.bottomAnchor.constraint(equalTo: westDoorButton.topAnchor, constant: -10),
+            camBar.bottomAnchor.constraint(equalTo: mainDoorButton.topAnchor, constant: -10),
             camBar.leadingAnchor.constraint(greaterThanOrEqualTo: guide.leadingAnchor,
                                             constant: 14),
             camBar.trailingAnchor.constraint(lessThanOrEqualTo: guide.trailingAnchor,
@@ -452,10 +452,7 @@ final class FiveNightsView: UIView {
         button.layer.borderColor = (lit ? color : UIColor(white: 1, alpha: 0.25)).cgColor
     }
 
-    @objc private func westDoorTapped() { game?.toggleDoor(.west) }
-    @objc private func westLightTapped() { game?.toggleLight(.west) }
-    @objc private func eastDoorTapped() { game?.toggleDoor(.east) }
-    @objc private func eastLightTapped() { game?.toggleLight(.east) }
+    @objc private func mainDoorTapped() { game?.toggleMainDoor() }
 
     @objc private func camerasTapped() {
         guard let game else { return }
@@ -544,6 +541,17 @@ final class FiveNightsView: UIView {
         camBar.isUserInteractionEnabled = game.tabletUp
         recDot.alpha = game.tabletUp && sin(feedClock * 3.2) > -0.2 ? 1 : 0
 
+        // **The seven seconds**, shown only to somebody who spent the power looking at CAM 7.
+        // It flashes under two seconds, because at that point the shutter will only just make it.
+        if let left = game.exitCountdown, game.watchingExit {
+            countdownLabel.text = String(format: "%.1f", left)
+            let urgent = left < 2 && sin(feedClock * 18) > 0
+            countdownLabel.textColor = urgent ? .white : Theme.danger
+            countdownLabel.alpha = 1
+        } else {
+            fade(countdownLabel, to: 0, rate: 8, dt: dt)
+        }
+
         // 12 AM through 6 AM with the seconds running, which is the one thing on screen that
         // proves the picture is live.
         stampLabel.text = String(format: "%@ · %02d · CCTV-%d", game.clockText,
@@ -596,17 +604,13 @@ final class FiveNightsView: UIView {
         guard let game else { return }
 
         nightLabel.text = "NIGHT \(game.night)"
-        setLit(westDoorButton, game.doorClosed(.west), color: Theme.danger)
-        setLit(eastDoorButton, game.doorClosed(.east), color: Theme.danger)
-        // While Barry has the fuse the two light buttons go dead: greyed out, and titled with
-        // what is actually wrong rather than left looking like they still work.
-        setLit(westLightButton, game.lightOn(.west), color: UIColor(hex: 0xd9a520))
-        setLit(eastLightButton, game.lightOn(.east), color: UIColor(hex: 0xd9a520))
-        for button in [westLightButton, eastLightButton] {
-            button.setTitle(game.lightsBroken ? "NO LIGHT" : "LIGHT", for: .normal)
-            button.setTitleColor(game.lightsBroken ? Theme.textMuted : .white, for: .normal)
-        }
+        setLit(mainDoorButton, game.mainDoorClosed, color: Theme.danger)
+        mainDoorButton.setTitle(game.mainDoorClosed ? "DOOR SHUT" : "MAIN DOOR", for: .normal)
+        // While Barry has the fuse the monitor is dead: greyed out, and titled with what is
+        // actually wrong rather than left looking like it still works.
         setLit(camerasButton, game.tabletUp, color: Theme.primary)
+        camerasButton.setTitle(game.camerasBroken ? "NO SIGNAL" : "CAMERAS", for: .normal)
+        camerasButton.setTitleColor(game.camerasBroken ? Theme.textMuted : .white, for: .normal)
 
         for (button, room) in camButtons {
             setLit(button, game.tabletUp && game.currentCam == room, color: Theme.primary)
