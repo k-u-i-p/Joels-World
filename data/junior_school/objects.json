@@ -350,24 +350,5 @@
       }
     ],
     "rotation": 14
-  },
-  {
-    "id": 92,
-    "name": "Night Shift",
-    "shape": "rect",
-    "x": -790,
-    "y": -420,
-    "width": 220,
-    "length": 220,
-    "clip": -1,
-    "on_enter": [
-      {
-        "show_dialog": {
-          "description": "Mr Hardy needs a night guard. Take the night shift?",
-          "type": "change_map",
-          "map": 7
-        }
-      }
-    ]
   }
 ]

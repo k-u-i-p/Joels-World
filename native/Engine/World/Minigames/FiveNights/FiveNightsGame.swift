@@ -353,15 +353,11 @@ final class FiveNightsGame: WorldRenderedMinigame {
         host.minigameStopBackground()
     }
 
-    /// The exit button in the button bar.
-    ///
-    /// **Out onto the campus, whichever door you came in by.** There are two ways in now — the
-    /// security office in the main building and Mr Hardy on the campus — and a minigame is not
-    /// told which map it was started from, so it cannot put you back on it. The campus is the
-    /// right answer anyway: your shift has ended and you are walking out of the building.
+    /// The exit button in the button bar. Back to the main building — there is one way into this
+    /// game, the security office at the reception desk, so clocking off puts you back at it.
     func requestExit() {
-        host.minigameShowDialog("Clock off and go home?") { [weak self] in
-            self?.host.minigameChangeMap(0)
+        host.minigameShowDialog("Clock off and go back to school?") { [weak self] in
+            self?.host.minigameChangeMap(2)
         }
     }
 
