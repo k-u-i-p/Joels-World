@@ -21,10 +21,22 @@ Wired in exactly where School Rush and Football are: `MinigameKind.fivenights`, 
 `GameState.startMinigame`, a view on `GameViewController`, a badge row in `MenuDialogs.swift`,
 map id 7 in `data/maps.json`, and a trigger (`id 70`) in the **main building**.
 
-**The way in is the security office**: from the main building's spawn point, walk south and then
-east to the reception desk in the central corridor — the trigger sits on the floor in front of it
-at `(-950, 120)`, and leaving the minigame puts you back on map 2 where you started. If it turns
-out to be in a wall or behind a bench, drag it in the Mac map editor; it is a green-zone change.
+**Two ways in**, both `change_map: 7`:
+
+| Where | Map | Trigger |
+|---|---|---|
+| The security office — the reception desk in the main building's central corridor | 2 | `id 70` at `(-950, 120)` |
+| Beside Mr Hardy on the junior campus, a few steps from the spawn point | 0 | `id 92` at `(-790, -420)` |
+
+Clocking off puts you out on the campus either way: a minigame is not told which map started it,
+and "your shift ended and you walked out of the building" is the right answer anyway.
+
+**Not in detention, and it cannot be.** Mr Hardy's actual desk is in there, which is where Joel
+asked for it, but Detention sets `can_leave: false` and the server rejects every `change_map` out
+of that room (`ClientManager.js:199`) — which is why the two Exit doors already in there do
+nothing but produce the rejection overlay. A Five Nights door in detention would behave the same.
+Flipping `can_leave` in `maps.json` would fix it and would also let anybody stroll out of
+detention, so that is Joel and Ben's call, not a quiet edit.
 
 ## How to play it right now
 
