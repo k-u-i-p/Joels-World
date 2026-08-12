@@ -353,10 +353,11 @@ final class FiveNightsGame: WorldRenderedMinigame {
         host.minigameStopBackground()
     }
 
-    /// The exit button in the button bar.
+    /// The exit button in the button bar. Back to the main building, which is the map with the
+    /// security office you came in from — not the campus.
     func requestExit() {
         host.minigameShowDialog("Clock off and go back to school?") { [weak self] in
-            self?.host.minigameChangeMap(0)
+            self?.host.minigameChangeMap(2)
         }
     }
 

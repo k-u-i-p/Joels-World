@@ -19,7 +19,12 @@ Three files, plus the usual six lines of wiring:
 
 Wired in exactly where School Rush and Football are: `MinigameKind.fivenights`, a case in
 `GameState.startMinigame`, a view on `GameViewController`, a badge row in `MenuDialogs.swift`,
-map id 7 in `data/maps.json`, and a trigger (`id 92`) on the junior campus.
+map id 7 in `data/maps.json`, and a trigger (`id 70`) in the **main building**.
+
+**The way in is the security office**: from the main building's spawn point, walk south and then
+east to the reception desk in the central corridor — the trigger sits on the floor in front of it
+at `(-950, 120)`, and leaving the minigame puts you back on map 2 where you started. If it turns
+out to be in a wall or behind a bench, drag it in the Mac map editor; it is a green-zone change.
 
 ## How to play it right now
 

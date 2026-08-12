@@ -350,24 +350,5 @@
       }
     ],
     "rotation": 14
-  },
-  {
-    "id": 92,
-    "name": "Five Nights",
-    "shape": "rect",
-    "x": -1780,
-    "y": 1330,
-    "width": 380,
-    "length": 380,
-    "clip": -1,
-    "on_enter": [
-      {
-        "show_dialog": {
-          "description": "Take the night shift at St Peters?",
-          "type": "change_map",
-          "map": 7
-        }
-      }
-    ]
   }
 ]

@@ -716,5 +716,24 @@
     "z": 0,
     "model": "models/desk.glb",
     "scale": 0.9
+  },
+  {
+    "id": 70,
+    "name": "Security Office",
+    "shape": "rect",
+    "x": -950,
+    "y": 120,
+    "width": 300,
+    "length": 260,
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "description": "Take the night shift at St Peters?",
+          "type": "change_map",
+          "map": 7
+        }
+      }
+    ]
   }
 ]

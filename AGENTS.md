@@ -42,8 +42,8 @@ section will save you an afternoon.
 children are trying to escape, and there is **one door** out — on CAM 7, with seven seconds to
 shut it once somebody reaches it. One handoff,
 [HANDOFF-fivenights.md](native/HANDOFF-fivenights.md), and read the last section of it first:
-**the map is in the app but not on the server yet**, so the door on the campus needs a deploy
-before anyone but a developer can get in. Until then it is `-fivenights` on the simulator.
+**the map is in the app but not on the server yet**, so the security office door in the main
+building needs a deploy before anyone but a developer can get in. Until then it is `-fivenights` on the simulator.
 
 **Football** is the shortest read: one handoff,
 [HANDOFF-football.md](native/HANDOFF-football.md). Five a side, first to three, and — unlike the
