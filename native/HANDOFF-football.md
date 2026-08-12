@@ -185,6 +185,35 @@ rather than at the post.
 ground plane, which only reached eight metres past the boards. The surround is 300 m now, with a
 hedge for a horizon.
 
+## Difficulty lives in one struct
+
+`FootballGame.Skill` is six multipliers, one set per side (`Tuning.yourLot` and
+`Tuning.theOpposition`), applied at the handful of places a decision is actually taken. **You are
+always blue**, so this is the one place the game is deliberately unfair.
+
+| | speed | settle | shootRange | shotSpread | keeperReach | holdOnToBall |
+|---|---|---|---|---|---|---|
+| Blue (`yourLot`) | 1.2 | 1 | 1 | 1 | 1 | 1 |
+| Red (`theOpposition`) | 0.8 | 1.8 | 0.55 | 2.6 | 0.55 | 0.55 |
+
+Joel asked for his side 20% quicker and the opposition **mega easy**, and those are the two rows.
+Six dials rather than one because a side made bad through any single dial looks *broken* rather
+than bad: one that is only slow still passes it about neatly, one that only misses looks like the
+goal is cursed. Together they read as a team that dwells on the ball, gets robbed, rarely shoots
+and misses when it does. `holdOnToBall` is the sharpest — a red shirt is robbed in about a third
+of a second, so red can only do anything when nobody is near them.
+
+It touches **decisions and bodies only**. The pitch, the ball, the physics and the rules are
+identical for both sides, which is what stops an easy setting reading as cheating.
+
+Two knock-ons worth knowing:
+
+- `Tuning.controlSpeedBonus` replaced the old absolute `humanTopSpeed`. A fixed ceiling broke the
+  moment your side got a multiplier: your team mates ran at 7.7 m/s and control switching to one
+  of them made them *slow down* to 7.0. It is a bonus on whatever body you are driving now.
+- The keeper's reach is per side, so red's is 0.72 m against blue's 1.3 m. That is the single
+  biggest reason shots go in, and the first dial to reach for if red is now too easy.
+
 ## The players are taller than the goal
 
 At `character_scale` 1.95 the rig — which is about 1.85 m at scale 1, not the 1.4 m a pupil would
@@ -240,13 +269,14 @@ worse footballer than a ten-year-old — it never holds a position and never def
 | Human moved centre forward → centre midfield | red 3–2, level twice | 82% → roughly even |
 | Auto-switching + the bigger pitch | red 3–0, three times | 97 of 102 |
 | **After the statue bug** (below) | **blue 3–0, badge claimed** | 29 of 62 |
+| Red set to `theOpposition`, blue to `yourLot` | blue 3–0 **in about 50 seconds** | 6 of 19 |
 
 **Everything above the last row was measured on a blue side playing four against five**, because
 the demo's player never actually moved — see the statue bug in the section above. Only the last
-row means anything, and it says the bot now beats the AI comfortably. That is the right side of
-the line to be on for a badge a ten-year-old is meant to win, but if you want it harder the knobs
-in order of bluntness are `Tuning.humanTopSpeed`, `keeperControlRadius` (red's keeper is the thing
-between Joel and a goal) and `pressureToStealFromHuman`.
+row means anything, and it says the bot now beats the AI comfortably. That was already the right side of the line for
+a badge a ten-year-old is meant to win, and the difficulty settings above then went a good deal
+further: **a match is now over in under a minute.** If that turns out to be too quick to be fun,
+raise `theOpposition`'s `holdOnToBall` and `keeperReach` first — those two do most of it.
 
 A match takes roughly two to four minutes. **Rerun this if you change anything** — three of the
 five rows above turned out to be measuring the harness rather than the game.

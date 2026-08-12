@@ -41,30 +41,7 @@
       "y": -300
     },
     "background_color": "#000000",
-    "layers": [
-      {
-        "z": 0,
-        "alpha": 1,
-        "chunked": true,
-        "source_image": "/detention/map.svg",
-        "chunk_size": 512,
-        "grid_w": 4,
-        "grid_h": 4,
-        "path_template": "/detention/chunks/map_{x}_{y}.png"
-      },
-      {
-        "z": 1,
-        "alpha": 0.9,
-        "overlay": true,
-        "chunked": true,
-        "source_image": "/detention/background_overlay.png",
-        "chunk_size": 512,
-        "grid_w": 4,
-        "grid_h": 4,
-        "path_template": "/detention/chunks/background_overlay_{x}_{y}.png",
-        "spring": false
-      }
-    ],
+    "layers": [],
     "npcs": "detention/npc.json",
     "clip_mask": "detention/clip_mask.png",
     "character_scale": 4,
@@ -79,7 +56,8 @@
           "volume": 0.5
         }
       }
-    ]
+    ],
+    "camera_angle": 25
   },
   {
     "id": 2,

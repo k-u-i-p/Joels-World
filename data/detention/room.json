@@ -1,0 +1,79 @@
+{
+  "name": "Detention",
+  "_comment": [
+    "The floor plan detention is built from. Run tools/maps/extrude_room.py on it and it",
+    "writes both the room's 3D model and the walkability mask, so the two cannot disagree.",
+    "",
+    "Coordinates are the same ones objects.json uses: x right, y down, 0,0 at the middle of",
+    "the map. About 200 units is a metre — a desk is 190 wide, so a bit under one.",
+    "",
+    "Walls are a line from one point to another. Doors and windows are 'openings': 'at' is",
+    "how far along the wall, from 0 at the start to 1 at the end."
+  ],
+
+  "map": { "width": 2048, "height": 2048 },
+
+  "output": {
+    "glb": "assets/detention/room.glb",
+    "clip_mask": "assets/detention/clip_mask.png"
+  },
+
+  "defaults": {
+    "wall_height": 520,
+    "wall_thickness": 100,
+    "uv_scale": 400,
+    "skirting": 30,
+    "skirting_proud": 8
+  },
+
+  "materials": {
+    "wall":     { "color": "#cfc7b7", "roughness": 0.95 },
+    "floor":    { "color": "#8a6a45", "roughness": 0.70 },
+    "skirting": { "color": "#4b3a2a", "roughness": 0.60 },
+    "glass":    { "color": "#b9cfd8", "roughness": 0.15 }
+  },
+
+  "floors": [
+    {
+      "material": "floor",
+      "polygon": [[-920, -910], [930, -910], [930, 990], [-920, 990]]
+    }
+  ],
+
+  "walls": [
+    {
+      "_name": "North — the wall the teacher's desk faces, with two windows",
+      "from": [-920, -860], "to": [930, -860],
+      "openings": [
+        { "at": 0.30, "width": 300, "sill": 220, "height": 260, "fill": "glass" },
+        { "at": 0.70, "width": 300, "sill": 220, "height": 260, "fill": "glass" }
+      ]
+    },
+    {
+      "_name": "South — the doorway here is the Exit 2 trigger at x=2, y=840",
+      "from": [-920, 940], "to": [930, 940],
+      "openings": [{ "at": 0.498, "width": 220, "height": 420 }]
+    },
+    {
+      "_name": "West",
+      "from": [-870, -860], "to": [-870, 940]
+    },
+    {
+      "_name": "East — the doorway here is the Exit trigger at x=773, y=-457",
+      "from": [880, -860], "to": [880, 940],
+      "openings": [{ "at": 0.224, "width": 220, "height": 420 }]
+    },
+    {
+      "_name": "Admin room, top wall",
+      "from": [200, 300], "to": [880, 300],
+      "thickness": 60,
+      "openings": [{ "at": 0.338, "width": 200, "height": 420 }]
+    },
+    {
+      "_name": "Admin room, left wall — the spawn point is inside this room",
+      "from": [200, 300], "to": [200, 940],
+      "thickness": 60,
+      "openings": [{ "at": 0.3125, "width": 200, "height": 420 }]
+    }
+  ]
+}

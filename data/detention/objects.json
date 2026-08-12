@@ -1,5 +1,19 @@
 [
   {
+    "id": 4,
+    "shape": "3d_model",
+    "model": "detention/room.glb",
+    "name": "Room",
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "scale": 1,
+    "width": 0,
+    "length": 0,
+    "clip": -1,
+    "rotation": 0
+  },
+  {
     "id": 5,
     "shape": "3d_model",
     "model": "models/chair.glb",
@@ -51,54 +65,6 @@
     "name": "Exit 2",
     "clip": -1,
     "on_enter": 19
-  },
-  {
-    "id": 23,
-    "shape": "rect",
-    "x": 331,
-    "y": 305,
-    "width": 275,
-    "length": 64
-  },
-  {
-    "id": 25,
-    "shape": "rect",
-    "x": 752,
-    "y": 291,
-    "width": 180,
-    "length": 36
-  },
-  {
-    "id": 26,
-    "shape": "rect",
-    "x": 214,
-    "y": 375,
-    "width": 41,
-    "length": 166
-  },
-  {
-    "id": 27,
-    "shape": "rect",
-    "x": 159,
-    "y": 782,
-    "width": 119,
-    "length": 239
-  },
-  {
-    "id": 28,
-    "shape": "rect",
-    "x": 632,
-    "y": 796,
-    "width": 521,
-    "length": 180
-  },
-  {
-    "id": 29,
-    "shape": "rect",
-    "x": 797,
-    "y": 630,
-    "width": 191,
-    "length": 186
   },
   {
     "id": 30,
