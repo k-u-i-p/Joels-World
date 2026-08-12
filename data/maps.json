@@ -154,5 +154,11 @@
     "import": "/src/minigames/football.js",
     "default_zoom": 1,
     "character_scale": 1.95
+  },
+  {
+    "id": 7,
+    "name": "Five Nights",
+    "import": "/src/minigames/fivenights.js",
+    "default_zoom": 1
   }
 ]

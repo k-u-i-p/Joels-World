@@ -34,6 +34,7 @@ final class GameViewController: UIViewController {
     let tennis3d = Tennis3DView()
     let schoolRush = SchoolRushView()
     let football = FootballView()
+    let fiveNights = FiveNightsView()
 
     #if DEBUG
     private(set) lazy var debug = GameDebugHarness(host: self)
@@ -46,6 +47,12 @@ final class GameViewController: UIViewController {
         setupMetalView()
         setupOverlays()
         wireNetwork()
+
+        #if DEBUG
+        // `-fivenights`: the night watch with no server behind it, so the scene can be looked at
+        // on a machine that is not talking to Cloud Run. See `GameDebugHarness`.
+        if debug.startOfflineMinigameIfRequested() { return }
+        #endif
 
         network.connect()
 
@@ -117,7 +124,8 @@ final class GameViewController: UIViewController {
 
     private func setupOverlays() {
         // Bottom to top: world, the 2D minigame surface, nameplates, controls, HUD, dialogs.
-        for subview in [tennis, tennis3d, schoolRush, football, overlay, joystick, buttons, hud,
+        for subview in [tennis, tennis3d, schoolRush, football, fiveNights, overlay, joystick,
+                        buttons, hud,
                         minimap, emotesDialog, badgesDialog, helpDialog, dialog, rejectedOverlay,
                         disconnectDialog, lobby] as [UIView] {
             subview.translatesAutoresizingMaskIntoConstraints = false
@@ -163,6 +171,7 @@ final class GameViewController: UIViewController {
             case let game as Tennis3DGame: game.requestExit()
             case let game as SchoolRushGame: game.requestExit()
             case let game as FootballGame: game.requestExit()
+            case let game as FiveNightsGame: game.requestExit()
             default: break
             }
         }
@@ -194,7 +203,8 @@ final class GameViewController: UIViewController {
         constraints += [buttonsBottomConstraint].compactMap { $0 }
 
         // Everything else is a full-screen layer.
-        for subview in [tennis, tennis3d, schoolRush, football, overlay, hud, minimap, emotesDialog,
+        for subview in [tennis, tennis3d, schoolRush, football, fiveNights, overlay, hud, minimap,
+                        emotesDialog,
                         badgesDialog, helpDialog, dialog, rejectedOverlay, disconnectDialog,
                         lobby] as [UIView] {
             constraints += [
@@ -257,6 +267,7 @@ final class GameViewController: UIViewController {
             tennis3d.step()
             schoolRush.step()
             football.step()
+            fiveNights.step()
             return
         }
 

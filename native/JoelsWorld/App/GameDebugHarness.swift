@@ -33,6 +33,7 @@ final class GameDebugHarness {
     private var schoolRushTraceTimer: Timer?
     private var footballDemoTimer: Timer?
     private var footballTraceTimer: Timer?
+    private var fiveNightsDemoTimer: Timer?
     /// True once `-tennis3ddrag` has sent its `.began`, so every tick after it is a `.changed` —
     /// which is what makes it a drag rather than a stream of separate grabs.
     private var tennis3DDragInProgress = false
@@ -61,6 +62,55 @@ final class GameDebugHarness {
         let walkTest = WalkTest()
         self.walkTest = walkTest
         return { walkTest.currentInput() }
+    }
+
+    /// `-fivenights`: starts the night watch with no socket, no lobby and no map.
+    ///
+    /// Every other minigame is reached by joining the world, walking to a trigger and answering a
+    /// dialog, all of which needs the live server to know about the map. A map the server has not
+    /// been redeployed with cannot be entered that way at all — so this is the same door the
+    /// character lab uses (`GameState.startToolScene`), which needs nothing but the renderer.
+    ///
+    /// Returns true when it took over, so `viewDidLoad` knows not to connect.
+    func startOfflineMinigameIfRequested() -> Bool {
+        guard ProcessInfo.processInfo.arguments.contains("-fivenights") else { return false }
+        Log.world("-fivenights: starting the night watch with no server")
+        let game = FiveNightsGame(host: host.state, npcs: [], myCharacter: nil)
+        host.state.startToolScene(game)
+        // `startToolScene` starts the simulation but knows nothing about the HUD, so the screen
+        // furniture is raised by hand — the same call the real map change makes.
+        host.gameStateDidStartMinigame(game)
+        startFiveNightsDemo(game)
+        return true
+    }
+
+    /// `-fivenightsdemo`: flips through all seven cameras, then the doorway lights, three
+    /// seconds apiece. `simctl` cannot press a button, so this is the only way to photograph a
+    /// feed other than the one the night opens on.
+    private func startFiveNightsDemo(_ game: FiveNightsGame) {
+        guard ProcessInfo.processInfo.arguments.contains("-fivenightsdemo") else { return }
+        var step = 0
+        fiveNightsDemoTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) {
+            [weak game] _ in
+            guard let game else { return }
+            let cameras = FiveNightsSchool.cameras
+            if step < cameras.count {
+                game.setTablet(true)
+                game.selectCam(cameras[step])
+                Log.world("-fivenightsdemo: CAM \(step + 1) — \(FiveNightsSchool.plan(cameras[step]).name)")
+            } else if step == cameras.count {
+                game.setTablet(false)
+                game.toggleLight(.west)
+                Log.world("-fivenightsdemo: office, west light")
+            } else if step == cameras.count + 1 {
+                game.toggleDoor(.west)
+                game.toggleDoor(.east)
+                Log.world("-fivenightsdemo: both doors shut")
+            } else {
+                step = -1
+            }
+            step += 1
+        }
     }
 
     /// Called once the `init` frame has been applied and there is a world to drive.
@@ -123,9 +173,10 @@ final class GameDebugHarness {
         for timer in [tennisDemoTimer, tennisExitTimer, tennis3DDemoTimer, tennis3DTapTimer,
                       tennis3DDragTimer, tennis3DHitTestTimer, tennis3DTraceTimer,
                       schoolRushDemoTimer, schoolRushTraceTimer,
-                      footballDemoTimer, footballTraceTimer] {
+                      footballDemoTimer, footballTraceTimer, fiveNightsDemoTimer] {
             timer?.invalidate()
         }
+        fiveNightsDemoTimer = nil
         schoolRushDemoTimer = nil
         schoolRushTraceTimer = nil
         footballDemoTimer = nil

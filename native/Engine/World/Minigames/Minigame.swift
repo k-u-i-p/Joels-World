@@ -122,6 +122,8 @@ enum MinigameKind: String {
     case schoolrush
     /// Ten a side, red against blue, first to three.
     case football
+    /// The night watch. Two doors, seven cameras, and four children who want out.
+    case fivenights
 
     /// `mapData.import` is a module URL — `/src/minigames/tennis3d.js`.
     init?(importPath: String) {

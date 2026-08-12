@@ -26,10 +26,10 @@ A top-down multiplayer school. You play a pupil at St Peters. The loop:
 
 The badges are fixed in code today —
 [MenuDialogs.swift:63](native/JoelsWorld/UI/MenuDialogs.swift:63): rugby, tennis, swimming,
-tig, good friend, tower defence, detention, school rush, football. **Three of the nine are
-actually winnable**: tennis
+tig, good friend, tower defence, detention, school rush, football, five nights. **Four of the ten
+are actually winnable**: tennis
 ([Tennis3DGame+Rules.swift:215](native/Engine/World/Minigames/Tennis3D/Tennis3DGame+Rules.swift:215)),
-School Rush at 400 m, and football by winning a match 3–x.
+School Rush at 400 m, football by winning a match 3–x, and Five Nights by surviving all five.
 
 Tennis is the 3D rebuild now; the old 2D one is still in the tree behind `-tennis2d`. Seven handoff
 notes explain how it works, starting at
@@ -38,7 +38,13 @@ notes explain how it works, starting at
 and [part 6](native/HANDOFF-tennis3d-part6.md)'s "Read this before you start a measured run"
 section will save you an afternoon.
 
-**Football** is the newest, and the shortest read: one handoff,
+**Five Nights at St Peters** is the newest — Joel's own idea. You are the night guard, the
+children are trying to escape, and you block the doors. One handoff,
+[HANDOFF-fivenights.md](native/HANDOFF-fivenights.md), and read the last section of it first:
+**the map is in the app but not on the server yet**, so the door on the campus needs a deploy
+before anyone but a developer can get in. Until then it is `-fivenights` on the simulator.
+
+**Football** is the shortest read: one handoff,
 [HANDOFF-football.md](native/HANDOFF-football.md). Five a side, first to three, and — unlike the
 others — a whole team of AI on your side as well as against you.
 
