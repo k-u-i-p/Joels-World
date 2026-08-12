@@ -138,6 +138,13 @@ struct MapData: Codable {
     var clip_mask: String?
     var character_scale: Double?
     var default_zoom: Double?
+
+    /// **How far this map's camera is tipped over, in degrees off straight down.**
+    ///
+    /// 0 is the top-down view the game shipped with; 52 is `Camera.defaultPitch`, which is what
+    /// a map that says nothing gets. Degrees rather than radians because this is a hand-editable
+    /// field in `maps.json` — the editor's **Camera angle** slider writes it.
+    var camera_angle: Double?
     var background_color: String?
     var camera_permitted_offset: CameraOffset?
     var `import`: String?
@@ -163,6 +170,7 @@ struct MapData: Codable {
         clip_mask = try container.decodeIfPresent(String.self, forKey: .clip_mask)
         character_scale = try container.decodeIfPresent(Double.self, forKey: .character_scale)
         default_zoom = try container.decodeIfPresent(Double.self, forKey: .default_zoom)
+        camera_angle = try container.decodeIfPresent(Double.self, forKey: .camera_angle)
         background_color = try container.decodeIfPresent(String.self, forKey: .background_color)
         camera_permitted_offset = try container.decodeIfPresent(CameraOffset.self,
                                                                 forKey: .camera_permitted_offset)
@@ -170,6 +178,12 @@ struct MapData: Codable {
         on_enter = try container.decodeIfPresent(JSONValue.self, forKey: .on_enter)
         objects = try container.decodeIfPresent(String.self, forKey: .objects)
         npcs = try container.decodeIfPresent(String.self, forKey: .npcs)
+    }
+
+    /// `camera_angle` as the radians the camera is actually set to, clamped to what the camera
+    /// can do. Nil when the map does not say, which means `Camera.defaultPitch`.
+    var cameraPitch: Double? {
+        camera_angle.map { min(max(0, $0 * .pi / 180), Camera.maxPitch) }
     }
 
     /// True for the minigame maps, which Phase 7 implements.
@@ -227,6 +241,20 @@ struct GameCharacter: Codable {
     /// the procedural character wore; it is parsed and ignored now (see part 4 of the imported
     /// characters handoff).
     var model: String?
+    /// **Which recolour of the model's texture to wear** — `"red"`, `"blue"`, `"blond"` and the
+    /// rest, from `assets/models/characters/outfits/`. `nil` is the outfit the model was sold in.
+    ///
+    /// A bought character is one mesh with its clothes, hair and shoes all painted into a single
+    /// texture, so an outfit cannot be a garment swapped at runtime and it cannot be a tint over
+    /// a region the engine works out for itself — the engine tried that, and these atlases pack
+    /// skin against shirt against hair with no padding, so it painted bare shins as trousers.
+    /// An outfit is therefore a whole *finished texture*, made offline by
+    /// `tools/characters/make_outfits.py`, where the result can be looked at before it ships.
+    ///
+    /// The cost of that honesty is that outfits are a list rather than a colour picker: a made-up
+    /// name falls back to the model's own texture rather than inventing one. Run the tool to add
+    /// to the list.
+    var outfit: String?
     var color: String?
     var hair_color: String?
     var shirt_color: String?

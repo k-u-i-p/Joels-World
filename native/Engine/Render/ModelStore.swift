@@ -51,6 +51,11 @@ struct ModelGroup {
     /// `MeshStandardMaterial` exactly, so a model using none of them renders as before.
     var surface: SurfaceExtensions
     var emissiveTexture: MTLTexture?
+    /// The material's tangent-space normal map. Nine of the props have one; everything else is
+    /// lit off its geometry as before.
+    var normalTexture: MTLTexture?
+    /// `normalTexture.scale`.
+    var normalScale: Float = 1
     var mesh: GPUMesh
 }
 
@@ -140,10 +145,14 @@ final class ModelStore {
                     DispatchQueue.main.async {
                         // A material can point its emissive map at the same image as its base
                         // colour (`banquet_table.glb` does), so images are uploaded once each.
-                        var textures: [Int: MTLTexture] = [:]
-                        func texture(_ imageIndex: Int?) -> MTLTexture? {
+                        // Keyed by image *and* colour space: the same image could in principle
+                        // be a base colour on one material and a normal map on another, and the
+                        // two need different textures. See the sRGB note below.
+                        var textures: [String: MTLTexture] = [:]
+                        func texture(_ imageIndex: Int?, srgb: Bool = true) -> MTLTexture? {
                             guard let imageIndex else { return nil }
-                            if let existing = textures[imageIndex] { return existing }
+                            let key = "\(imageIndex)-\(srgb)"
+                            if let existing = textures[key] { return existing }
                             guard let bytes = asset.images[imageIndex] else { return nil }
                             // No vertical flip: glTF UVs put (0,0) at the image's top-left,
                             // which is already Metal's sampling origin. Flipping mirrors V,
@@ -155,7 +164,10 @@ final class ModelStore {
                             //
                             // sRGB is on because glTF base-colour and emissive textures are
                             // both sRGB-encoded and three.js tags them as such; the sampler
-                            // decodes so shading stays linear.
+                            // decodes so shading stays linear. **A normal map passes `srgb:
+                            // false`**: its channels are the x, y and z of a direction, not a
+                            // colour, and decoding them as one tilts the whole surface away
+                            // from the light — a prop that looks grimy rather than bumpy.
                             //
                             // The Core Graphics fallback is the same one the tiles need, and
                             // it is load-bearing here: `desk.glb`'s emissive map is a 1-bit
@@ -164,11 +176,12 @@ final class ModelStore {
                             // unmodulated — a solid white desk, 27 times over.
                             let loaded = (try? self.textureLoader.newTexture(
                                 data: bytes,
-                                options: [.SRGB: true,
+                                options: [.SRGB: srgb,
                                           .generateMipmaps: false]))
-                                ?? ImageDecoder.texture(from: bytes, device: self.device, flipped: false)
+                                ?? ImageDecoder.texture(from: bytes, device: self.device,
+                                                        flipped: false, srgb: srgb)
                             if let loaded {
-                                textures[imageIndex] = loaded
+                                textures[key] = loaded
                             } else {
                                 Log.render("Model '\(path)': image \(imageIndex) failed to decode (\(bytes.count) bytes)")
                             }
@@ -196,6 +209,9 @@ final class ModelStore {
                                                      texture: texture(group.imageIndex),
                                                      surface: surface,
                                                      emissiveTexture: emissiveTexture,
+                                                     normalTexture: texture(group.normalImageIndex,
+                                                                            srgb: false),
+                                                     normalScale: group.normalScale,
                                                      mesh: gpuMesh))
                         }
 
@@ -203,6 +219,20 @@ final class ModelStore {
                         self.models[path] = model
                         Log.render(String(format: "Model '%@': %d primitives → %d draw groups in %.0f ms",
                                           path, asset.primitives.count, groups.count, elapsed))
+
+                        // Says nothing for the twelve models with no normal map, and one line for
+                        // the nine that have one. Worth having: a normal map that silently did
+                        // not arrive looks exactly like a model that never had one.
+                        let mapped = groups.filter { $0.normalTexture != nil }
+                        if !mapped.isEmpty {
+                            let generated = asset.primitives.contains {
+                                $0.normalImageIndex != nil && !$0.authoredTangents
+                            }
+                            Log.render(String(format: "  normal maps on %d of %d groups, "
+                                              + "scale %.2f, tangents %@",
+                                              mapped.count, groups.count, mapped[0].normalScale,
+                                              generated ? "generated from the UVs" : "from the file"))
+                        }
 
                         let waiters = self.pending[path] ?? []
                         self.pending[path] = nil
@@ -242,6 +272,8 @@ final class ModelStore {
         var imageIndex: Int?
         var surface: SurfaceExtensions
         var emissiveImageIndex: Int?
+        var normalImageIndex: Int?
+        var normalScale: Float
         var mesh: MeshData
     }
 
@@ -270,10 +302,16 @@ final class ModelStore {
                                     transmission: primitive.transmission)
                 : .standard
             let emissiveImageIndex = (slot == .authored) ? primitive.emissiveImageIndex : nil
+            let normalImageIndex = (slot == .authored) ? primitive.normalImageIndex : nil
+            let normalScale = (slot == .authored) ? primitive.normalScale : 1
 
+            // The normal map and its scale join the key. Without them, `antique_desk.glb`'s
+            // fourteen normal-mapped materials would collapse into whichever group they matched
+            // on colour, and thirteen of them would be drawn wearing the fourteenth's map.
             let key = "\(slot)-\(color)-\(roughness)-\(metalness)-\(imageIndex ?? -1)"
                 + "-\(surface.emissive)-\(surface.specularF0)-\(surface.specularIntensity)"
                 + "-\(surface.transmission)-\(emissiveImageIndex ?? -1)"
+                + "-\(normalImageIndex ?? -1)-\(normalScale)"
             let index: Int
             if let existing = lookup[key] {
                 index = existing
@@ -285,6 +323,8 @@ final class ModelStore {
                                           imageIndex: imageIndex,
                                           surface: surface,
                                           emissiveImageIndex: emissiveImageIndex,
+                                          normalImageIndex: normalImageIndex,
+                                          normalScale: normalScale,
                                           mesh: MeshData(vertices: [], indices: [])))
                 index = groups.count - 1
                 lookup[key] = index

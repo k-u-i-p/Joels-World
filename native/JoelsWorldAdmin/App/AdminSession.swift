@@ -322,6 +322,38 @@ final class AdminSession {
         network.sendChangeMap(mapId)
     }
 
+    // MARK: - Camera
+
+    /// Tips the camera over, without saving. The sidebar slider and R/F both come through here.
+    func setCameraPitch(_ pitch: Double) {
+        state.camera.setPitch(delta: pitch - state.camera.pitch)
+    }
+
+    /// Zooms without saving. Same clamp as the scroll wheel's.
+    func setCameraZoom(_ zoom: Double) {
+        state.camera.zoom = min(max(0.1, zoom), 5)
+    }
+
+    /// **Writes where the camera is standing into the map's own record in `maps.json`** —
+    /// `camera_angle` and `default_zoom`, for whichever map is open in the editor.
+    ///
+    /// The angle is rounded to whole degrees and the zoom to two places: the file is meant to be
+    /// read and edited by hand, and neither a tenth of a degree nor a thousandth of a zoom is a
+    /// difference anyone can see. What is saved is what the game opens that map at.
+    @discardableResult
+    func saveCameraView() -> Bool {
+        let degrees = (state.camera.pitch * 180 / .pi).rounded()
+        let zoom = (state.camera.zoom * 100).rounded() / 100
+        guard send(.updateMap(updates: ["camera_angle": JSONValue(degrees),
+                                        "default_zoom": JSONValue(zoom)]))
+        else { return false }
+        // Keep the in-memory record in step, so nothing in this session reads back the old view.
+        state.setMapCameraView(angle: degrees, zoom: zoom)
+        lastSaveMessage = "\(state.mapData?.name ?? "map"): \(Int(degrees))°, zoom \(zoom) saved"
+        delegate?.adminSession(didChangeStatus: statusLine())
+        return true
+    }
+
     /// Applies an edit to the files on disk and to the view, in that order.
     ///
     /// The in-memory update is not an optimism — it is the only update the editor is
@@ -342,6 +374,11 @@ final class AdminSession {
             switch kind {
             case .objects: state.replaceObjects(try files.objects(mapId: mapId))
             case .npcs: state.replaceNPCs(try files.npcs(mapId: mapId))
+            // Nothing to re-read. `maps.json` is decoded once from the *bundle* at launch
+            // (`WorldData.maps`), so the file that was just written is not the copy this
+            // process is running on; the caller has already applied the change to the live
+            // camera, and every app picks it up on its next build.
+            case .map: break
             }
             lastSaveMessage = "saved"
             delegate?.adminSessionDidReplaceEntities()

@@ -38,10 +38,15 @@ enum AdminMessage {
     case cloneNPC(x: Double, y: Double, source: GameCharacter)
     case deleteNPC(id: Int)
 
+    /// Fields on the map's own record in `maps.json` — the camera angle, so far. The only edit
+    /// here that writes a file the two entity lists do not live in.
+    case updateMap(updates: [String: JSONValue])
+
     /// Which file a given edit lands in.
     enum Kind {
         case objects
         case npcs
+        case map
     }
 
     var kind: Kind {
@@ -51,6 +56,8 @@ enum AdminMessage {
             return .objects
         case .moveNPC, .updateNPC, .createNPC, .cloneNPC, .deleteNPC:
             return .npcs
+        case .updateMap:
+            return .map
         }
     }
 }

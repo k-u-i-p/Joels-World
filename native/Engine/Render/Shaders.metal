@@ -20,10 +20,14 @@ struct QuadVertex {
     float2 uv;
 };
 
+/// Mirrors `MeshVertex` in `GLTFLoader.swift`. `normalUV` sits in what was padding between `uv`
+/// and the 16-byte-aligned `tangent`, so the two normal-mapping fields cost 16 bytes, not 24.
 struct MeshVertex {
     float3 position;
     float3 normal;
     float2 uv;
+    float2 normalUV;
+    float4 tangent;
 };
 
 /// A vertex of the skinned character body. Mirrors `SkinVertex` in `ImportedCharacterBody.swift`.
@@ -319,10 +323,14 @@ struct CharacterInOut {
     float4 tint;
     /// x = roughness, y = metalness.
     float2 surfaceParams;
-    /// The tangent frame, skinned along with the normal. `xyz` is zero for a draw that has no
-    /// frame — every rigid one, and any skinned mesh whose UVs could not give one — which is the
+    /// The tangent frame, carried through the model transform or the skinning. `xyz` is zero for
+    /// a draw that has no frame — a procedural mesh, or a model with no normal map — which is the
     /// fragment shader's cue to light off the geometric normal alone.
     float4 tangent;
+    /// Where to sample the normal map. Usually the same as `uv`; `banquet_table.glb` is the one
+    /// asset that puts its normal map on a different UV set. A skinned character always sets this
+    /// to `uv`.
+    float2 normalUV;
 };
 
 vertex CharacterInOut characterVertex(uint vertexID [[vertex_id]],
@@ -338,9 +346,13 @@ vertex CharacterInOut characterVertex(uint vertexID [[vertex_id]],
     out.worldPosition = (uniforms.model * local).xyz;
     out.tint = uniforms.color;
     out.surfaceParams = uniforms.flags.zw;
-    // A rigid mesh carries no tangents — `MeshVertex` has nowhere to put them — so it never
-    // takes the normal-mapped branch. Props and the map are lit off their geometry as before.
-    out.tangent = float4(0.0);
+    out.normalUV = vertices[vertexID].normalUV;
+
+    // The tangent lies *in* the surface, so unlike the normal it takes the plain model matrix
+    // rather than an inverse transpose. A procedural mesh leaves it zero and this stays zero,
+    // which is what tells the fragment shader there is no frame to use.
+    float4 tangent = vertices[vertexID].tangent;
+    out.tangent = float4((uniforms.model * float4(tangent.xyz, 0.0)).xyz, tangent.w);
     return out;
 }
 
@@ -386,6 +398,7 @@ vertex CharacterInOut characterSkinnedVertex(uint vertexID [[vertex_id]],
     // fragment shader can tell the difference.
     out.tangent = float4(tangent, v.tangent.w);
     out.uv = v.uv;
+    out.normalUV = v.uv;
     out.worldPosition = position;
     // The palette holds the colours first and the roughness/metalness pairs after them.
     out.tint = float4(palette[slot].rgb, uniforms.color.a);
@@ -462,8 +475,8 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
     // as a direction in tangent space — and the frame interpolated from the vertices is what
     // carries it into world space, so it turns with the character and bends with the skinning.
     //
-    // Guarded on the tangent as well as the flag: a rigid draw shares this fragment shader and
-    // has no frame at all, and with the map unbound-but-sampled it would light off noise.
+    // Guarded on the tangent as well as the flag: the ground shadow, the emote props and every
+    // procedural mesh share this fragment shader and carry no frame at all.
     if (uniforms.surface.y > 0.5 && dot(in.tangent.xyz, in.tangent.xyz) > 1e-8) {
         // Gram-Schmidt again, because interpolating three perpendicular tangents across a
         // triangle does not give a perpendicular one.
@@ -475,8 +488,9 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
             // right of a character share one half of the atlas without the bumps inverting.
             float3 bitangent = cross(normal, tangent) * (in.tangent.w < 0.0 ? -1.0 : 1.0);
 
-            // The map is stored around 0.5 with no sRGB curve — see `ImportedCharacterStore`.
-            float3 mapped = normalMap.sample(baseSampler, in.uv).xyz * 2.0 - 1.0;
+            // The map is stored around 0.5 with no sRGB curve — see `ImportedCharacterStore` and
+            // `ModelStore`. `normalUV`, not `uv`: the map may sample a different UV set.
+            float3 mapped = normalMap.sample(baseSampler, in.normalUV).xyz * 2.0 - 1.0;
             // `normalTexture.scale`, applied to x and y only, exactly as three.js's `normalScale`
             // does: it leans the perturbation towards or away from the geometric normal rather
             // than scaling the vector.

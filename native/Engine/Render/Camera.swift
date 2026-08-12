@@ -15,7 +15,29 @@ struct Camera {
     var springX: Double = 0
     var springY: Double = 0
 
-    var pitch: Double = 0
+    /// **The angle the world is looked at from, and the one thing that decides whether it reads
+    /// as a photograph or a place.**
+    ///
+    /// Straight down (0) was the web build's framing, from back when a character was a sprite
+    /// and there was nothing to see from the side. Every character is a model now, and the props
+    /// — buildings, bins, benches, trees — are boxes with height, all of which is invisible from
+    /// directly overhead. Tipping the camera over shows the fronts of the buildings and the
+    /// fronts of the people.
+    ///
+    /// 0.9 rad is 52° off vertical. The tennis court arrived at 0.88 for the same reason and
+    /// independently (`Tennis3DGame.updateCamera`), which is some comfort that it is the right
+    /// neighbourhood: far enough over that a figure is a figure, not so far that the near
+    /// buildings hide the street behind them.
+    ///
+    /// A map may say otherwise — `"camera_angle"` in `maps.json`, in degrees, which the editor's
+    /// **Camera angle** slider writes. This is the answer when it does not.
+    static let defaultPitch: Double = 0.9
+
+    /// Straight down is 0; this is as far over as the camera goes. Not quite π/2, because at the
+    /// horizontal the ground plane is edge-on and the whole frame is a line.
+    static let maxPitch: Double = .pi / 2.1
+
+    var pitch: Double = Camera.defaultPitch
     var yaw: Double = 0
 
     let fovDegrees: Float = 30
@@ -43,7 +65,7 @@ struct Camera {
     var renderTarget: SIMD2<Float> { SIMD2(Float(x), Float(-y)) }
 
     mutating func setPitch(delta: Double) {
-        pitch = min(max(0, pitch + delta), .pi / 2.1)
+        pitch = min(max(0, pitch + delta), Camera.maxPitch)
     }
 
     /// Recomputes the matrices. `viewport` is in points, matching the JS which uses CSS pixels.

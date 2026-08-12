@@ -128,6 +128,9 @@ final class WorldFileStore {
         return true
     }
 
+    /// The map list itself, relative to `data/` — the one file here that no map record names.
+    private static let mapsPath = "maps.json"
+
     private func objectsPath(mapId: Int) throws -> String {
         guard let path = WorldData.map(id: mapId)?.objects else {
             throw StoreError.mapHasNoFile(mapId: mapId, kind: "objects")
@@ -240,6 +243,15 @@ final class WorldFileStore {
             try self.edit(try npcsPath(mapId: mapId)) { items in
                 items.append(Self.clone(of: source, in: items,
                                         id: Self.nextId(in: items), x: x, y: y))
+                return true
+            }
+
+        // `maps.json` is one array of map records keyed by the same `id` an object or an NPC
+        // has, so the entity machinery above works on it unchanged.
+        case .updateMap(let updates):
+            try self.edit(Self.mapsPath) { items in
+                guard let index = Self.index(of: mapId, in: items) else { return false }
+                items[index].assign(Self.ordered(updates))
                 return true
             }
         }

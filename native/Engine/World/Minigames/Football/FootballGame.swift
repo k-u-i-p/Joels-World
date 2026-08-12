@@ -55,6 +55,10 @@ final class FootballGame: WorldRenderedMinigame {
         var other: Team { self == .blue ? .red : .blue }
 
         var name: String { self == .blue ? "BLUE" : "RED" }
+
+        /// How good this side is. **You are always blue**, so this is the one place the game is
+        /// unfair on purpose. See `Skill`.
+        var skill: Skill { self == .blue ? Tuning.yourLot : Tuning.theOpposition }
     }
 
     enum Role {
@@ -64,16 +68,67 @@ final class FootballGame: WorldRenderedMinigame {
         case forward
     }
 
+    /// **How good a side is**, as a set of multipliers on the numbers in `Tuning`.
+    ///
+    /// Everything that decides whether a team is any good used to be a single global constant,
+    /// which meant the only way to make the opposition worse was to make football worse. This is
+    /// the difficulty knob instead: one struct per side, applied at the handful of places a
+    /// decision is actually taken, so "red are easier" never turns into "the ball behaves
+    /// differently for red".
+    ///
+    /// It only ever touches *decisions and bodies*. The pitch, the ball, the physics and the
+    /// rules are the same for both sides, which is what stops an easy setting reading as cheating.
+    struct Skill {
+        /// Multiplier on top speed, for outfielders and keepers alike.
+        var speed: Double
+        /// Multiplier on how long a player dawdles on the ball before deciding what to do with
+        /// it. Above 1 is a side that takes too long and gets closed down.
+        var settle: Double
+        /// Multiplier on how far out they will shoot. Below 1 is a side that walks it in.
+        var shootRange: Double
+        /// Multiplier on how wide of the target their shooting is.
+        var shotSpread: Double
+        /// Multiplier on the keeper's reach — the single biggest thing between a shot and a goal.
+        var keeperReach: Double
+        /// Multiplier on how long it takes an opponent to tackle them. Below 1 is a side that
+        /// loses the ball as soon as anybody gets near.
+        var holdOnToBall: Double
+    }
+
     // MARK: - Tuning
 
     enum Tuning {
-        /// Outfield pace. A pupil is not a professional, but this is a game — 6.4 m/s is a fast
-        /// child, and the ball still outruns everybody, which is what makes a pass worth playing.
+        /// **Your side, and they are meant to be good.** Joel asked for his team to be 20%
+        /// quicker than the baseline and for the opposition to be mega easy, and both of those
+        /// live here rather than in twenty scattered constants.
+        static let yourLot = Skill(speed: 1.2, settle: 1, shootRange: 1, shotSpread: 1,
+                                   keeperReach: 1, holdOnToBall: 1)
+
+        /// **Red, and they are meant to be beatable by a ten-year-old.**
+        ///
+        /// Six things at once, because making a side easy through any single one of them makes
+        /// them look broken rather than bad: a team that is *only* slow still passes it about
+        /// neatly, and a team that *only* misses looks like the goal is cursed. Together these
+        /// read as a side that is a bit slow, dwells on the ball, gets robbed, rarely shoots and
+        /// misses when it does — which is what a school team you are beating looks like.
+        ///
+        /// `holdOnToBall` at 0.55 is the sharpest of them: it takes about a third of a second to
+        /// rob a red shirt, so red can only do anything at all when nobody is near them.
+        static let theOpposition = Skill(speed: 0.8, settle: 1.8, shootRange: 0.55,
+                                         shotSpread: 2.6, keeperReach: 0.55, holdOnToBall: 0.55)
+
+        /// Outfield pace, before `Skill.speed`. A pupil is not a professional, but this is a game
+        /// — 6.4 m/s is a fast child, and the ball still outruns everybody, which is what makes a
+        /// pass worth playing.
         static let topSpeed = FootballPitch.metres(6.4)
-        /// **You are the quickest player on the pitch, by half a metre a second.** Deliberately.
-        /// The one thing a human has over the AI is choosing where to be, and being marginally
-        /// faster is what turns that choice into a chance.
-        static let humanTopSpeed = FootballPitch.metres(7.0)
+        /// **However quick the body you are driving is, you are this much quicker still.**
+        ///
+        /// It used to be an absolute top speed for the human, which broke the moment your own
+        /// side got a speed multiplier: your team mates ran at 7.7 m/s and the instant control
+        /// switched to one of them they *slowed down* to 7.0. A bonus rather than a ceiling keeps
+        /// the rule that made it worth having — the one thing a human has over the AI is choosing
+        /// where to be, and being marginally faster is what turns that choice into a chance.
+        static let controlSpeedBonus = FootballPitch.metres(0.6)
         /// Keepers stay near their line and do not need to sprint; a keeper as quick as a winger
         /// is a keeper who sweeps up everything and makes the game unwinnable.
         static let keeperTopSpeed = FootballPitch.metres(4.8)
@@ -315,8 +370,9 @@ final class FootballGame: WorldRenderedMinigame {
         }
 
         var controlRadius: Double {
-            role == .keeper ? FootballGame.Tuning.keeperControlRadius
-                            : FootballGame.Tuning.controlRadius
+            role == .keeper
+                ? FootballGame.Tuning.keeperControlRadius * team.skill.keeperReach
+                : FootballGame.Tuning.controlRadius
         }
     }
 
@@ -901,8 +957,9 @@ final class FootballGame: WorldRenderedMinigame {
                     pressure = 0
                 }
                 pressure += dt
-                let needed = carrierPlayer.isControlled ? Tuning.pressureToStealFromHuman
-                                                   : Tuning.pressureToSteal
+                let base = carrierPlayer.isControlled ? Tuning.pressureToStealFromHuman
+                                                      : Tuning.pressureToSteal
+                let needed = base * carrierPlayer.team.skill.holdOnToBall
                 if pressure >= needed {
                     take(by: closest)
                     host.minigamePlayEffect(path: "/media/hit_tennis_ball2.mp3",
@@ -938,8 +995,8 @@ final class FootballGame: WorldRenderedMinigame {
         // A touch before a decision, so the ball is played rather than deflected. A keeper takes
         // a moment longer, because a keeper who catches it and hoofs it in the same instant looks
         // like the ball bounced off them.
-        players[index].decisionTimer = players[index].role == .keeper ? Tuning.keeperSettleTime
-                                                                      : Tuning.settleTime
+        let settle = players[index].role == .keeper ? Tuning.keeperSettleTime : Tuning.settleTime
+        players[index].decisionTimer = settle * players[index].team.skill.settle
         onPresentationChanged?()
     }
 

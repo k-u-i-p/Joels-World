@@ -29,6 +29,9 @@ final class AdminMapViewController: NSViewController {
     /// Raised when the overlay switch is flipped from the menu, so the sidebar's checkbox
     /// follows it rather than lying about the state.
     var onOverlayVisibilityChanged: ((Bool) -> Void)?
+    /// Raised when R/F, a ⌃-drag or the scroll wheel move the camera, so the sidebar's angle
+    /// and zoom sliders follow them. `(pitch in radians, zoom)`.
+    var onCameraChanged: ((Double, Double) -> Void)?
 
     private(set) var selection = EditorSelection()
 
@@ -108,7 +111,11 @@ final class AdminMapViewController: NSViewController {
         }
         metalView.delegate = renderer
 
-        if let pitch = AdminScreenshot.cameraPitch { session.state.camera.setPitch(delta: pitch) }
+        // Absolute, not a nudge: `-campitch 0.4` has to mean 0.4 rad off vertical whatever the
+        // camera starts at, and it no longer starts at 0 (`Camera.defaultPitch`).
+        if let pitch = AdminScreenshot.cameraPitch {
+            session.state.camera.setPitch(delta: pitch - session.state.camera.pitch)
+        }
         if let yaw = AdminScreenshot.cameraYaw { session.state.camera.yaw = yaw }
         if let zoom = AdminScreenshot.cameraZoom { session.state.camera.zoom = min(max(0.1, zoom), 5) }
 
@@ -146,13 +153,19 @@ final class AdminMapViewController: NSViewController {
 
         let nudge = editorView.keyboard.cameraNudge()
         if nudge.reset {
-            session.state.camera.pitch = 0
+            // Back to the angle this map is saved at — or the game's default, for a map that
+            // has never been given one. Not to straight down.
+            session.state.camera.pitch = session.state.mapData?.cameraPitch ?? Camera.defaultPitch
             session.state.camera.yaw = 0
+            onCameraChanged?(session.state.camera.pitch, session.state.camera.zoom)
             return
         }
         guard nudge.pitch != 0 || nudge.yaw != 0 else { return }
         session.state.camera.setPitch(delta: nudge.pitch)
         session.state.camera.yaw += nudge.yaw
+        if nudge.pitch != 0 {
+            onCameraChanged?(session.state.camera.pitch, session.state.camera.zoom)
+        }
     }
 
     /// Grabs one frame once the map has had time to stream in, writes it, and quits.
@@ -591,6 +604,7 @@ extension AdminMapViewController: AdminEditorViewDelegate {
             // The view is Y-down, so dragging *down* pushes the camera towards the horizon and
             // dragging up brings it back overhead. `setPitch` holds the 0…90° clamp.
             session.state.camera.setPitch(delta: Double(point.y - lastPoint.y) * sensitivity)
+            onCameraChanged?(session.state.camera.pitch, session.state.camera.zoom)
             dragMode = .orbiting(lastPoint: point)
 
         case .resizing(let anchorX, let anchorY):
@@ -703,6 +717,7 @@ extension AdminMapViewController: AdminEditorViewDelegate {
     private func applyZoom(delta: Double) {
         // Same clamp as `admin.js:1236`.
         session.state.camera.zoom = min(max(0.1, session.state.camera.zoom + delta), 5)
+        onCameraChanged?(session.state.camera.pitch, session.state.camera.zoom)
         refreshOverlay()
     }
 

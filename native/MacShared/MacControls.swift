@@ -137,6 +137,25 @@ enum AdminUI {
         return popUp
     }
 
+    /// A continuous slider. The action fires all the way through a drag, so a caller can show a
+    /// live preview and only commit on `isFinished`.
+    static func slider(range: ClosedRange<Double>, width: CGFloat = 130,
+                       action: @escaping (Double, Bool) -> Void) -> ValueSlider {
+        let slider = ValueSlider(value: range.lowerBound,
+                                 minValue: range.lowerBound,
+                                 maxValue: range.upperBound,
+                                 target: nil,
+                                 action: nil)
+        slider.handler = action
+        slider.target = slider
+        slider.action = #selector(ValueSlider.fire)
+        slider.isContinuous = true
+        slider.controlSize = .small
+        slider.translatesAutoresizingMaskIntoConstraints = false
+        slider.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return slider
+    }
+
     static func colorWell(action: @escaping (NSColor) -> Void) -> ActionColorWell {
         let well = ActionColorWell(frame: NSRect(x: 0, y: 0, width: 44, height: 20))
         well.handler = action
@@ -185,6 +204,27 @@ final class ActionPopUpButton: NSPopUpButton {
         } else {
             selectItem(at: 0)
         }
+        isReloading = false
+    }
+}
+
+final class ValueSlider: NSSlider {
+    /// `(value, isFinished)`. `isFinished` is false for the frames of a drag and true for the
+    /// mouse-up that ends it — and for an arrow-key nudge, which has no drag to be part of.
+    var handler: (Double, Bool) -> Void = { _, _ in }
+    /// Suppresses the handler while the panel is writing the slider from the model.
+    private var isReloading = false
+
+    @objc func fire() {
+        guard !isReloading else { return }
+        let event = NSApp.currentEvent?.type
+        handler(doubleValue, event != .leftMouseDown && event != .leftMouseDragged)
+    }
+
+    func reload(_ value: Double) {
+        guard doubleValue != value else { return }
+        isReloading = true
+        doubleValue = value
         isReloading = false
     }
 }

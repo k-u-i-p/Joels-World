@@ -84,10 +84,12 @@ extension FootballGame {
                 appearance.hide_nameplate = true
                 appearance.z = 0
 
-                // Everybody outfield is the same pace here. The half-metre-a-second the player
-                // gets is applied in `steer` to **whoever is being driven**, not baked into one
-                // body — control moves round the team, so the advantage has to move with it.
-                let topSpeed = slot.role == .keeper ? Tuning.keeperTopSpeed : Tuning.topSpeed
+                // Everybody outfield on a side is the same pace: the baseline times that side's
+                // `Skill.speed`, which is what makes your lot 20% quicker than red. The extra the
+                // *player* gets is applied in `steer` to whoever is being driven, not baked into
+                // one body — control moves round the team, so the advantage has to move with it.
+                let base = slot.role == .keeper ? Tuning.keeperTopSpeed : Tuning.topSpeed
+                let topSpeed = base * team.skill.speed
 
                 built.append(Player(appearance: appearance,
                                     team: team,
@@ -175,8 +177,9 @@ extension FootballGame {
         // control rather than living on one body, so handing the stick on hands the legs on too.
         // Then: running with the ball is slower than running without it, which is the whole
         // reason a pass beats a dribble.
-        let top = player.isControlled && player.role != .keeper ? Tuning.humanTopSpeed
-                                                                : player.baseSpeed
+        let top = player.isControlled && player.role != .keeper
+            ? player.baseSpeed + Tuning.controlSpeedBonus
+            : player.baseSpeed
         player.motor.profile.maxSpeed = hasBall ? top * Tuning.dribbleFraction : top
 
         if player.isControlled {
@@ -441,8 +444,10 @@ extension FootballGame {
 
         let pressed = nearestOpponentDistance(to: index) < FootballPitch.metres(2.6)
 
-        if goalDistance < Tuning.pointBlankRange
-            || (goalDistance < Tuning.shootRange
+        // How far out this side is willing to shoot from. Red walk it in; see `Skill`.
+        let reach = player.team.skill.shootRange
+        if goalDistance < Tuning.pointBlankRange * reach
+            || (goalDistance < Tuning.shootRange * reach
                 && !laneBlocked(from: index, toX: goal.x, toY: goal.y)) {
             shoot(from: index)
             return true
@@ -634,6 +639,7 @@ extension FootballGame {
         let side: Double = ball.x >= 0 ? -1 : 1
         var aimX = side * mouth * 0.62
         let spread = FootballPitch.metres(1.2) * (distance / Tuning.shootRange)
+            * player.team.skill.shotSpread
         aimX += random.signed() * spread
         aimX = min(max(aimX, -mouth * 0.9), mouth * 0.9)
 

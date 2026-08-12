@@ -45,11 +45,13 @@ final class ScenePrimitiveRenderer {
               blended: Bool,
               viewProjection: Float4x4,
               encoder: MTLRenderCommandEncoder,
-              fallbackTexture: MTLTexture) {
+              fallbackTexture: MTLTexture,
+              fallbackNormalTexture: MTLTexture) {
         for primitive in primitives where primitive.blended == blended {
             guard let mesh = mesh(for: primitive.shape) else { continue }
             encode(primitive, mesh: mesh, viewProjection: viewProjection,
-                   encoder: encoder, fallbackTexture: fallbackTexture)
+                   encoder: encoder, fallbackTexture: fallbackTexture,
+                   fallbackNormalTexture: fallbackNormalTexture)
         }
     }
 
@@ -59,11 +61,13 @@ final class ScenePrimitiveRenderer {
     func drawShadowCasters(_ primitives: [ScenePrimitive],
                            viewProjection: Float4x4,
                            encoder: MTLRenderCommandEncoder,
-                           fallbackTexture: MTLTexture) {
+                           fallbackTexture: MTLTexture,
+                           fallbackNormalTexture: MTLTexture) {
         for primitive in primitives where primitive.castsShadow && !primitive.blended {
             guard let mesh = mesh(for: primitive.shape) else { continue }
             encode(primitive, mesh: mesh, viewProjection: viewProjection,
-                   encoder: encoder, fallbackTexture: fallbackTexture)
+                   encoder: encoder, fallbackTexture: fallbackTexture,
+                   fallbackNormalTexture: fallbackNormalTexture)
         }
     }
 
@@ -71,7 +75,8 @@ final class ScenePrimitiveRenderer {
                         mesh: GPUMesh,
                         viewProjection: Float4x4,
                         encoder: MTLRenderCommandEncoder,
-                        fallbackTexture: MTLTexture) {
+                        fallbackTexture: MTLTexture,
+                        fallbackNormalTexture: MTLTexture) {
         var uniforms = CharacterUniforms(
             modelViewProjection: viewProjection * primitive.transform,
             model: primitive.transform,
@@ -90,6 +95,8 @@ final class ScenePrimitiveRenderer {
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
         encoder.setFragmentTexture(fallbackTexture, index: 0)
         encoder.setFragmentTexture(fallbackTexture, index: 3)
+        // A scene primitive is a procedural shape with no maps at all — see `MeshFactory`.
+        encoder.setFragmentTexture(fallbackNormalTexture, index: 4)
         encoder.drawIndexedPrimitives(type: .triangle,
                                       indexCount: mesh.indexCount,
                                       indexType: .uint32,

@@ -25,6 +25,7 @@ enum CharacterLabCast {
         case solo
         case school
         case models
+        case outfits
         case staff
         case extremes
 
@@ -33,6 +34,7 @@ enum CharacterLabCast {
             case .solo: return "One pupil"
             case .school: return "Five from Junior Campus"
             case .models: return "One of every model"
+            case .outfits: return "One model in every outfit"
             case .staff: return "Pupils and staff, at the sizes npc.json gives them"
             case .extremes: return "Awkward colours and sizes"
             }
@@ -49,28 +51,12 @@ enum CharacterLabCast {
             return schoolPupils()
         case .models:
             return everyModel()
+        case .outfits:
+            return everyOutfit()
         case .staff:
             return staffAndPupils()
         case .extremes:
             return extremes()
-        }
-    }
-
-    /// One character per catalogue entry, identical in every other way.
-    ///
-    /// **Same `width` and `height` for all five on purpose.** A model is scaled to the rig's hip
-    /// height on load, so this is the lineup that shows what each one's *own* proportions do with
-    /// that — a long-legged adult and a short-legged child both stand hip-high to the same line,
-    /// and how much taller that leaves the adult's head is the model's own answer, not a number
-    /// anybody typed. Give them the sizes the game gives a teacher and a pupil and you would be
-    /// photographing `npc.json` instead.
-    private static func everyModel() -> [GameCharacter] {
-        CharacterModels.all.enumerated().map { index, entry in
-            var character = pupil()
-            character.id = labId(index)
-            character.name = entry.title
-            character.model = entry.key
-            return character
         }
     }
 

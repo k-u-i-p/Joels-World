@@ -90,9 +90,11 @@ final class PropRenderer {
     /// a minigame's scenery generally should not — see `SceneModel.castsShadow`.
     func drawShadowCasters(viewProjection: Float4x4,
                            encoder: MTLRenderCommandEncoder,
-                           fallbackTexture: MTLTexture) {
+                           fallbackTexture: MTLTexture,
+                           fallbackNormalTexture: MTLTexture) {
         draw(allPlacements.filter(\.castsShadow), viewProjection: viewProjection,
-             encoder: encoder, fallbackTexture: fallbackTexture, transmissive: false)
+             encoder: encoder, fallbackTexture: fallbackTexture,
+             fallbackNormalTexture: fallbackNormalTexture, transmissive: false)
     }
 
     /// Draws every prop whose model has finished loading, requesting the rest.
@@ -104,15 +106,18 @@ final class PropRenderer {
     func draw(viewProjection: Float4x4,
               encoder: MTLRenderCommandEncoder,
               fallbackTexture: MTLTexture,
+              fallbackNormalTexture: MTLTexture,
               transmissive: Bool = false) {
         draw(allPlacements, viewProjection: viewProjection, encoder: encoder,
-             fallbackTexture: fallbackTexture, transmissive: transmissive)
+             fallbackTexture: fallbackTexture,
+             fallbackNormalTexture: fallbackNormalTexture, transmissive: transmissive)
     }
 
     private func draw(_ placements: [Placement],
                       viewProjection: Float4x4,
                       encoder: MTLRenderCommandEncoder,
                       fallbackTexture: MTLTexture,
+                      fallbackNormalTexture: MTLTexture,
                       transmissive: Bool) {
         for placement in placements {
             guard let model = models.model(placement.path) else {
@@ -130,7 +135,9 @@ final class PropRenderer {
                     textured: group.texture != nil,
                     unlit: false,
                     material: SurfaceMaterial(group: group),
-                    emissiveTextured: group.emissiveTexture != nil
+                    emissiveTextured: group.emissiveTexture != nil,
+                    normalTextured: group.normalTexture != nil,
+                    normalScale: group.normalScale
                 )
 
                 encoder.setVertexBuffer(group.mesh.vertexBuffer, offset: 0, index: 0)
@@ -138,6 +145,7 @@ final class PropRenderer {
                 encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
                 encoder.setFragmentTexture(group.texture ?? fallbackTexture, index: 0)
                 encoder.setFragmentTexture(group.emissiveTexture ?? fallbackTexture, index: 3)
+                encoder.setFragmentTexture(group.normalTexture ?? fallbackNormalTexture, index: 4)
                 encoder.drawIndexedPrimitives(type: .triangle,
                                               indexCount: group.mesh.indexCount,
                                               indexType: .uint32,

@@ -2,10 +2,26 @@ import Foundation
 import simd
 
 /// One vertex of a loaded mesh. Matches `MeshVertex` in `Shaders.metal`.
+///
+/// **`normalUV` is a second UV set, and it is free.** A glTF material names the UV set each of
+/// its textures samples, and `banquet_table.glb` puts its normal map on set 1 while its base
+/// colour stays on set 0. Without somewhere to keep that set the map would be sampled through the
+/// wrong coordinates — the wood grain of a different part of the table, stretched over this one.
+///
+/// It costs nothing because of where the padding falls: `uv` ends at byte 40 and `tangent` is
+/// 16-byte aligned, so it cannot start before 48. Those eight bytes were dead. Where a material
+/// samples its normal map from set 0 — every other model — `normalUV` is simply a copy of `uv`,
+/// which keeps the fragment shader free of a branch it would otherwise take per pixel.
 struct MeshVertex {
     var position: SIMD3<Float>
     var normal: SIMD3<Float>
+    /// The base colour and emissive UV.
     var uv: SIMD2<Float>
+    /// The normal map's UV, and the set the tangent frame below was built in.
+    var normalUV: SIMD2<Float> = .zero
+    /// Tangent frame for the normal map: `xyz` along +u of `normalUV`, `w` the handedness.
+    /// Zero where the mesh has no normal map to need one — which is most of them.
+    var tangent: SIMD4<Float> = .zero
 }
 
 /// A drawable chunk of a glTF file: one primitive, with its node's transform already baked
@@ -30,6 +46,13 @@ struct GLTFPrimitive {
     var metalness: Float
     /// Index into `GLTFAsset.images`, if the material had a base-colour texture.
     var imageIndex: Int?
+    /// Index into `GLTFAsset.images` for `normalTexture`. Nine of the props carry one.
+    var normalImageIndex: Int?
+    /// `normalTexture.scale` — how hard the map is applied.
+    var normalScale: Float = 1
+    /// Whether the tangents came from `TANGENT` or were generated here. Only worth knowing when
+    /// a normal map looks wrong — see `GLTFLoader.generateTangents`.
+    var authoredTangents: Bool = false
     /// `KHR_texture_transform`, pre-resolved. `uv * scale + offset`, rotation in radians.
     var uvTransform: (offset: SIMD2<Float>, scale: SIMD2<Float>, rotation: Float)?
 
@@ -99,6 +122,27 @@ struct GLTFSkinnedMesh {
     var baseColor: SIMD4<Float>
     var roughness: Float
     var metalness: Float
+}
+
+/// What `GLTFLoader.generateTangents` needs of a vertex, so the one construction serves both the
+/// rigid and the skinned path. `tangentUV` is the UV set the normal map samples — set 0 for
+/// everything except `banquet_table.glb`, which is exactly why it is asked for by name rather
+/// than assumed to be `uv`.
+protocol TangentFramed {
+    var position: SIMD3<Float> { get }
+    var normal: SIMD3<Float> { get }
+    var tangentUV: SIMD2<Float> { get }
+    var tangent: SIMD4<Float> { get set }
+}
+
+extension MeshVertex: TangentFramed {
+    var tangentUV: SIMD2<Float> { normalUV }
+}
+
+extension GLTFSkinVertex: TangentFramed {
+    /// A skinned character samples every map from set 0; see the `TEXCOORD_1` note in
+    /// `buildSkinnedMesh` for the one file that made that worth stating.
+    var tangentUV: SIMD2<Float> { uv }
 }
 
 struct GLTFAsset {
@@ -452,7 +496,7 @@ enum GLTFLoader {
                                metalness: metalness)
     }
 
-    /// **Tangents from the UVs**, for the four characters whose exporter wrote none.
+    /// **Tangents from the UVs**, for the meshes whose exporter wrote none.
     ///
     /// A normal map stores its perturbation in *tangent space* — a frame in which +x runs along
     /// increasing u across the surface, +y along increasing v, and +z is the geometric normal.
@@ -468,7 +512,11 @@ enum GLTFLoader {
     /// This is the standard Lengyel construction rather than MikkTSpace. It differs from
     /// MikkTSpace where a mesh has hard UV seams that also share vertices; a character atlas
     /// splits vertices at its seams, so the two agree here.
-    private static func generateTangents(vertices: inout [GLTFSkinVertex], indices: [UInt32]) {
+    ///
+    /// Generic over the two vertex types rather than written twice, because the two things this
+    /// gets wrong quietly — the Gram–Schmidt and the handedness — are exactly the things nobody
+    /// would notice had drifted between two copies.
+    private static func generateTangents<V: TangentFramed>(vertices: inout [V], indices: [UInt32]) {
         var tangentSum = [SIMD3<Float>](repeating: .zero, count: vertices.count)
         var bitangentSum = [SIMD3<Float>](repeating: .zero, count: vertices.count)
 
@@ -480,8 +528,8 @@ enum GLTFLoader {
 
             let edge1 = vertices[b].position - vertices[a].position
             let edge2 = vertices[c].position - vertices[a].position
-            let deltaUV1 = vertices[b].uv - vertices[a].uv
-            let deltaUV2 = vertices[c].uv - vertices[a].uv
+            let deltaUV1 = vertices[b].tangentUV - vertices[a].tangentUV
+            let deltaUV2 = vertices[c].tangentUV - vertices[a].tangentUV
 
             // A degenerate triangle in UV space (a seam collapsed to a point, or an unwrapped
             // face) has no frame to give; its vertices take theirs from their other triangles.
@@ -609,6 +657,36 @@ enum GLTFLoader {
 
     // MARK: - Primitives
 
+    /// A primitive's `normalTexture`, resolved to the image it samples, its `scale` and the UV
+    /// set it wants. Split out of the material block below because the geometry needs it first —
+    /// see `buildPrimitive`.
+    private static func normalTextureInfo(of primitive: [String: Any],
+                                          materials: [[String: Any]],
+                                          textures: [[String: Any]])
+    -> (imageIndex: Int?, scale: Float, texCoord: Int)? {
+        guard let materialIndex = primitive["material"] as? Int,
+              materials.indices.contains(materialIndex),
+              let normal = materials[materialIndex]["normalTexture"] as? [String: Any]
+        else { return nil }
+
+        var imageIndex: Int?
+        if let textureIndex = normal["index"] as? Int, textures.indices.contains(textureIndex) {
+            imageIndex = textures[textureIndex]["source"] as? Int
+        }
+
+        // The UV transform is baked into the vertices, and it is baked from the *base colour's*
+        // transform. A normal map carrying its own would need a second baked set; no shipping
+        // asset has one, and a silent mis-sample is worse than a line in the log.
+        if let extensions = normal["extensions"] as? [String: Any],
+           extensions["KHR_texture_transform"] != nil {
+            Log.render("glTF: KHR_texture_transform on normalTexture is ignored")
+        }
+
+        return (imageIndex,
+                Float(normal["scale"] as? Double ?? 1),
+                normal["texCoord"] as? Int ?? 0)
+    }
+
     private static func buildPrimitive(_ primitive: [String: Any],
                                        transform: Float4x4,
                                        nodeName: String,
@@ -635,8 +713,39 @@ enum GLTFLoader {
             uvs = readAccessor(index, accessors: accessors, bufferViews: bufferViews, buffers: buffers)
         }
 
+        // **The normal map has to be resolved before the vertices are built**, because the
+        // material is what says which UV set the map — and therefore the tangent frame — lives
+        // in. Everything else about the material can wait until after the geometry.
+        let normalMapInfo = normalTextureInfo(of: primitive, materials: materials, textures: textures)
+
+        var normalUVs = uvs
+        if let texCoord = normalMapInfo?.texCoord, texCoord != 0 {
+            if let index = attributes["TEXCOORD_\(texCoord)"] as? Int,
+               let second = readAccessor(index, accessors: accessors,
+                                         bufferViews: bufferViews, buffers: buffers) {
+                normalUVs = second
+            } else {
+                // The material points at a set the mesh does not have. Sampling set 0 instead
+                // would drape a different part of the map over the surface, which reads as a
+                // texture bug rather than a missing one, so say it.
+                Log.render("glTF: normalTexture wants TEXCOORD_\(texCoord), which this primitive has not — sampling set 0")
+            }
+        }
+
+        // `TANGENT` is optional; seven of the nine normal-mapped props have one, `chair.glb` and
+        // `tennis_racquet.glb` do not. See `generateTangents` for what happens when it is absent.
+        var tangents: AccessorData?
+        if let index = attributes["TANGENT"] as? Int {
+            tangents = readAccessor(index, accessors: accessors, bufferViews: bufferViews, buffers: buffers)
+        }
+
         // Normals transform by the inverse transpose, so non-uniform node scales stay correct.
         let normalMatrix = transform.upperLeft3x3.inverse.transpose
+        // A tangent is not a normal: it lies *in* the surface, so it rides the plain transform.
+        let tangentMatrix = transform.upperLeft3x3
+        // A node with a negative scale mirrors the mesh, which swaps the handedness of every UV
+        // shell in it. Miss this and the bumps on a mirrored prop come out as dents.
+        let mirrored = simd_determinant(tangentMatrix) < 0
 
         var vertices: [MeshVertex] = []
         vertices.reserveCapacity(count)
@@ -657,9 +766,27 @@ enum GLTFLoader {
                 uv = uvs.vector2(at: i)
             }
 
+            var normalUV = uv
+            if let normalUVs, i * normalUVs.componentsPerElement < normalUVs.count {
+                normalUV = normalUVs.vector2(at: i)
+            }
+
+            var tangent = SIMD4<Float>.zero
+            if let tangents, i * tangents.componentsPerElement < tangents.count {
+                let t = tangents.vector4(at: i)
+                let baked = tangentMatrix * SIMD3(t.x, t.y, t.z)
+                let length = simd_length(baked)
+                if length > 1e-6 {
+                    let handedness: Float = (t.w < 0) != mirrored ? -1 : 1
+                    tangent = SIMD4(baked / length, handedness)
+                }
+            }
+
             vertices.append(MeshVertex(position: SIMD3(world.x, world.y, world.z),
                                        normal: normal,
-                                       uv: uv))
+                                       uv: uv,
+                                       normalUV: normalUV,
+                                       tangent: tangent))
         }
 
         var indices: [UInt32] = []
@@ -674,6 +801,12 @@ enum GLTFLoader {
         // If the file had no normals, derive flat ones so lighting still reads correctly.
         if normals == nil {
             recomputeNormals(vertices: &vertices, indices: indices)
+        }
+
+        // Only when there is a map to need them. A tangent frame on the other twelve models
+        // would be a few hundred thousand vertices of arithmetic that nothing ever reads.
+        if tangents == nil, normalMapInfo?.imageIndex != nil {
+            generateTangents(vertices: &vertices, indices: indices)
         }
 
         var materialName = ""
@@ -776,6 +909,9 @@ enum GLTFLoader {
                              roughness: roughness,
                              metalness: metalness,
                              imageIndex: imageIndex,
+                             normalImageIndex: normalMapInfo?.imageIndex,
+                             normalScale: normalMapInfo?.scale ?? 1,
+                             authoredTangents: tangents != nil,
                              uvTransform: uvTransform,
                              emissive: emissive,
                              emissiveImageIndex: emissiveImageIndex,

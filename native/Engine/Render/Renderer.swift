@@ -470,11 +470,13 @@ final class Renderer: NSObject, MTKViewDelegate {
         encoder.setCullMode(.front)
 
         props.drawShadowCasters(viewProjection: lighting.viewProjection, encoder: encoder,
-                                fallbackTexture: characters.fallbackTexture)
+                                fallbackTexture: characters.fallbackTexture,
+                                fallbackNormalTexture: characters.fallbackNormalTexture)
         primitives.drawShadowCasters(scenePrimitives,
                                      viewProjection: lighting.viewProjection,
                                      encoder: encoder,
-                                     fallbackTexture: characters.fallbackTexture)
+                                     fallbackTexture: characters.fallbackTexture,
+                                     fallbackNormalTexture: characters.fallbackNormalTexture)
         for pose in poses {
             characters.draw(pose: pose, viewProjection: lighting.viewProjection,
                             encoder: encoder, includeProps: false)
@@ -548,11 +550,13 @@ final class Renderer: NSObject, MTKViewDelegate {
             encoder.setFragmentSamplerState(samplerState, index: 1)
             encoder.setFragmentTexture(characters.fallbackTexture, index: 1)
             props.draw(viewProjection: viewProjection, encoder: encoder,
-                       fallbackTexture: characters.fallbackTexture)
+                       fallbackTexture: characters.fallbackTexture,
+                       fallbackNormalTexture: characters.fallbackNormalTexture)
             // A minigame's court is the ground for this frame, so it goes down before the
             // characters standing on it.
             primitives.draw(scenePrimitives, blended: false, viewProjection: viewProjection,
-                            encoder: encoder, fallbackTexture: characters.fallbackTexture)
+                            encoder: encoder, fallbackTexture: characters.fallbackTexture,
+                            fallbackNormalTexture: characters.fallbackNormalTexture)
         }
 
         drawCharacters(viewProjection: viewProjection, encoder: encoder, poses: poses)
@@ -567,7 +571,8 @@ final class Renderer: NSObject, MTKViewDelegate {
             encoder.setFragmentSamplerState(samplerState, index: 1)
             encoder.setFragmentTexture(characters.fallbackTexture, index: 1)
             props.draw(viewProjection: viewProjection, encoder: encoder,
-                       fallbackTexture: characters.fallbackTexture, transmissive: true)
+                       fallbackTexture: characters.fallbackTexture,
+                       fallbackNormalTexture: characters.fallbackNormalTexture, transmissive: true)
         }
 
         // A minigame's blended geometry — the ball's ground shadow, the aim marker — after the
@@ -579,7 +584,8 @@ final class Renderer: NSObject, MTKViewDelegate {
             encoder.setFragmentSamplerState(samplerState, index: 1)
             encoder.setFragmentTexture(characters.fallbackTexture, index: 1)
             primitives.draw(scenePrimitives, blended: true, viewProjection: viewProjection,
-                            encoder: encoder, fallbackTexture: characters.fallbackTexture)
+                            encoder: encoder, fallbackTexture: characters.fallbackTexture,
+                            fallbackNormalTexture: characters.fallbackNormalTexture)
         }
 
         // Overlays last, blended, ascending in depth.

@@ -151,6 +151,9 @@ final class GameState {
             mapData = newMap
             map.load(mapData: newMap)
             camera.zoom = newMap.default_zoom ?? 1
+            // Per-map, the same way zoom is: Detention is a room and wants a different angle
+            // from a campus. `camera_angle` is degrees in `maps.json`; absent means the default.
+            camera.pitch = newMap.cameraPitch ?? Camera.defaultPitch
             #if DEBUG
             if let override = WalkTest.zoomOverride { camera.zoom = override }
             #endif
@@ -341,6 +344,14 @@ final class GameState {
 
     func replaceObjects(_ newObjects: [WorldObject]) {
         objects = newObjects
+    }
+
+    /// The editor has just written this map's `camera_angle` and `default_zoom` to `maps.json`.
+    /// The bundled copy the app decoded at launch is now out of date, so the record in hand is
+    /// corrected rather than re-read — see `AdminSession.saveCameraView`.
+    func setMapCameraView(angle degrees: Double?, zoom: Double?) {
+        mapData?.camera_angle = degrees
+        mapData?.default_zoom = zoom
     }
 
     /// `npcs_update` — the server re-read `npc.json` (an admin edited it live).

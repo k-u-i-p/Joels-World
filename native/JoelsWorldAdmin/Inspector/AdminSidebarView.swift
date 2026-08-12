@@ -14,6 +14,11 @@ final class AdminSidebarView: NSView {
 
     private var overlaysCheckbox: NSButton!
 
+    private var cameraAngleSlider: ValueSlider!
+    private let cameraAngleLabel = AdminUI.label("0°")
+    private var zoomSlider: ValueSlider!
+    private let zoomLabel = AdminUI.label("1.00×")
+
     private let objectInspector = ObjectInspectorView()
     private let npcInspector = NPCInspectorView()
     private let eventEditor = EventEditorView()
@@ -107,6 +112,29 @@ final class AdminSidebarView: NSView {
             self?.map?.setOverlaysVisible(shown)
         }
 
+        // **How the camera stands on the map being edited — angle and zoom, per map.**
+        //
+        // 0° is straight down, the way the game used to look. Both sliders preview live as they
+        // are dragged; **Save view** writes them into that map's record in `maps.json` as
+        // `camera_angle` and `default_zoom`, which is what the game opens the map at. R/F and
+        // the scroll wheel move the same camera and the sliders follow them, so a view found by
+        // hand can be saved without touching a slider at all.
+        cameraAngleSlider = AdminUI.slider(range: 0...Camera.maxPitch * 180 / .pi) {
+            [weak self] degrees, _ in
+            self?.session?.setCameraPitch(degrees * .pi / 180)
+            self?.cameraAngleLabel.stringValue = Self.angleText(degrees: degrees)
+        }
+        // The editor's own scroll-wheel clamp (`applyZoom`), so the two agree.
+        zoomSlider = AdminUI.slider(range: 0.1...5) { [weak self] zoom, _ in
+            self?.session?.setCameraZoom(zoom)
+            self?.zoomLabel.stringValue = Self.zoomText(zoom)
+        }
+        let saveView = AdminUI.button("Save view") { [weak self] in
+            self?.session?.saveCameraView()
+        }
+        let cameraRow = AdminUI.row("Camera angle", [cameraAngleSlider, cameraAngleLabel])
+        let zoomRow = AdminUI.row("Zoom", [zoomSlider, zoomLabel, saveView])
+
         for view in [AdminUI.sectionTitle("Server"),
                      AdminUI.row("Host", [hostField]),
                      connectButton,
@@ -115,6 +143,8 @@ final class AdminSidebarView: NSView {
                      AdminUI.sectionTitle("Map"),
                      mapPopUp as NSView,
                      cursorLabel,
+                     cameraRow,
+                     zoomRow,
                      freezeNPCs,
                      overlaysCheckbox as NSView,
                      createRow,
@@ -158,6 +188,24 @@ final class AdminSidebarView: NSView {
     /// Follows the menu item, so the two controls never disagree about what is on screen.
     func setOverlaysVisible(_ visible: Bool) {
         overlaysCheckbox.state = visible ? .on : .off
+    }
+
+    /// Follows the camera rather than driving it, so the keys, the wheel and the sliders never
+    /// disagree about where it is standing.
+    func setCameraView(radians: Double, zoom: Double) {
+        let degrees = radians * 180 / .pi
+        cameraAngleSlider.reload(degrees)
+        cameraAngleLabel.stringValue = Self.angleText(degrees: degrees)
+        zoomSlider.reload(zoom)
+        zoomLabel.stringValue = Self.zoomText(zoom)
+    }
+
+    private static func angleText(degrees: Double) -> String {
+        "\(Int(degrees.rounded()))°"
+    }
+
+    private static func zoomText(_ zoom: Double) -> String {
+        String(format: "%.2f×", zoom)
     }
 
     func setCursor(x: Double, y: Double) {

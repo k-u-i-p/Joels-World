@@ -1,8 +1,13 @@
-# Handoff — imported characters, part 6: normal maps
+# Handoff — part 6: normal maps
 
-**Every one of the five characters shipped with a normal map, and the renderer was throwing it
-away.** Between them the five `.glb` files carry 2 MB of 2048² normal maps — roughly a third of
-their total size — and none of it reached the GPU. This reads them.
+**The models shipped with normal maps and the renderer was throwing them away.** All five
+characters have one, and so do nine of the props — `antique_desk.glb`, the most-placed prop in
+the game, has fourteen. Between them that is several megabytes of 2048² maps that never reached
+the GPU. This reads them, for characters and for props.
+
+The characters came first and are most of this document. **The props are at the bottom**, under
+"And then the same for the props" — read the characters first, because the props reuse every idea
+in them.
 
 Read [part 5](HANDOFF-imported-characters-part5.md) first for how a character gets on screen at
 all. This changes one thing about that: the fragment normal.
@@ -114,16 +119,122 @@ the other slots would decode to a 45° tilt, so this one is worth the four bytes
 
 ## What this does *not* do
 
-- **Rigid models still ignore normal maps.** `MeshVertex` has no room for a tangent and
-  `ModelStore` merges primitives into draw groups by material. Several props ship maps that are
-  still unread. Doing them is a bigger change than this was, and it is a fair next job.
 - **Metallic-roughness and occlusion maps are still ignored** on everything. Roughness and
   metalness remain single numbers per material.
-- **`KHR_texture_transform` on a normal map is not honoured**, and a normal map on a `texCoord`
-  other than 0 logs a warning and samples set 0 anyway. Neither happens in any shipping asset.
+- **`KHR_texture_transform` on a normal map is not honoured**, and a skinned character's normal
+  map on a `texCoord` other than 0 logs a warning and samples set 0 anyway. Neither happens on any
+  character. (Props *do* handle a second UV set — see below.)
 - **Cost**: one extra 2048² texture per resident model, and one texture sample plus a handful of
   ALU per character fragment. Not measured on device. The triangle budget from part 5 is still the
   thing to worry about, not this.
+
+---
+
+# And then the same for the props
+
+Nine of the twenty-one `.glb` files that are not characters carry a normal map:
+`ac_unit_2`, `antique_desk`, `banquet_table`, `chair`, `church_pew_bench`,
+`classic_park_bench_low_poly`, `low_poly_kids_playground`, `old_building` and `tennis_racquet`.
+
+The shader work was already done — a prop draws through the same `characterFragment`. What the
+props needed was somewhere to put a tangent, and four differences from the character case.
+
+## The four differences
+
+### 1. `MeshVertex` grew, and a second UV set came free
+
+Rigid geometry rides `MeshVertex`, which had no room for a tangent. It has one now, plus a second
+UV — and **the second UV costs nothing**. `uv` ends at byte 40 and a `float4` must start on a
+16-byte boundary, so bytes 40–48 were already dead space. `normalUV` lives there.
+
+The whole struct goes from 48 bytes to 64. Across every `.glb` on disk that is 832,000 vertices,
+so **13 MB if every model were resident at once** — they are not, but it is the honest ceiling and
+it is the one real cost of this change. Models with no normal map carry a zero tangent and are
+lit exactly as before.
+
+### 2. Most props already had tangents; two do not
+
+Seven of the nine were exported with `TANGENT`. `chair.glb` and `tennis_racquet.glb` were not, and
+fall through to the same generator the characters use — `generateTangents` is now generic over
+both vertex types rather than written twice, because the two things it gets quietly wrong (the
+Gram–Schmidt and the handedness) are exactly what would drift between two copies.
+
+Generation only runs when the material actually has a normal map. On the twelve models without
+one it would be a few hundred thousand vertices of arithmetic nothing ever reads.
+
+### 3. A prop's vertices are baked, so its tangents are baked too
+
+`GLTFPrimitive` bakes each node's transform into the vertices. The tangent is baked with them —
+by the plain upper-left 3×3, *not* the inverse transpose the normal uses, because a tangent lies
+in the surface rather than perpendicular to it. And if that transform has a negative determinant
+the node is mirrored, which flips the handedness of every UV shell in it; miss that and the bumps
+on a mirrored prop come out as dents.
+
+### 4. `banquet_table.glb` samples its normal map from a different UV set
+
+Its base colour is on `TEXCOORD_0` and its normal map on `TEXCOORD_1`, with `scale: 0.571`. That
+is what `normalUV` is for, and why the tangent frame is built from `normalUV` rather than `uv` —
+glTF ties tangent space to the normal texture's UV set, so an authored `TANGENT` is already in
+that set. It is the only asset in the tree that does this.
+
+## The merge key
+
+`ModelStore` collapses primitives into one draw group per (slot, colour, texture, …). The normal
+map and its scale had to join that key. Without them `antique_desk.glb`'s fourteen normal-mapped
+materials would collapse into whichever group they matched on colour, and thirteen of them would
+be drawn wearing the fourteenth's map.
+
+The texture cache is keyed by image **and colour space** for the same reason the character loader
+passes `.SRGB: false` — the same image could in principle be a base colour on one material and a
+normal map on another, and the two are different textures.
+
+## Where it lives
+
+| File | What changed |
+|---|---|
+| `Engine/Render/GLTFLoader.swift` | `MeshVertex.normalUV` / `.tangent`; `TangentFramed` so the generator serves both paths; `normalTextureInfo`; baking and mirror handling in `buildPrimitive`. |
+| `Engine/Render/ModelStore.swift` | Normal map and scale on `ModelGroup` and in the merge key; sRGB-off texture load; the per-model report. |
+| `Engine/Render/PropRenderer.swift` | Binds the map, sets the flag and the scale. |
+| `Engine/Render/CharacterRenderer.swift` | `drawMesh` takes a normal map, so the held racket gets one too. |
+| `Engine/Render/ScenePrimitiveRenderer.swift`, `Renderer.swift` | Thread the flat stand-in through to texture 4. |
+
+## What was checked, and what was not
+
+Verified by rendering, in the Mac map editor with `-shot`:
+
+```bash
+APP="$HOME/Library/Developer/Xcode/DerivedData/JoelsWorld-*/Build/Products/Debug/Joels World Map Editor.app/Contents/MacOS/Joels World Map Editor"
+"$APP" -shot /tmp/props.png -shotdelay 12 -at 1741 -620 -camzoom 3.2 -campitch 0.95
+```
+
+That frames the playground on Junior Campus. Off versus on, the roof ribs stand proud, the blue
+panels gain relief, the slide's segment rings shade and the climbing net gains depth — and nothing
+is inverted. `classic_park_bench_low_poly`, `ac_unit_2` and `old_building` are in the same frame.
+All four load with tangents from the file.
+
+**Five of the nine were not rendered.** `chair`, `banquet_table` and `church_pew_bench` are on
+Main Building, `antique_desk` on Detention, and no character on Junior Campus was holding a
+racket. The editor's `-map <id>` sends a change-map the server did not act on, so this harness
+reaches Junior Campus only. That leaves two code paths implemented but unseen: **generated
+tangents on a rigid mesh** (`chair`, `tennis_racquet`) and **the second UV set**
+(`banquet_table`). Both build; neither has been looked at. If a prop on those two maps looks
+wrong, start there.
+
+The load report says which route each model took, which is the quickest way in:
+
+```
+[Render] Model 'models/low_poly_kids_playground.glb': 2 primitives → 2 draw groups in 17 ms
+[Render]   normal maps on 2 of 2 groups, scale 1.00, tangents from the file
+```
+
+## Still not done
+
+- **Metallic-roughness and occlusion maps.** Unread on props as well as characters.
+- **No mipmaps on prop textures.** `ModelStore` has always loaded with `generateMipmaps: false`,
+  and the normal map follows suit. A prop seen from the overworld camera is small on screen, so
+  its map will alias. The base colour has the same problem and always has; fixing one should fix
+  both.
+- **`KHR_texture_transform` on a normal map** logs and is ignored. No asset does it.
 
 ## Checking it
 

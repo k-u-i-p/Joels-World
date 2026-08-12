@@ -152,19 +152,6 @@
     "scale": 1
   },
   {
-    "id": 51,
-    "shape": "3d_model",
-    "x": -2188,
-    "y": -1922,
-    "z": 105,
-    "alpha": 0.5,
-    "width": 100,
-    "length": 100,
-    "model": "models/junior_school_trees.glb",
-    "scale": 1,
-    "name": "Trees"
-  },
-  {
     "id": 67,
     "shape": "3d_model",
     "x": 1741,
@@ -315,6 +302,17 @@
     "rotation": 178
   },
   {
+    "id": 80,
+    "shape": "3d_model",
+    "x": -724,
+    "y": -165,
+    "length": 100,
+    "model": "models/fantasy_tree.glb",
+    "scale": 50,
+    "width": 100,
+    "z": -3
+  },
+  {
     "id": 90,
     "name": "School Rush",
     "shape": "rect",
@@ -330,6 +328,8 @@
           "type": "change_map",
           "map": 5
         }
+      }
+    ]
   },
   {
     "id": 91,
@@ -350,7 +350,5 @@
       }
     ],
     "rotation": 14
-      }
-    ]
   }
 ]

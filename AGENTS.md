@@ -61,7 +61,7 @@ This is where nearly all game design lives. Breaking something here is cheap and
 |---|---|
 | What NPCs say, their names, hair, clothes, where they stand and walk | `data/*/npc.json` |
 | Trigger zones, doors, walls, spawn points | `data/*/objects.json` |
-| Map names, zoom, spawn area, entry music | `data/maps.json` |
+| Map names, camera angle and zoom, spawn area, entry music | `data/maps.json` |
 | What the AI teachers know and how they behave | `data/*/agent_*.md` |
 | New sounds and images, once they're the right size | `assets/` |
 | Notes and docs | `README.md`, `native/PROGRESS.md`, this file |
@@ -76,6 +76,14 @@ One missing comma stops the whole game loading. Run it every time, before commit
 
 The Mac map editor is the friendlier way to move things around — it writes those same JSON
 files. Build and run instructions are in the README.
+
+**How the camera stands over each map** — how far it is tipped over, and how close in it is —
+is set in the editor's sidebar: the **Camera angle** and **Zoom** sliders under MAP, then
+**Save view**. That writes `camera_angle` (degrees off straight down; 0 is the old top-down
+look, 52 is the default) and `default_zoom` onto that map's record in `data/maps.json`, and it
+is what the game opens the map at. R/F tip the camera and the scroll wheel zooms; the sliders
+follow both, so a view found by hand can be saved without touching them. **The game only picks
+a saved view up on the next build**, because `maps.json` ships inside the app.
 
 ### 🟡 Amber — explain it to Joel first, then go ahead
 

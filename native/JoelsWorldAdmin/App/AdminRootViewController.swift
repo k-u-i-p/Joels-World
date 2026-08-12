@@ -55,6 +55,10 @@ final class AdminRootViewController: NSSplitViewController {
         mapController.onOverlayVisibilityChanged = { [weak self] visible in
             self?.sidebar.setOverlaysVisible(visible)
         }
+        mapController.onCameraChanged = { [weak self] pitch, zoom in
+            self?.sidebar.setCameraView(radians: pitch, zoom: zoom)
+        }
+        sidebar.setCameraView(radians: session.state.camera.pitch, zoom: session.state.camera.zoom)
         // The map's view loads before this wiring exists, so `-nooverlays` has already been
         // applied by now and the checkbox has to be caught up rather than told.
         sidebar.setOverlaysVisible(mapController.showsOverlays)
@@ -85,6 +89,8 @@ extension AdminRootViewController: AdminSessionDelegate {
         sidebar.reloadMaps()
         mapController.worldDidChange()
         sidebar.refreshAll()
+        // A map change loads that map's own angle and zoom, so the sliders are caught up.
+        sidebar.setCameraView(radians: session.state.camera.pitch, zoom: session.state.camera.zoom)
         applySelectionArgument()
         startSelfTestIfNeeded()
     }

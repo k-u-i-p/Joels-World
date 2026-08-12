@@ -46,6 +46,7 @@ final class AdminSelfTest {
         schedule(13.5) { self.testEventResaveIsClean() }
         schedule(14.0) { self.testEventCommitByID() }
         schedule(17.5) { self.testFreezeNPCs() }
+        schedule(18.5) { self.testCameraViewSave() }
         schedule(25.0) { self.testFilesRestored() }
         // After the byte-identity check, because it leaves the editor on a different map for
         // three seconds and the baselines were taken against this one.
@@ -171,12 +172,61 @@ final class AdminSelfTest {
         }
     }
 
-    /// The current map's two entity files, as `maps.json` names them.
+    /// **The camera view round-trip.** Tip the camera over, zoom in, save, and read `maps.json`
+    /// back off the disk to see both numbers land on *this* map's record and no other — the
+    /// sidebar's Save view button, minus the click. The file is put back from the baseline
+    /// afterwards, so `testFilesRestored` still expects it byte-identical.
+    private func testCameraViewSave() {
+        guard let directory = session.files.dataDirectory,
+              let mapId = session.state.mapData?.id,
+              let baseline = baselines["maps.json"]
+        else { return log("camera view: skipped, no baseline for maps.json") }
+
+        let startPitch = session.state.camera.pitch
+        let startZoom = session.state.camera.zoom
+        let startAngle = session.state.mapData?.camera_angle
+        let startDefaultZoom = session.state.mapData?.default_zoom
+        let degrees = 34.0
+        let zoom = 1.25
+
+        session.setCameraPitch(degrees * .pi / 180)
+        session.setCameraZoom(zoom)
+        let saved = session.saveCameraView()
+
+        let url = directory.appendingPathComponent("maps.json")
+        let records = (try? Data(contentsOf: url))
+            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [[String: Any]] } ?? []
+        let mine = records.first { $0["id"] as? Int == mapId }
+        let others = records.filter { $0["id"] as? Int != mapId }
+        let writtenAngle = mine?["camera_angle"] as? Double
+        let writtenZoom = mine?["default_zoom"] as? Double
+        let leaked = others.contains { $0["camera_angle"] as? Double == degrees }
+
+        let angleText: String = writtenAngle == nil ? "nothing" : String(Int(writtenAngle!))
+        let zoomText: String = writtenZoom == nil ? "nothing" : String(writtenZoom!)
+        let readBack: String = angleText + "°, zoom " + zoomText
+        var failures = ""
+        if !saved { failures += "  FAIL: the save was refused" }
+        if writtenAngle != degrees { failures += "  FAIL: maps.json does not carry the angle" }
+        if writtenZoom != zoom { failures += "  FAIL: maps.json does not carry the zoom" }
+        if leaked { failures += "  FAIL: the angle landed on another map too" }
+
+        log("camera view: saved \(Int(degrees))°, zoom \(zoom) to map \(mapId); "
+            + "read back \(readBack)\(failures)")
+
+        try? baseline.write(to: url, options: .atomic)
+        session.state.setMapCameraView(angle: startAngle, zoom: startDefaultZoom)
+        session.state.camera.pitch = startPitch
+        session.state.camera.zoom = startZoom
+    }
+
+    /// Every file the run may write: the current map's two entity files, as `maps.json` names
+    /// them, and `maps.json` itself, which the camera-angle step saves into.
     private func entityFilePaths() -> [String] {
         guard let mapId = session.state.mapData?.id, let map = WorldData.map(id: mapId) else {
             return []
         }
-        return [map.objects, map.npcs].compactMap { $0 }
+        return [map.objects, map.npcs].compactMap { $0 } + ["maps.json"]
     }
 
     /// The run creates an object, rewrites its event tree, deletes it again, and drags three
