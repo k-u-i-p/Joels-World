@@ -1842,3 +1842,38 @@ streams in, its bounds resolve, and across the demo's cut around all seven camer
 the three seconds that face it and culled on the fourteen that do not. **Wrongly-culled count over
 the whole run: zero.** The server-object path (`sync(objects:)` and `evictMapModels` on a map
 change) still needs a live login to exercise and was not re-run here.
+
+### Walking the campus, for the eviction path
+
+The pass above could not reach the server-object half of this — joining needs a name typed into
+the lobby, and this machine's Xcode ships no `Simulator.app`, so nothing can tap. `-autojoin` and
+`-map` already existed; what was missing was a way to *leave* a map, since `evictMapModels` runs
+on a map change and nothing else. Hence `-maptour <id,id,…>` and `-maptourhold <s>`.
+
+It has to force the change. The first lap otherwise ends in Detention and stays there: that map is
+`can_leave: false` and the server rejects an unforced request out of it
+(`ClientManager.js:199`) — which is the game working, and Mia saying "I can't believe I got
+caught" while it happened. The harness goes over the top of the rule rather than round it, and
+compiles out of release with the rest of the file.
+
+**Three full laps of Junior Campus → Main Building → Pool → Junior Campus, identical every time:**
+
+| | placements | distinct models | evicted on the way out |
+|---|---|---|---|
+| Junior Campus | 271 | 28 | 28, 0 still resident |
+| Main Building | 52 | 5 | 5, 0 still resident |
+| Pool | 0 | 0 | — (nothing map-scoped, so it early-returns) |
+
+Coming back to the campus re-streams all 28. Scene pass drew 10–47 of 271 depending on where the
+walk test was facing, shadow pass 111–160. **Wrongly-culled placements over the whole run: zero.**
+
+`phys_footprint` sits at ~240 MB on the campus and ~235 MB the moment it is left, rising back to
+~246 MB as the campus streams in again, and it does *not* climb lap over lap — which is the
+question eviction was there to answer. The 10 MB swing is smaller than the models' bytes because
+the GLBs are mapped files and the simulator's texture memory is not all in the app's footprint.
+
+**One branch this did not reach.** A parse still in flight when the map changes is meant to be
+thrown away by the generation counter. Tour intervals of 3 s and then 1 s never hit it: the
+campus's 28 models now finish streaming inside the server's own round-trip for the map change, so
+the eviction always lands on a quiet store. Nice to know, but it means the `stale` path is still
+reasoned-about rather than seen.
