@@ -37,6 +37,21 @@ enum Config {
     static var ssaoEnabled: Bool {
         !ProcessInfo.processInfo.arguments.contains("-nossao")
     }
+
+    /// `-nocull` draws every prop regardless of the frustum, the way `PropRenderer` did before
+    /// the culling went in, and `-propstats` prints once a second how many each pass drew and
+    /// skipped. Used together they are the only test that proves a culling change kept the
+    /// picture: the numbers alone say how much was skipped, not whether any of it should have
+    /// been drawn, and a screenshot alone cannot tell scenery that was culled wrongly from
+    /// scenery that was never there.
+    static var propCullingEnabled: Bool {
+        !ProcessInfo.processInfo.arguments.contains("-nocull")
+    }
+
+    static var propStatsEnabled: Bool {
+        ProcessInfo.processInfo.arguments.contains("-propstats")
+    }
+
     static var wsScheme: String { isLoopback ? "ws" : "wss" }
 
     static func websocketURL(state: String, token: String?) -> URL {

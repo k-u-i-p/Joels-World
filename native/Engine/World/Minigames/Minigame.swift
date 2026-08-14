@@ -56,7 +56,7 @@ extension WorldRenderedMinigame {
 /// The overworld gets its models from `WorldObject`s the server sends; a minigame has no server
 /// objects and no map, so it names them itself. `PropRenderer` draws both from the same list —
 /// the only thing this carries that a placed object does not is the choice below.
-struct SceneModel {
+struct SceneModel: Equatable {
     /// Relative to the asset root, e.g. `models/tennis_stadium.glb`.
     var path: String
     /// glTF is authored Y-up and this world is Z-up, so a placement almost always ends in

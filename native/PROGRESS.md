@@ -1758,3 +1758,87 @@ Three bugs came out of it, two of them the game's and one of them mine:
 With that fixed the same bot won 3–0 and claimed the badge, which is the first end-to-end
 confirmation of the badge path: `minigameAwardBadge` → `sendAwardBadge` → `Claiming badge:
 football` in the log.
+
+## Prop streaming, frustum culling, and giving the memory back on a map change
+
+Three things `PropRenderer` and `ModelStore` did not do: cull, stream, or ever let go.
+
+**Culling.** `Frustum` extracts the six clip planes from a view-projection matrix
+(Gribb–Hartmann, with Metal's `0 ≤ z ≤ w` near plane rather than OpenGL's), and `ModelStore` now
+unions each model's own-space bounds while `merge` is already walking every vertex. A placement
+resolves those into a world bounding sphere once its model arrives, and `draw` tests it against
+the frustum of *the matrix it is about to draw with* — so the scene pass culls against the camera
+and the shadow pass against the spotlight's cone, from one code path. Standing on the junior
+campus: **the scene pass draws 6–28 of 271 placements** depending on where you face; the shadow
+pass draws more, because the cone is wider than the view.
+
+**Streaming.** `ModelStore.maxConcurrentStreamedLoads` caps fire-and-forget loads at three, and
+`PropRenderer.updateStreaming` spends that budget nearest-the-player first. The file read moved
+onto the parse queue too — it was running on the frame's thread, 28 of them on the frame the
+campus opens.
+
+**Letting go.** Loads are tagged `.map` or `.session`; a map change evicts every `.map` model, so
+the campus's 28 are handed back on the way into the main building rather than held for the
+session. A parse still in flight when the map changes is discarded by generation counter instead
+of repopulating the cache with the map you just left. Only one model is `.session` — the tennis
+racket, which belongs to a character rather than to a map. Walking the campus ends at 29 resident:
+28 + the racket.
+
+**The bug worth writing down.** Streaming first skipped anything outside a radius of the camera.
+That is wrong, and wrong on exactly one map. A placement's distance has to be measured from
+something known *before* its model loads, which leaves only the point the editor placed it at —
+and `junior_school_buildings.glb` is a single placement covering the whole campus whose origin is
+nowhere near the middle of it. Under the radius test the school itself never loaded: you stood in
+a playground with no buildings, and walking about never fixed it, because the test does not change
+as you move. **Distance now decides what is asked for first, not whether it is asked for at all.**
+The stall this was written to fix comes from the count — 28 parses on one frame — and the budget
+is what fixes that.
+
+**How it was checked, because a culling change looks fine in a screenshot whether it works or
+not.** `-nocull` draws everything as before and `-propstats` prints the per-pass counts once a
+second (both in `Config`). Under `-propstats`, every culled placement whose *centre* projects
+inside the clip volume is reported — it cannot legitimately be culled, whatever its radius, so an
+inverted sign or a wrong row shows up immediately. Walking the campus across **48 distinct camera
+positions: zero.** Tennis was checked too: the stadium is one `SceneModel`, drawn, and correctly
+absent from the shadow pass.
+
+### A pass back over it
+
+The three above were built; this was the tidy-up, and it found one thing that mattered.
+
+**The budget was capping a queue that could only do one thing at a time.** `parseQueue` was
+serial, so `maxConcurrentStreamedLoads = 3` never bought three parses — it bought a queue three
+deep. It is `.concurrent` now, which is what the number always meant. `GLTFLoader` is static
+functions over their arguments, so nothing is shared. To keep the memory that implies honest, a
+parse now drops its primitive arrays before hopping to the main queue instead of carrying them
+across it — they are the big half, and `merge` has already copied what it needs.
+
+**The draw loop asked the model table about every placement.** 271 string-keyed lookups per pass,
+three passes. Each placement now remembers, from the frame its model arrived, whether it has
+anything opaque and anything transmissive; the table is consulted only for what survives culling.
+That is 6–28 lookups a pass instead of 271, and the transmissive sub-pass — which existed to draw
+a handful of glass materials — stops walking the other 269 to find them.
+
+**Two hot paths were building strings to compare things with.** `sync(objects:)` interpolated one
+string per object per frame to notice whether the server had sent anything new, and `merge` built
+one per primitive to key the group table. Both are structs now: `PlacementKey` and `GroupKey`.
+The second is the one worth keeping an eye on — a hand-built key is a key you can forget to add a
+field to, and that had already happened once (the normal map, thirteen desks wearing the
+fourteenth's).
+
+**A missing GLB now says so.** `school_bus.glb` is currently deleted in the working tree, and
+Five Nights places it. The old code marked it failed and said nothing, which reads exactly like a
+prop nobody placed — the stats line counts it as neither drawn nor culled either. One log line.
+
+Smaller: `ModelStore.load`'s completion-callback machinery was unused by everything except the
+`{ _ in }` `request` passed it, and dropped its waiters on the floor on both failure paths, so it
+is gone — `request` is the whole API and `inFlight` is a `Set`. `request` also does its lifetime
+bookkeeping before the already-loaded early-out, so a character asking for a model the map also
+placed still promotes it out of map scope. `Frustum.intersects` takes the centre in homogeneous
+and does six four-wide dots.
+
+Checked with `-fivenights -fivenightsdemo -propstats`, which needs no server: the playground
+streams in, its bounds resolve, and across the demo's cut around all seven cameras it is drawn on
+the three seconds that face it and culled on the fourteen that do not. **Wrongly-culled count over
+the whole run: zero.** The server-object path (`sync(objects:)` and `evictMapModels` on a map
+change) still needs a live login to exercise and was not re-run here.

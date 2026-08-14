@@ -353,6 +353,11 @@ final class Renderer: NSObject, MTKViewDelegate {
         if state.mapDidChange {
             textures.purge()
             props.clear()
+            // `props.clear()` drops the placements; this drops the geometry they pointed at.
+            // Without it every model any map ever placed stays resident for the session — the
+            // campus buildings still in memory while the player is in the pool. The next map's
+            // props stream back in from `updateStreaming` below.
+            modelStore.evictMapModels()
             primitives.clear()
             state.clearMapChangedFlag()
             // A minigame paints its own surround — the tennis court's grass green — in place of
@@ -381,6 +386,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         props.sync(objects: state.objects)
         props.sync(minigameModels: state.worldRenderedMinigame?.sceneModels ?? [])
+        // Asks for the models nearest the player, a few at a time, and resolves the bounds the
+        // passes below cull against. Has to run after both syncs and before any pass.
+        props.updateStreaming(camera: state.camera)
 
         // A minigame rebuilds its geometry every frame: the court is static but the ball is not,
         // and at this scale one array is cheaper than tracking what moved.
