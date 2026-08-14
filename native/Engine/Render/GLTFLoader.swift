@@ -46,6 +46,17 @@ struct GLTFPrimitive {
     var metalness: Float
     /// Index into `GLTFAsset.images`, if the material had a base-colour texture.
     var imageIndex: Int?
+    /// Index into `GLTFAsset.images` for `metallicRoughnessTexture` — the ORM packing glTF uses:
+    /// **G is roughness, B is metalness**, and each multiplies the factor of the same name.
+    ///
+    /// Load-bearing, not an optional refinement. A material that ships this map is entitled to
+    /// leave both factors off, and their spec default is **1** — so ignoring the map does not
+    /// mean "no map", it means every such surface is drawn *fully metallic and fully rough*.
+    /// `shadeStandard` computes `albedo · (1 − metalness)`, so the diffuse lobe of those
+    /// surfaces was exactly zero: the base colour texture contributed nothing at all and the
+    /// only light on them was one broad GGX highlight. That is 55 materials across 24 files —
+    /// the bus, the antique desk, every foliage trunk, the benches, the chair, the shed.
+    var metallicRoughnessImageIndex: Int?
     /// Index into `GLTFAsset.images` for `normalTexture`. Nine of the props carry one.
     var normalImageIndex: Int?
     /// `normalTexture.scale` — how hard the map is applied.
@@ -75,6 +86,14 @@ struct GLTFPrimitive {
     /// `KHR_materials_transmission`'s `transmissionFactor`. See `Shaders.metal` for what the
     /// renderer can and cannot do with it without a backdrop pass.
     var transmission: Float
+
+    /// `doubleSided`. glTF's default is **false** — back faces culled — but a leaf card is one
+    /// triangle pair with no thickness, so culling its reverse side deletes half the canopy.
+    /// Every foliage leaf material sets this.
+    var doubleSided: Bool = false
+    /// `alphaCutoff`, and 0 for any mode but `MASK`. `BLEND` is left alone: it goes through the
+    /// blend pipeline, where a partly-transparent texel is the point rather than a mistake.
+    var alphaCutoff: Float = 0
 }
 
 /// One vertex of a skinned mesh. Carries the two attributes `MeshVertex` has no room for.
@@ -814,6 +833,9 @@ enum GLTFLoader {
         var roughness: Float = 1
         var metalness: Float = 1
         var imageIndex: Int?
+        var metallicRoughnessImageIndex: Int?
+        var doubleSided = false
+        var alphaCutoff: Float = 0
         var uvTransform: (offset: SIMD2<Float>, scale: SIMD2<Float>, rotation: Float)?
         var emissive = SIMD3<Float>(0, 0, 0)
         var emissiveImageIndex: Int?
@@ -841,6 +863,12 @@ enum GLTFLoader {
                 }
                 if let factor = pbr["roughnessFactor"] as? Double { roughness = Float(factor) }
                 if let factor = pbr["metallicFactor"] as? Double { metalness = Float(factor) }
+                metallicRoughnessImageIndex = imageSource(of: pbr["metallicRoughnessTexture"])
+                // Sampled with the base colour's interpolated UV, like the normal map above it.
+                if let texCoord = (pbr["metallicRoughnessTexture"]
+                    as? [String: Any])?["texCoord"] as? Int, texCoord != 0 {
+                    Log.render("glTF: metallicRoughnessTexture wants TEXCOORD_\(texCoord); only set 0 is sampled")
+                }
                 if let texture = pbr["baseColorTexture"] as? [String: Any] {
                     imageIndex = imageSource(of: texture)
                     if let extensions = texture["extensions"] as? [String: Any],
@@ -853,6 +881,12 @@ enum GLTFLoader {
                         uvTransform = (offset, scale, rotation)
                     }
                 }
+            }
+
+            doubleSided = material["doubleSided"] as? Bool ?? false
+            if material["alphaMode"] as? String == "MASK" {
+                // glTF's default cutoff, which every foliage material overrides with 0.333.
+                alphaCutoff = Float(material["alphaCutoff"] as? Double ?? 0.5)
             }
 
             if let factor = material["emissiveFactor"] as? [Double], factor.count == 3 {
@@ -909,6 +943,7 @@ enum GLTFLoader {
                              roughness: roughness,
                              metalness: metalness,
                              imageIndex: imageIndex,
+                             metallicRoughnessImageIndex: metallicRoughnessImageIndex,
                              normalImageIndex: normalMapInfo?.imageIndex,
                              normalScale: normalMapInfo?.scale ?? 1,
                              authoredTangents: tangents != nil,
@@ -917,7 +952,9 @@ enum GLTFLoader {
                              emissiveImageIndex: emissiveImageIndex,
                              specularF0: specularF0,
                              specularIntensity: specularIntensity,
-                             transmission: transmission)
+                             transmission: transmission,
+                             doubleSided: doubleSided,
+                             alphaCutoff: alphaCutoff)
     }
 
     private static func recomputeNormals(vertices: inout [MeshVertex], indices: [UInt32]) {

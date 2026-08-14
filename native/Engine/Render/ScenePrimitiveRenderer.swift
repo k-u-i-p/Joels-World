@@ -97,6 +97,7 @@ final class ScenePrimitiveRenderer {
         encoder.setFragmentTexture(fallbackTexture, index: 3)
         // A scene primitive is a procedural shape with no maps at all — see `MeshFactory`.
         encoder.setFragmentTexture(fallbackNormalTexture, index: 4)
+        encoder.setFragmentTexture(fallbackTexture, index: 5)
         encoder.drawIndexedPrimitives(type: .triangle,
                                       indexCount: mesh.indexCount,
                                       indexType: .uint32,

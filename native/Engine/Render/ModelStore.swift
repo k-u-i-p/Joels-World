@@ -47,6 +47,10 @@ struct ModelGroup {
     var roughness: Float
     var metalness: Float
     var texture: MTLTexture?
+    /// The ORM map: G scales `roughness`, B scales `metalness`. See
+    /// `GLTFPrimitive.metallicRoughnessImageIndex` for why leaving this unsampled was not a
+    /// missing refinement but a material bug.
+    var metallicRoughnessTexture: MTLTexture?
     /// The glTF material extensions, resolved by `GLTFLoader`. Defaults here reproduce
     /// `MeshStandardMaterial` exactly, so a model using none of them renders as before.
     var surface: SurfaceExtensions
@@ -56,6 +60,11 @@ struct ModelGroup {
     var normalTexture: MTLTexture?
     /// `normalTexture.scale`.
     var normalScale: Float = 1
+    /// `doubleSided` — the draw turns culling off rather than leaving the pass's back-face cull
+    /// in place. A leaf card has no reverse side to hide.
+    var doubleSided: Bool = false
+    /// `alphaCutoff` for a `MASK` material, 0 otherwise.
+    var alphaCutoff: Float = 0
     var mesh: GPUMesh
 }
 
@@ -273,11 +282,21 @@ final class ModelStore {
                                                  roughness: key.roughness,
                                                  metalness: key.metalness,
                                                  texture: texture(key.imageIndex),
+                                                 // Linear, like the normal map: G and B are
+                                                 // material scalars, not a colour. Decoding
+                                                 // them as sRGB would darken both and make
+                                                 // every mapped surface read rougher and less
+                                                 // metallic than it was authored.
+                                                 metallicRoughnessTexture:
+                                                    texture(key.metallicRoughnessImageIndex,
+                                                            srgb: false),
                                                  surface: surface,
                                                  emissiveTexture: emissiveTexture,
                                                  normalTexture: texture(key.normalImageIndex,
                                                                         srgb: false),
                                                  normalScale: key.normalScale,
+                                                 doubleSided: key.doubleSided,
+                                                 alphaCutoff: key.alphaCutoff,
                                                  mesh: gpuMesh))
                     }
 
@@ -383,6 +402,12 @@ final class ModelStore {
         var emissiveImageIndex: Int?
         var normalImageIndex: Int?
         var normalScale: Float
+        var metallicRoughnessImageIndex: Int?
+        /// Both of these change *how the group is drawn*, not just how it is shaded, so they
+        /// have to split the group the same way a texture does — one cull mode and one cutoff
+        /// per draw call.
+        var doubleSided: Bool
+        var alphaCutoff: Float
     }
 
     private struct MergedGroup {
@@ -423,11 +448,16 @@ final class ModelStore {
                                    transmission: primitive.transmission),
                                emissiveImageIndex: primitive.emissiveImageIndex,
                                normalImageIndex: primitive.normalImageIndex,
-                               normalScale: primitive.normalScale)
+                               normalScale: primitive.normalScale,
+                               metallicRoughnessImageIndex: primitive.metallicRoughnessImageIndex,
+                               doubleSided: primitive.doubleSided,
+                               alphaCutoff: primitive.alphaCutoff)
             } else {
                 key = GroupKey(slot: slot, baseColor: SIMD4(1, 1, 1, 1), roughness: 1,
                                metalness: 0, imageIndex: nil, surface: .standard,
-                               emissiveImageIndex: nil, normalImageIndex: nil, normalScale: 1)
+                               emissiveImageIndex: nil, normalImageIndex: nil, normalScale: 1,
+                               metallicRoughnessImageIndex: nil,
+                               doubleSided: false, alphaCutoff: 0)
             }
 
             let index: Int

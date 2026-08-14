@@ -535,6 +535,9 @@ final class Renderer: NSObject, MTKViewDelegate {
         // texture bound. Only a character supplies a real one — it rebinds per draw; this flat
         // stand-in covers props, scene primitives and the frames before a model is resident.
         encoder.setFragmentTexture(characters.fallbackNormalTexture, index: 4)
+        // The same for the metallic-roughness map at texture 5. Only imported props carry one;
+        // white is the neutral value, since G and B multiply the material's own factors.
+        encoder.setFragmentTexture(characters.fallbackTexture, index: 5)
 
         let viewProjection = state.camera.viewProjection
         let chunks = state.map.visibleChunks(camera: state.camera)

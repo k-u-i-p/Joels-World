@@ -231,9 +231,10 @@ final class PropRenderer {
                            encoder: MTLRenderCommandEncoder,
                            fallbackTexture: MTLTexture,
                            fallbackNormalTexture: MTLTexture) {
+        // The shadow pass culls *front* faces, so that is what a single-sided prop restores to.
         draw(viewProjection: viewProjection, encoder: encoder,
              fallbackTexture: fallbackTexture, fallbackNormalTexture: fallbackNormalTexture,
-             transmissive: false, shadowCastersOnly: true)
+             transmissive: false, shadowCastersOnly: true, cullMode: .front)
     }
 
     /// Draws every prop whose model has finished loading and whose bounds reach the frustum.
@@ -242,16 +243,21 @@ final class PropRenderer {
     /// `transmissive` selects which half of the model to draw: opaque materials go through the
     /// scene pass, and anything with `KHR_materials_transmission` is left for the blended
     /// sub-pass that runs after the characters.
+    ///
+    /// `cullMode` is the mode the pass set up and the one this restores to: a double-sided
+    /// material turns culling off for its own draw and hands it straight back.
     func draw(viewProjection: Float4x4,
               encoder: MTLRenderCommandEncoder,
               fallbackTexture: MTLTexture,
               fallbackNormalTexture: MTLTexture,
               transmissive: Bool = false,
-              shadowCastersOnly: Bool = false) {
+              shadowCastersOnly: Bool = false,
+              cullMode: MTLCullMode = .back) {
         let frustum = Frustum(viewProjection: viewProjection)
         var drawn = 0
         var culled = 0
         var wronglyCulled = 0
+        var currentCull = cullMode
 
         forEachPlacement { placement in
             if shadowCastersOnly && !placement.castsShadow { return }
@@ -284,8 +290,20 @@ final class PropRenderer {
                     material: SurfaceMaterial(group: group),
                     emissiveTextured: group.emissiveTexture != nil,
                     normalTextured: group.normalTexture != nil,
-                    normalScale: group.normalScale
+                    normalScale: group.normalScale,
+                    metallicRoughnessTextured: group.metallicRoughnessTexture != nil,
+                    alphaCutoff: group.alphaCutoff
                 )
+
+                // `doubleSided`. Tracked rather than set every draw because a state change on
+                // the encoder is not free and one prop in twenty wants the non-default — and
+                // restored to the pass's own mode after, since the scene pass culls backs and
+                // the shadow pass culls fronts.
+                let wanted: MTLCullMode = group.doubleSided ? .none : cullMode
+                if wanted != currentCull {
+                    encoder.setCullMode(wanted)
+                    currentCull = wanted
+                }
 
                 encoder.setVertexBuffer(group.mesh.vertexBuffer, offset: 0, index: 0)
                 encoder.setVertexBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
@@ -293,6 +311,7 @@ final class PropRenderer {
                 encoder.setFragmentTexture(group.texture ?? fallbackTexture, index: 0)
                 encoder.setFragmentTexture(group.emissiveTexture ?? fallbackTexture, index: 3)
                 encoder.setFragmentTexture(group.normalTexture ?? fallbackNormalTexture, index: 4)
+                encoder.setFragmentTexture(group.metallicRoughnessTexture ?? fallbackTexture, index: 5)
                 encoder.drawIndexedPrimitives(type: .triangle,
                                               indexCount: group.mesh.indexCount,
                                               indexType: .uint32,
@@ -300,6 +319,10 @@ final class PropRenderer {
                                               indexBufferOffset: 0)
             }
         }
+
+        // Hand the pass its own cull mode back — characters and minigame geometry are drawn
+        // after this on the same encoder and expect it unchanged.
+        if currentCull != cullMode { encoder.setCullMode(cullMode) }
 
         // The transmissive sub-pass sees the same placements, so counting it would double the
         // scene figure. Left out.

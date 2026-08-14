@@ -98,6 +98,9 @@ struct CharacterUniforms {
     float4   specular;
     /// x = `KHR_materials_transmission`, yzw unused.
     float4   surface;
+    /// x = `alphaCutoff` — 0 for every mode but `MASK`, where a texel below it is discarded
+    /// outright rather than blended. y = a metallic-roughness map is bound at texture 5.
+    float4   extra;
 };
 
 // MARK: - Shadows
@@ -414,6 +417,7 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
                                     depth2d<float> shadowMap [[texture(2)]],
                                     texture2d<float> emissiveMap [[texture(3)]],
                                     texture2d<float> normalMap [[texture(4)]],
+                                    texture2d<float> metallicRoughnessMap [[texture(5)]],
                                     sampler baseSampler [[sampler(0)]],
                                     sampler clipSampler [[sampler(1)]],
                                     sampler shadowSampler [[sampler(2)]])
@@ -431,7 +435,25 @@ fragment SceneOut characterFragment(CharacterInOut in [[stage_in]],
     if (uniforms.flags.x > 0.5) {
         color *= baseColor.sample(baseSampler, in.uv);
     }
-    if (color.a <= 0.001) { discard_fragment(); }
+
+    // **`alphaMode: MASK`.** A leaf texture's alpha runs the whole way from 0 to 1 across the
+    // half-texel that bounds a leaf, and blending is switched off for this pass — so without a
+    // cutoff every one of those in-between texels was written at full opacity, over a base
+    // colour that is nearly black where the leaf is not. That is where the hard dark rind
+    // around every canopy and bush came from. glTF's own answer is a threshold, not a blend:
+    // below it the fragment does not exist at all. 0 for every other material, which leaves the
+    // old "fully transparent only" behaviour exactly where it was.
+    if (color.a < max(uniforms.extra.x, 0.0011)) { discard_fragment(); }
+
+    // **The metallic-roughness map**, glTF's ORM packing: G is roughness, B is metalness, and
+    // each multiplies the factor of the same name — which is why a material carrying this map
+    // is entitled to omit both factors and let them default to 1. Sampling it is what stops
+    // those materials being drawn as polished metal with no diffuse lobe at all.
+    if (uniforms.extra.y > 0.5) {
+        float4 orm = metallicRoughnessMap.sample(baseSampler, in.uv);
+        surfaceParams.x *= orm.g;
+        surfaceParams.y *= orm.b;
+    }
 
     // Clip-mask occlusion. 1:1 port of the GLSL injected into the three.js material at
     // characters.js:388-420 — march from this fragment towards the character's own pivot and

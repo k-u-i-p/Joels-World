@@ -22,6 +22,9 @@ struct CharacterUniforms {
     /// `normalTexture.scale`, w unused. `y` used to say the clothing atlas was bound at texture
     /// 0; the clothing atlas dressed the procedural body and went with it.
     var surface: SIMD4<Float>
+    /// x = `alphaCutoff` (0 for anything but a `MASK` material), y = a metallic-roughness map is
+    /// bound at texture 5, zw unused.
+    var extra: SIMD4<Float>
 }
 
 /// The `MeshStandardMaterial` parameters the rig is built from (`characters.js:771-778`),
@@ -62,7 +65,9 @@ extension CharacterUniforms {
          material: SurfaceMaterial,
          emissiveTextured: Bool = false,
          normalTextured: Bool = false,
-         normalScale: Float = 1) {
+         normalScale: Float = 1,
+         metallicRoughnessTextured: Bool = false,
+         alphaCutoff: Float = 0) {
         let extensions = material.extensions
         self.init(modelViewProjection: modelViewProjection,
                   model: model,
@@ -72,7 +77,8 @@ extension CharacterUniforms {
                                material.roughness, material.metalness),
                   emissive: SIMD4(extensions.emissive, emissiveTextured ? 1 : 0),
                   specular: SIMD4(extensions.specularF0, extensions.specularIntensity),
-                  surface: SIMD4(extensions.transmission, normalTextured ? 1 : 0, normalScale, 0))
+                  surface: SIMD4(extensions.transmission, normalTextured ? 1 : 0, normalScale, 0),
+                  extra: SIMD4(alphaCutoff, metallicRoughnessTextured ? 1 : 0, 0, 0))
     }
 }
 
@@ -484,6 +490,9 @@ final class CharacterRenderer {
             encoder.setFragmentTexture(outfit ?? body.baseColorTexture ?? whiteTexture, index: 0)
             encoder.setFragmentTexture(whiteTexture, index: 3)
             encoder.setFragmentTexture(body.normalTexture ?? flatNormalTexture, index: 4)
+            // No character model ships a metallic-roughness map — all five declare their
+            // factors outright. White leaves them untouched.
+            encoder.setFragmentTexture(whiteTexture, index: 5)
         }
         encoder.drawIndexedPrimitives(type: .triangle,
                                       indexCount: body.indexCount,
@@ -596,6 +605,7 @@ final class CharacterRenderer {
         encoder.setFragmentTexture(texture ?? whiteTexture, index: 0)
         encoder.setFragmentTexture(emissiveTexture ?? whiteTexture, index: 3)
         encoder.setFragmentTexture(normalTexture ?? flatNormalTexture, index: 4)
+        encoder.setFragmentTexture(whiteTexture, index: 5)
         encoder.drawIndexedPrimitives(type: .triangle,
                                       indexCount: mesh.indexCount,
                                       indexType: .uint32,
