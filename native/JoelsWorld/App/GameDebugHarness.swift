@@ -3,7 +3,7 @@ import Foundation
 
 /// The launch-argument verification harness: `-walktest`, `-npctrace`, `-uidemo`,
 /// `-emotedemo`, `-emote`, `-map`, `-tennisdemo`, `-tennistrace`, `-tennis3ddemo`,
-/// `-tennis3dtrace`, `-exitafter`, `-autojoin`, `-selftest`.
+/// `-tennis3dtrace`, `-exitafter`, `-autojoin`, `-selftest`, `-maptour`.
 ///
 /// `simctl` cannot inject touches, so every part of the game that a person would reach by
 /// tapping is reached from here instead — the dialogs open themselves, the emotes cycle, the
@@ -34,6 +34,7 @@ final class GameDebugHarness {
     private var footballDemoTimer: Timer?
     private var footballTraceTimer: Timer?
     private var fiveNightsDemoTimer: Timer?
+    private var mapTourTimer: Timer?
     /// True once `-tennis3ddrag` has sent its `.began`, so every tick after it is a `.changed` —
     /// which is what makes it a drag rather than a stream of separate grabs.
     private var tennis3DDragInProgress = false
@@ -123,6 +124,7 @@ final class GameDebugHarness {
         startEmoteDemo()
         startTennisTrace()
         requestInitialMap()
+        startMapTour()
         if EmoteDump.isEnabled { EmoteDump.run() }
     }
 
@@ -636,6 +638,27 @@ final class GameDebugHarness {
                 Log.world("uidemo: \(name)")
                 action()
             }
+        }
+    }
+
+    /// `-maptour <id,id,…>`: rounds those maps in turn, holding each one, so the map-change path
+    /// runs over and over without anyone walking to a door. What it is really exercising is the
+    /// *leaving* — `Renderer` calls `ModelStore.evictMapModels` on the way out, and nothing else
+    /// does.
+    private func startMapTour() {
+        guard let tour = WalkTest.mapTour, mapTourTimer == nil else { return }
+        var step = 0
+        mapTourTimer = Timer.scheduledTimer(withTimeInterval: WalkTest.mapTourHold,
+                                            repeats: true) { [weak self] timer in
+            guard let self else { return timer.invalidate() }
+            let mapId = tour[step % tour.count]
+            step += 1
+            Log.world("-maptour: stop \(step) — requesting map \(mapId)")
+            // Forced, or the tour ends its first lap in Detention: that map is `can_leave: false`
+            // and the server rejects an unforced request out of it (`ClientManager.js:199`). The
+            // rule is the game's and stands; this is a renderer harness and compiles out of
+            // release, so it goes over the top of it rather than round.
+            self.host.network.sendChangeMap(mapId, force: true)
         }
     }
 

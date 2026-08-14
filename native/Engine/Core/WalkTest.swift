@@ -105,6 +105,23 @@ final class WalkTest {
         argument("-map").flatMap(Int.init)
     }
 
+    /// `-maptour 2,3,1,0` asks for each of those maps in turn, on a loop. The point is the
+    /// *leaving*: a map change is the only thing that calls `ModelStore.evictMapModels`, and the
+    /// only other way to cause one is to walk into a trigger zone, which `simctl` cannot do. With
+    /// `-propstats` the resident-model count should fall back each time round.
+    static var mapTour: [Int]? {
+        guard let ids = argument("-maptour")?.split(separator: ",").compactMap({ Int($0) }),
+              !ids.isEmpty
+        else { return nil }
+        return ids
+    }
+
+    /// Seconds to hold each stop of `-maptour`, from `-maptourhold <s>`. The default is long
+    /// enough for a map to finish streaming at three models at a time.
+    static var mapTourHold: Double {
+        argument("-maptourhold").flatMap(Double.init) ?? 12
+    }
+
     /// `-footballdemo` plays your side of a football match without a thumb: it chases the ball
     /// and kicks it, through the same `setMoveInput` and `kick()` a stick and a button reach.
     static var playsFootball: Bool {
