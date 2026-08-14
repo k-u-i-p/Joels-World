@@ -39,6 +39,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// Premultiplied blend, for props carrying `KHR_materials_transmission`.
     private var characterTransmissivePipeline: MTLRenderPipelineState!
     private var shadowPipeline: MTLRenderPipelineState!
+    /// The `alphaMode: MASK` variant — see `shadowAlphaFragment`. Only foliage uses it.
+    private var shadowAlphaPipeline: MTLRenderPipelineState!
     private var ssaoPipeline: MTLRenderPipelineState!
     private var ssaoBlurPipeline: MTLRenderPipelineState!
     private var compositePipeline: MTLRenderPipelineState!
@@ -181,6 +183,13 @@ final class Renderer: NSObject, MTKViewDelegate {
         shadowDescriptor.fragmentFunction = nil
         shadowDescriptor.depthAttachmentPixelFormat = Self.depthFormat
 
+        // Same pass, same lack of colour attachments — but with a fragment stage, so a leaf's
+        // alpha can discard the fragment before it writes depth.
+        let shadowAlphaDescriptor = MTLRenderPipelineDescriptor()
+        shadowAlphaDescriptor.vertexFunction = library.makeFunction(name: "shadowAlphaVertex")
+        shadowAlphaDescriptor.fragmentFunction = library.makeFunction(name: "shadowAlphaFragment")
+        shadowAlphaDescriptor.depthAttachmentPixelFormat = Self.depthFormat
+
         let shadowSkinnedDescriptor = MTLRenderPipelineDescriptor()
         shadowSkinnedDescriptor.vertexFunction = library.makeFunction(name: "shadowSkinnedVertex")
         shadowSkinnedDescriptor.fragmentFunction = nil
@@ -196,6 +205,7 @@ final class Renderer: NSObject, MTKViewDelegate {
               let characterSkinned = makeScenePipeline(vertex: "characterSkinnedVertex",
                                                        fragment: "characterFragment", blended: false),
               let shadow = try? device.makeRenderPipelineState(descriptor: shadowDescriptor),
+              let shadowAlpha = try? device.makeRenderPipelineState(descriptor: shadowAlphaDescriptor),
               let shadowSkinned = try? device.makeRenderPipelineState(descriptor: shadowSkinnedDescriptor),
               let ssao = makePostPipeline(fragment: "ssaoFragment", format: Self.aoFormat),
               let ssaoBlur = makePostPipeline(fragment: "ssaoBlurFragment", format: Self.aoFormat),
@@ -211,6 +221,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         characterBlendPipeline = characterBlend
         characterTransmissivePipeline = characterTransmissive
         shadowPipeline = shadow
+        shadowAlphaPipeline = shadowAlpha
         // The body is skinned and everything attached to it is not, so the character renderer
         // needs both vertex functions to hand and has to switch between them mid-character.
         characters.pipelines = CharacterPipelines(rigid: character,
@@ -476,10 +487,15 @@ final class Renderer: NSObject, MTKViewDelegate {
         // (`shadowSide`), which is what keeps the lit surface itself off its own depth test.
         encoder.setFrontFacing(.counterClockwise)
         encoder.setCullMode(.front)
+        // Only `shadowAlphaFragment` reads this, and only for foliage — but the pass has one
+        // sampler table, so it is set once here rather than around each swap of the pipeline.
+        encoder.setFragmentSamplerState(linearSamplerState, index: 0)
 
         props.drawShadowCasters(viewProjection: lighting.viewProjection, encoder: encoder,
                                 fallbackTexture: characters.fallbackTexture,
-                                fallbackNormalTexture: characters.fallbackNormalTexture)
+                                fallbackNormalTexture: characters.fallbackNormalTexture,
+                                pipeline: shadowPipeline,
+                                alphaTestPipeline: shadowAlphaPipeline)
         primitives.drawShadowCasters(scenePrimitives,
                                      viewProjection: lighting.viewProjection,
                                      encoder: encoder,

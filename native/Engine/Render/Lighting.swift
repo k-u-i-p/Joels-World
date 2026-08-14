@@ -16,6 +16,8 @@ struct SceneUniforms {
     var shadowParams: SIMD4<Float>
     /// x = near, y = far, zw = viewport size in pixels.
     var cameraParams: SIMD4<Float>
+    /// xyz = the ambient scale on a straight-down-facing surface; the sky half is 1.
+    var ambientGround: SIMD4<Float>
 }
 
 /// Port of the light rig in `main.js:47-61` and its per-frame tracking at `main.js:613-616`.
@@ -29,6 +31,17 @@ struct SceneLighting {
     static let spotIntensity: Float = 2.0
     static let coneAngle: Float = .pi / 4
     static let penumbra: Float = 0.1
+
+    /// **The ground half of the hemisphere ambient.** `ambientIntensity` is the sky half and is
+    /// unchanged, so this is the only new number: what a surface facing straight down receives,
+    /// as a fraction. A vertical face — a wall, the side of a trunk — sits at the midpoint,
+    /// 0.72, which is the whole effect. The JS has no hemisphere light and this is a deliberate
+    /// departure from it; there is nothing in `main.js` to check this against.
+    ///
+    /// Very slightly warm, because a bounce off tarmac and grass is not the same white as the
+    /// sky. Small enough not to move the palette — set it to 1,1,1 to make it purely a
+    /// brightness ramp.
+    static let ambientGround = SIMD3<Float>(0.47, 0.45, 0.42)
 
     static let shadowMapSize = 1024
     static let shadowNear: Float = 1000
@@ -84,7 +97,8 @@ struct SceneLighting {
                                 Self.depthBias,
                                 shadowsEnabled ? 1 : 0,
                                 0),
-            cameraParams: SIMD4(camera.near, camera.far, viewport.x, viewport.y)
+            cameraParams: SIMD4(camera.near, camera.far, viewport.x, viewport.y),
+            ambientGround: SIMD4(Self.ambientGround, 0)
         )
     }
 }

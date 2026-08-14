@@ -71,6 +71,10 @@ struct SceneUniforms {
     float4   shadowParams;
     /// x = camera near, y = camera far, zw = viewport size in pixels.
     float4   cameraParams;
+    /// xyz = what the ambient term is scaled by on a surface facing straight *down*. The sky
+    /// half is 1, so a surface facing up is lit exactly as it was before this existed.
+    /// w unused.
+    float4   ambientGround;
 };
 
 struct DrawUniforms {
@@ -146,7 +150,19 @@ static float sampleShadow(constant SceneUniforms &scene,
 /// attenuation exactly 1 at every range — that is the "uniform map brightness" the comment
 /// there is describing, and it is why no falloff term appears here.
 struct LightSample {
-    float ambient;
+    /// **Hemisphere ambient.** This used to be one scalar — the same value on every surface,
+    /// whichever way it faced — and at 1.5 against a spot intensity of 2.0 it was most of the
+    /// light in the frame. That is what made everything look flat: a wall, a tree trunk and the
+    /// ground all received an identical, directionless 1.5, so nothing but the single spotlight
+    /// said anything about shape.
+    ///
+    /// three.js's `HemisphereLight` is the standard answer, and this is it: lerp between a
+    /// ground bounce and a sky value on `dot(normal, up) · 0.5 + 0.5`. The sky half is left at
+    /// exactly the old constant, so every up-facing surface — the ground planes, the roofs,
+    /// which is most of what a near-overhead camera sees — is unchanged, and only the vertical
+    /// and downward faces darken. It is a subtraction rather than an addition, so nothing can
+    /// blow out, and the normal map now perturbs the ambient term too.
+    float3 ambient;
     float direct;      ///< dotNL · intensity · spot attenuation · shadow
     float3 direction;  ///< unit vector from the surface towards the light
 };
@@ -157,7 +173,9 @@ static LightSample sampleLight(constant SceneUniforms &scene,
                                float shadow)
 {
     LightSample out;
-    out.ambient = scene.lightParams.x;
+    // Render space is Z-up: see `SceneLighting`, which parks the light at z = 1500.
+    float hemisphere = normal.z * 0.5 + 0.5;
+    out.ambient = scene.lightParams.x * mix(scene.ambientGround.xyz, float3(1.0), hemisphere);
 
     float3 lightDir = normalize(scene.lightPosition.xyz - worldPosition);
     out.direction = lightDir;
@@ -566,6 +584,48 @@ vertex float4 shadowVertex(uint vertexID [[vertex_id]],
                            constant CharacterUniforms &uniforms [[buffer(1)]])
 {
     return uniforms.modelViewProjection * float4(vertices[vertexID].position, 1.0);
+}
+
+/// **The alpha-tested half of the shadow pass**, for `alphaMode: MASK` materials only.
+///
+/// Every other caster goes through `shadowVertex` above with no fragment function at all, which
+/// is the GPU's depth-only fast path and worth keeping. But a leaf card is a rectangle whose
+/// leaf shape exists *only* in the alpha channel, and a depth-only pass cannot see an alpha
+/// channel — so each of those cards was stamping a solid rectangle into the shadow map. A tree
+/// laid a slab of shade under itself instead of dappling.
+///
+/// Two shaders rather than one branch, because the cost here is the existence of a fragment
+/// stage, not the work inside it: giving every caster a texture fetch to serve the fraction
+/// that needs it would slow the pass down for the ninety-odd per cent that do not.
+struct ShadowAlphaInOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+vertex ShadowAlphaInOut shadowAlphaVertex(uint vertexID [[vertex_id]],
+                                          const device MeshVertex *vertices [[buffer(0)]],
+                                          constant CharacterUniforms &uniforms [[buffer(1)]])
+{
+    ShadowAlphaInOut out;
+    out.position = uniforms.modelViewProjection * float4(vertices[vertexID].position, 1.0);
+    out.uv = vertices[vertexID].uv;
+    return out;
+}
+
+/// Writes no colour — the pass has no colour attachment. It exists only to `discard_fragment`,
+/// which is what keeps the depth write from happening.
+fragment void shadowAlphaFragment(ShadowAlphaInOut in [[stage_in]],
+                                  constant CharacterUniforms &uniforms [[buffer(1)]],
+                                  texture2d<float> baseColor [[texture(0)]],
+                                  sampler baseSampler [[sampler(0)]])
+{
+    float alpha = uniforms.color.a;
+    if (uniforms.flags.x > 0.5) {
+        alpha *= baseColor.sample(baseSampler, in.uv).a;
+    }
+    // The same threshold the scene pass uses, so the shadow's silhouette is the one that was
+    // actually drawn rather than a slightly different reading of the same texture.
+    if (alpha < max(uniforms.extra.x, 0.0011)) { discard_fragment(); }
 }
 
 /// The same, for the skinned body. A character casts the shadow of the pose it is actually in,

@@ -227,14 +227,20 @@ final class PropRenderer {
     /// `viewProjection` is the spotlight's, so the culling inside `draw` is against the light's
     /// cone. A prop outside it lands nowhere in the shadow map and can be skipped outright,
     /// which is a bigger saving than the scene pass gets: the cone is narrower than the view.
+    ///
+    /// `alphaTestPipeline` is swapped in for `MASK` materials and only those — a leaf's shape
+    /// lives in its alpha channel, which the depth-only pipeline cannot see.
     func drawShadowCasters(viewProjection: Float4x4,
                            encoder: MTLRenderCommandEncoder,
                            fallbackTexture: MTLTexture,
-                           fallbackNormalTexture: MTLTexture) {
+                           fallbackNormalTexture: MTLTexture,
+                           pipeline: MTLRenderPipelineState? = nil,
+                           alphaTestPipeline: MTLRenderPipelineState? = nil) {
         // The shadow pass culls *front* faces, so that is what a single-sided prop restores to.
         draw(viewProjection: viewProjection, encoder: encoder,
              fallbackTexture: fallbackTexture, fallbackNormalTexture: fallbackNormalTexture,
-             transmissive: false, shadowCastersOnly: true, cullMode: .front)
+             transmissive: false, shadowCastersOnly: true, cullMode: .front,
+             pipeline: pipeline, alphaTestPipeline: alphaTestPipeline)
     }
 
     /// Draws every prop whose model has finished loading and whose bounds reach the frustum.
@@ -252,12 +258,17 @@ final class PropRenderer {
               fallbackNormalTexture: MTLTexture,
               transmissive: Bool = false,
               shadowCastersOnly: Bool = false,
-              cullMode: MTLCullMode = .back) {
+              cullMode: MTLCullMode = .back,
+              pipeline: MTLRenderPipelineState? = nil,
+              alphaTestPipeline: MTLRenderPipelineState? = nil) {
         let frustum = Frustum(viewProjection: viewProjection)
         var drawn = 0
         var culled = 0
         var wronglyCulled = 0
         var currentCull = cullMode
+        // nil in the scene pass, where the pass's own pipeline is already the right one and
+        // masked materials are alpha-tested inside `characterFragment`.
+        var alphaTested = false
 
         forEachPlacement { placement in
             if shadowCastersOnly && !placement.castsShadow { return }
@@ -305,6 +316,16 @@ final class PropRenderer {
                     currentCull = wanted
                 }
 
+                // Same idea for the shadow pass's two pipelines: switch in the alpha-tested one
+                // for a masked material and switch straight back out.
+                if let pipeline, let alphaTestPipeline {
+                    let wantsAlphaTest = group.alphaCutoff > 0
+                    if wantsAlphaTest != alphaTested {
+                        encoder.setRenderPipelineState(wantsAlphaTest ? alphaTestPipeline : pipeline)
+                        alphaTested = wantsAlphaTest
+                    }
+                }
+
                 encoder.setVertexBuffer(group.mesh.vertexBuffer, offset: 0, index: 0)
                 encoder.setVertexBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
                 encoder.setFragmentBytes(&uniforms, length: MemoryLayout<CharacterUniforms>.stride, index: 1)
@@ -320,9 +341,10 @@ final class PropRenderer {
             }
         }
 
-        // Hand the pass its own cull mode back — characters and minigame geometry are drawn
-        // after this on the same encoder and expect it unchanged.
+        // Hand the pass its own cull mode and pipeline back — characters and minigame geometry
+        // are drawn after this on the same encoder and expect both unchanged.
         if currentCull != cullMode { encoder.setCullMode(cullMode) }
+        if alphaTested, let pipeline { encoder.setRenderPipelineState(pipeline) }
 
         // The transmissive sub-pass sees the same placements, so counting it would double the
         // scene figure. Left out.
