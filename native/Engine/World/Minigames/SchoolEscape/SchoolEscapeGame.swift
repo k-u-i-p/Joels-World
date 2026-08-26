@@ -38,6 +38,9 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         /// Speeds are map pixels per second, scaled up from the overworld's 216 in the same
         /// ratio as the bodies. You can outrun him — just — and he never stops walking.
         static let playerSpeed: Double = 400
+        /// Degrees per second the stick turns your head at full deflection. 170 felt like
+        /// wading — Joel: "you turn slower".
+        static let turnSpeed: Double = 300
         static let chaseSpeed: Double = 345
         static let patrolSpeed: Double = 170
         static let investigateSpeed: Double = 250
@@ -370,7 +373,10 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
             caughtFor += dt
             playerMotor.holdPosition()
             teacherMotor.holdPosition()
-            teacherMotor.setFacing(270)
+            // He looks straight at you, and in eyes mode you are made to look straight at
+            // him — the camera does that half of it.
+            teacherMotor.setFacing(atan2(playerMotor.y - teacherMotor.y,
+                                         playerMotor.x - teacherMotor.x) * 180 / .pi)
             stepMotors(dt: dt)
             if caughtFor >= Tuning.jumpscare { respawn() }
         case .escaped:
@@ -409,7 +415,7 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
             // First-person controls: push up to walk where you are looking, pull back to
             // back away, push sideways to turn your head. The stick's Y is screen-down, so
             // forward is its negative.
-            let facing = playerMotor.facing + moveInput.x * 170 * dt
+            let facing = playerMotor.facing + moveInput.x * Tuning.turnSpeed * dt
             playerMotor.setFacing(facing)
             let radians = facing * .pi / 180
             let throttle = -moveInput.y
@@ -709,10 +715,11 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         teacher.z = teacherMotor.z
         teacher.rotation = teacherMotor.facing
 
-        // In eyes mode your body is not drawn while you play — the camera is inside its head,
-        // and a rig seen from within is an eyeful of hair. It comes back for the jumpscare and
-        // the win, which are shots of the world with you in it.
-        if eyesMode, phase == .playing {
+        // In eyes mode your body is not drawn except for the win shot — the camera is inside
+        // its head, and a rig seen from within is an eyeful of hair. During the jumpscare the
+        // camera stays in your eyes with Mr Hardy filling them, so the body stays hidden then
+        // too.
+        if eyesMode, phase != .escaped {
             return [MinigameCharacter(character: teacher, gait: teacherMotor.gait,
                                       poseOverride: teacherMotor.poseOverride())]
         }
@@ -726,6 +733,12 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
 
     var scenePrimitives: [ScenePrimitive] {
         var out: [ScenePrimitive] = []
+        // The painted furniture's 3D bodies, and the roof — the roof only over your eyes,
+        // never over the win camera, which looks down from above it.
+        out += SchoolEscapeFurniture.primitives
+        if eyesMode, phase != .escaped {
+            out += SchoolEscapeMap.roof
+        }
         for (index, state) in keys.enumerated() where !state.collected {
             let bob = sin(elapsed * 2.4 + Double(index) * 1.7)
             out += SchoolEscapeMap.keyPrimitives(state.key, bob: bob)
@@ -755,7 +768,7 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         let viewportWidth = Double(viewport.x)
         guard viewportWidth > 0, Double(viewport.y) > 0 else { return }
 
-        if eyesMode, phase == .playing {
+        if eyesMode, phase != .escaped {
             // **First person, out of an orbit camera.** This camera cannot be placed — it
             // orbits a ground-level focus at a fixed distance (`viewport.h / 2·tan(fov/2)`)
             // and at `maxPitch` its eye happens to hang at ~122 units up: head height for
@@ -766,7 +779,12 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
             let orbitDistance = Double(viewport.y) / (2 * tan(Double(camera.fovDegrees)
                 * .pi / 180 / 2))
             let pitch = Double.pi / 2.1
-            let radians = playerMotor.facing * .pi / 180
+            // The jumpscare is first-person too: your head is snapped round to face him —
+            // he is inside arm's reach, so he *fills* your eyes — and the world shakes,
+            // hardest at the moment of the grab.
+            let radians = phase == .caught
+                ? atan2(teacherMotor.y - playerMotor.y, teacherMotor.x - playerMotor.x)
+                : playerMotor.facing * .pi / 180
             let ahead = sin(pitch) * orbitDistance
             camera.zoom = 0.6
             camera.pitch = pitch
@@ -777,10 +795,14 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
             // `Camera.update` biases its focus up the screen by 15% of visible height for
             // followed players; added back so the gaze stays level.
             let headroom = Double(viewport.y) / camera.zoom * 0.15
-            camera.update(playerX: playerMotor.x + cos(radians) * ahead,
-                          playerY: playerMotor.y + sin(radians) * ahead + headroom,
-                          viewport: viewport,
-                          mapData: nil)
+            var focusX = playerMotor.x + cos(radians) * ahead
+            var focusY = playerMotor.y + sin(radians) * ahead + headroom
+            if phase == .caught {
+                let shake = 55 * sin(caughtFor * 52) * max(0, 1 - caughtFor / 1.2)
+                focusX += -sin(radians) * shake
+                focusY += cos(radians) * shake
+            }
+            camera.update(playerX: focusX, playerY: focusY, viewport: viewport, mapData: nil)
             return
         }
 

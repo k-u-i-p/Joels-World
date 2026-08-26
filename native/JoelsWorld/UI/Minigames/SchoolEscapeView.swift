@@ -335,13 +335,14 @@ final class SchoolEscapeView: UIView {
             fade(chaseEdge, to: 0, rate: 6, dt: dt)
         }
 
-        // The flash slams on with the catch and burns off over the jumpscare.
+        // The flash slams on with the catch and burns off fast — Mr Hardy's face is the
+        // jumpscare now, and a screen full of red was hiding it.
         if game.isCaught {
             if !wasCaught {
                 wasCaught = true
-                scareFlash.alpha = 0.9
+                scareFlash.alpha = 0.55
             } else {
-                fade(scareFlash, to: 0, rate: 1.6, dt: dt)
+                fade(scareFlash, to: 0, rate: 3.2, dt: dt)
             }
         } else {
             wasCaught = false

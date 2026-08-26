@@ -207,6 +207,31 @@ enum SchoolEscapeMap {
         ]
     }
 
+    /// **The roof.** Joel's ask — with only night sky over the walls the school felt like a
+    /// film set. Four dark slabs at 212, just over the 201-unit walls, covering the wings
+    /// of the building and leaving the car park and gardens under open sky. `castsShadow`
+    /// stays false so a lid over the whole school does not black out the shadow map, and the
+    /// undersides read near-black on their own because the ambient knows they face down.
+    ///
+    /// Only drawn in eyes mode during play — the win camera looks down from above, and from
+    /// up there a roof is a school-shaped hole in the picture.
+    static let roof: [ScenePrimitive] = [
+        // West wing: office, storage, Ms Crosbie's room.
+        (SIMD2(-2146.0, -75.0), SIMD2(Float(1292), Float(2830))),
+        // Cafeteria and kitchen.
+        (SIMD2(1846.0, -960.0), SIMD2(Float(1892), Float(1060))),
+        // The toilets block.
+        (SIMD2(0.0, -755.0), SIMD2(Float(700), Float(650))),
+        // Central corridor and the south classrooms.
+        (SIMD2(646.0, 455.0), SIMD2(Float(4292), Float(1770))),
+    ].map { centre, size in
+        ScenePrimitive(shape: .box(width: size.x, height: size.y, depth: 16),
+                       transform: place(centre.x, centre.y, 212),
+                       color: parseHexColor("#17171c"),
+                       roughness: 1,
+                       castsShadow: false)
+    }
+
     /// The red ring under Mr Hardy while he is after you — the "he has seen you" telegraph.
     /// Fixed size, pulsing glow — same one-mesh-per-size rule as the door.
     static func alarmPrimitive(x: Double, y: Double, pulse: Double) -> ScenePrimitive {
