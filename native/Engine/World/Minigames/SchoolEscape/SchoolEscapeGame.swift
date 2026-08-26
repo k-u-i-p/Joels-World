@@ -33,20 +33,22 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         /// so the player shrank instead: small characters, a low eye, slow strides. Same
         /// corridors — but now they are avenues, the desks tower, and crossing the school is
         /// a journey. Everything in this block moved together for that.
-        static let characterSize: Double = 35
-        /// Mr Hardy stays half again your size.
+        /// 38.5 and 44 — Joel asked for "you" 10% bigger after the shrink.
+        static let characterSize: Double = 38.5
+        /// Mr Hardy stays about half again your size.
         static let teacherSize: Double = 55
         /// How high your eyes ride, in world units. A 2.5× pupil saw from 122.
-        static let eyeHeight: Double = 40
+        static let eyeHeight: Double = 44
 
-        /// Speeds are map pixels per second. Slower than before on purpose — a small person
-        /// takes longer to cross a big school, and that *is* the bigness.
-        static let playerSpeed: Double = 260
+        /// Map pixels per second — 390 is Joel's "50% faster" on the shrunken 260.
+        static let playerSpeed: Double = 390
         /// Degrees per second the stick turns your head at full deflection. Joel tried 170
         /// and 300 and asked for slower both times — a slow, deliberate look round is the
         /// horror-game feel he is after.
         static let turnSpeed: Double = 120
-        static let chaseSpeed: Double = 205
+        /// Raised alongside Joel's 50% player boost — at the old 205 against your 390 Mr
+        /// Hardy could never scare anybody again. Still slower than you.
+        static let chaseSpeed: Double = 330
         static let patrolSpeed: Double = 100
         static let investigateSpeed: Double = 150
 
@@ -153,8 +155,8 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
     private var mask: ClipMask?
 
     private let playerMotor = CharacterMotor(profile: LocomotionProfile(
-        maxSpeed: Tuning.playerSpeed, acceleration: 1400, braking: 2000,
-        turnRate: 540, strideLength: 66))
+        maxSpeed: Tuning.playerSpeed, acceleration: 1900, braking: 2700,
+        turnRate: 540, strideLength: 74))
     private let teacherMotor = CharacterMotor(profile: LocomotionProfile(
         maxSpeed: Tuning.chaseSpeed, acceleration: 900, braking: 1300,
         turnRate: 420, strideLength: 78))
