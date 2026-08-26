@@ -67,12 +67,10 @@ enum SchoolEscapeMap {
 
     // MARK: - The scene
 
-    /// Joel: "make it a lot bigger including walls" — then "make it 500% bigger". Everything
-    /// vertical is stretched by this: the walls, the roof height, the office door. The
-    /// footprints stay put — they have to keep matching the painted map and the clip mask —
-    /// so the school gets *taller*, which from inside a first-person camera is what bigger
-    /// feels like. At 5 the corridors are canyons.
-    static let tall: Float = 5
+    /// Vertical stretch on the walls, roof and office door. Modest again — the "500% bigger
+    /// school" is done by *shrinking the player* (see `Tuning.eyeHeight`), and against a
+    /// 40-unit eye even these walls are eight of you high.
+    static let tall: Float = 1.6
 
     /// Exactly the transform `PropRenderer` gives a placed object, so everything lands where
     /// the overworld draws it: position with Y negated, clockwise rotation negated, uniform
@@ -127,7 +125,7 @@ enum SchoolEscapeMap {
             guard let model = object.model else { continue }
             // The walls get the full vertical stretch; the placed furniture a gentler one,
             // so a chair grows without swallowing its painted footprint.
-            let stretch: Float = model.hasSuffix("walls.glb") ? tall : 1.5
+            let stretch: Float = model.hasSuffix("walls.glb") ? tall : 1
             out.append(SceneModel(path: model,
                                   transform: placed(object.x, object.y, z: object.z ?? 0,
                                                     rotation: object.rotation ?? 0,
@@ -161,12 +159,12 @@ enum SchoolEscapeMap {
     static func keyPrimitives(_ key: Key, bob: Double) -> [ScenePrimitive] {
         let color = parseHexColor(key.hex)
         return [
-            ScenePrimitive(shape: .sphere(radius: 22),
-                           transform: place(key.position.x, key.position.y, 62 + 14 * bob),
+            ScenePrimitive(shape: .sphere(radius: 14),
+                           transform: place(key.position.x, key.position.y, 34 + 8 * bob),
                            color: color,
                            unlit: true,
                            castsShadow: false),
-            ScenePrimitive(shape: .cylinder(radius: 38, height: 3),
+            ScenePrimitive(shape: .cylinder(radius: 30, height: 3),
                            transform: place(key.position.x, key.position.y, 3)
                                * Float4x4.rotationX(.pi / 2),
                            color: color,

@@ -29,24 +29,26 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
     // MARK: - Tuning
 
     enum Tuning {
-        /// Characters draw at 2.5× the rig, matching how big pupils look on the main building
-        /// overworld — carried on `width`/`height` (2.5 × the 40 baseline) rather than on the
-        /// map's `character_scale`, so `-schoolescape` with no map looks the same as map 8.
-        static let characterSize: Double = 100
-        /// Joel: "make everything bigger" — Mr Hardy most of all. He towers now.
-        static let teacherSize: Double = 150
+        /// **Joel: "make the school 500% bigger."** The building is painted and cannot grow,
+        /// so the player shrank instead: small characters, a low eye, slow strides. Same
+        /// corridors — but now they are avenues, the desks tower, and crossing the school is
+        /// a journey. Everything in this block moved together for that.
+        static let characterSize: Double = 35
+        /// Mr Hardy stays half again your size.
+        static let teacherSize: Double = 55
+        /// How high your eyes ride, in world units. A 2.5× pupil saw from 122.
+        static let eyeHeight: Double = 40
 
-        /// Speeds are map pixels per second, scaled up from the overworld's 216 in the same
-        /// ratio as the bodies. You can outrun him — just — and he never stops walking.
-        /// 440 — Joel asked for 10% faster on top of the original 400.
-        static let playerSpeed: Double = 440
+        /// Speeds are map pixels per second. Slower than before on purpose — a small person
+        /// takes longer to cross a big school, and that *is* the bigness.
+        static let playerSpeed: Double = 260
         /// Degrees per second the stick turns your head at full deflection. Joel tried 170
         /// and 300 and asked for slower both times — a slow, deliberate look round is the
         /// horror-game feel he is after.
         static let turnSpeed: Double = 120
-        static let chaseSpeed: Double = 345
-        static let patrolSpeed: Double = 170
-        static let investigateSpeed: Double = 250
+        static let chaseSpeed: Double = 205
+        static let patrolSpeed: Double = 100
+        static let investigateSpeed: Double = 150
 
         /// How far he can see, and how close counts as caught.
         ///
@@ -56,9 +58,9 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         /// cutting corridor corners, and four runs in a row died on the final key. A game a
         /// robot can never finish is not one a ten-year-old will love either.
         static let sightRange: Double = 850
-        static let catchRadius: Double = 62
-        static let keyRadius: Double = 80
-        static let chestRadius: Double = 130
+        static let catchRadius: Double = 42
+        static let keyRadius: Double = 60
+        static let chestRadius: Double = 100
 
         /// Seconds without a sighting before a chase becomes "go and look where they were".
         static let loseSightAfter: Double = 1.8
@@ -151,11 +153,11 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
     private var mask: ClipMask?
 
     private let playerMotor = CharacterMotor(profile: LocomotionProfile(
-        maxSpeed: Tuning.playerSpeed, acceleration: 2200, braking: 3200,
-        turnRate: 540, strideLength: 185))
+        maxSpeed: Tuning.playerSpeed, acceleration: 1400, braking: 2000,
+        turnRate: 540, strideLength: 66))
     private let teacherMotor = CharacterMotor(profile: LocomotionProfile(
-        maxSpeed: Tuning.chaseSpeed, acceleration: 1400, braking: 2000,
-        turnRate: 420, strideLength: 200))
+        maxSpeed: Tuning.chaseSpeed, acceleration: 900, braking: 1300,
+        turnRate: 420, strideLength: 78))
 
     private var playerAppearance: GameCharacter
     private var teacherAppearance: GameCharacter
@@ -781,7 +783,11 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
             // not the distance, so 0.6 just widens the view to a proper first-person field.
             let orbitDistance = Double(viewport.y) / (2 * tan(Double(camera.fovDegrees)
                 * .pi / 180 / 2))
-            let pitch = Double.pi / 2.1
+            // The eye hangs at `cos(pitch) · orbitDistance`, so the pitch is solved from the
+            // eye height we want rather than pinned at maxPitch — this is what makes the
+            // shrunken player *see* from down low, which is what makes the school huge.
+            let pitch = min(acos(min(1, Tuning.eyeHeight / orbitDistance)),
+                            .pi / 2 - 0.02)
             // The jumpscare is first-person too: your head is snapped round to face him —
             // he is inside arm's reach, so he *fills* your eyes — and the world shakes,
             // hardest at the moment of the grab.
