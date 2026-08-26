@@ -67,11 +67,12 @@ enum SchoolEscapeMap {
 
     // MARK: - The scene
 
-    /// Joel: "make it a lot bigger including walls." Everything vertical is stretched by
-    /// this: the walls, the roof height, the office door. The footprints stay put — they
-    /// have to keep matching the painted map and the clip mask — so the school gets *taller*,
-    /// which from inside a first-person camera is what bigger feels like.
-    static let tall: Float = 1.6
+    /// Joel: "make it a lot bigger including walls" — then "make it 500% bigger". Everything
+    /// vertical is stretched by this: the walls, the roof height, the office door. The
+    /// footprints stay put — they have to keep matching the painted map and the clip mask —
+    /// so the school gets *taller*, which from inside a first-person camera is what bigger
+    /// feels like. At 5 the corridors are canyons.
+    static let tall: Float = 5
 
     /// Exactly the transform `PropRenderer` gives a placed object, so everything lands where
     /// the overworld draws it: position with Y negated, clockwise rotation negated, uniform
@@ -126,7 +127,7 @@ enum SchoolEscapeMap {
             guard let model = object.model else { continue }
             // The walls get the full vertical stretch; the placed furniture a gentler one,
             // so a chair grows without swallowing its painted footprint.
-            let stretch: Float = model.hasSuffix("walls.glb") ? tall : 1.2
+            let stretch: Float = model.hasSuffix("walls.glb") ? tall : 1.5
             out.append(SceneModel(path: model,
                                   transform: placed(object.x, object.y, z: object.z ?? 0,
                                                     rotation: object.rotation ?? 0,
@@ -209,12 +210,14 @@ enum SchoolEscapeMap {
     static func doorPrimitives(closed: Double) -> [ScenePrimitive] {
         guard closed > 0.01 else { return [] }
         let rect = officeDoor
-        // Fully open it hangs out of sight above the wall tops; fully shut it sits on the floor.
-        let drop = 135 + (1 - closed) * 400
+        // Fully open it hangs out of sight above the wall tops; fully shut it sits on the
+        // floor. Its height rides `tall`, so it always fills the stretched doorway.
+        let doorHeight = Double(170 * tall)
+        let drop = doorHeight / 2 + (1 - closed) * (doorHeight + 120)
         return [
             ScenePrimitive(shape: .box(width: 26,
                                        height: Float(rect.maxY - rect.minY),
-                                       depth: 270),
+                                       depth: Float(doorHeight)),
                            transform: place(rect.centre.x, rect.centre.y, drop),
                            color: parseHexColor("#4a2c14")),
         ]
