@@ -67,12 +67,21 @@ enum SchoolEscapeMap {
 
     // MARK: - The scene
 
+    /// Joel: "make it a lot bigger including walls." Everything vertical is stretched by
+    /// this: the walls, the roof height, the office door. The footprints stay put — they
+    /// have to keep matching the painted map and the clip mask — so the school gets *taller*,
+    /// which from inside a first-person camera is what bigger feels like.
+    static let tall: Float = 1.6
+
     /// Exactly the transform `PropRenderer` gives a placed object, so everything lands where
     /// the overworld draws it: position with Y negated, clockwise rotation negated, uniform
-    /// scale, then the glTF Y-up → Z-up tip.
+    /// scale, then the glTF Y-up → Z-up tip. `stretch` scales world-height only — safe for
+    /// the walls because their side normals have no Z to distort.
     private static func placed(_ x: Double, _ y: Double, z: Double = 0,
-                               rotation: Double = 0, scale: Double = 1) -> Float4x4 {
+                               rotation: Double = 0, scale: Double = 1,
+                               stretch: Float = 1) -> Float4x4 {
         Float4x4.translation(SIMD3(Float(x), Float(-y), Float(z)))
+            * Float4x4.scale(SIMD3(1, 1, stretch))
             * Float4x4.rotationZ(Float(-rotation) * .pi / 180)
             * Float4x4.scale(SIMD3(repeating: Float(scale)))
             * Float4x4.rotationX(.pi / 2)
@@ -110,29 +119,33 @@ enum SchoolEscapeMap {
             SceneModel(path: "models/deer_thing.glb",
                        transform: Float4x4.translation(SIMD3(-2100, 1210, 0))
                            * Float4x4.rotationZ(2.2)
-                           * Float4x4.scale(SIMD3(repeating: 90))),
+                           * Float4x4.scale(SIMD3(repeating: 120))),
         ]
 
         for object in WorldData.objects(mapId: 2) where object.shape == "3d_model" {
             guard let model = object.model else { continue }
+            // The walls get the full vertical stretch; the placed furniture a gentler one,
+            // so a chair grows without swallowing its painted footprint.
+            let stretch: Float = model.hasSuffix("walls.glb") ? tall : 1.2
             out.append(SceneModel(path: model,
                                   transform: placed(object.x, object.y, z: object.z ?? 0,
                                                     rotation: object.rotation ?? 0,
-                                                    scale: object.scale ?? 1)))
+                                                    scale: object.scale ?? 1,
+                                                    stretch: stretch)))
         }
 
         for desk in paintedDesks {
             out.append(SceneModel(path: "models/desk.glb",
-                                  transform: placed(desk.x, desk.y, scale: 0.9)))
+                                  transform: placed(desk.x, desk.y, scale: 1.05)))
             out.append(SceneModel(path: "models/chair.glb",
-                                  transform: placed(desk.x, desk.y + 62)))
+                                  transform: placed(desk.x, desk.y + 62, scale: 1.15)))
         }
         // Ms Crosbie's own desk, side-on against the west wall, and Mr Hardy's in his office
         // — the same antique the detention room uses, sized for this map's smaller pupils.
         out.append(SceneModel(path: "models/desk.glb",
-                              transform: placed(-2615, 520, rotation: 90, scale: 0.9)))
+                              transform: placed(-2615, 520, rotation: 90, scale: 1.05)))
         out.append(SceneModel(path: "models/antique_desk.glb",
-                              transform: placed(-2190, -1070, scale: 150)))
+                              transform: placed(-2190, -1070, scale: 180)))
         return out
     }()
 
@@ -197,11 +210,11 @@ enum SchoolEscapeMap {
         guard closed > 0.01 else { return [] }
         let rect = officeDoor
         // Fully open it hangs out of sight above the wall tops; fully shut it sits on the floor.
-        let drop = 85 + (1 - closed) * 260
+        let drop = 135 + (1 - closed) * 400
         return [
             ScenePrimitive(shape: .box(width: 26,
                                        height: Float(rect.maxY - rect.minY),
-                                       depth: 170),
+                                       depth: 270),
                            transform: place(rect.centre.x, rect.centre.y, drop),
                            color: parseHexColor("#4a2c14")),
         ]
@@ -226,7 +239,7 @@ enum SchoolEscapeMap {
         (SIMD2(646.0, 455.0), SIMD2(Float(4292), Float(1770))),
     ].map { centre, size in
         ScenePrimitive(shape: .box(width: size.x, height: size.y, depth: 16),
-                       transform: place(centre.x, centre.y, 212),
+                       transform: place(centre.x, centre.y, Double(212 * tall)),
                        color: parseHexColor("#17171c"),
                        roughness: 1,
                        castsShadow: false)

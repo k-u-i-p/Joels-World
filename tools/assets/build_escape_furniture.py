@@ -38,24 +38,24 @@ EXTRA_PLACEMENTS = (
 
 # (region test, hex colour, box height) — first match wins, top to bottom.
 REGIONS = [
-    (lambda x, y: x > 1850 and y < -300, "#8f979c", 110),   # kitchen: steel counters
-    (lambda x, y: x < -1500 and y < -700, "#5d3f24", 150),  # office: dark wood shelves
+    (lambda x, y: x > 1850 and y < -300, "#8f979c", 140),   # kitchen: steel counters
+    (lambda x, y: x < -1500 and y < -700, "#5d3f24", 190),  # office: dark wood shelves
     (lambda x, y: -400 < x < 400 and y < -450, "#d8d8d8", 60),  # toilets: white china
-    (lambda x, y: -300 < y < 250, "#71512f", 55),           # corridors: benches
+    (lambda x, y: -300 < y < 250, "#71512f", 70),           # corridors: benches
 ]
-DEFAULT = ("#6b4a2a", 90)
+DEFAULT = ("#6b4a2a", 115)
 
 # Painted furniture that stands *against a wall* merges into the wall's blob in the mask
 # and cannot be found automatically, so the big pieces are placed by hand off the map
 # image: the kitchen's two counter runs, the office shelves, the reception desk's L, and
 # the toilets. (x, y, w, l, h, colour).
 HAND_PLACED = [
-    (1930, -665, 120, 550, 110, "#8f979c"),    # kitchen counter, left run
-    (2600, -725, 200, 650, 110, "#8f979c"),    # kitchen counter, right run (stoves)
-    (-2455, -1300, 200, 90, 150, "#5d3f24"),   # office shelves, top wall west
-    (-1800, -1300, 200, 90, 150, "#5d3f24"),   # office shelves, top wall east
-    (-780, -40, 380, 80, 85, "#6b4a2a"),       # reception desk, long side
-    (-940, 30, 80, 160, 85, "#6b4a2a"),        # reception desk, short side of the L
+    (1930, -665, 120, 550, 140, "#8f979c"),    # kitchen counter, left run
+    (2600, -725, 200, 650, 140, "#8f979c"),    # kitchen counter, right run (stoves)
+    (-2455, -1300, 200, 90, 190, "#5d3f24"),   # office shelves, top wall west
+    (-1800, -1300, 200, 90, 190, "#5d3f24"),   # office shelves, top wall east
+    (-780, -40, 380, 80, 105, "#6b4a2a"),       # reception desk, long side
+    (-940, 30, 80, 160, 105, "#6b4a2a"),        # reception desk, short side of the L
     (-250, -700, 64, 72, 55, "#d8d8d8"),       # left toilet
     (-95, -655, 64, 48, 75, "#d8d8d8"),        # left sink
     (75, -700, 64, 72, 55, "#d8d8d8"),         # right toilet

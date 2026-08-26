@@ -789,9 +789,9 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
                 ? atan2(teacherMotor.y - playerMotor.y, teacherMotor.x - playerMotor.x)
                 : playerMotor.facing * .pi / 180
             let ahead = sin(pitch) * orbitDistance
-            // 0.78, up from 0.6 — Joel: "make everything bigger." Zoom narrows the lens, and
-            // a narrower lens is what makes a corridor loom instead of receding.
-            camera.zoom = 0.78
+            // Back to a wide lens — "make it so you can see more". The bigness comes from
+            // the stretched walls and roof now, not from zooming in.
+            camera.zoom = 0.62
             camera.pitch = pitch
             camera.yaw = atan2(-cos(radians), -sin(radians))
             camera.springX = 0
