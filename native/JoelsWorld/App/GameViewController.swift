@@ -35,6 +35,7 @@ final class GameViewController: UIViewController {
     let schoolRush = SchoolRushView()
     let football = FootballView()
     let fiveNights = FiveNightsView()
+    let schoolEscape = SchoolEscapeView()
 
     #if DEBUG
     private(set) lazy var debug = GameDebugHarness(host: self)
@@ -124,7 +125,8 @@ final class GameViewController: UIViewController {
 
     private func setupOverlays() {
         // Bottom to top: world, the 2D minigame surface, nameplates, controls, HUD, dialogs.
-        for subview in [tennis, tennis3d, schoolRush, football, fiveNights, overlay, joystick,
+        for subview in [tennis, tennis3d, schoolRush, football, fiveNights, schoolEscape,
+                        overlay, joystick,
                         buttons, hud,
                         minimap, emotesDialog, badgesDialog, helpDialog, dialog, rejectedOverlay,
                         disconnectDialog, lobby] as [UIView] {
@@ -172,6 +174,7 @@ final class GameViewController: UIViewController {
             case let game as SchoolRushGame: game.requestExit()
             case let game as FootballGame: game.requestExit()
             case let game as FiveNightsGame: game.requestExit()
+            case let game as SchoolEscapeGame: game.requestExit()
             default: break
             }
         }
@@ -203,7 +206,8 @@ final class GameViewController: UIViewController {
         constraints += [buttonsBottomConstraint].compactMap { $0 }
 
         // Everything else is a full-screen layer.
-        for subview in [tennis, tennis3d, schoolRush, football, fiveNights, overlay, hud, minimap,
+        for subview in [tennis, tennis3d, schoolRush, football, fiveNights, schoolEscape,
+                        overlay, hud, minimap,
                         emotesDialog,
                         badgesDialog, helpDialog, dialog, rejectedOverlay, disconnectDialog,
                         lobby] as [UIView] {
@@ -268,6 +272,7 @@ final class GameViewController: UIViewController {
             schoolRush.step()
             football.step()
             fiveNights.step()
+            schoolEscape.step()
             return
         }
 

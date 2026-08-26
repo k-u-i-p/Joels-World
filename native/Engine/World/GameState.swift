@@ -254,6 +254,11 @@ final class GameState {
             minigame = game
             game.start()
             delegate?.gameStateDidStartMinigame(game)
+        case .schoolescape:
+            let game = SchoolEscapeGame(host: self, npcs: npcs, myCharacter: player.appearance)
+            minigame = game
+            game.start()
+            delegate?.gameStateDidStartMinigame(game)
         }
     }
 

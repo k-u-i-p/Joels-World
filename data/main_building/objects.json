@@ -735,5 +735,24 @@
         }
       }
     ]
+  },
+  {
+    "id": 71,
+    "shape": "rect",
+    "x": -1985,
+    "y": 690,
+    "width": 220,
+    "length": 170,
+    "clip": -1,
+    "name": "School Escape",
+    "on_enter": [
+      {
+        "show_dialog": {
+          "type": "change_map",
+          "map": 8,
+          "description": "Ms Crosbie: DETENTION! Stay behind after school... unless you can escape. Play School Escape?"
+        }
+      }
+    ]
   }
 ]

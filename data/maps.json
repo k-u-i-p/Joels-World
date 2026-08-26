@@ -90,7 +90,8 @@
           "volume": 0.2
         }
       }
-    ]
+    ],
+    "camera_angle": 13
   },
   {
     "id": 3,
@@ -159,6 +160,12 @@
     "id": 7,
     "name": "Five Nights",
     "import": "/src/minigames/fivenights.js",
+    "default_zoom": 1
+  },
+  {
+    "id": 8,
+    "name": "School Escape",
+    "import": "/src/minigames/schoolescape.js",
     "default_zoom": 1
   }
 ]

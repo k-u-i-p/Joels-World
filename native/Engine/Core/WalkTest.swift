@@ -139,6 +139,18 @@ final class WalkTest {
         ProcessInfo.processInfo.arguments.contains("-schoolrushdemo")
     }
 
+    /// `-schoolescapedemo` plays School Escape without a thumb: it beelines for the nearest
+    /// missing key and then the chest, through the same `setMoveInput` the stick reaches.
+    static var playsSchoolEscape: Bool {
+        ProcessInfo.processInfo.arguments.contains("-schoolescapedemo")
+    }
+
+    /// `-schoolescapetrace` logs one line a second: where you and Mr Hardy are, his state, the
+    /// keys held and the door timer.
+    static var tracesSchoolEscape: Bool {
+        ProcessInfo.processInfo.arguments.contains("-schoolescapetrace")
+    }
+
     /// `-schoolrushtrace` logs one line a second: distance, lane, pace, lives and what is next.
     static var tracesSchoolRush: Bool {
         ProcessInfo.processInfo.arguments.contains("-schoolrushtrace")

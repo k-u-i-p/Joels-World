@@ -34,6 +34,8 @@ final class GameDebugHarness {
     private var footballDemoTimer: Timer?
     private var footballTraceTimer: Timer?
     private var fiveNightsDemoTimer: Timer?
+    private var schoolEscapeDemoTimer: Timer?
+    private var schoolEscapeTraceTimer: Timer?
     private var mapTourTimer: Timer?
     /// True once `-tennis3ddrag` has sent its `.began`, so every tick after it is a `.changed` —
     /// which is what makes it a drag rather than a stream of separate grabs.
@@ -74,15 +76,24 @@ final class GameDebugHarness {
     ///
     /// Returns true when it took over, so `viewDidLoad` knows not to connect.
     func startOfflineMinigameIfRequested() -> Bool {
-        guard ProcessInfo.processInfo.arguments.contains("-fivenights") else { return false }
-        Log.world("-fivenights: starting the night watch with no server")
-        let game = FiveNightsGame(host: host.state, npcs: [], myCharacter: nil)
-        host.state.startToolScene(game)
-        // `startToolScene` starts the simulation but knows nothing about the HUD, so the screen
-        // furniture is raised by hand — the same call the real map change makes.
-        host.gameStateDidStartMinigame(game)
-        startFiveNightsDemo(game)
-        return true
+        if ProcessInfo.processInfo.arguments.contains("-fivenights") {
+            Log.world("-fivenights: starting the night watch with no server")
+            let game = FiveNightsGame(host: host.state, npcs: [], myCharacter: nil)
+            host.state.startToolScene(game)
+            // `startToolScene` starts the simulation but knows nothing about the HUD, so the
+            // screen furniture is raised by hand — the same call the real map change makes.
+            host.gameStateDidStartMinigame(game)
+            startFiveNightsDemo(game)
+            return true
+        }
+        if ProcessInfo.processInfo.arguments.contains("-schoolescape") {
+            Log.world("-schoolescape: starting the night escape with no server")
+            let game = SchoolEscapeGame(host: host.state, npcs: [], myCharacter: nil)
+            host.state.startToolScene(game)
+            host.gameStateDidStartMinigame(game)
+            return true
+        }
+        return false
     }
 
     /// `-fivenightsdemo`: flips through all seven cameras, then the office, then drops the
@@ -163,6 +174,11 @@ final class GameDebugHarness {
             startFootballTrace(game)
             startExitTimer { [weak game] in game?.requestExit() }
         }
+        if let game = minigame as? SchoolEscapeGame {
+            startSchoolEscapeDemo(game)
+            startSchoolEscapeTrace(game)
+            startExitTimer { [weak game] in game?.requestExit() }
+        }
         if let game = minigame as? Tennis3DGame {
             start3DTennisDemo(game)
             start3DTennisTapDemo(game)
@@ -177,10 +193,13 @@ final class GameDebugHarness {
         for timer in [tennisDemoTimer, tennisExitTimer, tennis3DDemoTimer, tennis3DTapTimer,
                       tennis3DDragTimer, tennis3DHitTestTimer, tennis3DTraceTimer,
                       schoolRushDemoTimer, schoolRushTraceTimer,
-                      footballDemoTimer, footballTraceTimer, fiveNightsDemoTimer] {
+                      footballDemoTimer, footballTraceTimer, fiveNightsDemoTimer,
+                      schoolEscapeDemoTimer, schoolEscapeTraceTimer] {
             timer?.invalidate()
         }
         fiveNightsDemoTimer = nil
+        schoolEscapeDemoTimer = nil
+        schoolEscapeTraceTimer = nil
         schoolRushDemoTimer = nil
         schoolRushTraceTimer = nil
         footballDemoTimer = nil
@@ -223,6 +242,40 @@ final class GameDebugHarness {
                 Log.world("-schoolrushdemo: run over — restarting in 3 s to check the panel")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { game.restartRun() }
             }
+        }
+    }
+
+    /// `-schoolescapedemo`: collects the keys and opens the chest without a thumb.
+    ///
+    /// It drives `setMoveInput` — the one thing the stick drives — so what it proves is that a
+    /// thumb could do it. It knows nothing about Mr Hardy: being caught loses it a key and it
+    /// simply goes back, which exercises the jumpscare, the respawn and the re-fetch in one run.
+    /// It restarts once after the escape, to show the panel's button leaves a playable game.
+    private func startSchoolEscapeDemo(_ game: SchoolEscapeGame) {
+        guard WalkTest.playsSchoolEscape, schoolEscapeDemoTimer == nil else { return }
+        Log.world("-schoolescapedemo: making a run for it")
+        game.debugDrivesInput = true
+        var hasRestarted = false
+
+        schoolEscapeDemoTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) {
+            [weak game] _ in
+            guard let game else { return }
+            game.debugStep()
+
+            if game.phase == .escaped, !hasRestarted {
+                hasRestarted = true
+                Log.world("-schoolescapedemo: escaped — restarting in 4 s to check the panel")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { game.restartRun() }
+            }
+        }
+    }
+
+    private func startSchoolEscapeTrace(_ game: SchoolEscapeGame) {
+        guard WalkTest.tracesSchoolEscape, schoolEscapeTraceTimer == nil else { return }
+        schoolEscapeTraceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
+            [weak game] _ in
+            guard let game else { return }
+            Log.world(game.debugTraceLine)
         }
     }
 

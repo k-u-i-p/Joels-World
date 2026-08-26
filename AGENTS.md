@@ -26,10 +26,11 @@ A top-down multiplayer school. You play a pupil at St Peters. The loop:
 
 The badges are fixed in code today —
 [MenuDialogs.swift:63](native/JoelsWorld/UI/MenuDialogs.swift:63): rugby, tennis, swimming,
-tig, good friend, tower defence, detention, school rush, football, five nights. **Four of the ten
+tig, good friend, tower defence, detention, school rush, football, five nights. **Five of the ten
 are actually winnable**: tennis
 ([Tennis3DGame+Rules.swift:215](native/Engine/World/Minigames/Tennis3D/Tennis3DGame+Rules.swift:215)),
-School Rush at 400 m, football by winning a match 3–x, and Five Nights by surviving all five.
+School Rush at 400 m, football by winning a match 3–x, Five Nights by surviving all five, and
+detention by escaping School Escape (below).
 
 Tennis is the 3D rebuild now; the old 2D one is still in the tree behind `-tennis2d`. Seven handoff
 notes explain how it works, starting at
@@ -48,6 +49,15 @@ building needs a deploy before anyone but a developer can get in. Until then it 
 **Football** is the shortest read: one handoff,
 [HANDOFF-football.md](native/HANDOFF-football.md). Five a side, first to three, and — unlike the
 others — a whole team of AI on your side as well as against you.
+
+**School Escape** is Joel's second own idea, planned by drawing on the night version of the main
+building map: detention ran late, four keys are hidden round the dark school, the chest by the
+south corridor opens with all four, and **Mr Hardy roams the corridors** — seen means chased,
+caught means a jumpscare and the last key handed back. It plays on the *real* main building
+(the overworld's own walls and collision mask), awards the previously-unwinnable **detention**
+badge, and one handoff explains it: [HANDOFF-schoolescape.md](native/HANDOFF-schoolescape.md).
+Like Five Nights, **map 8 is in the app but not on the server yet** — `-schoolescape` on the
+simulator until Ben deploys.
 
 The rest of the storyline is **not written yet**. Graduation and escape are the goal, but how
 you get there is open. If Joel invents story, that's the point — it's his game. Write it down
@@ -224,5 +234,10 @@ done. Running it in the simulator to actually see the change is better still.
 
 ## Story so far
 
-*Fill this in as Joel decides things. Right now: the badges exist, tennis is winnable, and
-graduation is undesigned.*
+*Fill this in as Joel decides things. Right now: the badges exist, five of ten are winnable,
+and graduation is undesigned.*
+
+- **Detention is escapable.** Ms Crosbie hands out the detention (the trigger next to her in
+  the main building starts School Escape); Mr Hardy is the one prowling the school at night,
+  and his office — with the green key and Joel's deer thing standing guard — is where he tries
+  to lock you in. Escaping earns the detention badge.
