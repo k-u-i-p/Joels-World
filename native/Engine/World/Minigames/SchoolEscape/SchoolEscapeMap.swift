@@ -67,26 +67,74 @@ enum SchoolEscapeMap {
 
     // MARK: - The scene
 
-    /// The night background as the ground, the real walls on top, and Joel's deer thing
-    /// standing guard in Mr Hardy's office.
+    /// Exactly the transform `PropRenderer` gives a placed object, so everything lands where
+    /// the overworld draws it: position with Y negated, clockwise rotation negated, uniform
+    /// scale, then the glTF Y-up → Z-up tip.
+    private static func placed(_ x: Double, _ y: Double, z: Double = 0,
+                               rotation: Double = 0, scale: Double = 1) -> Float4x4 {
+        Float4x4.translation(SIMD3(Float(x), Float(-y), Float(z)))
+            * Float4x4.rotationZ(Float(-rotation) * .pi / 180)
+            * Float4x4.scale(SIMD3(repeating: Float(scale)))
+            * Float4x4.rotationX(.pi / 2)
+    }
+
+    /// Desks that are only *painted* on the floor — flat nonsense at eye height, which is
+    /// where Joel's first-person camera lives. A real desk and chair stand on each painted
+    /// one: Ms Crosbie's room (3 × 4 plus her own desk) and the middle classroom (3 × 3).
+    /// The east classrooms and the cafeteria already have real furniture in
+    /// `objects.json`, drawn below.
+    private static let paintedDesks: [SIMD2<Double>] = {
+        var desks: [SIMD2<Double>] = []
+        for y in [550.0, 730, 900, 1075] {
+            for x in [-2410.0, -2245, -2075] { desks.append(SIMD2(x, y)) }
+        }
+        for y in [555.0, 730, 905] {
+            for x in [-915.0, -705, -495] { desks.append(SIMD2(x, y)) }
+        }
+        return desks
+    }()
+
+    /// The night background as the ground, every 3D prop the overworld places on this map
+    /// (walls included), real furniture over the painted desks, and Joel's deer thing standing
+    /// guard in Mr Hardy's office.
     ///
-    /// The ground model is authored directly in render space (see the build script), so it takes
-    /// an identity transform. The walls take exactly the transform `PropRenderer` gives object
-    /// id 18 in `data/main_building/objects.json` — same numbers, same result as the overworld.
-    static let sceneModels: [SceneModel] = [
-        SceneModel(path: "main_building/night_ground.glb",
-                   transform: Float4x4.translation(SIMD3(0, 0, 0))),
-        SceneModel(path: "main_building/walls.glb",
-                   transform: Float4x4.translation(SIMD3(-2793, 1539, 0))
-                       * Float4x4.rotationX(.pi / 2)),
-        // The deer thing, in the corner of Mr Hardy's office, watching the green key. Its
-        // Sketchfab root already stands it up (they bake their own Y-up fix in), so unlike a
-        // raw glTF it takes no `rotationX(.pi / 2)` — with one it lay flat on its side.
-        SceneModel(path: "models/deer_thing.glb",
-                   transform: Float4x4.translation(SIMD3(-2100, 1210, 0))
-                       * Float4x4.rotationZ(2.2)
-                       * Float4x4.scale(SIMD3(repeating: 90))),
-    ]
+    /// The ground model is authored directly in render space (see the build script), so it
+    /// takes an identity transform.
+    static let sceneModels: [SceneModel] = {
+        var out: [SceneModel] = [
+            SceneModel(path: "main_building/night_ground.glb",
+                       transform: Float4x4.translation(SIMD3(0, 0, 0))),
+            // The deer thing. Its Sketchfab root already stands it up (they bake their own
+            // Y-up fix in), so unlike a raw glTF it takes no `rotationX(.pi / 2)` — with one
+            // it lay flat on its side.
+            SceneModel(path: "models/deer_thing.glb",
+                       transform: Float4x4.translation(SIMD3(-2100, 1210, 0))
+                           * Float4x4.rotationZ(2.2)
+                           * Float4x4.scale(SIMD3(repeating: 90))),
+        ]
+
+        for object in WorldData.objects(mapId: 2) where object.shape == "3d_model" {
+            guard let model = object.model else { continue }
+            out.append(SceneModel(path: model,
+                                  transform: placed(object.x, object.y, z: object.z ?? 0,
+                                                    rotation: object.rotation ?? 0,
+                                                    scale: object.scale ?? 1)))
+        }
+
+        for desk in paintedDesks {
+            out.append(SceneModel(path: "models/desk.glb",
+                                  transform: placed(desk.x, desk.y, scale: 0.9)))
+            out.append(SceneModel(path: "models/chair.glb",
+                                  transform: placed(desk.x, desk.y + 62)))
+        }
+        // Ms Crosbie's own desk, side-on against the west wall, and Mr Hardy's in his office
+        // — the same antique the detention room uses, sized for this map's smaller pupils.
+        out.append(SceneModel(path: "models/desk.glb",
+                              transform: placed(-2615, 520, rotation: 90, scale: 0.9)))
+        out.append(SceneModel(path: "models/antique_desk.glb",
+                              transform: placed(-2190, -1070, scale: 150)))
+        return out
+    }()
 
     // MARK: - Primitive builders
 

@@ -27,12 +27,15 @@ SRC = os.path.join(REPO, "assets/main_building/new_background.png")
 DST = os.path.join(REPO, "assets/main_building/night_ground.glb")
 
 MAP_W, MAP_H = 5584.0, 3072.0
-TEX_W = 4096  # longest edge of the embedded texture
+# Native resolution: at first-person eye height the floor is right under your nose, and the
+# 4096 downscale read as smeared. ~65 MB of texture on the GPU, which the phones handle.
+TEX_W = 5584
 
 def main():
     image = Image.open(SRC).convert("RGB")
-    scale = TEX_W / image.width
-    image = image.resize((TEX_W, round(image.height * scale)), Image.LANCZOS)
+    if image.width != TEX_W:
+        scale = TEX_W / image.width
+        image = image.resize((TEX_W, round(image.height * scale)), Image.LANCZOS)
     jpeg = io.BytesIO()
     image.save(jpeg, "JPEG", quality=84)
     jpeg = jpeg.getvalue()

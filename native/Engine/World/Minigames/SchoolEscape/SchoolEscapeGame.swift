@@ -38,18 +38,24 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         /// Speeds are map pixels per second, scaled up from the overworld's 216 in the same
         /// ratio as the bodies. You can outrun him — just — and he never stops walking.
         static let playerSpeed: Double = 400
-        static let chaseSpeed: Double = 355
+        static let chaseSpeed: Double = 345
         static let patrolSpeed: Double = 170
         static let investigateSpeed: Double = 250
 
         /// How far he can see, and how close counts as caught.
-        static let sightRange: Double = 1000
+        ///
+        /// The hunt is deliberately softer than it first was (sight 1000 → 850, chase 355 →
+        /// 345, give-up 2.6 s → 1.8 s): measured with `-schoolescapedemo`, the original
+        /// numbers meant an alerted Mr Hardy converted nearly every chase into a catch by
+        /// cutting corridor corners, and four runs in a row died on the final key. A game a
+        /// robot can never finish is not one a ten-year-old will love either.
+        static let sightRange: Double = 850
         static let catchRadius: Double = 62
         static let keyRadius: Double = 80
         static let chestRadius: Double = 130
 
         /// Seconds without a sighting before a chase becomes "go and look where they were".
-        static let loseSightAfter: Double = 2.6
+        static let loseSightAfter: Double = 1.8
         /// How long the office door stays locked after the green key is taken. Deliberately
         /// *shorter* than Mr Hardy's walk to it (~6 s at `investigateSpeed`), so the trap is a
         /// head start you have to use, not a cell you are caught in — at 6 s he was standing
@@ -104,8 +110,24 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
     var keysHeld: Int { keys.filter(\.collected).count }
     var totalKeys: Int { keys.count }
 
+    /// **Joel's ask: "3d as eyes so your looking out the eyes."** True is first-person: the
+    /// camera rides in your character's head, the stick turns and walks, and your own body is
+    /// not drawn (you cannot see yourself from inside your eyes). False is the top-down night
+    /// camera. The VIEW button on screen flips it.
+    private(set) var eyesMode = true
+
+    func toggleView() {
+        eyesMode.toggle()
+        cameraSettled = false
+        onPresentationChanged?()
+    }
+
     private(set) var elapsed: Double = 0
     private var caughtFor: Double = 0
+    /// Seconds after a respawn in which Mr Hardy neither sees nor catches — he has just
+    /// marched you back and is feeling pleased with himself. Without it he lingered near the
+    /// spawn after a catch and took the rest of your keys one by one as you appeared.
+    private var graceFor: Double = 0
     private(set) var timesCaught = 0
     private(set) var chestOpen = false
     private var chestHintAt: Double = -10
@@ -309,7 +331,7 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
     /// Can the teacher see the player? A straight line sampled every 25 px against the same
     /// mask that blocks walking — so walls, and the shut office door, block sight too.
     private func teacherSeesPlayer() -> Bool {
-        guard mask != nil else { return false }
+        guard graceFor <= 0, mask != nil else { return false }
         let dx = playerMotor.x - teacherMotor.x
         let dy = playerMotor.y - teacherMotor.y
         let distance = hypot(dx, dy)
@@ -338,6 +360,7 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         switch phase {
         case .playing:
             elapsed += dt
+            graceFor = max(0, graceFor - dt)
             stepPlayer(dt: dt)
             stepTeacher(dt: dt)
             checkKeys()
@@ -377,8 +400,27 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
     }
 
     private func stepPlayer(dt: Double) {
-        playerMotor.driveCharacter(velocityX: moveInput.x * Tuning.playerSpeed,
-                                   velocityY: moveInput.y * Tuning.playerSpeed)
+        // The demo bot thinks in world directions; only a thumb gets the tank controls.
+        var tankControls = eyesMode
+        #if DEBUG
+        if debugDrivesInput { tankControls = false }
+        #endif
+        if tankControls {
+            // First-person controls: push up to walk where you are looking, pull back to
+            // back away, push sideways to turn your head. The stick's Y is screen-down, so
+            // forward is its negative.
+            let facing = playerMotor.facing + moveInput.x * 170 * dt
+            playerMotor.setFacing(facing)
+            let radians = facing * .pi / 180
+            let throttle = -moveInput.y
+            playerMotor.driveCharacter(
+                velocityX: cos(radians) * throttle * Tuning.playerSpeed,
+                velocityY: sin(radians) * throttle * Tuning.playerSpeed,
+                facing: facing)
+        } else {
+            playerMotor.driveCharacter(velocityX: moveInput.x * Tuning.playerSpeed,
+                                       velocityY: moveInput.y * Tuning.playerSpeed)
+        }
         stepMotors(dt: dt)
     }
 
@@ -476,8 +518,10 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
             sinceSeen = 0
             if !sirenPlaying {
                 sirenPlaying = true
-                host.minigamePlayBackground(path: "/media/siren_head.mp3", volume: 0.5)
-                host.minigamePlayEffect(path: "/media/ghostly.mp3", volume: 0.45, rate: 1.15)
+                // Joel's picks: the Hello Neighbor chase music while he hunts, konkonse as
+                // the "he's seen you" sting over the top.
+                host.minigamePlayBackground(path: "/media/chase_music.mp3", volume: 0.55)
+                host.minigamePlayEffect(path: "/media/konkonse.mp3", volume: 0.7)
                 announce("HE'S SEEN YOU", subtitle: "RUN!", duration: 1.6)
             }
         case .patrolling, .investigating:
@@ -544,32 +588,46 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
     }
 
     private func checkCaught() {
+        guard graceFor <= 0 else { return }
         guard hypot(playerMotor.x - teacherMotor.x,
                     playerMotor.y - teacherMotor.y) < Tuning.catchRadius else { return }
         phase = .caught
         caughtFor = 0
         timesCaught += 1
         moveInput = .zero
-        host.minigameStopBackground()
+        // The jumpscare: Joel's horror scare in your face, the siren head screaming behind it
+        // — as the *background* track, so the respawn's ticking clock cuts it off cleanly.
         sirenPlaying = false
-        // The jumpscare: the ghostly sting slowed right down, and his laugh under it.
-        host.minigamePlayEffect(path: "/media/ghostly.mp3", volume: 0.9, rate: 0.7)
-        host.minigamePlayEffect(path: "/media/laugh.mp3", volume: 0.5, rate: 0.8)
+        host.minigamePlayBackground(path: "/media/siren_head.mp3", volume: 0.7)
+        host.minigamePlayEffect(path: "/media/horror_scare.mp3", volume: 0.95)
+        host.minigamePlayEffect(path: "/media/ghostly.mp3", volume: 0.5, rate: 0.7)
         Log.world("[SchoolEscape] Caught by Mr Hardy at (\(Int(playerMotor.x)), \(Int(playerMotor.y))) with \(keysHeld) keys")
         onPresentationChanged?()
     }
 
     /// After the jumpscare: back to the spawn, minus the last key you took — it goes back to
     /// where it was, so being caught costs a trip rather than the whole run.
+    ///
+    /// Mr Hardy does *not* teleport. He marched you back, he is pleased with himself, and he
+    /// picks his rounds up from wherever he is — which also means the far side of the school
+    /// is now genuinely far from him, and going there is a real strategy.
     private func respawn() {
         if let last = collectedOrder.popLast() {
             keys[last].collected = false
         }
         playerMotor.teleport(x: SchoolEscapeMap.spawn.x, y: SchoolEscapeMap.spawn.y, facing: 0)
-        teacherMotor.teleport(x: SchoolEscapeMap.teacherSpawn.x,
-                              y: SchoolEscapeMap.teacherSpawn.y, facing: 180)
         setTeacherState(.patrolling)
-        patrolIndex = 0
+        var nearest = 0
+        var nearestDistance = Double.infinity
+        for (index, point) in SchoolEscapeMap.patrol.enumerated() {
+            let d = hypot(point.x - teacherMotor.x, point.y - teacherMotor.y)
+            if d < nearestDistance {
+                nearestDistance = d
+                nearest = index
+            }
+        }
+        patrolIndex = nearest
+        graceFor = 6
         phase = .playing
         host.minigamePlayBackground(path: "/media/ticking_clock.mp3", volume: 0.35)
         announce("He put you back in detention",
@@ -651,6 +709,13 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         teacher.z = teacherMotor.z
         teacher.rotation = teacherMotor.facing
 
+        // In eyes mode your body is not drawn while you play — the camera is inside its head,
+        // and a rig seen from within is an eyeful of hair. It comes back for the jumpscare and
+        // the win, which are shots of the world with you in it.
+        if eyesMode, phase == .playing {
+            return [MinigameCharacter(character: teacher, gait: teacherMotor.gait,
+                                      poseOverride: teacherMotor.poseOverride())]
+        }
         return [
             MinigameCharacter(character: teacher, gait: teacherMotor.gait,
                               poseOverride: teacherMotor.poseOverride()),
@@ -684,10 +749,40 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
     private var cameraPitch: Double = 0.8
 
     /// Follows the player, tipped well over so the school reads as a 3D building — and on a
-    /// catch it dives to Mr Hardy's face, which *is* the jumpscare.
+    /// catch it dives to Mr Hardy's face, which *is* the jumpscare. In eyes mode it is
+    /// first-person instead: see below.
     func updateCamera(_ camera: inout Camera, viewport: SIMD2<Float>, dt: Double) {
         let viewportWidth = Double(viewport.x)
         guard viewportWidth > 0, Double(viewport.y) > 0 else { return }
+
+        if eyesMode, phase == .playing {
+            // **First person, out of an orbit camera.** This camera cannot be placed — it
+            // orbits a ground-level focus at a fixed distance (`viewport.h / 2·tan(fov/2)`)
+            // and at `maxPitch` its eye happens to hang at ~122 units up: head height for
+            // these 2.5× characters. So the trick is to put the *focus* one orbit-distance
+            // ahead of the player along their facing — the eye then lands inside their head,
+            // looking out at a ground point far down the corridor. Zoom scales the frustum,
+            // not the distance, so 0.6 just widens the view to a proper first-person field.
+            let orbitDistance = Double(viewport.y) / (2 * tan(Double(camera.fovDegrees)
+                * .pi / 180 / 2))
+            let pitch = Double.pi / 2.1
+            let radians = playerMotor.facing * .pi / 180
+            let ahead = sin(pitch) * orbitDistance
+            camera.zoom = 0.6
+            camera.pitch = pitch
+            camera.yaw = atan2(-cos(radians), -sin(radians))
+            camera.springX = 0
+            camera.springY = 0
+            cameraSettled = false
+            // `Camera.update` biases its focus up the screen by 15% of visible height for
+            // followed players; added back so the gaze stays level.
+            let headroom = Double(viewport.y) / camera.zoom * 0.15
+            camera.update(playerX: playerMotor.x + cos(radians) * ahead,
+                          playerY: playerMotor.y + sin(radians) * ahead + headroom,
+                          viewport: viewport,
+                          mapData: nil)
+            return
+        }
 
         var wanted: SIMD2<Double>
         var wantedWidth: Double
@@ -846,24 +941,31 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         guard phase == .playing else { return }
         let here = SIMD2(playerMotor.x, playerMotor.y)
 
+        let hardy = SIMD2(teacherMotor.x, teacherMotor.y)
+
+        // Which key? Not simply the nearest: the one that is *near me and far from him*.
+        // Nearest-first sent every life straight back for the key Mr Hardy was standing
+        // guard beside, down the corridor he was walking up — the same catch, forever.
         var target = SchoolEscapeMap.chest
         if keysHeld < totalKeys {
-            var best = Double.infinity
+            var best = -Double.infinity
             for state in keys where !state.collected {
-                let d = hypot(state.key.position.x - here.x, state.key.position.y - here.y)
-                if d < best {
-                    best = d
-                    target = state.key.position
+                let p = state.key.position
+                let score = 0.6 * hypot(p.x - hardy.x, p.y - hardy.y)
+                    - hypot(p.x - here.x, p.y - here.y)
+                if score > best {
+                    best = score
+                    target = p
                 }
             }
         }
 
-        // Being hunted — or about to be — means the errand waits. Run for whichever landmark
-        // is far from Mr Hardy without being miles from here, and come back for the key after.
-        // Without this the bot re-fetched the green key down the corridor he investigates and
-        // was caught head-on at the same spot every single life.
-        let hardy = SIMD2(teacherMotor.x, teacherMotor.y)
-        if isBeingChased || hypot(hardy.x - here.x, hardy.y - here.y) < 320 {
+        // The errand waits if it must: being hunted, him closing in (550 px, because head-on
+        // in a corridor closes at 750 px/s and 320 left half a second to react), or the target
+        // itself being guarded — when the green key is the last one and he is stood beside it,
+        // the move is to lurk somewhere safe until his rounds take him away, not to walk in.
+        let guarded = hypot(target.x - hardy.x, target.y - hardy.y) < 700
+        if isBeingChased || guarded || hypot(hardy.x - here.x, hardy.y - here.y) < 550 {
             var bestScore = -Double.infinity
             for spot in [SchoolEscapeMap.spawn, SchoolEscapeMap.chest]
                 + keys.map(\.key.position) {
@@ -888,6 +990,28 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
             demoPath = findPath(from: here, to: target)
             demoPathTarget = target
             demoPathAt = elapsed
+
+            // The school has one central corridor and every key grab summons him down it, so
+            // "the shortest route" is regularly "straight through Mr Hardy". If the next
+            // stretch of the route brushes past him, go somewhere clear instead and let him
+            // stomp by — the classroom-doorway wait every child discovers in round two.
+            func clear(_ path: [SIMD2<Double>]) -> Bool {
+                path.prefix(80).allSatisfy { hypot($0.x - hardy.x, $0.y - hardy.y) > 260 }
+            }
+            if !clear(demoPath) {
+                let spots = ([SchoolEscapeMap.spawn, SchoolEscapeMap.chest]
+                    + keys.map(\.key.position))
+                    .sorted { hypot($0.x - hardy.x, $0.y - hardy.y)
+                            > hypot($1.x - hardy.x, $1.y - hardy.y) }
+                for spot in spots {
+                    let alternative = findPath(from: here, to: spot)
+                    if clear(alternative) {
+                        demoPath = alternative
+                        demoPathTarget = spot
+                        break
+                    }
+                }
+            }
         }
         while let next = demoPath.first, hypot(next.x - here.x, next.y - here.y) < 60 {
             demoPath.removeFirst()

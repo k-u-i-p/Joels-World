@@ -21,6 +21,9 @@ final class SchoolEscapeView: UIView {
 
     private let stick = JoystickView()
     private let hint = UILabel()
+    /// Flips between Joel's first-person eyes view and the top-down night camera. The label
+    /// names where the button takes you, not where you are.
+    private let viewButton = UIButton(type: .custom)
 
     /// The chase vignette: a thick red border that pulses while Mr Hardy has you in his sights.
     private let chaseEdge = UIView()
@@ -144,7 +147,21 @@ final class SchoolEscapeView: UIView {
         style(hint, size: 14, color: .white, weight: .semibold)
         hint.textAlignment = .center
         hint.numberOfLines = 0
-        hint.text = "Walk over the glowing keys — all 4 open the chest.\nIf Mr Hardy sees you, RUN."
+        hint.text = "Push up to walk, sideways to look round.\nFind the glowing keys — and if Mr Hardy sees you, RUN."
+
+        // Joel's rule: "you can only use eyes." The button stays built but hidden, so the
+        // MAP view is one line away if he ever changes his mind.
+        viewButton.translatesAutoresizingMaskIntoConstraints = false
+        viewButton.setTitle("MAP", for: .normal)
+        viewButton.titleLabel?.font = Theme.body(15, weight: .heavy)
+        viewButton.setTitleColor(.white, for: .normal)
+        viewButton.backgroundColor = UIColor(white: 1, alpha: 0.14)
+        viewButton.layer.cornerRadius = 34
+        viewButton.layer.borderWidth = 2
+        viewButton.layer.borderColor = UIColor.white.withAlphaComponent(0.35).cgColor
+        viewButton.addTarget(self, action: #selector(viewTapped), for: .touchUpInside)
+        viewButton.isHidden = true
+        addSubview(viewButton)
 
         let guide = safeAreaLayoutGuide
         NSLayoutConstraint.activate([
@@ -152,6 +169,11 @@ final class SchoolEscapeView: UIView {
             stick.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -32),
             stick.widthAnchor.constraint(equalToConstant: 130),
             stick.heightAnchor.constraint(equalToConstant: 130),
+
+            viewButton.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -34),
+            viewButton.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -54),
+            viewButton.widthAnchor.constraint(equalToConstant: 68),
+            viewButton.heightAnchor.constraint(equalToConstant: 68),
 
             hint.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
             hint.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
@@ -249,6 +271,10 @@ final class SchoolEscapeView: UIView {
 
     // MARK: - Input
 
+    @objc private func viewTapped() {
+        game?.toggleView()
+    }
+
     @objc private func playAgainTapped() {
         overPanel.isHidden = true
         hint.alpha = 1
@@ -342,9 +368,10 @@ final class SchoolEscapeView: UIView {
         view.alpha += (target - view.alpha) * CGFloat(1 - exp(-rate * dt))
     }
 
-    /// Everything that changes rarely: the key count.
+    /// Everything that changes rarely: the key count, and which view the button offers.
     private func refresh() {
         guard let game else { return }
         keysLabel.text = "KEYS \(game.keysHeld)/\(game.totalKeys)"
+        viewButton.setTitle(game.eyesMode ? "MAP" : "EYES", for: .normal)
     }
 }
