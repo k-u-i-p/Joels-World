@@ -6,7 +6,13 @@ opens with **four keys** — orange (Ms Crosbie's classroom, where you start), w
 first east classroom), blue (the kitchen), and green, which is in **Mr Hardy's own office**
 and slams the door behind you when you take it. Mr Hardy walks the corridors all night. If
 he sees you, he chases; if he catches you, you get the jumpscare — camera straight into his
-face, the ghostly sting — and he puts you back at the start minus the last key you took.
+face, the horror sting — and he puts you back at the start minus the last key you took.
+
+**And it is first-person.** Joel's second big ask — "3d as eyes so your looking out the
+eyes" — so you walk the dark corridors from inside your character's head: stick up to walk
+where you are looking, sideways to turn, your own body not drawn. The top-down night camera
+still exists behind the hidden VIEW button in `SchoolEscapeView` (`viewButton.isHidden`),
+one line away if he changes his mind.
 
 Open the chest and the **`detention`** badge is yours. That badge had sat on the badge
 screen since the web build with nothing able to award it; escaping detention is what it
@@ -34,17 +40,28 @@ Plus the usual wiring: map id 8 in `data/maps.json`, `MinigameKind.schoolescape`
 `GameDebugHarness`, and trigger id 71 in `data/main_building/objects.json` — a rect next to
 Ms Crosbie, who gives you the detention.
 
-## The one idea everything else hangs off
+## The two ideas everything else hangs off
 
 **The world is the real main building, not a rebuild.** Five Nights modelled its school out
 of boxes; this game stands the overworld's own `walls.glb` on a single textured quad of the
 night background (`assets/main_building/night_ground.glb`, built by
-`tools/assets/build_escape_ground.py` — rerun it if the night painting changes), and reads
-the overworld's own `clip_mask.png` for collision. One consequence does most of the design
-work: **the same mask that blocks feet blocks eyes.** `teacherSeesPlayer()` samples a
-straight line through the mask every 25 px, so hiding behind a wall genuinely hides you,
-and the shut office door blocks sight the same way it blocks walking, with no separate
-line-of-sight data to keep in step.
+`tools/assets/build_escape_ground.py` — rerun it if the night painting changes; the texture
+is native 5584 px because a downscale read as smear at eye height), and reads the
+overworld's own `clip_mask.png` for collision. `SchoolEscapeMap.sceneModels` also draws
+**every `3d_model` the overworld places on map 2** via `WorldData.objects(mapId: 2)` — the
+cafeteria tables, the east classrooms' desks — plus real desks and chairs stood on the
+*painted* ones in the west classrooms, because a painted desk is flat nonsense at eye
+height. One consequence does most of the design work: **the same mask that blocks feet
+blocks eyes.** `teacherSeesPlayer()` samples a straight line through the mask every 25 px,
+so hiding behind a wall genuinely hides you, and the shut office door blocks sight the same
+way it blocks walking, with no separate line-of-sight data to keep in step.
+
+**First person out of an orbit camera.** `Camera` cannot be placed — it orbits a
+ground-level focus at a fixed distance (`viewport.h / 2·tan(fov/2)`), and at `maxPitch`
+(π/2.1) its eye happens to hang ~122 units up: head height for these 2.5× characters. So
+`updateCamera` puts the *focus* one orbit-distance ahead of the player along their facing,
+and the eye lands inside their head looking down the corridor. Zoom scales the frustum, not
+the distance, so 0.6 widens it to a first-person field of view. No engine change at all.
 
 All coordinates are **map pixels**, the same numbers the map editor shows for the main
 building — a key can be moved by reading a position off the editor into
@@ -87,14 +104,19 @@ Three states — patrol, investigate, chase — in `stepTeacher`:
   `loseSightAfter` seconds unseen. Chase speed 366 against your 400: you can outrun him,
   you cannot stop.
 
-The sounds carry the states: ticking clock while he patrols, **`siren_head.mp3` replaces
-the background the moment he sees you** (swapping the background track is what makes it
-stop cleanly when he loses you), `ghostly.mp3` slowed to 0.7 for the catch itself. Both
-new files came from Joel's downloads.
+The sounds carry the states, all supplied by Joel from his downloads and placed where he
+asked: ticking clock while he patrols, **`chase_music.mp3` (Hello Neighbor) replaces the
+background the moment he sees you** with `konkonse.mp3` stung over the top (swapping the
+background track is what makes the chase music stop cleanly when he loses you), and the
+catch is `horror_scare.mp3` over `ghostly.mp3` with `siren_head.mp3` screaming *as the
+background* — background, so the respawn's ticking clock cuts it off cleanly.
 
 Being caught costs **the last key you picked up** and a walk back from the spawn — enough
-to sting, not enough to end a run. `timesCaught` is reported on the escape panel, and best
-time is `schoolescape.best` in `UserDefaults`.
+to sting, not enough to end a run — and buys you **six seconds in which Mr Hardy neither
+sees nor catches** (`graceFor`), without which he camped the spawn and farmed the rest of
+your keys. He does not teleport after a catch; he resumes his rounds from wherever he is.
+`timesCaught` is reported on the escape panel, and best time is `schoolescape.best` in
+`UserDefaults`.
 
 ## The deer thing
 
