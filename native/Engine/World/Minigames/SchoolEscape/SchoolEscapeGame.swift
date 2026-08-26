@@ -33,11 +33,13 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         /// overworld — carried on `width`/`height` (2.5 × the 40 baseline) rather than on the
         /// map's `character_scale`, so `-schoolescape` with no map looks the same as map 8.
         static let characterSize: Double = 100
-        static let teacherSize: Double = 128
+        /// Joel: "make everything bigger" — Mr Hardy most of all. He towers now.
+        static let teacherSize: Double = 150
 
         /// Speeds are map pixels per second, scaled up from the overworld's 216 in the same
         /// ratio as the bodies. You can outrun him — just — and he never stops walking.
-        static let playerSpeed: Double = 400
+        /// 440 — Joel asked for 10% faster on top of the original 400.
+        static let playerSpeed: Double = 440
         /// Degrees per second the stick turns your head at full deflection. Joel tried 170
         /// and 300 and asked for slower both times — a slow, deliberate look round is the
         /// horror-game feel he is after.
@@ -787,7 +789,9 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
                 ? atan2(teacherMotor.y - playerMotor.y, teacherMotor.x - playerMotor.x)
                 : playerMotor.facing * .pi / 180
             let ahead = sin(pitch) * orbitDistance
-            camera.zoom = 0.6
+            // 0.78, up from 0.6 — Joel: "make everything bigger." Zoom narrows the lens, and
+            // a narrower lens is what makes a corridor loom instead of receding.
+            camera.zoom = 0.78
             camera.pitch = pitch
             camera.yaw = atan2(-cos(radians), -sin(radians))
             camera.springX = 0

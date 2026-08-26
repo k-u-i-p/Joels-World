@@ -147,12 +147,12 @@ enum SchoolEscapeMap {
     static func keyPrimitives(_ key: Key, bob: Double) -> [ScenePrimitive] {
         let color = parseHexColor(key.hex)
         return [
-            ScenePrimitive(shape: .sphere(radius: 16),
-                           transform: place(key.position.x, key.position.y, 55 + 12 * bob),
+            ScenePrimitive(shape: .sphere(radius: 22),
+                           transform: place(key.position.x, key.position.y, 62 + 14 * bob),
                            color: color,
                            unlit: true,
                            castsShadow: false),
-            ScenePrimitive(shape: .cylinder(radius: 30, height: 3),
+            ScenePrimitive(shape: .cylinder(radius: 38, height: 3),
                            transform: place(key.position.x, key.position.y, 3)
                                * Float4x4.rotationX(.pi / 2),
                            color: color,
