@@ -38,9 +38,10 @@ final class SchoolEscapeGame: WorldRenderedMinigame {
         /// Speeds are map pixels per second, scaled up from the overworld's 216 in the same
         /// ratio as the bodies. You can outrun him — just — and he never stops walking.
         static let playerSpeed: Double = 400
-        /// Degrees per second the stick turns your head at full deflection. 170 felt like
-        /// wading — Joel: "you turn slower".
-        static let turnSpeed: Double = 300
+        /// Degrees per second the stick turns your head at full deflection. Joel tried 170
+        /// and 300 and asked for slower both times — a slow, deliberate look round is the
+        /// horror-game feel he is after.
+        static let turnSpeed: Double = 120
         static let chaseSpeed: Double = 345
         static let patrolSpeed: Double = 170
         static let investigateSpeed: Double = 250
