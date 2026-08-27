@@ -167,5 +167,21 @@
     "name": "School Escape",
     "import": "/src/minigames/schoolescape.js",
     "default_zoom": 1
+  },
+  {
+    "id": 9,
+    "name": "The Sewers",
+    "width": 2048,
+    "height": 2048,
+    "background_color": "#0c100c",
+    "layers": [],
+    "npcs": "sewers/npc.json",
+    "clip_mask": "sewers/clip_mask.png",
+    "character_scale": 4,
+    "default_zoom": 0.75,
+    "objects": "sewers/objects.json",
+    "spawn_area": 2,
+    "can_leave": false,
+    "camera_angle": 30
   }
 ]

@@ -37,7 +37,7 @@ WHOLE_DIRS=(models media avatars minimaps fonts)
 
 # Per-map: the sliced tiles, the walkability mask, and any GLB props the map places. The
 # source layers next to them are slicer input and are deliberately left behind.
-MAP_DIRS=(junior_school main_building pool detention)
+MAP_DIRS=(junior_school main_building pool detention sewers)
 
 # One-offs.
 FILES=(minigames/tennis/map.svg)
@@ -54,12 +54,19 @@ for dir in "${WHOLE_DIRS[@]}"; do
 done
 
 for dir in "${MAP_DIRS[@]}"; do
-  if [ ! -d "$SRC/$dir/chunks" ]; then
-    echo "error: $dir has no chunks — run 'npm run build' in tools/assets first" >&2
+  if [ ! -d "$SRC/$dir" ]; then
+    echo "error: missing map directory $dir" >&2
     exit 1
   fi
   mkdir -p "$DEST/$dir"
-  "${RSYNC[@]}" "$SRC/$dir/chunks/" "$DEST/$dir/chunks/"
+  # A map drawn entirely in 3D (sewers) has no ground image, so no chunks to stage;
+  # a map that *should* have tiles but doesn't is still an error.
+  if [ -d "$SRC/$dir/chunks" ]; then
+    "${RSYNC[@]}" "$SRC/$dir/chunks/" "$DEST/$dir/chunks/"
+  elif [ "$dir" != "sewers" ]; then
+    echo "error: $dir has no chunks — run 'npm run build' in tools/assets first" >&2
+    exit 1
+  fi
   # Masks and props are flat files in the map directory; the source layers are not copied.
   "${RSYNC[@]}" --include 'clip_mask.*' --include '*.glb' --exclude '*' \
     "$SRC/$dir/" "$DEST/$dir/"

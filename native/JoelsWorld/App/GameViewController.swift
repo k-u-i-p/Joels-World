@@ -294,6 +294,22 @@ final class GameViewController: UIViewController {
 
         if message.hasPrefix("/") {
             let command = String(message.dropFirst()).lowercased()
+
+            // "/flush" is a secret, not an emote: standing in the Toilets it flushes the
+            // player down to The Sewers (map 9 in maps.json). Anywhere else it stays quiet,
+            // which is what keeps it a secret.
+            if command == "flush" {
+                if let zoneId = state.player.activeBuilding,
+                   let zone = state.objects.first(where: { $0.id == zoneId }),
+                   zone.name == "Toilets" {
+                    audio.playEmoteSound("/media/toilet_flush.mp3")
+                    network.sendChangeMap(9)
+                } else {
+                    Log.world("Ignoring '/flush' outside the Toilets")
+                }
+                return
+            }
+
             // `main.js:222` gates on the local emote table, not the server's list. They come
             // from the same file, but gating locally keeps the command path off the network.
             guard let definition = Emotes.definition(command) else {

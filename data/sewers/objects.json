@@ -1,0 +1,200 @@
+[
+ {
+  "id": 1,
+  "shape": "3d_model",
+  "model": "sewers/room.glb",
+  "name": "Room",
+  "x": 0,
+  "y": 0,
+  "z": 0,
+  "scale": 1,
+  "width": 0,
+  "length": 0,
+  "clip": -1,
+  "rotation": 0
+ },
+ {
+  "id": 2,
+  "shape": "rect",
+  "x": 0,
+  "y": -280,
+  "width": 300,
+  "length": 160,
+  "clip": -1,
+  "name": "Spawn Area"
+ },
+ {
+  "id": 3,
+  "shape": "rect",
+  "x": 870,
+  "y": 0,
+  "width": 120,
+  "length": 160,
+  "clip": -1,
+  "name": "Ladder",
+  "on_enter": [
+   {
+    "show_dialog": {
+     "type": "change_map",
+     "map": 2,
+     "description": "Climb the ladder back up to school?"
+    }
+   }
+  ]
+ },
+ {
+  "id": 4,
+  "shape": "rect",
+  "x": 0,
+  "y": 0,
+  "width": 1300,
+  "length": 200,
+  "clip": -1,
+  "name": "Water",
+  "on_enter": [
+   {
+    "play_sound": {
+     "sound": "media/splash.mp3",
+     "volume": 0.8
+    }
+   }
+  ],
+  "on_exit": [
+   {
+    "emote": "wet"
+   }
+  ]
+ },
+ {
+  "id": 10,
+  "shape": "3d_model",
+  "model": "models/sewers/big_pipe.glb",
+  "name": "The pipe you fell out of",
+  "x": -520,
+  "y": -320,
+  "z": 0,
+  "scale": 110,
+  "clip": -1,
+  "rotation": 0
+ },
+ {
+  "id": 11,
+  "shape": "3d_model",
+  "model": "models/sewers/pipe_long.glb",
+  "name": null,
+  "x": 300,
+  "y": 380,
+  "z": 0,
+  "scale": 180,
+  "clip": -1,
+  "rotation": 90
+ },
+ {
+  "id": 12,
+  "shape": "3d_model",
+  "model": "models/sewers/pipe_corner.glb",
+  "name": null,
+  "x": 520,
+  "y": -330,
+  "z": 0,
+  "scale": 150,
+  "clip": -1,
+  "rotation": 0
+ },
+ {
+  "id": 13,
+  "shape": "3d_model",
+  "model": "models/sewers/garbage_bag.glb",
+  "name": null,
+  "x": -350,
+  "y": 200,
+  "z": 0,
+  "scale": 150,
+  "clip": -1,
+  "rotation": 20
+ },
+ {
+  "id": 14,
+  "shape": "3d_model",
+  "model": "models/sewers/garbage_bag.glb",
+  "name": null,
+  "x": 240,
+  "y": 330,
+  "z": 0,
+  "scale": 150,
+  "clip": -1,
+  "rotation": 230
+ },
+ {
+  "id": 15,
+  "shape": "3d_model",
+  "model": "models/sewers/crate.glb",
+  "name": null,
+  "x": -500,
+  "y": 250,
+  "z": 0,
+  "scale": 150,
+  "clip": -1,
+  "rotation": 0
+ },
+ {
+  "id": 16,
+  "shape": "3d_model",
+  "model": "models/sewers/crate.glb",
+  "name": null,
+  "x": -420,
+  "y": 320,
+  "z": 0,
+  "scale": 150,
+  "clip": -1,
+  "rotation": 35
+ },
+ {
+  "id": 17,
+  "shape": "3d_model",
+  "model": "models/sewers/bricks.glb",
+  "name": null,
+  "x": 120,
+  "y": -700,
+  "z": 0,
+  "scale": 150,
+  "clip": -1,
+  "rotation": 0
+ },
+ {
+  "id": 18,
+  "shape": "3d_model",
+  "model": "models/sewers/debris_pile.glb",
+  "name": null,
+  "x": -110,
+  "y": -560,
+  "z": 0,
+  "scale": 120,
+  "clip": -1,
+  "rotation": 0
+ },
+ {
+  "id": 20,
+  "shape": "3d_model",
+  "model": "models/sewers/rat.glb",
+  "name": "Sewer rat",
+  "x": 280,
+  "y": -170,
+  "z": 0,
+  "scale": 100,
+  "clip": -1,
+  "rotation": 220
+ },
+ {
+  "id": 19,
+  "shape": "3d_model",
+  "model": "models/sewers/metal_door.glb",
+  "name": "The door that never opens",
+  "x": 0,
+  "y": -880,
+  "z": 0,
+  "scale": 200,
+  "clip": -1,
+  "rotation": 90
+ }
+]

@@ -1,0 +1,109 @@
+{
+  "name": "Sewers",
+  "_comment": [
+    "The secret world under the school. You get here by standing in the main building",
+    "Toilets and typing /flush in chat — the handler is in GameViewController.submitChat.",
+    "",
+    "Run tools/maps/extrude_room.py on this file and it writes the 3D room and the",
+    "walkability mask together, same as detention.",
+    "",
+    "The shape: one big chamber with a green water channel flowing east-west through",
+    "the middle, a dead-end tunnel going north (Gurgle lives at the end of it), and a",
+    "smaller room to the east with the ladder back up to school."
+  ],
+
+  "map": { "width": 2048, "height": 2048 },
+
+  "output": {
+    "glb": "assets/sewers/room.glb",
+    "clip_mask": "assets/sewers/clip_mask.png"
+  },
+
+  "defaults": {
+    "wall_height": 650,
+    "wall_thickness": 100,
+    "uv_scale": 400,
+    "skirting": 30,
+    "skirting_proud": 8
+  },
+
+  "materials": {
+    "wall":     { "color": "#5a6152", "roughness": 0.95 },
+    "floor":    { "color": "#75776e", "roughness": 0.55 },
+    "water":    { "color": "#2e8b57", "roughness": 0.08, "metalness": 0.15 },
+    "skirting": { "color": "#39412f", "roughness": 0.60 }
+  },
+
+  "floors": [
+    {
+      "_name": "Chamber, north walkway",
+      "material": "floor",
+      "polygon": [[-700, -500], [700, -500], [700, -100], [-700, -100]]
+    },
+    {
+      "_name": "The water channel",
+      "material": "water",
+      "polygon": [[-700, -100], [700, -100], [700, 100], [-700, 100]]
+    },
+    {
+      "_name": "Chamber, south walkway",
+      "material": "floor",
+      "polygon": [[-700, 100], [700, 100], [700, 500], [-700, 500]]
+    },
+    {
+      "_name": "North tunnel",
+      "material": "floor",
+      "polygon": [[-300, -1000], [300, -1000], [300, -500], [-300, -500]]
+    },
+    {
+      "_name": "Ladder room, east",
+      "material": "floor",
+      "polygon": [[700, -300], [1000, -300], [1000, 300], [700, 300]]
+    }
+  ],
+
+  "walls": [
+    {
+      "_name": "Chamber north — the doorway leads into the secret tunnel",
+      "from": [-650, -450], "to": [650, -450],
+      "openings": [{ "at": 0.5, "width": 400 }]
+    },
+    {
+      "_name": "Chamber south",
+      "from": [-650, 450], "to": [650, 450]
+    },
+    {
+      "_name": "Chamber west — the water flows in under this wall",
+      "from": [-650, -450], "to": [-650, 450]
+    },
+    {
+      "_name": "Chamber east — the doorway leads to the ladder room",
+      "from": [650, -450], "to": [650, 450],
+      "openings": [{ "at": 0.5, "width": 400 }]
+    },
+    {
+      "_name": "North tunnel, west side",
+      "from": [-250, -950], "to": [-250, -450]
+    },
+    {
+      "_name": "North tunnel, east side",
+      "from": [250, -950], "to": [250, -450]
+    },
+    {
+      "_name": "North tunnel, dead end — Gurgle stands here",
+      "from": [-250, -950], "to": [250, -950]
+    },
+    {
+      "_name": "Ladder room, north",
+      "from": [650, -250], "to": [950, -250]
+    },
+    {
+      "_name": "Ladder room, south",
+      "from": [650, 250], "to": [950, 250]
+    },
+    {
+      "_name": "Ladder room, east end — the ladder trigger sits against it",
+      "from": [950, -250], "to": [950, 250]
+    }
+  ]
+}
