@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import UIKit
 
 /// The launch-argument verification harness: `-walktest`, `-npctrace`, `-uidemo`,
 /// `-emotedemo`, `-emote`, `-map`, `-tennisdemo`, `-tennistrace`, `-tennis3ddemo`,
@@ -76,6 +77,20 @@ final class GameDebugHarness {
     ///
     /// Returns true when it took over, so `viewDidLoad` knows not to connect.
     func startOfflineMinigameIfRequested() -> Bool {
+        if ProcessInfo.processInfo.arguments.contains("-angryjoel") {
+            // Angry Joel isn't in the school yet, so it simply covers the whole screen.
+            Log.world("-angryjoel: starting Angry Joel with no server")
+            let game = AngryJoelView()
+            game.translatesAutoresizingMaskIntoConstraints = false
+            host.view.addSubview(game)
+            NSLayoutConstraint.activate([
+                game.topAnchor.constraint(equalTo: host.view.topAnchor),
+                game.bottomAnchor.constraint(equalTo: host.view.bottomAnchor),
+                game.leadingAnchor.constraint(equalTo: host.view.leadingAnchor),
+                game.trailingAnchor.constraint(equalTo: host.view.trailingAnchor),
+            ])
+            return true
+        }
         if ProcessInfo.processInfo.arguments.contains("-fivenights") {
             Log.world("-fivenights: starting the night watch with no server")
             let game = FiveNightsGame(host: host.state, npcs: [], myCharacter: nil)
