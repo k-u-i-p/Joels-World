@@ -93,6 +93,9 @@ final class FootballGame: WorldRenderedMinigame {
         /// Multiplier on how long it takes an opponent to tackle them. Below 1 is a side that
         /// loses the ball as soon as anybody gets near.
         var holdOnToBall: Double
+        /// Multiplier on how far away they will dive in at somebody running with the ball. See
+        /// `Tuning.lungeRange`. Below 1 is a side that only slides at you if you run into them.
+        var slideTackle: Double
     }
 
     // MARK: - Tuning
@@ -102,7 +105,7 @@ final class FootballGame: WorldRenderedMinigame {
         /// quicker than the baseline and for the opposition to be mega easy, and both of those
         /// live here rather than in twenty scattered constants.
         static let yourLot = Skill(speed: 1.2, settle: 1, shootRange: 1, shotSpread: 1,
-                                   keeperReach: 1, holdOnToBall: 1)
+                                   keeperReach: 1, holdOnToBall: 1, slideTackle: 1)
 
         /// **Red, and they are meant to be beatable by a ten-year-old.**
         ///
@@ -115,7 +118,8 @@ final class FootballGame: WorldRenderedMinigame {
         /// `holdOnToBall` at 0.55 is the sharpest of them: it takes about a third of a second to
         /// rob a red shirt, so red can only do anything at all when nobody is near them.
         static let theOpposition = Skill(speed: 0.8, settle: 1.8, shootRange: 0.55,
-                                         shotSpread: 2.6, keeperReach: 0.55, holdOnToBall: 0.55)
+                                         shotSpread: 2.6, keeperReach: 0.55, holdOnToBall: 0.55,
+                                         slideTackle: 0.7)
 
         /// Outfield pace, before `Skill.speed`. A pupil is not a professional, but this is a game
         /// — 6.4 m/s is a fast child, and the ball still outruns everybody, which is what makes a
@@ -161,6 +165,32 @@ final class FootballGame: WorldRenderedMinigame {
         /// **Longer when it is you being closed down.** Losing the ball the instant a red shirt
         /// arrives is the fastest way to make a ten-year-old put the game down.
         static let pressureToStealFromHuman: Double = 0.85
+
+        /// **The sliding tackle — the one that catches you while you are running.** Joel asked
+        /// for it: "make it so you can be tackled while running".
+        ///
+        /// Pressure alone never could. You dribble at nearly 8 m/s and red runs at about 5, so
+        /// running past a defender kept you inside `pressureRadius` for a third of a second
+        /// against the 0.85 it takes to steal — anybody who kept moving simply could not lose it.
+        ///
+        /// So a defender within `lungeRange` of a *running* carrier dives at where the ball is
+        /// about to be, and if the slide gets within `lungeReach` of it, it is theirs, there and
+        /// then. Still not a dice roll: the direction is committed when they go, so a swerve at
+        /// the right moment beats it — and a slide that misses leaves them picking themselves up
+        /// for `lungeRecovery`, which is the reward for the swerve.
+        ///
+        /// `lungeSpeed` is **not** scaled by `Skill.speed`. Scale it and red, at 0.8, slides
+        /// slower than you dribble, and the tackle is back to never happening.
+        static let lungeRange = FootballPitch.metres(2.6)
+        static let lungeTime: Double = 0.3
+        static let lungeSpeed = FootballPitch.metres(11)
+        static let lungeAcceleration = FootballPitch.metres(80)
+        static let lungeReach = FootballPitch.metres(1.0)
+        static let lungeRecovery: Double = 1.1
+        static let recoverySpeedFraction = 0.3
+        /// How fast the carrier has to be going before anybody slides in. A standing carrier is
+        /// what pressure is for.
+        static let lungeWhenCarrierFasterThan = FootballPitch.metres(3)
 
         /// How long after kicking it a player cannot take the ball back. Without this a pass is
         /// instantly re-collected by the passer and nothing ever moves.
@@ -348,6 +378,13 @@ final class FootballGame: WorldRenderedMinigame {
         /// Seconds left of thinking time before the AI reconsiders.
         var decisionTimer: Double = 0
 
+        /// Seconds left of a sliding tackle, and which way it is going — fixed when they dive,
+        /// which is what makes it dodgeable. See `Tuning.lungeRange`.
+        var lungeTimer: Double = 0
+        var lungeDirection = SIMD2<Double>.zero
+        /// Seconds left on the floor after a slide that missed.
+        var recoverTimer: Double = 0
+
         init(appearance: GameCharacter, team: Team, role: Role,
              home: SIMD2<Double>, wearsMyFace: Bool, topSpeed: Double) {
             self.appearance = appearance
@@ -474,6 +511,16 @@ final class FootballGame: WorldRenderedMinigame {
         for player in players {
             player.kickCooldown = max(0, player.kickCooldown - dt)
             player.decisionTimer = max(0, player.decisionTimer - dt)
+            player.recoverTimer = max(0, player.recoverTimer - dt)
+            // A slide that runs out without the ball is a slide that missed. One that won it was
+            // stopped early in `resolvePossession`, and gets up straight away.
+            if player.lungeTimer > 0 {
+                player.lungeTimer -= dt
+                if player.lungeTimer <= 0 {
+                    player.lungeTimer = 0
+                    player.recoverTimer = Tuning.lungeRecovery
+                }
+            }
         }
 
         switch phase {
@@ -771,6 +818,8 @@ final class FootballGame: WorldRenderedMinigame {
             player.motor.teleport(x: spot.x, y: spot.y, z: 0,
                                   facing: player.team == .blue ? 270 : 90)
             player.motor.holdPosition()
+            player.lungeTimer = 0
+            player.recoverTimer = 0
             player.kickCooldown = 0
         }
 
@@ -939,6 +988,24 @@ final class FootballGame: WorldRenderedMinigame {
         if let holder = carrier {
             // A tackle is time spent close, not a dice roll. See the note at the top of the file.
             let carrierPlayer = players[holder]
+
+            // A slide that reaches the ball wins it outright — no pressure to build up.
+            for index in players.indices
+            where players[index].team != carrierPlayer.team && players[index].lungeTimer > 0 {
+                let distance = hypot(players[index].motor.x - ball.x,
+                                     players[index].motor.y - ball.y)
+                guard distance < Tuning.lungeReach else { continue }
+                players[index].lungeTimer = 0
+                let robbedYou = carrierPlayer.isControlled
+                take(by: index)
+                host.minigamePlayEffect(path: "/media/hit_tennis_ball2.mp3",
+                                        volume: 0.24, rate: 0.55)
+                if robbedYou { announce("TACKLED!", duration: 0.9) }
+                Log.world("[Football] \(players[index].team.name) slide tackle wins it"
+                          + (robbedYou ? " off you" : ""))
+                return
+            }
+
             var closest: Int?
             var closestDistance = Double.infinity
             for index in players.indices where players[index].team != carrierPlayer.team {

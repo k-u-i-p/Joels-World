@@ -85,6 +85,17 @@ builds pressure; past the threshold the ball changes hands. Closing someone down
 away works, and neither is random — which matters when the person playing is ten and would like to
 know why he lost the ball. You get longer than the AI does (`pressureToStealFromHuman`).
 
+**2½. …except at a runner, where a tackle is a slide.** Joel: *"make it so you can be tackled
+while running"*. Pressure never could — you dribble at nearly 8 m/s against red's 5, so running
+past a defender kept you in `pressureRadius` for a third of a second against the 0.85 a steal
+needs, and anybody who kept moving simply never lost the ball. Now an outfielder within
+`Tuning.lungeRange` of a carrier going faster than `lungeWhenCarrierFasterThan` dives at where
+the ball is about to be; reach it within `lungeReach` and it is theirs at once, with a **TACKLED!**
+banner if it was yours. The direction is fixed when they dive, so a swerve beats it, and a miss
+leaves them on the floor at 30% pace for `lungeRecovery`. One slider per team at a time, keepers
+never. `lungeSpeed` deliberately ignores `Skill.speed` — scaled, red would slide slower than you
+dribble. How far away red will dive from is the seventh dial, `Skill.slideTackle` (0.7).
+
 **3. Everything positional is in team space.** A slot is `(u, v)`: `u` from −1 at your own goal to
 +1 at theirs, `v` across. Both teams share one formation table, one "push up when we have it" rule
 and one "get goal-side" rule, and red is not a mirrored special case with its own signs to get
@@ -187,7 +198,8 @@ hedge for a horizon.
 
 ## Difficulty lives in one struct
 
-`FootballGame.Skill` is six multipliers, one set per side (`Tuning.yourLot` and
+`FootballGame.Skill` is seven multipliers (the table below predates the seventh, `slideTackle`:
+blue 1, red 0.7), one set per side (`Tuning.yourLot` and
 `Tuning.theOpposition`), applied at the handful of places a decision is actually taken. **You are
 always blue**, so this is the one place the game is deliberately unfair.
 
@@ -270,6 +282,8 @@ worse footballer than a ten-year-old — it never holds a position and never def
 | Auto-switching + the bigger pitch | red 3–0, three times | 97 of 102 |
 | **After the statue bug** (below) | **blue 3–0, badge claimed** | 29 of 62 |
 | Red set to `theOpposition`, blue to `yourLot` | blue 3–0 **in about 50 seconds** | 6 of 19 |
+| Slide tackles, `slideTackle` 1 for both sides | **0–0 after 50 s**, 15 tackles on the bot — stopped | — |
+| **Slide tackles, red `slideTackle` 0.7** | **blue 3–1 in about two minutes, badge claimed** — 54 slides won off a bot that never swerves, so a real thumb gets tackled far less | — |
 
 **Everything above the last row was measured on a blue side playing four against five**, because
 the demo's player never actually moved — see the statue bug in the section above. Only the last

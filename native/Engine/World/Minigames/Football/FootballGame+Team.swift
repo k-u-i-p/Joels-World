@@ -181,10 +181,20 @@ extension FootballGame {
             ? player.baseSpeed + Tuning.controlSpeedBonus
             : player.baseSpeed
         player.motor.profile.maxSpeed = hasBall ? top * Tuning.dribbleFraction : top
+        player.motor.profile.acceleration = Tuning.acceleration
 
         if player.isControlled {
+            player.lungeTimer = 0
             steerControlled(player)
             return
+        }
+        if player.lungeTimer > 0 || startsSlideTackle(index) {
+            steerSlideTackle(player)
+            return
+        }
+        // On the floor after a slide that missed: still moving, just barely.
+        if player.recoverTimer > 0 {
+            player.motor.profile.maxSpeed = top * Tuning.recoverySpeedFraction
         }
         if hasBall {
             steerCarrier(index)
@@ -209,6 +219,45 @@ extension FootballGame {
         }
         player.motor.driveCharacter(velocityX: move.x * player.motor.profile.maxSpeed,
                                     velocityY: move.y * player.motor.profile.maxSpeed)
+    }
+
+    /// Whether this player dives in now. Outfielders only — a keeper sliding out of his goal is
+    /// a goal — and only at a carrier who is actually running. See `Tuning.lungeRange`.
+    private func startsSlideTackle(_ index: Int) -> Bool {
+        let player = players[index]
+        guard let holder = carrier, players[holder].team != player.team,
+              player.role != .keeper, player.recoverTimer <= 0, player.kickCooldown <= 0
+        else { return false }
+
+        let runner = players[holder].motor
+        guard runner.speed > Tuning.lungeWhenCarrierFasterThan else { return false }
+        let range = Tuning.lungeRange * player.team.skill.slideTackle
+        guard hypot(ball.x - player.motor.x, ball.y - player.motor.y) < range else { return false }
+
+        // One at a time. Three red shirts diving in together is a wall, not a tackle, and
+        // there is no swerving round a wall.
+        guard !players.contains(where: { $0.team == player.team && $0.lungeTimer > 0 })
+        else { return false }
+
+        // Aim where the ball will be halfway through the slide, not where it is now — at this
+        // pace it moves more than a metre in that time.
+        let lead = Tuning.lungeTime * 0.5
+        let aim = SIMD2(ball.x + runner.vx * lead - player.motor.x,
+                        ball.y + runner.vy * lead - player.motor.y)
+        let length = (aim.x * aim.x + aim.y * aim.y).squareRoot()
+        guard length > 0.001 else { return false }
+
+        player.lungeDirection = aim / length
+        player.lungeTimer = Tuning.lungeTime
+        return true
+    }
+
+    /// Mid-slide: flat out in the direction they committed to, with no steering at all.
+    private func steerSlideTackle(_ player: Player) {
+        player.motor.profile.maxSpeed = Tuning.lungeSpeed
+        player.motor.profile.acceleration = Tuning.lungeAcceleration
+        player.motor.driveCharacter(velocityX: player.lungeDirection.x * Tuning.lungeSpeed,
+                                    velocityY: player.lungeDirection.y * Tuning.lungeSpeed)
     }
 
     /// The keeper: off the line by a stride, tracking the ball across the goal, and out to
