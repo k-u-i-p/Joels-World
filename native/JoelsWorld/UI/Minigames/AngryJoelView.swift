@@ -14,6 +14,12 @@ import UIKit
 final class AngryJoelView: UIView {
     private let skView = SKView()
     private let scene = AngryJoelScene(size: CGSize(width: 800, height: 400))
+    private let exitButton = UIButton(type: .system)
+
+    /// Tapped **Exit**. Nil hides the button — the `-angryjoel` test switch has nowhere to go.
+    var onExit: (() -> Void)? {
+        didSet { exitButton.isHidden = onExit == nil }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -28,6 +34,21 @@ final class AngryJoelView: UIView {
         ])
         scene.scaleMode = .resizeFill
         skView.presentScene(scene)
+
+        var config = UIButton.Configuration.filled()
+        config.title = "Exit"
+        config.baseBackgroundColor = UIColor(white: 0, alpha: 0.35)
+        config.baseForegroundColor = .white
+        config.cornerStyle = .capsule
+        exitButton.configuration = config
+        exitButton.isHidden = true
+        exitButton.translatesAutoresizingMaskIntoConstraints = false
+        exitButton.addAction(UIAction { [weak self] _ in self?.onExit?() }, for: .touchUpInside)
+        addSubview(exitButton)
+        NSLayoutConstraint.activate([
+            exitButton.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 8),
+            exitButton.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -16),
+        ])
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }

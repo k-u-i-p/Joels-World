@@ -36,6 +36,8 @@ final class GameViewController: UIViewController {
     let football = FootballView()
     let fiveNights = FiveNightsView()
     let schoolEscape = SchoolEscapeView()
+    /// Only exists while you're on the Angry Joel map.
+    private var angryJoel: AngryJoelView?
 
     #if DEBUG
     private(set) lazy var debug = GameDebugHarness(host: self)
@@ -259,6 +261,11 @@ final class GameViewController: UIViewController {
     private func updateOverlays(viewport: SIMD2<Float>) {
         guard state.hasWorld else { return }
 
+        // Angry Joel draws itself, on top of everything, while you're on its map.
+        let onAngryJoel = state.mapData?.import?.hasSuffix("angryjoel.js") == true
+        showAngryJoel(onAngryJoel)
+        if onAngryJoel { return }
+
         // A 2D minigame redraws its own surface instead, once per simulated frame.
         if state.suppressesWorldRendering {
             tennis.step()
@@ -282,6 +289,37 @@ final class GameViewController: UIViewController {
         if minimap.isOpen, let mapData = state.mapData {
             minimap.updateDot(playerX: state.player.x, playerY: state.player.y,
                               mapWidth: mapData.width, mapHeight: mapData.height)
+        }
+    }
+
+    // MARK: - Angry Joel
+
+    /// **Angry Joel** (map 9, the door on the playground). It isn't one of the engine's
+    /// minigames — it is a SpriteKit game laid over the top of the screen — so the screen puts
+    /// it up when you arrive on its map and takes it down when you leave.
+    private func showAngryJoel(_ show: Bool) {
+        if show, angryJoel == nil {
+            let game = AngryJoelView()
+            game.translatesAutoresizingMaskIntoConstraints = false
+            game.onExit = { [weak self] in self?.network.sendChangeMap(0) }
+            // Above the world and the controls, below the dialogs.
+            view.insertSubview(game, belowSubview: minimap)
+            NSLayoutConstraint.activate([
+                game.topAnchor.constraint(equalTo: view.topAnchor),
+                game.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+                game.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                game.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            ])
+            angryJoel = game
+            joystick.isHidden = true
+            hud.isHidden = true
+            buttons.isHidden = true
+        } else if !show, let game = angryJoel {
+            game.removeFromSuperview()
+            angryJoel = nil
+            joystick.isHidden = false
+            hud.isHidden = false
+            buttons.isHidden = false
         }
     }
 
