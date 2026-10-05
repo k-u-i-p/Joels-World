@@ -341,6 +341,25 @@
     "rotation": 14
   },
   {
+    "id": 458,
+    "name": "Angry Joel",
+    "shape": "rect",
+    "x": 1741,
+    "y": -324,
+    "width": 500,
+    "length": 500,
+    "clip": -1,
+    "on_enter": [
+      {
+        "show_dialog": {
+          "description": "Play Angry Joel? Fling yourself at the pigs!",
+          "type": "change_map",
+          "map": 9
+        }
+      }
+    ]
+  },
+  {
     "id": 200,
     "shape": "3d_model",
     "x": 774,

@@ -167,5 +167,11 @@
     "name": "School Escape",
     "import": "/src/minigames/schoolescape.js",
     "default_zoom": 1
+  },
+  {
+    "id": 9,
+    "name": "Angry Joel",
+    "import": "/src/minigames/angryjoel.js",
+    "default_zoom": 1
   }
 ]
