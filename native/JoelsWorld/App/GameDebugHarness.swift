@@ -732,6 +732,15 @@ final class GameDebugHarness {
 
     /// `-map <id>`: jumps straight to a map instead of walking to its door.
     private func requestInitialMap() {
+        // `-angryjoeldoor`: says yes to the playground door, through the dialog's own handler.
+        if ProcessInfo.processInfo.arguments.contains("-angryjoeldoor"), !requestedInitialMap {
+            requestedInitialMap = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                Log.world("-angryjoeldoor: saying yes to the Angry Joel door")
+                self?.host.dialog.onConfirm?(.changeMap(9))
+            }
+            return
+        }
         guard let mapId = WalkTest.initialMapId, !requestedInitialMap else { return }
         requestedInitialMap = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in

@@ -38,6 +38,7 @@ final class GameViewController: UIViewController {
     let schoolEscape = SchoolEscapeView()
     /// Only exists while you're on the Angry Joel map.
     private var angryJoel: AngryJoelView?
+    private var controlsHiddenBeforeAngryJoel = [false, false, false]
 
     #if DEBUG
     private(set) lazy var debug = GameDebugHarness(host: self)
@@ -148,6 +149,9 @@ final class GameViewController: UIViewController {
 
         dialog.onConfirm = { [weak self] action in
             switch action {
+            case .changeMap(let mapId) where mapId == Self.angryJoelMapId:
+                // Angry Joel opens right where you are — no new map, so no server needed.
+                self?.showAngryJoel(true)
             case .changeMap(let mapId):
                 Log.world("Requesting map change to \(mapId)")
                 self?.network.sendChangeMap(mapId)
@@ -261,11 +265,6 @@ final class GameViewController: UIViewController {
     private func updateOverlays(viewport: SIMD2<Float>) {
         guard state.hasWorld else { return }
 
-        // Angry Joel draws itself, on top of everything, while you're on its map.
-        let onAngryJoel = state.mapData?.import?.hasSuffix("angryjoel.js") == true
-        showAngryJoel(onAngryJoel)
-        if onAngryJoel { return }
-
         // A 2D minigame redraws its own surface instead, once per simulated frame.
         if state.suppressesWorldRendering {
             tennis.step()
@@ -294,14 +293,18 @@ final class GameViewController: UIViewController {
 
     // MARK: - Angry Joel
 
-    /// **Angry Joel** (map 9, the door on the playground). It isn't one of the engine's
-    /// minigames — it is a SpriteKit game laid over the top of the screen — so the screen puts
-    /// it up when you arrive on its map and takes it down when you leave.
+    /// The map number the playground door asks for (`data/junior_school/objects.json`).
+    static let angryJoelMapId = 9
+
+    /// **Angry Joel** — the door on the playground. It isn't one of the engine's minigames and
+    /// it never changes map: saying yes at the door lays the game over the top of the school,
+    /// and **Exit** takes it away again, leaving you standing on the playground. Because the
+    /// server is never asked, it works without a deploy.
     private func showAngryJoel(_ show: Bool) {
         if show, angryJoel == nil {
             let game = AngryJoelView()
             game.translatesAutoresizingMaskIntoConstraints = false
-            game.onExit = { [weak self] in self?.network.sendChangeMap(0) }
+            game.onExit = { [weak self] in self?.showAngryJoel(false) }
             // Above the world and the controls, below the dialogs.
             view.insertSubview(game, belowSubview: minimap)
             NSLayoutConstraint.activate([
@@ -311,15 +314,18 @@ final class GameViewController: UIViewController {
                 game.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             ])
             angryJoel = game
+            // Remember what was showing, so Exit puts the screen back exactly as it was.
+            controlsHiddenBeforeAngryJoel = [joystick.isHidden, hud.isHidden, buttons.isHidden]
             joystick.isHidden = true
             hud.isHidden = true
             buttons.isHidden = true
         } else if !show, let game = angryJoel {
             game.removeFromSuperview()
             angryJoel = nil
-            joystick.isHidden = false
-            hud.isHidden = false
-            buttons.isHidden = false
+            let was = controlsHiddenBeforeAngryJoel
+            joystick.isHidden = was[0]
+            hud.isHidden = was[1]
+            buttons.isHidden = was[2]
         }
     }
 
