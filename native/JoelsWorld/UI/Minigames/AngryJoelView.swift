@@ -111,14 +111,22 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         // 7. The tall tower.
         hut(100, height: 50) + hut(100, 64, height: 50) + hut(100, 128, height: 50)
             + [.pig(x: 135, y: 192)],
-        // 8. The bunker: a wall to get over first.
-        [.block(x: 0, y: 0, w: 14, h: 110)] + hut(50) + hut(150) + [.pig(x: 270, y: 0)],
-        // 9. Twin towers.
+        // 8. The fortress: two tall huts with a lookout on top.
+        hut(0, height: 80) + hut(100, height: 80) + hut(50, 94, height: 50)
+            + [.pig(x: 85, y: 158)],
+        // 9. Twin towers, joined by a bridge.
         hut(0, height: 50) + hut(0, 64, height: 50)
-            + hut(180, height: 50) + hut(180, 64, height: 50) + hut(180, 128, height: 50),
-        // 10. Pigs on stilts.
-        hut(0, height: 120, pig: false) + [.pig(x: 35, y: 134), .pig(x: 35, y: 0)]
-            + hut(180, height: 120, pig: false) + [.pig(x: 215, y: 134), .pig(x: 215, y: 0)],
+            + hut(150, height: 50) + hut(150, 64, height: 50)
+            + [.block(x: 110, y: 128, w: 170, h: 14), .pig(x: 110, y: 142)],
+        // 10. Pigs on stilts: three tall legs, one long deck.
+        [
+            .block(x: 0, y: 0, w: 14, h: 120),
+            .block(x: 85, y: 0, w: 14, h: 120),
+            .block(x: 170, y: 0, w: 14, h: 120),
+            .block(x: 85, y: 120, w: 200, h: 14),
+            .pig(x: 42, y: 0), .pig(x: 128, y: 0),
+            .pig(x: 42, y: 134), .pig(x: 128, y: 134),
+        ],
         // 11. The great castle.
         hut(0) + hut(100) + hut(200) + hut(50, 74) + hut(150, 74) + hut(100, 148, height: 50),
         // 12. Pig King's palace.
@@ -151,7 +159,13 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
                                                                   ring: UIColor(red: 0.35, green: 0.75, blue: 0.2, alpha: 1),
                                                                   angry: false))
 
-    private var level = 0
+    /// `-angryjoellevel 9` starts on level 9 — for testing the hard ones.
+    private var level: Int = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-angryjoellevel"), i + 1 < args.count,
+              let n = Int(args[i + 1]) else { return 0 }
+        return max(0, min(n - 1, AngryJoelScene.levels.count - 1))
+    }()
     private var score = 0
     private var joelsLeft = 0
     private var joel: SKSpriteNode?
