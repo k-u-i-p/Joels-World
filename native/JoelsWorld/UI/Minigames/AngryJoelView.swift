@@ -85,8 +85,8 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
     static let levels: [[Piece]] = [
         // 1. One little hut.
         hut(0, height: 70),
-        // 2. Two towers.
-        hut(0) + [.pig(x: 35, y: 74)] + hut(150, height: 90),
+        // 2. One hut, and a pig with nowhere to hide right behind it.
+        hut(0) + [.pig(x: 125, y: 0)],
         // 3. The big castle.
         [
             .block(x: 0, y: 0, w: 14, h: 60),
@@ -163,6 +163,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
     private var levelAge: TimeInterval = 0
     private var lastUpdate: TimeInterval = 0
     private var waitingForTap = false
+    private var levelWon = false
     /// `-angryjoeldemo`: a robot fires the shots, for testing without a thumb.
     private let demo = ProcessInfo.processInfo.arguments.contains("-angryjoeldemo")
     private var demoShot = 0
@@ -246,6 +247,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         flying = false
         dragging = false
         waitingForTap = false
+        levelWon = false
         levelAge = 0
         joelsLeft = Tuning.joelsPerLevel
         messageLabel.text = nil
@@ -509,14 +511,17 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         }
 
         if demo { runDemo(dt) }
-        guard !waitingForTap else { return }
-
-        if pigs.isEmpty && levelAge > 1 {
+        // Checked even after "OUT OF JOELS!", because a tower can still squash the last pig
+        // a moment later — and that should count.
+        if pigs.isEmpty && levelAge > 1 && !levelWon {
+            levelWon = true
             score += joelsLeft * 10000
             let last = level == Self.levels.count - 1
             showMessage(last ? "YOU WIN!\nTap to play again" : "LEVEL CLEAR!\nTap for the next one")
             return
         }
+
+        guard !waitingForTap else { return }
 
         guard flying, let joel, let body = joel.physicsBody else { return }
         flightTime += dt
@@ -530,7 +535,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
                 run(.wait(forDuration: 0.4)) { [weak self] in self?.loadJoel() }
             } else {
                 // Give the towers a moment to finish falling before saying it's over.
-                run(.wait(forDuration: 1.5)) { [weak self] in
+                run(.wait(forDuration: 3)) { [weak self] in
                     guard let self, !self.pigs.isEmpty, !self.waitingForTap else { return }
                     self.showMessage("OUT OF JOELS!\nTap to try again")
                 }
