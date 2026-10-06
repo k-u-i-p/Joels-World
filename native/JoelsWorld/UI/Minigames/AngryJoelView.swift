@@ -248,10 +248,10 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
 
     /// How much of the world fits on the screen at once, with the phone held sideways. The
     /// camera zooms so this much shows.
-    private static let viewSize = CGSize(width: 2000, height: 920)
+    private static let viewSize = CGSize(width: 2400, height: 1100)
     /// **How wide a slice of the world shows with the phone held upright.** Smaller is more
     /// zoomed in — everything bigger on screen, and the camera follows the bird further.
-    private static let uprightViewWidth: CGFloat = 1400
+    private static let uprightViewWidth: CGFloat = 2130
     /// **How wide the whole world is.** Wider than the screen, so the camera follows the bird
     /// out to the towers.
     private static let worldWidth: CGFloat = 2130
@@ -395,6 +395,10 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         }
         return max(Self.viewSize.width / size.width, Self.viewSize.height / size.height)
     }
+
+    /// **How much further the slingshot stretches when zoomed right out**, so it's still a
+    /// proper pull for a thumb. The fling is just as hard either way.
+    private var pullScale: CGFloat { min(2.5, max(1, zoom * 0.5)) }
 
     /// The furthest left and right the camera can look without showing past the world's ends.
     private var camRange: ClosedRange<CGFloat> {
@@ -648,7 +652,8 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
             return
         }
         guard let loaded, !shotActive else { return }
-        if touch.location(in: self).distance(to: loaded.position) < 90 {
+        // About half a thumb's width on screen, however far out the camera is.
+        if touch.location(in: self).distance(to: loaded.position) < max(90, 45 * zoom) {
             dragging = true
         }
     }
@@ -657,7 +662,8 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         guard dragging, let touch = touches.first, let loaded else { return }
         var offset = touch.location(in: self) - slingPoint
         let length = offset.length
-        if length > Tuning.maxPull { offset = offset * (Tuning.maxPull / length) }
+        let maxPull = Tuning.maxPull * pullScale
+        if length > maxPull { offset = offset * (maxPull / length) }
         loaded.position = slingPoint + offset
         drawBand(to: loaded.position)
     }
@@ -665,7 +671,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard dragging, let loaded else { return }
         dragging = false
-        let pull = slingPoint - loaded.position
+        let pull = (slingPoint - loaded.position) * (1 / pullScale)
         guard pull.length > 12 else {
             // Barely pulled: put it back.
             loaded.position = slingPoint
@@ -974,7 +980,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         let pulls = [CGPoint(x: 100, y: 40), CGPoint(x: 100, y: 45), CGPoint(x: 95, y: 35)]
         let pull = pulls[demoShot % pulls.count]
         demoShot += 1
-        loaded.position = slingPoint - pull
+        loaded.position = slingPoint - pull * pullScale
         NSLog("[AngryJoel] demo: level %d shot %d", level + 1, demoShot)
         fling(pull: pull)
     }
