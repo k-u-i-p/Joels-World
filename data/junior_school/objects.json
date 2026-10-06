@@ -352,12 +352,13 @@
     "on_enter": [
       {
         "show_dialog": {
-          "description": "Play Angry Joel? Fling yourself at the pigs!",
+          "description": "Play Angry Joel? Fling yourself at the towers and pigs",
           "type": "change_map",
           "map": 9
         }
       }
-    ]
+    ],
+    "on_exit": null
   },
   {
     "id": 200,
@@ -3314,7 +3315,7 @@
     "y": -1394,
     "z": 0,
     "model": "models/rocks/rock_05.glb",
-    "scale": 38.0,
+    "scale": 38,
     "rotation": 65,
     "name": "Rock",
     "clip": -1
