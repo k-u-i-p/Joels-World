@@ -70,7 +70,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         /// How big a pig is (radius, points).
         static let pigRadius: CGFloat = 22 * bigness
         /// How much health a pig has. Every hit takes off how fast it was hit.
-        static let pigHealth: CGFloat = 250
+        static let pigHealth: CGFloat = 150
         /// How much a crash hurts: the speed of the crash times this. Smaller makes everything
         /// tougher; bigger makes everything break.
         static let hitDamage: CGFloat = 0.34
@@ -667,7 +667,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         let length = offset.length
         let maxPull = Tuning.maxPull * pullScale
         if length > maxPull { offset = offset * (maxPull / length) }
-        loaded.position = slingPoint + offset
+        loaded.position = keptAboveGround(slingPoint + offset, radius: loadedKind.radius)
         drawBand(to: loaded.position)
     }
 
@@ -688,8 +688,15 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         touchesEnded(touches, with: event)
     }
 
+    /// **A bird pulled back can't go under the grass.** One that did would start its flight
+    /// underground, fall straight out of the bottom of the world and vanish.
+    private func keptAboveGround(_ point: CGPoint, radius: CGFloat) -> CGPoint {
+        CGPoint(x: point.x, y: max(point.y, groundY + radius + 2))
+    }
+
     private func fling(pull: CGPoint) {
         guard let node = loaded else { return }
+        node.position = keptAboveGround(node.position, radius: loadedKind.radius)
         NSLog("[AngryJoel] fling %@ pull=(%.0f, %.0f)", "\(loadedKind)", pull.x, pull.y)
         let body = giveBody(node, loadedKind)
         body.velocity = CGVector(dx: pull.x * Tuning.power, dy: pull.y * Tuning.power)
@@ -920,6 +927,8 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
             $0.position.x > Self.worldWidth + 100 || $0.position.x < -100 || $0.position.y < -100
         }
         if allGone || stillTime > 1 || flightTime > 8 {
+            NSLog("[AngryJoel] shot over: gone=%d still=%.1f time=%.1f at %@", allGone ? 1 : 0, stillTime,
+                  flightTime, inFlight.map { "(\(Int($0.position.x)),\(Int($0.position.y)))" }.joined(separator: " "))
             // Bomb that never went off goes off now.
             if trickReady, flyingKind == .bomb, let bomb = inFlight.first { explode(bomb) }
             for bird in inFlight {
@@ -980,12 +989,14 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         }
         guard let loaded, !shotActive, levelAge > 2 else { return }
         demoWait = 0
-        let pulls = [CGPoint(x: 100, y: 40), CGPoint(x: 100, y: 45), CGPoint(x: 95, y: 35)]
+        let pulls = ProcessInfo.processInfo.arguments.contains("-angryjoelfullpower")
+            ? [CGPoint(x: 80, y: 76), CGPoint(x: 100, y: 45), CGPoint(x: 60, y: 92)]
+            : [CGPoint(x: 100, y: 40), CGPoint(x: 100, y: 45), CGPoint(x: 95, y: 35)]
         let pull = pulls[demoShot % pulls.count]
         demoShot += 1
-        loaded.position = slingPoint - pull * pullScale
+        loaded.position = keptAboveGround(slingPoint - pull * pullScale, radius: loadedKind.radius)
         NSLog("[AngryJoel] demo: level %d shot %d", level + 1, demoShot)
-        fling(pull: pull)
+        fling(pull: (slingPoint - loaded.position) * (1 / pullScale))
     }
 
     private func showMessage(_ text: String) {
