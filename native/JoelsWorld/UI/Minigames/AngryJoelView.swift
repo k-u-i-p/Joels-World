@@ -67,7 +67,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         /// How big a pig is (radius, points).
         static let pigRadius: CGFloat = 22 * bigness
         /// How much health a pig has. Every hit takes off how fast it was hit.
-        static let pigHealth: CGFloat = 400
+        static let pigHealth: CGFloat = 250
         /// How much a crash hurts: the speed of the crash times this. Smaller makes everything
         /// tougher; bigger makes everything break.
         static let hitDamage: CGFloat = 0.41
