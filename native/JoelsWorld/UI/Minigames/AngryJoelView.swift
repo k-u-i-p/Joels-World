@@ -63,14 +63,14 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         /// How far back the slingshot stretches, in points.
         static let maxPull: CGFloat = 110
         /// How hard it flings: launch speed is the pull times this.
-        static let power: CGFloat = 11.5
+        static let power: CGFloat = 14
         /// How big a pig is (radius, points).
         static let pigRadius: CGFloat = 22 * bigness
         /// How much health a pig has. Every hit takes off how fast it was hit.
         static let pigHealth: CGFloat = 400
         /// How much a crash hurts: the speed of the crash times this. Smaller makes everything
         /// tougher; bigger makes everything break.
-        static let hitDamage: CGFloat = 0.5
+        static let hitDamage: CGFloat = 0.41
         /// Bumps gentler than this don't hurt anything — so a tower doesn't wreck itself
         /// just by standing there.
         static let gentleBump: CGFloat = 60
@@ -123,9 +123,9 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         }
         var density: CGFloat {
             switch self {
-            case .joel: return 1.2
-            case .blues: return 1.2
-            case .bomb: return 2
+            case .joel: return 1
+            case .blues: return 1
+            case .bomb: return 1.7
             }
         }
         /// Joel gets drawn-on angry eyebrows; the Blues' face is angry enough already.
@@ -246,12 +246,15 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         static let ground: UInt32 = 8
     }
 
-    /// How much of the world fits on the screen at once. The camera zooms so this much shows,
-    /// whichever way round the phone is held.
+    /// How much of the world fits on the screen at once, with the phone held sideways. The
+    /// camera zooms so this much shows.
     private static let viewSize = CGSize(width: 900, height: 420)
+    /// **How wide a slice of the world shows with the phone held upright.** Smaller is more
+    /// zoomed in — everything bigger on screen, and the camera follows the bird further.
+    private static let uprightViewWidth: CGFloat = 560
     /// **How wide the whole world is.** Wider than the screen, so the camera follows the bird
     /// out to the towers.
-    private static let worldWidth: CGFloat = 1500
+    private static let worldWidth: CGFloat = 2130
 
     private let world = SKNode()
     private let cam = SKCameraNode()
@@ -321,8 +324,8 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
     private var camX: CGFloat = 0
 
     private var groundY: CGFloat { 50 }
-    private var slingPoint: CGPoint { CGPoint(x: 160, y: groundY + 90 * Tuning.bigness) }
-    private var towersX: CGFloat { 740 }
+    private var slingPoint: CGPoint { CGPoint(x: 290, y: groundY + 90 * Tuning.bigness) }
+    private var towersX: CGFloat { 1280 }
     private var pigs: [SKNode] { world.children.filter { $0.name == "pig" } }
     private var birdsLeft: Int { queue.count + (loaded == nil ? 0 : 1) }
 
@@ -387,6 +390,9 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
     /// How zoomed out the camera is: big enough that `viewSize` of the world fits on screen.
     private var zoom: CGFloat {
         guard size.width > 0, size.height > 0 else { return 1 }
+        if size.height > size.width {
+            return Self.uprightViewWidth / size.width
+        }
         return max(Self.viewSize.width / size.width, Self.viewSize.height / size.height)
     }
 
@@ -931,14 +937,17 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
     private func moveCamera(_ dt: TimeInterval) {
         let range = camRange
         var target = range.lowerBound
+        // How quickly the camera catches up: snappy behind a fast bird, gentle otherwise.
+        var catchUp: CGFloat = 3
         if shotActive, let lead = inFlight.map(\.position.x).max() {
-            target = lead + 100
+            target = lead
+            catchUp = 10
         } else if levelAge < 1.4 && !showingIntro {
             target = range.upperBound
         } else if showingIntro {
             target = range.upperBound
         }
-        camX += (target.clamped(to: range) - camX) * min(1, CGFloat(dt) * 3)
+        camX += (target.clamped(to: range) - camX) * min(1, CGFloat(dt) * catchUp)
         cam.position.x = camX.clamped(to: range)
     }
 
