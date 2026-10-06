@@ -60,6 +60,9 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         /// **How big everything is.** 1 is normal; 1.425 is 42.5% bigger — the birds, the pigs,
         /// the blocks and the slingshot all grow together.
         static let bigness: CGFloat = 1.425
+        /// **How big the buildings are**, on top of `bigness`. 1.5 is 50% bigger blocks and huts;
+        /// the birds and pigs stay the same.
+        static let buildingSize: CGFloat = 1.5
         /// How far back the slingshot stretches, in points.
         static let maxPull: CGFloat = 110
         /// How hard it flings: launch speed is the pull times this.
@@ -251,10 +254,10 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
     private static let viewSize = CGSize(width: 2400, height: 1100)
     /// **How wide a slice of the world shows with the phone held upright.** Smaller is more
     /// zoomed in — everything bigger on screen, and the camera follows the bird further.
-    private static let uprightViewWidth: CGFloat = 2130
+    private static let uprightViewWidth: CGFloat = 2500
     /// **How wide the whole world is.** Wider than the screen, so the camera follows the bird
     /// out to the towers.
-    private static let worldWidth: CGFloat = 2130
+    private static let worldWidth: CGFloat = 2500
 
     private let world = SKNode()
     private let cam = SKCameraNode()
@@ -500,7 +503,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         world.addChild(post)
 
         for piece in Self.levels[level] {
-            let k = Tuning.bigness
+            let k = Tuning.bigness * Tuning.buildingSize
             switch piece {
             case let .block(x, y, w, h, material):
                 addBlock(center: CGPoint(x: towersX + x * k, y: groundY + (y + h / 2) * k),
