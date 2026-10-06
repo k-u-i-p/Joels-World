@@ -63,14 +63,14 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         /// How far back the slingshot stretches, in points.
         static let maxPull: CGFloat = 110
         /// How hard it flings: launch speed is the pull times this.
-        static let power: CGFloat = 14
+        static let power: CGFloat = 17
         /// How big a pig is (radius, points).
         static let pigRadius: CGFloat = 22 * bigness
         /// How much health a pig has. Every hit takes off how fast it was hit.
         static let pigHealth: CGFloat = 250
         /// How much a crash hurts: the speed of the crash times this. Smaller makes everything
         /// tougher; bigger makes everything break.
-        static let hitDamage: CGFloat = 0.41
+        static let hitDamage: CGFloat = 0.34
         /// Bumps gentler than this don't hurt anything — so a tower doesn't wreck itself
         /// just by standing there.
         static let gentleBump: CGFloat = 60
