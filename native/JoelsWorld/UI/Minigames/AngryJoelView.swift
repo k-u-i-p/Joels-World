@@ -248,10 +248,10 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
 
     /// How much of the world fits on the screen at once, with the phone held sideways. The
     /// camera zooms so this much shows.
-    private static let viewSize = CGSize(width: 900, height: 420)
+    private static let viewSize = CGSize(width: 2000, height: 920)
     /// **How wide a slice of the world shows with the phone held upright.** Smaller is more
     /// zoomed in — everything bigger on screen, and the camera follows the bird further.
-    private static let uprightViewWidth: CGFloat = 560
+    private static let uprightViewWidth: CGFloat = 1400
     /// **How wide the whole world is.** Wider than the screen, so the camera follows the bird
     /// out to the towers.
     private static let worldWidth: CGFloat = 2130
