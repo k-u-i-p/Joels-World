@@ -173,6 +173,20 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
     private let joelsLabel = SKLabelNode(fontNamed: "AvenirNext-Heavy")
     private let messageLabel = SKLabelNode(fontNamed: "AvenirNext-Heavy")
 
+    /// **The copyright note.** Shown on a card when the game opens, and in small letters along
+    /// the bottom the whole time you play.
+    static let copyrightNote = "Angry Birds was created by Rovio Entertainment. "
+        + "Angry Joel is a fan-made version — it is not made by Rovio or connected to them."
+    static let copyrightFooter = "Fan-made. Angry Birds is by Rovio Entertainment."
+
+    private let introCard = SKShapeNode()
+    private let introTitle = SKLabelNode(fontNamed: "AvenirNext-Heavy")
+    private let introNote = SKLabelNode(fontNamed: "AvenirNext-DemiBold")
+    private let introTap = SKLabelNode(fontNamed: "AvenirNext-Heavy")
+    private let footer = SKLabelNode(fontNamed: "AvenirNext-DemiBold")
+    /// True while the copyright card is up; the first tap closes it.
+    private var showingIntro = true
+
     private lazy var joelTexture = SKTexture(image: Self.faceImage(path: "avatars/angry_joel.png",
                                                                    ring: .systemRed,
                                                                    angry: true))
@@ -237,6 +251,29 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         messageLabel.numberOfLines = 2
         messageLabel.verticalAlignmentMode = .center
 
+        footer.text = Self.copyrightFooter
+        footer.fontColor = UIColor(red: 0.1, green: 0.2, blue: 0.35, alpha: 0.75)
+        footer.horizontalAlignmentMode = .left
+        footer.zPosition = 100
+        cam.addChild(footer)
+
+        introCard.fillColor = UIColor(white: 0, alpha: 0.75)
+        introCard.strokeColor = .clear
+        introCard.zPosition = 200
+        introTitle.text = "ANGRY JOEL"
+        introNote.text = Self.copyrightNote
+        introNote.numberOfLines = 0
+        introNote.verticalAlignmentMode = .center
+        introTap.text = "Tap to play"
+        for label in [introTitle, introNote, introTap] {
+            label.fontColor = .white
+            label.zPosition = 1
+            introCard.addChild(label)
+        }
+        introTitle.fontColor = UIColor(red: 1, green: 0.35, blue: 0.3, alpha: 1)
+        introTap.fontColor = UIColor(red: 0.5, green: 0.9, blue: 0.4, alpha: 1)
+        cam.addChild(introCard)
+
         startLevel()
     }
 
@@ -267,6 +304,25 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         else { joelsLabel.horizontalAlignmentMode = .right }
         messageLabel.fontSize = wide ? 44 : 30
         messageLabel.position = CGPoint(x: 0, y: wide ? size.height * 0.1 : 0)
+
+        // Tucked under the score, where nothing is ever built.
+        footer.fontSize = wide ? 12 : 11
+        footer.position = CGPoint(x: scoreLabel.position.x, y: wide ? top - 26 : top - 50)
+
+        // The copyright card, sized to the screen.
+        let cardWidth = min(size.width - 40, 520)
+        introNote.fontSize = wide ? 18 : 16
+        introNote.preferredMaxLayoutWidth = cardWidth - 40
+        let noteHeight = introNote.frame.height
+        let cardHeight = noteHeight + 130
+        introCard.path = CGPath(roundedRect: CGRect(x: -cardWidth / 2, y: -cardHeight / 2,
+                                                    width: cardWidth, height: cardHeight),
+                                cornerWidth: 18, cornerHeight: 18, transform: nil)
+        introTitle.fontSize = 30
+        introTitle.position = CGPoint(x: 0, y: cardHeight / 2 - 48)
+        introNote.position = CGPoint(x: 0, y: 4)
+        introTap.fontSize = 20
+        introTap.position = CGPoint(x: 0, y: -cardHeight / 2 + 22)
         updateHUD()
     }
 
@@ -386,6 +442,10 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
+        if showingIntro {
+            closeIntro()
+            return
+        }
         if waitingForTap {
             nextAfterMessage()
             return
@@ -578,7 +638,13 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         }
     }
 
+    private func closeIntro() {
+        showingIntro = false
+        introCard.run(.sequence([.fadeOut(withDuration: 0.25), .removeFromParent()]))
+    }
+
     private func runDemo(_ dt: TimeInterval) {
+        if showingIntro { closeIntro() }
         demoWait += dt
         guard demoWait > 2.5 else { return }
         if waitingForTap {
