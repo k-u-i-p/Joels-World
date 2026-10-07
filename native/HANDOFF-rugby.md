@@ -20,7 +20,11 @@ xcrun simctl launch --console-pty <udid> com.allr.joelsworld -rugby -rugbydemo -
 
 > "i want to make a rugby game at the start you chose royal or challenger royal is where you are
 > faster challenger are when you can tackle people faster and you have higher strength — 5 v 5
-> blue red — click where you pass — make it so there is two versions online and npc"
+> blue red — click where you pass — make it so there is two versions online and npc — put it at
+> the pitch with mr savage — click on the player on the ball multiple times, the more you click
+> the slower they get and strength you use; if you're challenger you use 40 strength, if you're
+> royal you use 20; when you use 100 strength [you stop]; if you stop clicking them, after 2.50
+> seconds the strength you use goes to 0; also other npcs are royal or challenger"
 
 Everything is in except **online**. That needs the server to carry a shared ball, score and ten
 players between phones, which is `server/**` — red zone, Ben's call, and a deploy that costs
@@ -67,21 +71,32 @@ the launch is worked out to come down exactly there from chest height. Whoever i
 passes are allowed.** It is not real rugby; a ten-year-old told FORWARD PASS every time he
 taps ahead of himself would stop playing. The AI only ever passes level or backwards.
 
-**A tap with no ball is a dive** at the carrier, if they are within `humanDiveRange` (4.5 m,
-× the class's `tackling`). Same mechanics as football's slide: direction fixed on launch, a
-miss costs `lungeRecovery` on the floor.
+**A tap on the red carrier is a grab.** Joel's second mechanic. Within `grabRadius` (3 m) of
+the carrier's feet, each tap spends the class's `grabCost` — Royal 20, Challenger 40 — out of
+`grabStrength` (100), and the carrier runs at `1 − 0.85 × used / 100` of their pace. All 100
+spent is a carrier at 15%, which is a carrier your team mates catch. `grabReset` (2.5 s) after
+the last tap the strength comes back and they run free; so does a pass or a tackle, because you
+have let go of them. The **strength bar** bottom right shows what is left and what a tap costs;
+an orange ring under the carrier grows with every grab. Challenger's two taps slow as much as
+Royal's four — the strong one hits harder, and runs out sooner. Proved with `-rugbydemo`, whose
+taps on the carrier logged `grab — 20 / 40 / 60 strength used`.
 
-**The class follows the stick.** `PlayerClass` is three multipliers — `speed`, `tackling`,
-`strength` — applied in `steer` (pace), `resolvePossession` (how long a tackle on you takes:
-`tackleTimeOnHuman × strength(of: carrier) / tackling(of: tackler)`) and `humanDive` (reach).
-`strength(of:)` and `tackling(of:)` return the class for the controlled player and the team's
-`Skill` for everyone else, so the class is yours, not one body's — control moves round the
-team, the way it does in football.
+**A tap with no ball anywhere else is a dive** at the carrier, if they are within
+`humanDiveRange` (4.5 m, × the class's `tackling`). Same mechanics as football's slide:
+direction fixed on launch, a miss costs `lungeRecovery` on the floor.
 
-| | speed | tackling | strength |
-|---|---|---|---|
-| Royal | 1.3 | 1.0 | 1.0 |
-| Challenger | 1.0 | 1.7 | 1.6 |
+**Everybody has a class, and yours follows the stick.** `PlayerClass` is three multipliers —
+`speed`, `tackling`, `strength` — plus `grabCost`. Every slot has one (`blueClasses`,
+`redClasses` in `RugbyGame+Team`: wings and centre Royal, the two inside Challenger, red the
+other way round), and `classOf(_:)` returns the one *you* chose for whichever body the stick is
+on, so your class is yours, not one body's — control moves round the team, the way it does in
+football. `strength(of:)` and `tackling(of:)` are class × the team's `Skill`, and `steer` runs
+everybody at `baseSpeed × class.speed`.
+
+| | speed | tackling | strength | grab cost |
+|---|---|---|---|---|
+| Royal | 1.3 | 1.0 | 1.0 | 20 |
+| Challenger | 1.0 | 1.7 | 1.6 | 40 |
 
 A red shirt needs 0.8 s on a standing Royal and 1.28 s on a standing Challenger. Royal's extra
 pace means they rarely stand still long enough for either.
@@ -131,6 +146,8 @@ working, not a bug. Rerun the demo after changing any of this.
 - **No kicking.** No conversions, no penalties, no drop goals. The posts are scenery.
 - **No knock-on, no line-out, no scrum.** The boards and the loose-ball rule stand in for all
   three.
+- **The AI never grabs.** Only you tap; red's defence is tackles and dives. Giving red a grab
+  would want its own bar on screen or it would read as the carrier slowing for no reason.
 - **No tackle animation.** Both players stand still on a grey disc for the duration. The rig
   could lie down; nobody has asked it to.
 - **Change player mid-match.** The class is picked once; the full-time panel has a

@@ -25,6 +25,15 @@ final class RugbyView: UIView, UIGestureRecognizerDelegate {
     private let stick = JoystickView()
     private let hint = UILabel()
 
+    /// **The strength bar**, bottom right. Drains by the class's cost with every grab and comes
+    /// back 2.5 s after the last one. See `RugbyGame.Tuning.grabRadius`.
+    private let strengthPanel = Theme.glassPanel(cornerRadius: 12)
+    private let strengthLabel = UILabel()
+    private let strengthTrack = UIView()
+    private let strengthFill = UIView()
+    private var strengthFillWidth: NSLayoutConstraint?
+    private static let strengthTrackWidth: CGFloat = 150
+
     /// **The class picker**, up before the first whistle. Royal or Challenger, and a row saying
     /// which kind of match this is: against the computer now, online once Dad has done the server.
     private let pickPanel = Theme.glassPanel(cornerRadius: 18)
@@ -64,6 +73,7 @@ final class RugbyView: UIView, UIGestureRecognizerDelegate {
         buildScorePanel()
         buildBanner()
         buildControls()
+        buildStrengthBar()
         buildPicker()
         buildOverPanel()
         buildHint()
@@ -145,6 +155,72 @@ final class RugbyView: UIView, UIGestureRecognizerDelegate {
             stick.widthAnchor.constraint(equalToConstant: 130),
             stick.heightAnchor.constraint(equalToConstant: 130),
         ])
+    }
+
+    private func buildStrengthBar() {
+        addSubview(strengthPanel)
+        strengthPanel.translatesAutoresizingMaskIntoConstraints = false
+
+        style(strengthLabel, size: 11, color: .white, weight: .heavy)
+        strengthLabel.text = "STRENGTH"
+        strengthLabel.textAlignment = .center
+
+        strengthTrack.backgroundColor = UIColor(white: 1, alpha: 0.18)
+        strengthTrack.layer.cornerRadius = 6
+        strengthTrack.clipsToBounds = true
+        strengthFill.backgroundColor = UIColor(hex: 0x2f9e44)
+        strengthFill.layer.cornerRadius = 6
+        strengthTrack.addSubview(strengthFill)
+        strengthTrack.translatesAutoresizingMaskIntoConstraints = false
+        strengthFill.translatesAutoresizingMaskIntoConstraints = false
+
+        let column = UIStackView(arrangedSubviews: [strengthLabel, strengthTrack])
+        column.axis = .vertical
+        column.alignment = .fill
+        column.spacing = 5
+        column.translatesAutoresizingMaskIntoConstraints = false
+        strengthPanel.contentView.addSubview(column)
+
+        let fillWidth = strengthFill.widthAnchor.constraint(equalToConstant: Self.strengthTrackWidth)
+        strengthFillWidth = fillWidth
+        // The label wins over the track's width, so a long class name widens the panel rather
+        // than being cut off at "ROYA…".
+        strengthLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        let trackWidth = strengthTrack.widthAnchor.constraint(equalToConstant: Self.strengthTrackWidth)
+        trackWidth.priority = .defaultHigh
+
+        let guide = safeAreaLayoutGuide
+        NSLayoutConstraint.activate([
+            strengthPanel.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -24),
+            strengthPanel.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -44),
+            column.topAnchor.constraint(equalTo: strengthPanel.contentView.topAnchor, constant: 8),
+            column.bottomAnchor.constraint(equalTo: strengthPanel.contentView.bottomAnchor, constant: -10),
+            column.leadingAnchor.constraint(equalTo: strengthPanel.contentView.leadingAnchor, constant: 12),
+            column.trailingAnchor.constraint(equalTo: strengthPanel.contentView.trailingAnchor, constant: -12),
+            trackWidth,
+            strengthTrack.heightAnchor.constraint(equalToConstant: 12),
+            strengthFill.leadingAnchor.constraint(equalTo: strengthTrack.leadingAnchor),
+            strengthFill.topAnchor.constraint(equalTo: strengthTrack.topAnchor),
+            strengthFill.bottomAnchor.constraint(equalTo: strengthTrack.bottomAnchor),
+            fillWidth,
+        ])
+    }
+
+    /// The bar as it stands: how much is left, what a tap costs, and a colour that goes from
+    /// green to red as it empties.
+    private func refreshStrengthBar(for game: RugbyGame) {
+        let left = max(0, min(1, game.strengthLeft / RugbyGame.Tuning.grabStrength))
+        // A share of the track as laid out, not of its nominal width: the label widens the panel
+        // and the track with it, and a fill measured against 150 pt read as 70% when full.
+        let trackWidth = strengthTrack.bounds.width > 0 ? strengthTrack.bounds.width
+                                                        : Self.strengthTrackWidth
+        strengthFillWidth?.constant = trackWidth * CGFloat(left)
+        strengthFill.backgroundColor = left > 0.6 ? UIColor(hex: 0x2f9e44)
+            : left > 0.2 ? UIColor(hex: 0xe8a317) : UIColor(hex: 0xd9480f)
+        if let playerClass = game.playerClass {
+            strengthLabel.text = "STRENGTH \(Int(game.strengthLeft.rounded()))"
+                + "  ·  \(playerClass.title) −\(Int(playerClass.grabCost)) A GRAB"
+        }
     }
 
     private func buildPicker() {
@@ -253,8 +329,8 @@ final class RugbyView: UIView, UIGestureRecognizerDelegate {
         style(hint, size: 14, color: .white, weight: .semibold)
         hint.textAlignment = .center
         hint.numberOfLines = 0
-        hint.text = "Tap the pitch to throw the ball there. No ball? Tap to dive.\n"
-            + "You play whoever has the yellow ring"
+        hint.text = "Tap the pitch to throw the ball there. Tap the red player\n"
+            + "on the ball to grab them. You play whoever has the yellow ring"
         NSLayoutConstraint.activate([
             hint.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
             hint.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
@@ -355,6 +431,8 @@ final class RugbyView: UIView, UIGestureRecognizerDelegate {
         lastStepTime = now
 
         game.setMoveInput(stick.state.move)
+        refreshStrengthBar(for: game)
+        strengthPanel.isHidden = !pickPanel.isHidden
 
         let bannerWanted: CGFloat = (game.announcement == nil || !overPanel.isHidden
                                      || !pickPanel.isHidden) ? 0 : 1

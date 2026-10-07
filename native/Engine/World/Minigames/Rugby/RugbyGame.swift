@@ -56,9 +56,10 @@ final class RugbyGame: WorldRenderedMinigame {
         var dive: Double
     }
 
-    /// **The thing Joel designed.** Chosen once at the start, and it follows the stick: whichever
-    /// blue shirt you are driving has these numbers, because control moves round the team and
-    /// the class is *yours*, not one body's.
+    /// **The thing Joel designed.** You choose one at the start, and it follows the stick:
+    /// whichever blue shirt you are driving has your class, because control moves round the team
+    /// and the class is *yours*, not one body's. **Every other player on the pitch has one too**
+    /// — Joel: *"other npcs are royal or challenger"* — fixed per slot in `buildTeams`.
     enum PlayerClass: String, CaseIterable {
         case royal
         case challenger
@@ -69,6 +70,10 @@ final class RugbyGame: WorldRenderedMinigame {
         var tackling: Double { self == .royal ? 1.0 : 1.7 }
         /// Multiplier on how long a red shirt needs to bring you down.
         var strength: Double { self == .royal ? 1.0 : 1.6 }
+        /// **What one grab costs**, out of `Tuning.grabStrength`. Joel: *"if you're Challenger
+        /// you use 40 strength, if you're Royal you use 20"*. A grab slows the carrier by the same
+        /// amount, so Challenger's two grabs do what Royal's four do — the strong one hits harder.
+        var grabCost: Double { self == .royal ? 20 : 40 }
 
         var title: String { self == .royal ? "ROYAL" : "CHALLENGER" }
         var blurb: String {
@@ -165,6 +170,20 @@ final class RugbyGame: WorldRenderedMinigame {
         static let kickoffCountdown: Double = 1.4
         /// How long the ring where you tapped stays on the grass.
         static let passMarkerTime: Double = 0.7
+
+        /// **The grab.** Joel: *"click on the player on the ball multiple times — the more you
+        /// click the slower they get, and strength you use … when you use 100 strength [you
+        /// stop] … if you stop clicking them, after 2.5 seconds the strength you use goes to 0."*
+        ///
+        /// A tap within `grabRadius` of the opposing carrier is a grab. Each one costs the class's
+        /// `grabCost` out of `grabStrength`, and the carrier runs at
+        /// `1 − grabSlowAtFull × used / grabStrength` of their pace — all 100 used is a carrier
+        /// at 15%, which is a carrier your team mates will catch. `grabReset` seconds after the
+        /// last tap it all comes back. Letting go of the ball — a pass, a tackle — releases them.
+        static let grabRadius = RugbyPitch.metres(3.0)
+        static let grabStrength: Double = 100
+        static let grabReset: Double = 2.5
+        static let grabSlowAtFull = 0.85
     }
 
     // MARK: - State
@@ -201,6 +220,12 @@ final class RugbyGame: WorldRenderedMinigame {
 
     /// Where the last tap landed, for the ring on the grass.
     private var passMarker: (x: Double, y: Double, remaining: Double)?
+
+    /// **The grab**: how much strength has been spent on the current carrier, who they are, and
+    /// how long since the last tap. See `Tuning.grabRadius`.
+    private(set) var strengthUsed: Double = 0
+    private(set) var grabbedCarrier: Int?
+    private var grabTimer: Double = 0
 
     var random = DeterministicRandom(seed: 0x5CBA11)
     private var matchNumber = 0
@@ -255,6 +280,9 @@ final class RugbyGame: WorldRenderedMinigame {
         var appearance: GameCharacter
         let motor: CharacterMotor
         let team: Team
+        /// Royal or Challenger. For the body the stick is on, the class *you* chose wins — see
+        /// `RugbyGame.classOf(_:)`.
+        let playerClass: PlayerClass
         /// Where this player stands when nothing is happening, in team space (`u` towards the
         /// try line they attack, `v` across).
         let home: SIMD2<Double>
@@ -274,10 +302,11 @@ final class RugbyGame: WorldRenderedMinigame {
 
         var isDown: Bool { downTimer > 0 }
 
-        init(appearance: GameCharacter, team: Team, home: SIMD2<Double>,
+        init(appearance: GameCharacter, team: Team, playerClass: PlayerClass, home: SIMD2<Double>,
              wearsMyFace: Bool, topSpeed: Double) {
             self.appearance = appearance
             self.team = team
+            self.playerClass = playerClass
             self.home = home
             self.wearsMyFace = wearsMyFace
             baseSpeed = topSpeed
@@ -371,8 +400,9 @@ final class RugbyGame: WorldRenderedMinigame {
         moveInput = move
     }
 
-    /// **A tap on the pitch.** With the ball: throw it there. Without: dive at the carrier, if
-    /// they are close enough to reach.
+    /// **A tap on the pitch.** With the ball: throw it there. Without: a tap *on* the opposing
+    /// carrier grabs them (see `grab`); a tap anywhere else dives at them, if they are close
+    /// enough to reach.
     func tap(worldX: Double, worldY: Double) {
         guard active, phase == .playing else { return }
         if let carrier, carrier == humanIndex {
@@ -380,7 +410,56 @@ final class RugbyGame: WorldRenderedMinigame {
             passMarker = (worldX, worldY, Tuning.passMarkerTime)
             return
         }
+        if let carrier, players[carrier].team != .blue,
+           hypot(players[carrier].motor.x - worldX, players[carrier].motor.y - worldY)
+               < Tuning.grabRadius {
+            grab(carrier)
+            return
+        }
         humanDive()
+    }
+
+    /// One grab at the carrier: spend the class's cost, slow them by as much. Out of strength,
+    /// nothing happens — the bar on screen says why.
+    private func grab(_ carrier: Int) {
+        let cost = (playerClass ?? .royal).grabCost
+        if grabbedCarrier != carrier {
+            strengthUsed = 0
+            grabbedCarrier = carrier
+        }
+        guard strengthUsed + cost <= Tuning.grabStrength + 0.001 else { return }
+        strengthUsed += cost
+        grabTimer = 0
+        host.minigamePlayEffect(path: "/media/hit_tennis_ball2.mp3", volume: 0.18,
+                                rate: 0.8 + 0.4 * strengthUsed / Tuning.grabStrength)
+        Log.world("[Rugby] grab — \(Int(strengthUsed)) strength used")
+        onPresentationChanged?()
+    }
+
+    /// Lets go: the carrier runs free and the strength comes back. Called when the ball changes
+    /// hands and when `grabReset` passes with no tap.
+    private func releaseGrab() {
+        guard strengthUsed > 0 || grabbedCarrier != nil else { return }
+        strengthUsed = 0
+        grabbedCarrier = nil
+        onPresentationChanged?()
+    }
+
+    /// What is left in the bar.
+    var strengthLeft: Double { Tuning.grabStrength - strengthUsed }
+
+    /// How much slower the carrier runs for being grabbed: 1 is free, 0.15 is held.
+    var carrierSlowFactor: Double {
+        guard let carrier, carrier == grabbedCarrier, strengthUsed > 0 else { return 1 }
+        return 1 - Tuning.grabSlowAtFull * strengthUsed / Tuning.grabStrength
+    }
+
+    /// Which class a player plays as: the one you chose if the stick is on them, their own
+    /// otherwise.
+    func classOf(_ index: Int) -> PlayerClass {
+        let player = players[index]
+        if player.isControlled, let playerClass { return playerClass }
+        return player.playerClass
     }
 
     /// Turns a point on the glass into a point on the grass, using the camera as last placed.
@@ -409,6 +488,10 @@ final class RugbyGame: WorldRenderedMinigame {
         if var marker = passMarker {
             marker.remaining -= dt
             passMarker = marker.remaining > 0 ? marker : nil
+        }
+        if strengthUsed > 0 {
+            grabTimer += dt
+            if grabTimer >= Tuning.grabReset { releaseGrab() }
         }
 
         for player in players {
@@ -754,6 +837,17 @@ final class RugbyGame: WorldRenderedMinigame {
                 opacity: 0.6))
         }
 
+        // An orange ring under a grabbed carrier, growing with every tap, so the grab is
+        // something you can see landing.
+        if let carrier, carrier == grabbedCarrier, strengthUsed > 0 {
+            let held = strengthUsed / Tuning.grabStrength
+            out.append(RugbyPitch.markerPrimitive(
+                x: players[carrier].motor.x, y: players[carrier].motor.y,
+                radius: RugbyPitch.metres(1.1 + 0.7 * held),
+                color: parseHexColor("#ff8c1a"),
+                opacity: Float(0.45 + 0.4 * held)))
+        }
+
         // A grey disc under anybody on the floor, so a tackle is something you can see happened.
         for player in players where player.isDown {
             out.append(RugbyPitch.markerPrimitive(
@@ -878,19 +972,14 @@ final class RugbyGame: WorldRenderedMinigame {
         if let best { take(by: best) }
     }
 
-    /// How hard this player is to bring down: their class if you are driving them, their side's
-    /// skill otherwise.
+    /// How hard this player is to bring down: their class times their side's skill.
     func strength(of index: Int) -> Double {
-        let player = players[index]
-        if player.isControlled, let playerClass { return playerClass.strength }
-        return player.team.skill.strength
+        classOf(index).strength * players[index].team.skill.strength
     }
 
-    /// How quickly this player's tackles land.
+    /// How quickly this player's tackles land: their class times their side's skill.
     func tackling(of index: Int) -> Double {
-        let player = players[index]
-        if player.isControlled, let playerClass { return playerClass.tackling }
-        return player.team.skill.tackling
+        classOf(index).tackling * players[index].team.skill.tackling
     }
 
     /// **The tackle.** Both players go down, the tackled one for longer, and the ball pops out
@@ -936,6 +1025,7 @@ final class RugbyGame: WorldRenderedMinigame {
         carrier = index
         grip = 0
         gripFrom = nil
+        releaseGrab()
         players[index].decisionTimer = Tuning.settleTime * players[index].team.skill.settle
         onPresentationChanged?()
     }
@@ -946,14 +1036,14 @@ final class RugbyGame: WorldRenderedMinigame {
     var debugTraceLine: String {
         let holder = carrier.map { "\(players[$0].team.name) #\($0)" } ?? "loose"
         let down = players.filter { $0.isDown }.count
-        return String(format: "rugby %@ %d–%d ball (%.1f, %.1f, %.1f) m · %@ · driving #%d %@ · %d down",
+        return String(format: "rugby %@ %d–%d ball (%.1f, %.1f, %.1f) m · %@ · driving #%d %@ · %d down · grab %d",
                       String(describing: phase), blueScore, redScore,
                       ball.x / RugbyPitch.unitsPerMetre,
                       ball.y / RugbyPitch.unitsPerMetre,
                       ball.z / RugbyPitch.unitsPerMetre,
                       holder, humanIndex,
                       humanHasBall ? "(on the ball)" : "",
-                      down)
+                      down, Int(strengthUsed))
     }
 
     /// Set by `-rugbydemo`. See `FootballGame.debugDrivesInput` for the statue bug it exists for.
@@ -992,11 +1082,17 @@ final class RugbyGame: WorldRenderedMinigame {
         let length = max(hypot(dx, dy), 1)
         moveInput = SIMD2(dx / length, dy / length)
 
-        // A dive now and then, not twenty times a second — a thumb could never tap that fast,
-        // and a bot that could turned every red catch into an instant pile-up.
-        if let carrier, players[carrier].team == .red, length < RugbyPitch.metres(3),
+        // A tap now and then, not twenty times a second — a thumb could never tap that fast,
+        // and a bot that could turned every red catch into an instant pile-up. On the carrier
+        // it is a grab; a stride to the side of them it is a dive.
+        if let carrier, players[carrier].team == .red, length < RugbyPitch.metres(8),
            random.unit() < 0.12 {
-            tap(worldX: ball.x, worldY: ball.y)
+            let runner = players[carrier].motor
+            if random.unit() < 0.7 {
+                tap(worldX: runner.x, worldY: runner.y)
+            } else {
+                tap(worldX: runner.x + RugbyPitch.metres(4), worldY: runner.y)
+            }
         }
     }
     #endif
@@ -1009,6 +1105,7 @@ final class RugbyGame: WorldRenderedMinigame {
         carrier = index
         grip = 0
         gripFrom = nil
+        releaseGrab()
     }
 
     func playThrowSound(volume: Double, rate: Double) {

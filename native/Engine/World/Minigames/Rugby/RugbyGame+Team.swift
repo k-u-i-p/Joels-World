@@ -32,6 +32,12 @@ extension RugbyGame {
     /// Which body wears Joel's own face and has the stick at the first whistle: the centre.
     static let humanSlot = 2
 
+    /// **Every NPC is a Royal or a Challenger.** Fixed per slot so a side is the same mix every
+    /// match: wings and centre quick, the two inside them strong — and red the other way round,
+    /// so the two sides do not mirror each other.
+    static let blueClasses: [PlayerClass] = [.royal, .challenger, .royal, .challenger, .royal]
+    static let redClasses: [PlayerClass] = [.challenger, .royal, .challenger, .royal, .challenger]
+
     func buildTeams(npcs: [GameCharacter], myCharacter: GameCharacter?) {
         let models = ["boy", "girl", "stylized_boy", "boy", "girl",
                       "stylized_boy", "boy", "girl", "boy", "stylized_boy"]
@@ -64,6 +70,8 @@ extension RugbyGame {
 
                 built.append(Player(appearance: appearance,
                                     team: team,
+                                    playerClass: (team == .blue ? Self.blueClasses
+                                                                : Self.redClasses)[index],
                                     home: SIMD2(slot.u, slot.v),
                                     wearsMyFace: wearsMyFace,
                                     topSpeed: Tuning.topSpeed * team.skill.speed))
@@ -109,12 +117,12 @@ extension RugbyGame {
         let player = players[index]
         let hasBall = carrier == index
 
-        // Pace: the class and the control bonus follow the stick; carrying costs a little.
-        var top = player.baseSpeed
-        if player.isControlled {
-            top = top * (playerClass?.speed ?? 1) + Tuning.controlSpeedBonus
-        }
-        player.motor.profile.maxSpeed = hasBall ? top * Tuning.carryFraction : top
+        // Pace: everybody's class, plus the control bonus on whoever the stick is on. Carrying
+        // costs a little, and being grabbed costs a lot — see `carrierSlowFactor`.
+        var top = player.baseSpeed * classOf(index).speed
+        if player.isControlled { top += Tuning.controlSpeedBonus }
+        player.motor.profile.maxSpeed = hasBall ? top * Tuning.carryFraction * carrierSlowFactor
+                                                : top
         player.motor.profile.acceleration = Tuning.acceleration
 
         // On the floor: nothing moves until they are up.
