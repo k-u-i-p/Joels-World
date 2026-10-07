@@ -239,6 +239,13 @@
           "Back in 1982, I scored a try from the car park!",
           "If you drop that ball again, I'm making you run to the moon!"
         ]
+      },
+      {
+        "show_dialog": {
+          "description": "Fancy a game of rugby? Five a side, first to three tries.",
+          "type": "change_map",
+          "map": 9
+        }
       }
     ],
     "on_exit": [],

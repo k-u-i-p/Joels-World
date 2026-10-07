@@ -40,9 +40,10 @@ money. The picker shows both kinds of match so the idea is not lost; the online 
 gesture recogniser, the unprojection in `handleTap` and into `tap(worldX:worldY:)`, with the
 ball landing on the team mate tapped. In a DEBUG build every tap logs where it landed in metres.
 
-Plus the usual wiring: map 9 in `data/maps.json`, the existing **Rugby Pitch** zone
-(id 13, the grass pitch at the west end of the campus) in `data/junior_school/objects.json` now
-asks "Play rugby?", a `MinigameKind.rugby` case, a branch in `GameState.startMinigame`, the
+Plus the usual wiring: map 9 in `data/maps.json`, **Mr Savage** (NPC id 8 in
+`data/junior_school/npc.json`, who paces the grass rugby pitch at the west end of the campus)
+asks "Fancy a game of rugby?" when you walk up to him — Joel: *"put it at the pitch with
+Mr Savage"* — a `MinigameKind.rugby` case, a branch in `GameState.startMinigame`, the
 `rugby` badge that was already in `MenuDialogs` — and `-rugby`, `-rugbydemo`, `-rugbytrace` in
 the debug harness.
 
@@ -138,10 +139,12 @@ working, not a bug. Rerun the demo after changing any of this.
 ## Before you can play it from the campus
 
 `data/maps.json` ships inside the app *and* is read by the server, and the deployed server does
-not know map 9. Until Ben deploys, the Rugby Pitch zone's "Play rugby?" dialog is refused on
-production and `-rugby` on the simulator is the way in. To test the way in locally:
+not know map 9. Until Ben deploys, saying Yes to Mr Savage is refused on production and
+`-rugby` on the simulator is the way in. Tested against a local server: walk up to him, Yes,
+and the class picker comes up on map 9. To test the way in locally:
 
 ```bash
 cd server && PORT=8099 node server.js
-xcrun simctl launch <udid> com.allr.joelsworld -host localhost:8099 -autojoin Joel -map 9
+# -at drops you next to Mr Savage, so his dialog comes straight up
+xcrun simctl launch <udid> com.allr.joelsworld -host localhost:8099 -autojoin Joel -at -1984 -300
 ```

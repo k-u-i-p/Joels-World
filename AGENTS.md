@@ -53,7 +53,7 @@ others — a whole team of AI on your side as well as against you.
 **Rugby** is football's sibling — read that handoff first, then
 [HANDOFF-rugby.md](native/HANDOFF-rugby.md). Five a side, first to three tries, you pick **Royal**
 (faster) or **Challenger** (quicker tackles, harder to bring down) at the start, and **a pass is a
-tap on the pitch**. Joel's third own idea. Like the others, **map 9 is in the app but not on the
+tap on the pitch**. Joel's third own idea; **Mr Savage** on the grass pitch is the way in. Like the others, **map 9 is in the app but not on the
 server yet** — `-rugby` on the simulator until Ben deploys. Joel also asked for an **online**
 version; that is a server change (red zone) and is waiting on Ben.
 
