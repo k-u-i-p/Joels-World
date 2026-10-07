@@ -26,11 +26,11 @@ A top-down multiplayer school. You play a pupil at St Peters. The loop:
 
 The badges are fixed in code today —
 [MenuDialogs.swift:63](native/JoelsWorld/UI/MenuDialogs.swift:63): rugby, tennis, swimming,
-tig, good friend, tower defence, detention, school rush, football, five nights. **Five of the ten
+tig, good friend, tower defence, detention, school rush, football, five nights. **Six of the ten
 are actually winnable**: tennis
 ([Tennis3DGame+Rules.swift:215](native/Engine/World/Minigames/Tennis3D/Tennis3DGame+Rules.swift:215)),
-School Rush at 400 m, football by winning a match 3–x, Five Nights by surviving all five, and
-detention by escaping School Escape (below).
+School Rush at 400 m, football by winning a match 3–x, Five Nights by surviving all five,
+detention by escaping School Escape (below), and rugby by winning a match 3–x.
 
 Tennis is the 3D rebuild now; the old 2D one is still in the tree behind `-tennis2d`. Seven handoff
 notes explain how it works, starting at
@@ -49,6 +49,13 @@ building needs a deploy before anyone but a developer can get in. Until then it 
 **Football** is the shortest read: one handoff,
 [HANDOFF-football.md](native/HANDOFF-football.md). Five a side, first to three, and — unlike the
 others — a whole team of AI on your side as well as against you.
+
+**Rugby** is football's sibling — read that handoff first, then
+[HANDOFF-rugby.md](native/HANDOFF-rugby.md). Five a side, first to three tries, you pick **Royal**
+(faster) or **Challenger** (quicker tackles, harder to bring down) at the start, and **a pass is a
+tap on the pitch**. Joel's third own idea. Like the others, **map 9 is in the app but not on the
+server yet** — `-rugby` on the simulator until Ben deploys. Joel also asked for an **online**
+version; that is a server change (red zone) and is waiting on Ben.
 
 **School Escape** is Joel's second own idea, planned by drawing on the night version of the main
 building map: detention ran late, four keys are hidden round the dark school, the chest by the
@@ -234,7 +241,7 @@ done. Running it in the simulator to actually see the change is better still.
 
 ## Story so far
 
-*Fill this in as Joel decides things. Right now: the badges exist, five of ten are winnable,
+*Fill this in as Joel decides things. Right now: the badges exist, six of ten are winnable,
 and graduation is undesigned.*
 
 - **Detention is escapable.** Ms Crosbie hands out the detention (the trigger next to her in

@@ -126,6 +126,8 @@ enum MinigameKind: String {
     case fivenights
     /// The other side of the night: four keys, one chest, and Mr Hardy on his rounds.
     case schoolescape
+    /// Five a side, first to three tries, Royal or Challenger. A pass is a tap.
+    case rugby
 
     /// `mapData.import` is a module URL — `/src/minigames/tennis3d.js`.
     init?(importPath: String) {

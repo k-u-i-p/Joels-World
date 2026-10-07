@@ -30,11 +30,12 @@
     "length": 1006,
     "clip": -1,
     "on_enter": [
-      {}
-    ],
-    "on_exit": [
       {
-        "clear_emote": true
+        "show_dialog": {
+          "description": "Play rugby? Five a side, first to three tries.",
+          "type": "change_map",
+          "map": 9
+        }
       }
     ]
   },

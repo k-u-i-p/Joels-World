@@ -128,6 +128,16 @@ final class WalkTest {
         ProcessInfo.processInfo.arguments.contains("-footballdemo")
     }
 
+    /// `-rugbydemo` plays your side of a rugby match without a thumb — stick and taps.
+    static var playsRugby: Bool {
+        ProcessInfo.processInfo.arguments.contains("-rugbydemo")
+    }
+
+    /// `-rugbytrace` logs one line a second: the score, who has the ball and where it is.
+    static var tracesRugby: Bool {
+        ProcessInfo.processInfo.arguments.contains("-rugbytrace")
+    }
+
     /// `-footballtrace` logs one line a second: the score, who has the ball and where it is.
     static var tracesFootball: Bool {
         ProcessInfo.processInfo.arguments.contains("-footballtrace")

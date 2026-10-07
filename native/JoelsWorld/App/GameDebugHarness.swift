@@ -33,6 +33,8 @@ final class GameDebugHarness {
     private var schoolRushTraceTimer: Timer?
     private var footballDemoTimer: Timer?
     private var footballTraceTimer: Timer?
+    private var rugbyDemoTimer: Timer?
+    private var rugbyTraceTimer: Timer?
     private var fiveNightsDemoTimer: Timer?
     private var schoolEscapeDemoTimer: Timer?
     private var schoolEscapeTraceTimer: Timer?
@@ -84,6 +86,13 @@ final class GameDebugHarness {
             // screen furniture is raised by hand — the same call the real map change makes.
             host.gameStateDidStartMinigame(game)
             startFiveNightsDemo(game)
+            return true
+        }
+        if ProcessInfo.processInfo.arguments.contains("-rugby") {
+            Log.world("-rugby: starting a rugby match with no server")
+            let game = RugbyGame(host: host.state, npcs: [], myCharacter: nil)
+            host.state.startToolScene(game)
+            host.gameStateDidStartMinigame(game)
             return true
         }
         if ProcessInfo.processInfo.arguments.contains("-schoolescape") {
@@ -174,6 +183,11 @@ final class GameDebugHarness {
             startFootballTrace(game)
             startExitTimer { [weak game] in game?.requestExit() }
         }
+        if let game = minigame as? RugbyGame {
+            startRugbyDemo(game)
+            startRugbyTrace(game)
+            startExitTimer { [weak game] in game?.requestExit() }
+        }
         if let game = minigame as? SchoolEscapeGame {
             startSchoolEscapeDemo(game)
             startSchoolEscapeTrace(game)
@@ -194,6 +208,7 @@ final class GameDebugHarness {
                       tennis3DDragTimer, tennis3DHitTestTimer, tennis3DTraceTimer,
                       schoolRushDemoTimer, schoolRushTraceTimer,
                       footballDemoTimer, footballTraceTimer, fiveNightsDemoTimer,
+                      rugbyDemoTimer, rugbyTraceTimer,
                       schoolEscapeDemoTimer, schoolEscapeTraceTimer] {
             timer?.invalidate()
         }
@@ -204,6 +219,8 @@ final class GameDebugHarness {
         schoolRushTraceTimer = nil
         footballDemoTimer = nil
         footballTraceTimer = nil
+        rugbyDemoTimer = nil
+        rugbyTraceTimer = nil
         tennisDemoTimer = nil
         tennisExitTimer = nil
         tennis3DDemoTimer = nil
@@ -317,6 +334,33 @@ final class GameDebugHarness {
     private func startFootballTrace(_ game: FootballGame) {
         guard WalkTest.tracesFootball, footballTraceTimer == nil else { return }
         footballTraceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak game] _ in
+            guard let game else { return }
+            Log.world(game.debugTraceLine)
+        }
+    }
+
+    /// `-rugbydemo`: picks Royal, then plays your side through `setMoveInput` and `tap`.
+    private func startRugbyDemo(_ game: RugbyGame) {
+        guard WalkTest.playsRugby, rugbyDemoTimer == nil else { return }
+        Log.world("-rugbydemo: playing your side as Royal")
+        game.debugDrivesInput = true
+        var hasRestarted = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak game] in game?.choose(.royal) }
+
+        rugbyDemoTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak game] _ in
+            guard let game else { return }
+            game.debugStep()
+            if game.phase == .over, !hasRestarted {
+                hasRestarted = true
+                Log.world("-rugbydemo: full time — restarting in 4 s to check the panel")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { game.restartMatch() }
+            }
+        }
+    }
+
+    private func startRugbyTrace(_ game: RugbyGame) {
+        guard WalkTest.tracesRugby, rugbyTraceTimer == nil else { return }
+        rugbyTraceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak game] _ in
             guard let game else { return }
             Log.world(game.debugTraceLine)
         }

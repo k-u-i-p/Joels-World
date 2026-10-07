@@ -167,5 +167,12 @@
     "name": "School Escape",
     "import": "/src/minigames/schoolescape.js",
     "default_zoom": 1
+  },
+  {
+    "id": 9,
+    "name": "Rugby",
+    "import": "/src/minigames/rugby.js",
+    "default_zoom": 1,
+    "character_scale": 1.95
   }
 ]

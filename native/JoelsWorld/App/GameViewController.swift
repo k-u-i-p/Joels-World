@@ -36,6 +36,7 @@ final class GameViewController: UIViewController {
     let football = FootballView()
     let fiveNights = FiveNightsView()
     let schoolEscape = SchoolEscapeView()
+    let rugby = RugbyView()
 
     #if DEBUG
     private(set) lazy var debug = GameDebugHarness(host: self)
@@ -125,7 +126,7 @@ final class GameViewController: UIViewController {
 
     private func setupOverlays() {
         // Bottom to top: world, the 2D minigame surface, nameplates, controls, HUD, dialogs.
-        for subview in [tennis, tennis3d, schoolRush, football, fiveNights, schoolEscape,
+        for subview in [tennis, tennis3d, schoolRush, football, fiveNights, schoolEscape, rugby,
                         overlay, joystick,
                         buttons, hud,
                         minimap, emotesDialog, badgesDialog, helpDialog, dialog, rejectedOverlay,
@@ -175,6 +176,7 @@ final class GameViewController: UIViewController {
             case let game as FootballGame: game.requestExit()
             case let game as FiveNightsGame: game.requestExit()
             case let game as SchoolEscapeGame: game.requestExit()
+            case let game as RugbyGame: game.requestExit()
             default: break
             }
         }
@@ -206,7 +208,7 @@ final class GameViewController: UIViewController {
         constraints += [buttonsBottomConstraint].compactMap { $0 }
 
         // Everything else is a full-screen layer.
-        for subview in [tennis, tennis3d, schoolRush, football, fiveNights, schoolEscape,
+        for subview in [tennis, tennis3d, schoolRush, football, fiveNights, schoolEscape, rugby,
                         overlay, hud, minimap,
                         emotesDialog,
                         badgesDialog, helpDialog, dialog, rejectedOverlay, disconnectDialog,
@@ -273,6 +275,7 @@ final class GameViewController: UIViewController {
             football.step()
             fiveNights.step()
             schoolEscape.step()
+            rugby.step()
             return
         }
 

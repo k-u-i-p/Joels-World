@@ -259,6 +259,11 @@ final class GameState {
             minigame = game
             game.start()
             delegate?.gameStateDidStartMinigame(game)
+        case .rugby:
+            let game = RugbyGame(host: self, npcs: npcs, myCharacter: player.appearance)
+            minigame = game
+            game.start()
+            delegate?.gameStateDidStartMinigame(game)
         }
     }
 
