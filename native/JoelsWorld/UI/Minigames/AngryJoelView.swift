@@ -70,7 +70,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         /// How big a pig is (radius, points).
         static let pigRadius: CGFloat = 22 * bigness
         /// How much health a pig has. Every hit takes off how fast it was hit.
-        static let pigHealth: CGFloat = 150
+        static let pigHealth: CGFloat = 100
         /// How much a crash hurts: the speed of the crash times this. Smaller makes everything
         /// tougher; bigger makes everything break.
         static let hitDamage: CGFloat = 0.34
@@ -251,10 +251,10 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
 
     /// How much of the world fits on the screen at once, with the phone held sideways. The
     /// camera zooms so this much shows.
-    private static let viewSize = CGSize(width: 2400, height: 1100)
+    private static let viewSize = CGSize(width: 1800, height: 830)
     /// **How wide a slice of the world shows with the phone held upright.** Smaller is more
     /// zoomed in — everything bigger on screen, and the camera follows the bird further.
-    private static let uprightViewWidth: CGFloat = 2500
+    private static let uprightViewWidth: CGFloat = 1700
     /// **How wide the whole world is.** Wider than the screen, so the camera follows the bird
     /// out to the towers.
     private static let worldWidth: CGFloat = 2500
