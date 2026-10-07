@@ -56,6 +56,18 @@ the debug harness.
 **A try is the carrier over the line.** `checkTry` looks at the carrier's feet, not the ball. A
 loose ball in the in-goal is nothing — somebody has to pick it up and step over.
 
+**A carrier in their *own* in-goal has touched down**, and their side restarts with the ball on
+their 22 (`touchDown(by:)`, `Tuning.dropOutU`). Real rugby's rule, and it exists because of a
+measured match: red won three tries by tackling blue backwards two metres at a time — every
+tackle pops the ball out behind the carrier — until the pile-up was in blue's in-goal and a red
+shirt picked up the loose ball. Now the first blue hand on it there is a TOUCHED DOWN banner and
+a restart. `setUpKickoff` places every restart from `restartBallU`: 0 after a try, the 22 after
+a touch-down, the other side ten metres off either way.
+
+**Nobody passes from inside their own 22** (`decidePass`, and the demo bot). Every AI pass is
+backwards, so a side under pressure near its own line used to pass its way into its own
+in-goal. Deep in your own half you run and take the tackle.
+
 **A tackle puts both players down and the ball on the grass.** Football's tackle hands the ball
 straight to the tackler. Here `tackle(_:by:)` drops the carrier for `downTime` (1.5 s), the
 tackler for `tacklerDownTime` (0.8 s), and pops the ball `releaseDistance` behind the carrier
@@ -127,13 +139,23 @@ way it is flying. Bounces get a random sideways kick, because rugby balls do.
 | | speed | settle | tackling | strength | dive |
 |---|---|---|---|---|---|
 | Blue (`yourLot`) | 1.1 | 1 | 1 | 1 | 1 |
-| Red (`theOpposition`) | 0.85 | 1.6 | 0.75 | 0.7 | 0.7 |
+| Red (`theOpposition`) | 0.7 | 1.6 | 0.55 | 0.5 | 0.7 |
 
-**Measured** with `-rugbydemo` as Royal, before red was softened to the row above (it was
-0.85 / 1.6 / 0.75 / 0.7 / 0.7): **blue 3–2 in about three minutes, from 0–2 down**, badge
-claimed, 15 tackles. The bot is a bad rugby player — it passes sideways under any pressure and
-never holds a line — so a real thumb will do better, and red was then made a shade softer still.
-If it is too easy, raise red's `strength` and `tackling` first; if red never score, lower them.
+These multiply each NPC's class, so a red Royal runs at about 0.9 of baseline and a red
+Challenger takes 0.8 of a baseline tackle to bring down.
+
+**Measured** with `-rugbydemo` as Royal, in order:
+
+| Build | Result |
+|---|---|
+| First playable, red 0.85 / 1.6 / 0.75 / 0.7 / 0.7 | blue 3–2 in ~3 min, from 0–2 down |
+| Every NPC given a class, red softened to 0.8 / 1.6 / 0.65 / 0.6 / 0.7 | **red 3–1**, twice — red Challengers were near full strength |
+| Red softened to the row above, no passing in own 22 | red 3–1 in under two minutes — blue tackled backwards into its own in-goal |
+| **Plus the 22 drop-out** | **blue 3–0 in ~3 min**, six touch-downs, 22 grabs, badge claimed |
+
+The bot is a bad rugby player — it passes sideways under any pressure and never holds a line —
+so a real thumb will do better. If it is now too easy, raise red's `strength` and `tackling`
+first; if red never score, lower them. Rerun the demo after changing any of this.
 
 **Kick-off** gives you a moment: the side without the ball stands ten metres back
 (`kickoffSpot`), so a Royal has about two seconds and a Challenger about three before the first
@@ -145,7 +167,7 @@ working, not a bug. Rerun the demo after changing any of this.
 - **Online.** Red zone, above.
 - **No kicking.** No conversions, no penalties, no drop goals. The posts are scenery.
 - **No knock-on, no line-out, no scrum.** The boards and the loose-ball rule stand in for all
-  three.
+  three. The 22 drop-out is in, as a restart rather than a kick.
 - **The AI never grabs.** Only you tap; red's defence is tackles and dives. Giving red a grab
   would want its own bar on screen or it would read as the carrier slowing for no reason.
 - **No tackle animation.** Both players stand still on a grey disc for the duration. The rig

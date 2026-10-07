@@ -94,19 +94,31 @@ extension RugbyGame {
               team.attackDirection * y / RugbyPitch.halfField)
     }
 
-    /// A restart: your own slot, in your own half, outside a five-metre circle round the ball.
-    /// **The side without the ball stands ten metres back**, as in real rugby — and so that a
-    /// ten-year-old handed the ball at kick-off has a couple of seconds to look up and tap a
-    /// pass before a red shirt arrives, rather than being flattened where he stands.
+    /// A restart: the formation gathered round wherever the ball is (`restartBallU`, in the
+    /// restarting side's space), the restarting side a few metres behind it and **the other side
+    /// ten metres off**, as in real rugby — and so that a ten-year-old handed the ball has a
+    /// couple of seconds to look up and tap a pass before a red shirt arrives, rather than being
+    /// flattened where he stands. Nobody inside five metres of the ball.
     func kickoffSpot(for player: Player) -> SIMD2<Double> {
-        let u = min(player.home.x, player.team == kickoffTeam ? -0.12 : -0.32)
-        var spot = worldPoint(u: u, v: player.home.y, for: player.team)
+        let ballU = restartBallU
+        let u: Double
+        if player.team == kickoffTeam {
+            // The formation, squeezed to half its depth, a stride behind the ball.
+            u = ballU - 0.1 + (player.home.x + 0.15) * 0.5
+        } else {
+            // The ball sits at −ballU in this side's space; a line a third of a half off it.
+            u = -ballU - 0.33 + (player.home.x + 0.3) * 0.5
+        }
+        var spot = worldPoint(u: min(max(u, -0.92), 0.9), v: player.home.y, for: player.team)
+
+        let ballPoint = worldPoint(u: ballU, v: 0, for: kickoffTeam)
         let clearance = RugbyPitch.metres(5)
-        let distance = hypot(spot.x, spot.y)
+        let offset = spot - ballPoint
+        let distance = (offset.x * offset.x + offset.y * offset.y).squareRoot()
         if distance < clearance {
             spot = distance < 0.001
-                ? SIMD2(0, -player.team.attackDirection * clearance)
-                : spot * (clearance / distance)
+                ? ballPoint + SIMD2(0, -player.team.attackDirection * clearance)
+                : ballPoint + offset * (clearance / distance)
         }
         return spot
     }
@@ -399,6 +411,13 @@ extension RugbyGame {
         // Within reach of the line, nobody passes — they go for it.
         let toLine = (RugbyPitch.tryLineY(attackDirection: direction) - player.motor.y) * direction
         if toLine < RugbyPitch.metres(6) { return false }
+
+        // **And nobody passes from inside their own 22.** Every AI pass goes backwards, so a
+        // side under pressure near its own line passed its way into its own in-goal, where the
+        // chasing red shirt touched it down — a measured match lost two tries exactly that way.
+        // Deep in your own half you run, and take the tackle if it comes.
+        let mine = teamSpace(x: player.motor.x, y: player.motor.y, for: player.team)
+        if mine.y < -0.37 { return false }
 
         guard pressed || random.unit() < 0.04,
               let mate = bestSupportBehind(index) else { return false }

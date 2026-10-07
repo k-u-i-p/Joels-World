@@ -89,8 +89,13 @@ final class RugbyGame: WorldRenderedMinigame {
         static let yourLot = Skill(speed: 1.1, settle: 1, tackling: 1, strength: 1, dive: 1)
         /// Red: a bit slow, slow to think, soft in the tackle and easy to knock over. Each dial
         /// is gentle so they look like a team you are beating rather than a broken one.
-        static let theOpposition = Skill(speed: 0.8, settle: 1.6, tackling: 0.65,
-                                         strength: 0.6, dive: 0.7)
+        ///
+        /// Softened again when every NPC got a class: a red Challenger at 0.6 × 1.6 was nearly a
+        /// full-strength carrier and the demo lost 1–3. These multiply the class, so a red Royal
+        /// now runs at 0.7 × 1.3 ≈ 0.9 of baseline and a red Challenger takes 0.5 × 1.6 = 0.8 of
+        /// a baseline tackle to bring down.
+        static let theOpposition = Skill(speed: 0.7, settle: 1.6, tackling: 0.55,
+                                         strength: 0.5, dive: 0.7)
 
         static let topSpeed = RugbyPitch.metres(6.4)
         /// On top of the class multiplier, whoever you are driving is a shade quicker still.
@@ -184,6 +189,15 @@ final class RugbyGame: WorldRenderedMinigame {
         static let grabStrength: Double = 100
         static let grabReset: Double = 2.5
         static let grabSlowAtFull = 0.85
+
+        /// **The 22 drop-out.** A defender carrying the ball in their *own* in-goal has touched
+        /// it down, and their side restarts with it on their 22 — real rugby's rule, and the fix
+        /// for a measured match in which red won three tries by tackling blue backwards into
+        /// blue's in-goal, where the pile-up ended with a red shirt picking up the loose ball.
+        /// `dropOutU` is the 22 in team space (22 m of a 35 m half); `dropOutPause` is how long
+        /// the banner sits up before the restart.
+        static let dropOutU = -0.37
+        static let dropOutPause: Double = 1.6
     }
 
     // MARK: - State
@@ -201,6 +215,9 @@ final class RugbyGame: WorldRenderedMinigame {
     private(set) var blueScore = 0
     private(set) var redScore = 0
     private(set) var kickoffTeam: Team = .blue
+    /// Where the next restart puts the ball, in `kickoffTeam`'s team space: 0 is halfway after a
+    /// try, `Tuning.dropOutU` is their own 22 after a touch-down. See `touchDown(by:)`.
+    private(set) var restartBallU: Double = 0
     private var phaseTimer: Double = Tuning.kickoffCountdown
 
     /// What you picked. Nil until the picker has been answered.
@@ -356,6 +373,8 @@ final class RugbyGame: WorldRenderedMinigame {
         blueScore = 0
         redScore = 0
         announcement = nil
+        kickoffTeam = .blue
+        restartBallU = 0
         setUpKickoff(countIn: false)
         onPresentationChanged?()
     }
@@ -367,6 +386,7 @@ final class RugbyGame: WorldRenderedMinigame {
         redScore = 0
         badgeClaimed = false
         kickoffTeam = .blue
+        restartBallU = 0
         elapsed = 0
         setUpKickoff(countIn: true)
         announce("GO!", subtitle: "Stick to run · tap the pitch to pass", duration: 1.8)
@@ -690,13 +710,36 @@ final class RugbyGame: WorldRenderedMinigame {
 
     // MARK: - Tries
 
-    /// A try is **the carrier** over the try line. A loose ball over it is nothing.
+    /// A try is **the carrier** over the try line. A loose ball over it is nothing. A carrier
+    /// over their *own* try line has touched down instead — see `touchDown(by:)`.
     private func checkTry() {
         guard let carrier else { return }
         let player = players[carrier]
         let direction = player.team.attackDirection
-        guard player.motor.y * direction > RugbyPitch.halfField else { return }
-        award(to: player.team)
+        if player.motor.y * direction > RugbyPitch.halfField {
+            award(to: player.team)
+        } else if player.motor.y * direction < -RugbyPitch.halfField {
+            touchDown(by: player.team)
+        }
+    }
+
+    /// The 22 drop-out: the side that touched down in its own in-goal restarts with the ball on
+    /// its 22. See `Tuning.dropOutU`.
+    private func touchDown(by team: Team) {
+        carrier = nil
+        grip = 0
+        gripFrom = nil
+        releaseGrab()
+        kickoffTeam = team
+        restartBallU = Tuning.dropOutU
+        phase = .celebrating
+        phaseTimer = Tuning.dropOutPause
+        host.minigamePlayEffect(path: "/media/hit_tennis_ball2.mp3", volume: 0.2, rate: 0.6)
+        announce("TOUCHED DOWN",
+                 subtitle: team == .blue ? "Safe — your ball on the 22" : "Red's ball on their 22",
+                 duration: Tuning.dropOutPause)
+        Log.world("[Rugby] \(team.name) touch down in their own in-goal — 22 drop-out")
+        onPresentationChanged?()
     }
 
     private func award(to team: Team) {
@@ -705,6 +748,7 @@ final class RugbyGame: WorldRenderedMinigame {
         grip = 0
         gripFrom = nil
         kickoffTeam = team.other
+        restartBallU = 0
 
         Log.world("[Rugby] \(team.name) try — \(blueScore)–\(redScore)")
 
@@ -747,8 +791,10 @@ final class RugbyGame: WorldRenderedMinigame {
         onPresentationChanged?()
     }
 
-    /// Everybody in their own half, the restarting side's centre on the ball at halfway.
-    /// `countIn` false leaves the phase alone — the picker is up and nobody is going anywhere.
+    /// A restart: the restarting side's centre on the ball — at halfway after a try, on their
+    /// own 22 after a touch-down (`restartBallU`) — their team mates behind them and the other
+    /// side ten metres off. `countIn` false leaves the phase alone — the picker is up and nobody
+    /// is going anywhere.
     func setUpKickoff(countIn: Bool) {
         if countIn {
             phase = .kickoff
@@ -757,7 +803,9 @@ final class RugbyGame: WorldRenderedMinigame {
         carrier = nil
         grip = 0
         gripFrom = nil
-        ball.place(x: 0, y: 0)
+        releaseGrab()
+        let ballPoint = worldPoint(u: restartBallU, v: 0, for: kickoffTeam)
+        ball.place(x: ballPoint.x, y: ballPoint.y)
 
         for player in players {
             let spot = kickoffSpot(for: player)
@@ -776,8 +824,8 @@ final class RugbyGame: WorldRenderedMinigame {
             let player = players[taker]
             let facing: Double = kickoffTeam == .blue ? 270 : 90
             let radians = facing * .pi / 180
-            player.motor.teleport(x: -cos(radians) * Tuning.carryOffset,
-                                  y: -sin(radians) * Tuning.carryOffset,
+            player.motor.teleport(x: ballPoint.x - cos(radians) * Tuning.carryOffset,
+                                  y: ballPoint.y - sin(radians) * Tuning.carryOffset,
                                   z: 0, facing: facing)
             carrier = taker
             holdBall(by: player)
@@ -1067,9 +1115,11 @@ final class RugbyGame: WorldRenderedMinigame {
             let length = max(hypot(dx, dy), 1)
             moveInput = SIMD2(dx / length, dy / length)
 
-            // A red shirt within three metres in front: pass to the nearest team mate behind.
+            // A red shirt within three metres: pass to the nearest team mate behind — unless
+            // this is our own 22, where a backwards pass is how red score. See `decidePass`.
             if let threat = nearestOpponentIndex(to: humanIndex),
                distanceBetween(humanIndex, threat) < RugbyPitch.metres(3),
+               teamSpace(x: me.x, y: me.y, for: .blue).y > -0.37,
                let mate = bestSupportBehind(humanIndex) {
                 let target = players[mate].motor
                 tap(worldX: target.x, worldY: target.y)
