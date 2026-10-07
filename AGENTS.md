@@ -59,6 +59,12 @@ badge, and one handoff explains it: [HANDOFF-schoolescape.md](native/HANDOFF-sch
 Like Five Nights, **map 8 is in the app but not on the server yet** — `-schoolescape` on the
 simulator until Ben deploys.
 
+**Angry Joel** is Joel's third: Angry Birds with Joel in the slingshot — four birds (Joel,
+Chuck, the Blues and Bomb, each strong against wood, ice or stone), twelve levels, and a door on
+the Junior Campus playground. Every face in it is a real photo, so it lives on the
+**`sandbox/angry-joel`** branch until Ben has seen it. One handoff:
+[HANDOFF-angryjoel.md](native/HANDOFF-angryjoel.md).
+
 The rest of the storyline is **not written yet**. Graduation and escape are the goal, but how
 you get there is open. If Joel invents story, that's the point — it's his game. Write it down
 in this file's "Story so far" section as it firms up, so it isn't lost.
