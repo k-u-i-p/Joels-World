@@ -58,6 +58,12 @@ final class GameViewController: UIViewController {
         if debug.startOfflineMinigameIfRequested() { return }
         #endif
 
+        joinSchool()
+    }
+
+    /// Connects to the server and into the school. Normally straight away; after `-angryjoel`,
+    /// when its **Exit** is tapped.
+    func joinSchool() {
         network.connect()
 
         NotificationCenter.default.addObserver(

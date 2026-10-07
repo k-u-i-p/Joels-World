@@ -68,7 +68,8 @@ under the ground; it started its flight there, fell out of the bottom of the wor
 xcrun simctl launch --console-pty <device> com.allr.joelsworld -angryjoel -angryjoeldemo
 ```
 
-- `-angryjoel` opens the game straight away, with no server and no school.
+- `-angryjoel` opens the game straight away, with no server and no school. Its **Exit** joins the
+  school (`GameViewController.joinSchool`), landing you on the campus.
 - `-angryjoeldemo` is a robot that fires the shots and uses every bird's trick, logging each pig
   popped and why each shot ended.
 - `-angryjoellevel 9` starts on level 9.

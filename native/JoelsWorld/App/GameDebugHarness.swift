@@ -78,9 +78,14 @@ final class GameDebugHarness {
     /// Returns true when it took over, so `viewDidLoad` knows not to connect.
     func startOfflineMinigameIfRequested() -> Bool {
         if ProcessInfo.processInfo.arguments.contains("-angryjoel") {
-            // Angry Joel isn't in the school yet, so it simply covers the whole screen.
+            // Straight into Angry Joel, covering the whole screen. **Exit** goes into the school.
             Log.world("-angryjoel: starting Angry Joel with no server")
             let game = AngryJoelView()
+            game.onExit = { [weak self, weak game] in
+                Log.world("-angryjoel: Exit — joining the school")
+                game?.removeFromSuperview()
+                self?.host.joinSchool()
+            }
             game.translatesAutoresizingMaskIntoConstraints = false
             host.view.addSubview(game)
             NSLayoutConstraint.activate([
