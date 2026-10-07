@@ -61,7 +61,8 @@ simulator until Ben deploys.
 
 **Angry Joel** is Joel's third: Angry Birds with Joel in the slingshot — four birds (Joel,
 Chuck, the Blues and Bomb, each strong against wood, ice or stone), twelve levels, and a door on
-the Junior Campus playground. Every face in it is a real photo, so it lives on the
+the Junior Campus playground. Beat level 12 for the **Angry Joel badge** 🐦, the eleventh.
+Every face in it is a real photo, so it lives on the
 **`sandbox/angry-joel`** branch until Ben has seen it. One handoff:
 [HANDOFF-angryjoel.md](native/HANDOFF-angryjoel.md).
 

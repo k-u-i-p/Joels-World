@@ -16,6 +16,12 @@ final class AngryJoelView: UIView {
     private let scene = AngryJoelScene(size: CGSize(width: 800, height: 400))
     private let exitButton = UIButton(type: .system)
 
+    /// Called with the badge id when it's earned — beating level 12. Nil when there's no school
+    /// to claim it from (the `-angryjoel` test switch).
+    var onBadge: ((String) -> Void)? {
+        didSet { scene.onBadge = onBadge }
+    }
+
     /// Tapped **Exit**. Nil hides the button — the `-angryjoel` test switch has nowhere to go.
     var onExit: (() -> Void)? {
         didSet { exitButton.isHidden = onExit == nil }
@@ -302,6 +308,11 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
     private let footer = SKLabelNode(fontNamed: "AvenirNext-DemiBold")
     /// True while the copyright card is up; the first tap closes it.
     private var showingIntro = true
+
+    /// **The badge.** Beat the last level and this is claimed. The id has to match the one in
+    /// the badge list in `MenuDialogs.swift`.
+    static let badgeId = "angry joel"
+    var onBadge: ((String) -> Void)?
 
     private var birdTextures: [Bird: SKTexture] = [:]
     private lazy var pigTexture = SKTexture(image: Self.faceImage(path: "avatars/angry_joel_pig.png",
@@ -953,7 +964,12 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
             levelWon = true
             score += birdsLeft * 10000
             let last = level == Self.levels.count - 1
-            showMessage(last ? "YOU WIN!\nTap to play again" : "LEVEL CLEAR!\nTap for the next one")
+            if last {
+                NSLog("[AngryJoel] badge earned")
+                onBadge?(Self.badgeId)
+            }
+            showMessage(last ? "YOU WIN! 🐦 Badge earned!\nTap to play again"
+                             : "LEVEL CLEAR!\nTap for the next one")
             return
         }
 
@@ -1022,6 +1038,10 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
 
     private func runDemo(_ dt: TimeInterval) {
         if showingIntro { closeIntro() }
+        // `-angryjoelwin`: every pig pops after two seconds — for testing the win and the badge.
+        if levelAge > 2, ProcessInfo.processInfo.arguments.contains("-angryjoelwin") {
+            pigs.forEach(pop)
+        }
         demoWait += dt
         // The Blues split, a little after launch.
         if shotActive, trickReady, flyingKind == .blues || flyingKind == .chuck,

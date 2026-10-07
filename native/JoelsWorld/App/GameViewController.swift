@@ -305,6 +305,7 @@ final class GameViewController: UIViewController {
             let game = AngryJoelView()
             game.translatesAutoresizingMaskIntoConstraints = false
             game.onExit = { [weak self] in self?.showAngryJoel(false) }
+            game.onBadge = { [weak self] badge in self?.gameStateAwardBadge(badge) }
             // Above the world and the controls, below the dialogs.
             view.insertSubview(game, belowSubview: minimap)
             NSLayoutConstraint.activate([

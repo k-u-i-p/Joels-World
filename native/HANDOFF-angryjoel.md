@@ -45,8 +45,11 @@ of stone.
 
 **1. It is not one of the engine's minigames.** It is a SpriteKit scene, laid over the top of the
 school, because SpriteKit already has the one thing this game is made of: blocks that fall over.
-It never changes map and never talks to the server, so **it works without a deploy** — say yes at
-the playground door and it opens; **Exit** puts you back on the playground. It awards no badge.
+It never changes map, so **it works without a deploy** — say yes at the playground door and it
+opens; **Exit** puts you back on the playground. The one thing it does send the server is the
+**Angry Joel badge** 🐦, claimed when level 12 is beaten: the scene calls `onBadge`, and the
+playground door hands that to `gameStateAwardBadge`. The server stores any badge id it is sent,
+so the badge is just `"angry joel"` in the list in `MenuDialogs.swift`.
 
 **2. Damage is measured from the speed *before* the crash.** SpriteKit tells you about a contact
 after it has already bounced things apart, so their speed at that moment is no use — the first
@@ -71,6 +74,8 @@ xcrun simctl launch --console-pty <device> com.allr.joelsworld -angryjoel -angry
 - `-angryjoellevel 9` starts on level 9.
 - `-angryjoelfullpower` makes the robot pull as far as it can, which is how the vanishing-bird bug
   was caught.
+- `-angryjoelwin` pops every pig after two seconds — `-angryjoellevel 12 -angryjoelwin` logs
+  `badge earned`. (With `-angryjoel` there's no school, so nothing is actually sent.)
 
 **A simulator that is not showing in the panel does not draw**, and SpriteKit pauses with it — the
 robot sits there doing nothing. Attach the panel to the one you are testing on.
@@ -81,9 +86,8 @@ and level 12 is the hard one it does not always finish.
 ## Not done yet
 
 - **It's on a branch.** Real children's faces, so Ben looks before it goes anywhere near `main`.
-- **No badge.** The badges are fixed in `MenuDialogs.swift`; an Angry Joel badge would be a new
-  entry there and a `minigameAwardBadge` call when level 12 is cleared — which needs the game to
-  be handed the minigame host it doesn't have today.
+- **The badge has not been claimed against the live server yet** — only checked as far as the
+  game deciding it was earned. Beating level 12 through the real playground door is the test.
 - **No sounds of its own.** It borrows `jump.mp3` and a pitched tennis-ball hit.
 - **Rolling Blues.** The little ones can roll along the grass for a long time after landing, so
   the next bird waits up to eight seconds.
