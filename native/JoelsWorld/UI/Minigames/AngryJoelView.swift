@@ -82,7 +82,12 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         /// Points for each pig.
         static let pigPoints = 5000
         /// **The birds you get each level, in order.** Add more to get more goes.
-        static let birds: [Bird] = [.joel, .blues, .bomb]
+        static let birds: [Bird] = [.joel, .chuck, .blues, .bomb]
+        /// **How much harder a bird hits the block it's strong against** — Bomb on stone, the
+        /// Blues on ice, Chuck on wood. 3 is three times the damage.
+        static let strongHit: CGFloat = 3
+        /// How much faster Chuck goes when you tap. 2 is twice as fast.
+        static let chuckBoost: CGFloat = 2
         /// How far Bomb's explosion reaches.
         static let blastRadius: CGFloat = 170
         /// How much damage the explosion does right in the middle.
@@ -95,17 +100,32 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
 
     /// **The birds.** Each one has its own face, size and colour — and the Blues and Bomb have a
     /// trick when you tap the screen while they're flying.
-    enum Bird {
+    enum Bird: String {
         /// Joel: the red one. No trick — he just hits hard.
         case joel
-        /// Tap while flying and he splits into three.
+        /// Chuck: the yellow one. Tap while flying and he zooms off twice as fast. Strong
+        /// against wood.
+        case chuck
+        /// Tap while flying and he splits into three. Strong against ice.
         case blues
-        /// Tap while flying — or wait for him to hit something — and he explodes.
+        /// Tap while flying — or wait for him to hit something — and he explodes. Strong
+        /// against stone.
         case bomb
+
+        /// The kind of block this bird smashes extra hard.
+        var strongAgainst: Material? {
+            switch self {
+            case .joel: return nil
+            case .chuck: return .wood
+            case .blues: return .ice
+            case .bomb: return .stone
+            }
+        }
 
         var face: String {
             switch self {
             case .joel: return "avatars/angry_joel.png"
+            case .chuck: return "avatars/angry_joel_chuck.png"
             case .blues: return "avatars/angry_joel_blues.png"
             case .bomb: return "avatars/angry_joel_bomb.png"
             }
@@ -113,6 +133,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         var ring: UIColor {
             switch self {
             case .joel: return .systemRed
+            case .chuck: return UIColor(red: 1, green: 0.82, blue: 0.1, alpha: 1)
             case .blues: return UIColor(red: 0.2, green: 0.55, blue: 1, alpha: 1)
             case .bomb: return UIColor(white: 0.08, alpha: 1)
             }
@@ -120,6 +141,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         var radius: CGFloat {
             switch self {
             case .joel: return 24 * Tuning.bigness
+            case .chuck: return 22 * Tuning.bigness
             case .blues: return 16 * Tuning.bigness
             case .bomb: return 30 * Tuning.bigness
             }
@@ -127,6 +149,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         var density: CGFloat {
             switch self {
             case .joel: return 1
+            case .chuck: return 1
             case .blues: return 1
             case .bomb: return 1.7
             }
@@ -135,15 +158,15 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         var eyebrows: Bool { self == .joel }
     }
 
-    /// What a block is made of.
-    enum Material {
-        case wood, stone, glass
+    /// What a block is made of. Ice is the see-through blue one.
+    enum Material: String {
+        case wood, stone, ice
 
         var color: UIColor {
             switch self {
             case .wood: return UIColor(red: 0.8, green: 0.55, blue: 0.27, alpha: 1)
             case .stone: return UIColor(red: 0.55, green: 0.56, blue: 0.6, alpha: 1)
-            case .glass: return UIColor(red: 0.68, green: 0.9, blue: 1, alpha: 0.75)
+            case .ice: return UIColor(red: 0.68, green: 0.9, blue: 1, alpha: 0.75)
             }
         }
         /// How much bashing it takes before it breaks.
@@ -151,14 +174,14 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
             switch self {
             case .wood: return 500
             case .stone: return 1300
-            case .glass: return 180
+            case .ice: return 180
             }
         }
         var density: CGFloat {
             switch self {
             case .wood: return 0.6
             case .stone: return 1.4
-            case .glass: return 0.4
+            case .ice: return 0.4
             }
         }
     }
@@ -188,8 +211,8 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
     static let levels: [[Piece]] = [
         // 1. Two little huts.
         hut(0, height: 70) + hut(250),
-        // 2. One hut, a pig with nowhere to hide, and a glass hut out the back.
-        hut(0) + [.pig(x: 125, y: 0)] + hut(280, material: .glass),
+        // 2. One hut, a pig with nowhere to hide, and an ice hut out the back.
+        hut(0) + [.pig(x: 125, y: 0)] + hut(280, material: .ice),
         // 3. The big castle, and a stone hut.
         [
             .block(x: 0, y: 0, w: 14, h: 60),
@@ -205,14 +228,14 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
             .pig(x: 70, y: 74),
             .pig(x: 70, y: 138),
         ] + hut(290, material: .stone),
-        // 4. A hut on a hut, and a glass hut on a stone hut.
+        // 4. A hut on a hut, and an ice hut on a stone hut.
         hut(0) + hut(0, 74) + [.pig(x: 35, y: 148)]
-            + hut(250, material: .stone) + hut(250, 74, material: .glass),
+            + hut(250, material: .stone) + hut(250, 74, material: .ice),
         // 5. Three in a row, and one more.
         hut(0) + hut(100) + hut(200) + hut(330, height: 80, material: .stone),
-        // 6. The pyramid, and a glass tower.
+        // 6. The pyramid, and an ice tower.
         hut(0) + hut(100) + hut(50, 74) + [.pig(x: 85, y: 148)]
-            + hut(300, material: .glass) + hut(300, 74, material: .glass),
+            + hut(300, material: .ice) + hut(300, 74, material: .ice),
         // 7–12 are the hard ones — Joel's rule: **one big building each.**
         // 7. The tall tower.
         hut(100, height: 50) + hut(100, 64, height: 50, material: .stone) + hut(100, 128, height: 50)
@@ -221,8 +244,8 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         hut(0, height: 80, material: .stone) + hut(100, height: 80, material: .stone)
             + hut(50, 94, height: 50) + [.pig(x: 85, y: 158)],
         // 9. Twin towers, joined by a bridge.
-        hut(0, height: 50) + hut(0, 64, height: 50, material: .glass)
-            + hut(150, height: 50) + hut(150, 64, height: 50, material: .glass)
+        hut(0, height: 50) + hut(0, 64, height: 50, material: .ice)
+            + hut(150, height: 50) + hut(150, 64, height: 50, material: .ice)
             + [.block(x: 110, y: 128, w: 170, h: 14, material: .stone), .pig(x: 110, y: 142)],
         // 10. Pigs on stilts: three tall legs, one long deck.
         [
@@ -235,7 +258,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         ],
         // 11. The great castle.
         hut(0, material: .stone) + hut(100, material: .stone) + hut(200, material: .stone)
-            + hut(50, 74) + hut(150, 74) + hut(100, 148, height: 50, material: .glass),
+            + hut(50, 74) + hut(150, 74) + hut(100, 148, height: 50, material: .ice),
         // 12. Pig King's palace.
         hut(0, material: .stone) + hut(100, material: .stone) + hut(200, material: .stone)
             + hut(50, 74, material: .stone) + hut(150, 74, material: .stone)
@@ -523,7 +546,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         let block = SKSpriteNode(color: material.color, size: size)
         block.position = center
         block.name = "block"
-        block.userData = ["health": material.health]
+        block.userData = ["health": material.health, "material": material.rawValue]
         let body = SKPhysicsBody(rectangleOf: size)
         body.categoryBitMask = Category.block
         body.contactTestBitMask = Category.bird | Category.block | Category.ground | Category.pig
@@ -573,6 +596,7 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
                                 size: CGSize(width: bird.radius * 2, height: bird.radius * 2))
         node.zPosition = 10
         node.name = "bird"
+        node.userData = ["bird": bird.rawValue]
         if bird == .bomb {
             // A fuse with a spark on the end.
             let fuse = SKShapeNode()
@@ -720,6 +744,13 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         switch flyingKind {
         case .joel:
             break
+        case .chuck:
+            if let chuck = inFlight.first, let body = chuck.physicsBody {
+                NSLog("[AngryJoel] Chuck zooms")
+                body.velocity = CGVector(dx: body.velocity.dx * Tuning.chuckBoost,
+                                         dy: body.velocity.dy * Tuning.chuckBoost)
+                Sound.play("media/jump.mp3", rate: 1.8)
+            }
         case .blues:
             splitBlues()
         case .bomb:
@@ -768,7 +799,9 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
             let direction = distance > 1 ? offset * (1 / distance) : CGPoint(x: 0, y: 1)
             let kick = Tuning.blastPush * strength * body.mass
             body.applyImpulse(CGVector(dx: direction.x * kick, dy: (direction.y + 0.3) * kick))
-            damage(node, by: Tuning.blastDamage * strength)
+            // Bomb is strong against stone.
+            let extra = isStrong(.bomb, against: node) ? Tuning.strongHit : 1
+            damage(node, by: Tuning.blastDamage * strength * extra)
         }
 
         // The bang.
@@ -826,9 +859,21 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         let vb = speedBeforeHit[ObjectIdentifier(b)] ?? b.velocity
         let speed = (va - vb).length
         guard speed > Tuning.gentleBump else { return }
-        for body in [a, b] {
-            if let node = body.node { damage(node, by: speed * Tuning.hitDamage) }
+        for (body, other) in [(a, b), (b, a)] {
+            guard let node = body.node else { continue }
+            var amount = speed * Tuning.hitDamage
+            if let hitter = (other.node?.userData?["bird"] as? String).flatMap(Bird.init(rawValue:)),
+               isStrong(hitter, against: node) {
+                amount *= Tuning.strongHit
+            }
+            damage(node, by: amount)
         }
+    }
+
+    /// Whether this bird is the one that smashes this kind of block.
+    private func isStrong(_ bird: Bird, against node: SKNode) -> Bool {
+        guard let material = node.userData?["material"] as? String else { return false }
+        return bird.strongAgainst?.rawValue == material
     }
 
     /// Takes health off a pig or a block, and breaks it if there's none left.
@@ -979,7 +1024,8 @@ final class AngryJoelScene: SKScene, SKPhysicsContactDelegate {
         if showingIntro { closeIntro() }
         demoWait += dt
         // The Blues split, a little after launch.
-        if shotActive, trickReady, flyingKind == .blues, flightTime > 0.4 { useTrick() }
+        if shotActive, trickReady, flyingKind == .blues || flyingKind == .chuck,
+           flightTime > 0.4 { useTrick() }
         guard demoWait > 2.5 else { return }
         if waitingForTap {
             demoWait = 0
