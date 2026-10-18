@@ -44,10 +44,12 @@ money. The picker shows both kinds of match so the idea is not lost; the online 
 gesture recogniser, the unprojection in `handleTap` and into `tap(worldX:worldY:)`, with the
 ball landing on the team mate tapped. In a DEBUG build every tap logs where it landed in metres.
 
-Plus the usual wiring: map 9 in `data/maps.json`, **Mr Savage** (NPC id 8 in
-`data/junior_school/npc.json`, who paces the grass rugby pitch at the west end of the campus)
-asks "Fancy a game of rugby?" when you walk up to him — Joel: *"put it at the pitch with
-Mr Savage"* — a `MinigameKind.rugby` case, a branch in `GameState.startMinigame`, the
+Plus the usual wiring: map 9 in `data/maps.json`, the **Rugby Pitch** zone (object id 13 in
+`data/junior_school/objects.json`, the whole grass pitch at the west end of the campus where
+Mr Savage paces) asks "Fancy a game of rugby?" the moment you step onto it — Joel: *"put it at
+the pitch with Mr Savage … the whole pitch is the rugby area"*. Mr Savage himself only talks;
+the question was on him for a day and came off so you are not asked twice. A
+`MinigameKind.rugby` case, a branch in `GameState.startMinigame`, the
 `rugby` badge that was already in `MenuDialogs` — and `-rugby`, `-rugbydemo`, `-rugbytrace` in
 the debug harness.
 
@@ -178,12 +180,13 @@ working, not a bug. Rerun the demo after changing any of this.
 ## Before you can play it from the campus
 
 `data/maps.json` ships inside the app *and* is read by the server, and the deployed server does
-not know map 9. Until Ben deploys, saying Yes to Mr Savage is refused on production and
-`-rugby` on the simulator is the way in. Tested against a local server: walk up to him, Yes,
-and the class picker comes up on map 9. To test the way in locally:
+not know map 9. Until Ben deploys, saying Yes on the pitch is refused on production and
+`-rugby` on the simulator is the way in. Tested against a local server with `-autoconfirm`:
+spawn just off the pitch, walk on, and the log shows the dialog and the class picker on map 9.
+**Spawning inside the zone does not fire it** — zones fire on the walk in, like doors. To test the way in locally:
 
 ```bash
 cd server && PORT=8099 node server.js
-# -at drops you next to Mr Savage, so his dialog comes straight up
-xcrun simctl launch <udid> com.allr.joelsworld -host localhost:8099 -autojoin Joel -at -1984 -300
+# -at drops you just south of the pitch; push the stick up and the dialog comes up
+xcrun simctl launch <udid> com.allr.joelsworld -host localhost:8099 -autojoin Joel -map 0 -at -1984 260
 ```

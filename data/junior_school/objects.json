@@ -30,7 +30,13 @@
     "length": 1006,
     "clip": -1,
     "on_enter": [
-      {}
+      {
+        "show_dialog": {
+          "description": "Fancy a game of rugby? Five a side, first to three tries.",
+          "type": "change_map",
+          "map": 9
+        }
+      }
     ],
     "on_exit": [
       {
