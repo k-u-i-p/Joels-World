@@ -111,6 +111,8 @@ extension GameViewController: GameStateDelegate {
             fiveNights.present(game: game)
         } else if let game = minigame as? SchoolEscapeGame {
             schoolEscape.present(game: game)
+        } else if let game = minigame as? DestroyWorldGame {
+            destroyWorld.present(game: game)
         }
         #if DEBUG
         debug.minigameDidStart(minigame)
@@ -127,6 +129,7 @@ extension GameViewController: GameStateDelegate {
         football.dismiss()
         fiveNights.dismiss()
         schoolEscape.dismiss()
+        destroyWorld.dismiss()
         buttons.setMinigameMode(false)
         setButtonBarOutOfPlay(false)
         joystick.isHidden = false

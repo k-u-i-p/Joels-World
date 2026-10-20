@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import simd
 
 /// The launch-argument verification harness: `-walktest`, `-npctrace`, `-uidemo`,
 /// `-emotedemo`, `-emote`, `-map`, `-tennisdemo`, `-tennistrace`, `-tennis3ddemo`,
@@ -36,6 +37,8 @@ final class GameDebugHarness {
     private var fiveNightsDemoTimer: Timer?
     private var schoolEscapeDemoTimer: Timer?
     private var schoolEscapeTraceTimer: Timer?
+    private var destroyWorldDemoTimer: Timer?
+    private var destroyWorldTraceTimer: Timer?
     private var mapTourTimer: Timer?
     /// True once `-tennis3ddrag` has sent its `.began`, so every tick after it is a `.changed` —
     /// which is what makes it a drag rather than a stream of separate grabs.
@@ -91,6 +94,19 @@ final class GameDebugHarness {
             let game = SchoolEscapeGame(host: host.state, npcs: [], myCharacter: nil)
             host.state.startToolScene(game)
             host.gameStateDidStartMinigame(game)
+            return true
+        }
+        // `-destroyworld`: Joel's train-and-flamethrower game. It has no map in `maps.json` and
+        // no door in the school yet — that needs a line in `GameState`, which is Ben's — so
+        // for now this is the way in.
+        if ProcessInfo.processInfo.arguments.contains("-destroyworld") {
+            Log.world("-destroyworld: all aboard, no server")
+            let game = DestroyWorldGame(host: host.state)
+            host.state.startToolScene(game)
+            host.gameStateDidStartMinigame(game)
+            if ProcessInfo.processInfo.arguments.contains("-destroyworldice") {
+                game.debugIceShowcase()
+            }
             return true
         }
         return false
@@ -174,6 +190,10 @@ final class GameDebugHarness {
             startFootballTrace(game)
             startExitTimer { [weak game] in game?.requestExit() }
         }
+        if let game = minigame as? DestroyWorldGame {
+            startDestroyWorldDemo(game)
+            startDestroyWorldTrace(game)
+        }
         if let game = minigame as? SchoolEscapeGame {
             startSchoolEscapeDemo(game)
             startSchoolEscapeTrace(game)
@@ -194,9 +214,12 @@ final class GameDebugHarness {
                       tennis3DDragTimer, tennis3DHitTestTimer, tennis3DTraceTimer,
                       schoolRushDemoTimer, schoolRushTraceTimer,
                       footballDemoTimer, footballTraceTimer, fiveNightsDemoTimer,
-                      schoolEscapeDemoTimer, schoolEscapeTraceTimer] {
+                      schoolEscapeDemoTimer, schoolEscapeTraceTimer,
+                      destroyWorldDemoTimer, destroyWorldTraceTimer] {
             timer?.invalidate()
         }
+        destroyWorldDemoTimer = nil
+        destroyWorldTraceTimer = nil
         fiveNightsDemoTimer = nil
         schoolEscapeDemoTimer = nil
         schoolEscapeTraceTimer = nil
@@ -267,6 +290,59 @@ final class GameDebugHarness {
                 Log.world("-schoolescapedemo: escaped — restarting in 4 s to check the panel")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 4) { game.restartRun() }
             }
+        }
+    }
+
+    /// `-destroyworlddemo`: holds the trigger down and turns towards the nearest thing that is
+    /// not destroyed yet, staying on it until it has gone fire → ice → melt → down. It calls
+    /// `aim` and `setFiring`, the two things a thumb calls.
+    private func startDestroyWorldDemo(_ game: DestroyWorldGame) {
+        guard ProcessInfo.processInfo.arguments.contains("-destroyworlddemo"),
+              destroyWorldDemoTimer == nil else { return }
+        Log.world("-destroyworlddemo: burning everything in reach")
+        // Sticks with one thing until it is gone, so the whole fire → ice → melt shows.
+        var current: Int?
+        destroyWorldDemoTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) {
+            [weak game, weak self] _ in
+            guard let game else { return }
+            let eye = SIMD2<Float>(0, game.trainY)
+            var target: (DestroyWorldGame.Thing, Float)?
+            for thing in game.things where thing.state != .destroyed && thing.state != .melting {
+                let ground = SIMD2<Float>(thing.position.x, thing.position.y)
+                let distance = simd_distance(eye, ground)
+                guard distance > 4, distance < 17, ground.y > game.trainY - 6 else { continue }
+                if thing.id == current {
+                    target = (thing, distance)
+                    break
+                }
+                if let best = target, best.1 <= distance { continue }
+                target = (thing, distance)
+            }
+            current = target?.0.id
+            // Stops for a moment when something freezes, so the ice can be looked at.
+            let admiring = target.map { $0.0.state == .frozen && $0.0.stateTime < 1.0 } ?? false
+            game.setFiring(target != nil && !admiring)
+            self?.host.destroyWorld.debugShowFiring(target != nil && !admiring)
+            guard let (thing, distance) = target else { return }
+
+            let dx = thing.position.x
+            let dy = thing.position.y - game.trainY
+            let wantedLook = atan2(-dx, dy)
+            var turn = wantedLook - game.look
+            if turn > .pi { turn -= 2 * .pi }
+            if turn < -.pi { turn += 2 * .pi }
+            let wantedAim = atan((DestroyWorldKit.eyeHeight - thing.height * 0.45) / distance)
+            game.aim(dx: Double(turn) * 0.3, dy: Double(wantedAim - game.aimDown) * 0.3)
+        }
+    }
+
+    private func startDestroyWorldTrace(_ game: DestroyWorldGame) {
+        guard ProcessInfo.processInfo.arguments.contains("-destroyworldtrace"),
+              destroyWorldTraceTimer == nil else { return }
+        destroyWorldTraceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
+            [weak game] _ in
+            guard let game else { return }
+            Log.world(game.debugTraceLine)
         }
     }
 
